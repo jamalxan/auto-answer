@@ -1,129 +1,135 @@
-# Instagram Comment-to-DM Automation — Backend
+<div align="center">
 
-Backend implementation of the TZ "Instagram Comment-to-DM Automation Platform v1.0"
-(rule-based, non-AI comment→DM funnel engine). This covers the API + webhook
-receiver + background worker (Sections 5–7, 9 of the spec). The Next.js admin
-panel is **not** included — this repo exposes the REST API it would consume.
+# OpenReply
 
-## Stack
+Open-sourced ManyChat for Instagram comment-to-DM automation.
 
-FastAPI · SQLAlchemy 2.0 (async) · PostgreSQL 15 · Redis 7 · ARQ (background jobs) ·
-httpx (Meta Graph API client) · JWT auth · Fernet token encryption.
+[![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/diwenne/openreply?style=flat&color=black)](https://github.com/diwenne/openreply/stargazers)
+[![Built with Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org)
 
-## What's implemented, mapped to the TZ
+</div>
 
-| TZ section | Where |
-|---|---|
-| FR-1 Account connection, token refresh, webhook subscribe | `app/routers/accounts.py`, `app/workers/tasks.py::refresh_tokens_job` |
-| FR-2 Campaign management, priority resolution | `app/models/campaign.py`, `app/routers/campaigns.py`, `app/workers/tasks.py::_resolve_campaign` |
-| FR-3 Keyword matching (case/Cyrillic normalise, modes, negative kw, length guard) | `app/services/keyword_matcher.py`, `app/utils/text_normalize.py` |
-| FR-4 Public comment reply + variant rotation + loop prevention | `app/workers/tasks.py::process_comment_event`, `app/services/conversation_engine.py::pick_variant` |
-| FR-5 Gate strategies (none / self_confirm=S1 / external_db=S2 / engagement=S5) | `app/services/gate_evaluator.py` |
-| FR-6 DM delivery, state machine, quick replies, placeholders | `app/services/conversation_engine.py`, `app/services/template_renderer.py` |
-| FR-7 Link management, UTM params | `Campaign.reward_link` / `Campaign.utm_params`, applied automatically via `template_renderer.apply_utm()` everywhere `{link}` is rendered |
-| FR-8 Admin panel API surface (preview, test mode) | `app/routers/campaigns.py` (`/preview`, `/test`) |
-| FR-9 Logging, filterable events, CSV export | `app/routers/events.py`, `app/routers/leads.py` |
-| FR-10 Alerts: token expiry (A10), sustained rate limiting (A9), webhook subscription lost, delivery failure rate | `app/services/notifications.py`, wired into `app/workers/tasks.py` (`refresh_tokens_job`, `check_webhook_subscriptions_job`, `check_delivery_health_job`) and `meta_client.py` (throttle detection) |
-| A6 abandoned-conversation timeout | `app/workers/tasks.py::sweep_abandoned_conversations_job` (cron, a few times a day) |
-| NFR-4 Idempotency | unique `ig_comment_id` + `IntegrityError` catch in `process_comment_event` |
-| NFR-5 Security | `app/security.py` (Fernet + JWT + bcrypt), signature check in `webhooks.py` |
-| NFR-6 Rate limiting | `app/services/rate_limiter.py` + `tenacity` backoff in `meta_client.py` |
-| NFR-3 missed-webhook recovery | `app/workers/tasks.py::reconciliation_poll_job` (cron, best-effort) |
+Someone comments `LINK` on your reel, and they get a DM with your link a second later. That is the whole idea. OpenReply watches the comments on your Instagram posts, and when a comment matches a keyword you set, it sends that person a private reply through the official Meta API. You can also post a public reply under the comment at the same time.
 
-**Not built here (explicitly out of scope or panel-side):** the Next.js admin
-UI itself, S3 (manual audit — this is an admin process, not code), S4 (Meta
-native Subscriptions — gate as `external_db`/`none` today, wire in once
-eligibility + the exact endpoint are confirmed), click-tracking redirect
-service (FR-7.3, marked deferrable to v1.1 in the TZ).
+ManyChat does this and charges a monthly fee. OpenReply is the same core feature, free, running on your own infrastructure, with no seat limits and no plan caps.
 
-## Before you run this for real — Section 2 & 10 of the TZ still apply
+> **OpenReply is self-hosted. You have to deploy your own copy.**
+>
+> [openreply.diwen.dev](https://openreply.diwen.dev) is a demo of the dashboard, not a service you can sign up for. Creating an account there will never send a DM for you, and there is no hosted plan to upgrade to.
+>
+> Instagram automation runs against *your* Meta app, and Meta ties that app to a domain and a webhook URL you control. So a working instance means: your fork deployed, your domain pointed at it, your Meta app created, and your webhook registered. [docs/setup.md](docs/setup.md) walks through all of it.
 
-This code implements **all four** automatable gate strategies
-(`none`, `self_confirm`, `external_db`, `engagement`) as a per-campaign choice
-(FR-5.1), so the S1–S5 decision from TZ section 2.2 doesn't block the build —
-you choose it per campaign in the admin panel / API. But two things in
-`app/services/meta_client.py` are marked with `IMPORTANT` comments and **must**
-be re-verified against current Meta docs before go-live, per the TZ's own
-Section 10 risk table:
+> If this saves you a subscription or a weekend of building, a star on the repo genuinely helps other people find it.
 
-1. Exact Graph API endpoint paths for private replies / DM sends.
-2. Exact permission/scope names for the Meta App (`instagram_business_manage_comments`,
-   `instagram_business_manage_messages` or whatever they're called by the time
-   you submit for App Review).
+## Why this exists
 
-## Local setup
+Comment-to-DM is one feature, but every tool that offers it wants a recurring subscription for it. The actual work is a webhook, a keyword match, and one API call to Meta. That does not need to cost anything to run for a single account.
 
-```bash
-cp .env.example .env
-# then fill in:
-#   TOKEN_ENCRYPTION_KEY  -> python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-#   APP_SECRET_KEY        -> any long random string
-#   META_APP_ID / META_APP_SECRET / META_WEBHOOK_VERIFY_TOKEN / META_OAUTH_REDIRECT_URI
-#     from your Meta Developer App (Business type)
+OpenReply is built around Meta's official Instagram private replies. It does not scrape, it does not automate a browser, and it never asks for an Instagram password. That keeps your account inside Meta's rules, which matters if you care about not getting flagged.
 
-docker compose up -d postgres redis
-docker compose run --rm api alembic upgrade head
-docker compose run --rm api python -m app.cli create-admin --email you@example.com --password "change-me"
+## Features
 
-docker compose up -d
-```
+- Keyword to DM. Match one or many keywords per post, whole-word or partial.
+- Optional public reply. Post a visible comment reply on top of the DM.
+- DM and Story reply triggers. The same keywords can also fire on an inbound DM, which covers text replies to your Stories, since Instagram delivers those as DMs. That makes `Reply LINK to this Story` work with no post involved. Turn it on per campaign, and subscribe to the `messages` webhook field when you set up your Meta app.
+- Tracked links. Swap a link for a tracked redirect and see clicks and CTR per campaign.
+- Two link buttons. Send up to two tappable link buttons in one DM, each a separate tracked link with its own click stats.
+- Follow gate. Optionally require a follow before you hand over the link. The DM asks the commenter to follow and tap a button; on tap, OpenReply checks Meta's `is_user_follow_business` flag and only sends the link once they follow, re-prompting until then. It fails open (sends the link anyway) when Instagram does not return follow status, so a real follower is never trapped.
+- Personalization. Use `{username}` in your message to greet the commenter by name.
+- Per-account rate limiting. Stays under Meta's documented cap of 750 private replies per hour, and queues the overflow instead of dropping it.
+- Multiple Instagram accounts. Connect several professional accounts under one workspace, each with its own limits.
+- Workspaces and roles. Owner, admin, and member roles with invite links, useful if you run this for clients.
+- Campaign templates. Start from a preset instead of a blank form.
+- Inbox. Read your Instagram DM conversations and reply from the dashboard, inside Meta's 24-hour messaging window. Cached so it loads instantly on repeat visits.
+- DM logs. Every send, skip, and failure is logged with a reason.
+- Self-comment filtering. Your own comments never trigger a reply, since Meta rejects DMing yourself anyway.
 
-- API: http://localhost:8000 — interactive docs at `/docs`
-- Health check: `GET /health`
-- Webhook URL to register in the Meta App Dashboard: `https://your-domain/webhooks/instagram`
-  (must be HTTPS in production; use ngrok/cloudflared for local testing)
+## How it works
 
-## Running without Docker
+1. Someone comments on your Instagram post or reel, or DMs you, or replies to your Story.
+2. Meta sends a webhook to your OpenReply instance.
+3. OpenReply checks the text against your active campaigns.
+4. On a keyword match, it queues a job.
+5. A background worker sends the private reply, and the public reply if you enabled one.
+
+The web app receives the webhook and serves the dashboard. A separate worker process does the sending, because the send has to survive rate limits and retries. Both talk to the same Postgres and Redis.
+
+## Quick start
+
+You need a few free accounts before anything works: a Meta developer app, a Resend account for login emails, and somewhere to host (Vercel for the web app, Railway for the worker plus Postgres and Redis). The Instagram account you connect has to be a Business or Creator account, not a personal one.
+
+The honest version: the code deploys in minutes, but the Meta app setup is the part that takes real time. Read [docs/setup.md](docs/setup.md) before you start. It is the single setup guide, covering hosting, your domain, the environment, and every Meta wrong turn so you do not have to find them yourself.
+
+### Deploy the web app
+
+This is the part people skip. There is no shared instance to join — the button below creates *your* deployment, on *your* domain, which is the only thing your Meta app is allowed to talk to.
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/diwenne/openreply)
+
+### Run it locally
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload            # API process
-arq app.workers.worker_settings.WorkerSettings   # separate terminal: worker process
+git clone https://github.com/diwenne/openreply.git
+cd openreply
+npm install
+cp .env.example .env      # then fill in the values, see docs/setup.md
+docker-compose up -d      # starts Postgres and Redis
+npm run db:migrate
+npm run dev               # web app on http://localhost:3000
+npm run worker            # in a second terminal, this sends the DMs
 ```
 
-## Meta App configuration checklist (TZ section 7.3)
+Two processes, always. `npm run dev` serves the app and receives webhooks. `npm run worker` is what actually sends the messages. If comments come in and no DM ever arrives, the worker is the first thing to check.
 
-1. Create a **Business**-type app at developers.facebook.com.
-2. Add "Instagram" + "Webhooks" products.
-3. Configure Instagram Business Login / Facebook Login for Business, redirect URI = `META_OAUTH_REDIRECT_URI`.
-4. Webhook subscription fields: `comments`, `messages`, `messaging_postbacks` — verify token = `META_WEBHOOK_VERIFY_TOKEN`.
-5. Re-verify exact permission names in the App Dashboard's Permissions tab (they change — see Section 10).
-6. Submit for **App Review** before using on any account without a developer/tester role (TZ 7.3 — this is a hard gate, plan for it as its own phase per TZ section 9, P6).
+Full environment variables and the production layout are in [docs/setup.md](docs/setup.md).
 
-## Testing a campaign without touching real Instagram
+## Set it up with your AI assistant
 
-`POST /api/campaigns/{id}/test` runs the keyword-matching + gate-strategy logic
-against a fake comment and tells you what *would* happen — no Graph API calls,
-no real DM (FR-8.2). `GET /api/campaigns/{id}/preview` renders every message
-template with sample placeholder values so you can sanity-check copy before
-going live (FR-8.1).
+If you use Claude Code, Cursor, or a similar tool, the Meta setup is a lot faster with an assistant driving it. There is a ready-made prompt in the [Set it up with an AI assistant](docs/setup.md#set-it-up-with-an-ai-assistant) section of the setup guide. Paste it into your assistant inside a clone of this repo, hand over your keys as it asks, and it will walk you through connecting Instagram and going live.
 
-## Running the test suite
+## Tech stack
 
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
+- Next.js 16 and React 19 for the web app and API routes
+- Prisma 7 with PostgreSQL
+- BullMQ on Redis for the send queue and the worker
+- Auth.js (NextAuth) with email magic links through Resend
+- Tailwind CSS for the interface
+- The official Instagram API with Instagram Login
 
-Covers the pure/deterministic layer with no external services required
-(a `fake_redis` fixture stands in for Redis; Meta HTTP calls are mocked with
-`respx`): keyword matching incl. Cyrillic normalisation and word/contains/exact
-modes (FR-3), UTM link building and placeholder rendering (FR-6.5 / FR-7.2),
-all four gate strategies (FR-5), message-variant rotation (FR-4.3), the local
-rate limiter and sustained-throttle alert de-dupe (NFR-6 / FR-10.1), and
-webhook HMAC signature validation (A11). It does **not** cover the DB-backed
-routers/worker tasks end-to-end — those were verified manually against a real
-Postgres + Redis + running API/worker pair (create campaign → simulated
-webhook → idempotent event log → conversation → lead, including the graceful
-failure path when a Graph API call itself fails). Wiring that up as automated
-integration tests (a test Postgres + `httpx.ASGITransport` against `app.main:app`)
-is the natural next step if this repo grows a CI pipeline.
+For the complete stack — application libraries, the two runtime processes, and the free services this runs on (Vercel, Neon, Redis Cloud, an Oracle Cloud always-free VM for the worker, Resend, Meta) — see [docs/stack.md](docs/stack.md).
 
-## Open items from TZ Section 11 that remain business decisions, not code
+## Contributing
 
-Campaign granularity, repeat-comment behavior, final Uzbek message copy,
-static vs dynamic reward links, expected comment volume, and admin user count
-are all configurable per-campaign in this backend — nothing in the code forces
-a particular answer to those questions.
+Issues and pull requests are welcome. If you hit a Meta quirk that is not in the setup guide, a PR that documents it is worth as much as a code fix, because that is where everyone loses time.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+## Credits
+
+Built and maintained by Diwen Huang.
+
+- GitHub: [@diwenne](https://github.com/diwenne)
+- Website: [diwenhuang.ca](https://diwenhuang.ca)
+- X: [@diwenne](https://x.com/diwennee)
+- Instagram: [@devdiwen](https://instagram.com/devdiwen)
+
+OpenReply was initially forked from [instagram-comment-to-dm](https://github.com/im-anishraj/instagram-comment-to-dm) by [Anish Raj](https://github.com/im-anishraj), also MIT licensed, and has been substantially built upon since.
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=diwenne%2Fopenreply&type=date&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=diwenne/openreply&type=date&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=diwenne/openreply&type=date&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=diwenne/openreply&type=date&legend=top-left" />
+  </picture>
+</a>
+
+## Star the repo
+
+If OpenReply is useful to you, star it. It is the simplest way to help the project reach the next person looking for a free way to do this.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
