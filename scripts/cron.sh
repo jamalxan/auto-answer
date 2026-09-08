@@ -2,9 +2,10 @@
 # Scheduler for the periodic jobs under /api/cron.
 #
 # On Vercel these run from the "crons" block in vercel.json. Nothing reads that
-# file anywhere else, so a self-hosted instance has no scheduler at all and the
-# jobs simply never run — silently. The one that hurts is refresh-tokens: the
-# Instagram token expires and every automation stops without a single error.
+# file on a Docker/VM deployment, so without this script there is no scheduler
+# at all and the jobs simply never run — silently. The one that hurts is
+# refresh-tokens: the Instagram token expires and every automation stops
+# without a single error.
 #
 # Run as its own container from the app image (see the compose file), so the
 # jobs live with the app they belong to and keep working even if every other

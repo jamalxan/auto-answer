@@ -1,13 +1,13 @@
-# OpenReply — self-hosted Docker image
+# SocialAuto — Docker image
 #
-# Two runtime processes ship from this image:
+# Three runtime processes ship from this image (see docker-compose.prod.yml):
 #   - web:    `npm run start`  → next start (needs .next + node_modules)
 #   - worker: `npm run worker` → tsx worker/dm-worker.ts (runs RAW TypeScript,
 #             not a bundled output — needs the generated Prisma client, the
 #             full source tree under lib/ and worker/, and tsconfig.json for
 #             the `@/*` path alias tsx resolves at runtime)
 #   - cron:   `sh scripts/cron.sh` → the scheduler for /api/cron, which nothing
-#             runs off Vercel (see docs/deploy-dokploy.md). It needs scripts/
+#             runs off Vercel. It needs scripts/
 #             in the image and wget on PATH; node:20-slim ships neither.
 #
 # next.config.ts does not set `output: "standalone"`, so `next start` already
@@ -53,7 +53,6 @@ COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/package.json ./package.json
 
 EXPOSE 3000
-# Default to the web process — the worker service overrides this with
-# `command: ["npm", "run", "worker"]` in whatever compose/stack file deploys
-# it (see openreply-vps.stack.yml in EvolutionAPI/omni-nexus for an example).
+# Default to the web process — the worker and cron services override this
+# with their own `command:` in docker-compose.prod.yml.
 CMD ["npm", "run", "start"]

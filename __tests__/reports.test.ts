@@ -72,12 +72,12 @@ beforeEach(() => {
 });
 
 describe("campaign reports", () => {
-  it("builds an unbranded report without private log data", async () => {
+  it("builds a branded report without private log data", async () => {
     const report = await getCampaignReportBySlug("report_123");
 
     expect(report).toMatchObject({
       shareSlug: "report_123",
-      branded: false,
+      branded: true,
       workspace: { name: "Acme Studio" },
       campaign: {
         name: "Product Link Drop",
@@ -115,6 +115,6 @@ describe("campaign reports", () => {
     expect(buildReportUrl("abc123", "https://manychat-alternative.com/")).toBe(
       "https://manychat-alternative.com/reports/abc123"
     );
-    expect(isReportBranded()).toBe(false);
+    expect(isReportBranded()).toBe(true);
   });
 });

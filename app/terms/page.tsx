@@ -41,15 +41,6 @@ export default function TermsPage() {
           service reliably, but uninterrupted availability is not guaranteed.
         </p>
       </section>
-
-      <section>
-        <h2 className="text-xl font-bold text-white">Open-Source Core</h2>
-        <p className="mt-3">
-          The public repository is MIT licensed. Hosted SaaS infrastructure,
-          managed support, agency workflows, analytics, reports, and other paid
-          service features may be provided separately from the open-source core.
-        </p>
-      </section>
     </LegalShell>
   );
 }

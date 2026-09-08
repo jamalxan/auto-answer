@@ -1,5 +1,9 @@
-# OpenReply — Local Development Services
+# SocialAuto — Local Development Services
 # Run: docker-compose up -d
+#
+# POSTGRES_DB is left as "openreply" to match the existing local dev volume —
+# renaming it here would not rename the already-initialized database inside
+# that volume, only change what a *fresh* volume would be seeded with.
 
 services:
   postgres:

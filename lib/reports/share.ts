@@ -14,7 +14,7 @@ export function buildReportUrl(slug: string, baseUrl?: string) {
   return `${resolvedBaseUrl.replace(/\/$/, "")}/reports/${slug}`;
 }
 
-// Self-hosted build: reports are never branded.
+// Shared client reports carry a small "Powered by SocialAuto" footer/badge.
 export function isReportBranded() {
-  return false;
+  return true;
 }

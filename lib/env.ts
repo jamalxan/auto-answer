@@ -53,9 +53,9 @@ export function getMetaGraphApiVersion(): string {
 /**
  * Optional sign-in allowlist.
  *
- * A self-hosted instance on a public domain is open to signup: the email
- * provider creates an account for whoever asks for a magic link, and that
- * account gets its own workspace. ALLOWED_EMAILS closes it to a comma-separated
+ * A deployment on a public domain is open to signup: the email provider
+ * creates an account for whoever asks for a magic link, and that account
+ * gets its own workspace. ALLOWED_EMAILS closes it to a comma-separated
  * list of addresses. Left unset, sign-in behaves exactly as before, so an
  * existing deployment is unaffected.
  */

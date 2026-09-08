@@ -151,7 +151,7 @@ export const agenciesSeoPage: SeoPageConfig = {
   comparisons: [
     {
       label: "Client reporting",
-      ours: "Public read-only campaign report links, unbranded, with no plan gating.",
+      ours: "Public read-only campaign report links, with no plan gating.",
       other: "Manual screenshots or dashboards that expose too much internal workspace context.",
     },
     {
