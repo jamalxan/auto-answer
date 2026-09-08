@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useLanguage } from "@/components/language-provider";
 
 export interface FollowerChartPoint {
   date: string;
@@ -41,8 +42,8 @@ function formatCompact(n: number): string {
   return n.toLocaleString();
 }
 
-function formatDay(iso: string): string {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, {
+function formatDay(iso: string, locale: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
@@ -60,18 +61,19 @@ function ChartTooltip({
   active?: boolean;
   payload?: Array<{ payload: FollowerChartPoint }>;
 }) {
+  const { t, locale } = useLanguage();
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
 
   return (
     <div className="rounded border border-border bg-surface px-3 py-2 text-xs shadow-lg">
-      <p className="text-muted">{formatDay(point.date)}</p>
+      <p className="text-muted">{formatDay(point.date, locale)}</p>
       <p className="mt-1 font-semibold text-foreground">
-        {point.followers.toLocaleString()} followers
+        {point.followers.toLocaleString()} {t.followerChart.tooltipFollowersSuffix}
       </p>
       {point.delta !== null && point.delta !== 0 && (
         <p className={point.delta > 0 ? "text-success" : "text-error"}>
-          {formatSigned(point.delta)} that day
+          {formatSigned(point.delta)} {t.followerChart.tooltipThatDay}
         </p>
       )}
     </div>
@@ -85,6 +87,7 @@ export default function FollowerChart({
   data: FollowerChartPoint[];
   followers: number | null;
 }) {
+  const { t, locale } = useLanguage();
   const [showTable, setShowTable] = useState(false);
 
   const current = followers ?? data.at(-1)?.followers ?? null;
@@ -99,19 +102,19 @@ export default function FollowerChart({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-foreground">
-            Followers over time
+            {t.followerChart.title}
           </h2>
           <p className="mt-1 text-sm text-muted">
             {current === null
-              ? "Follower count unavailable"
-              : `${current.toLocaleString()} now`}
+              ? t.followerChart.unavailable
+              : t.followerChart.currentNow(current.toLocaleString())}
             {net !== null && (
               <>
                 {" · "}
                 <span className={net >= 0 ? "text-success" : "text-error"}>
                   {formatSigned(net)}
                 </span>{" "}
-                over {data.length} days
+                {t.followerChart.overDays(data.length)}
               </>
             )}
           </p>
@@ -122,20 +125,19 @@ export default function FollowerChart({
             onClick={() => setShowTable((v) => !v)}
             className="rounded border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
           >
-            {showTable ? "Show chart" : "Show table"}
+            {showTable ? t.followerChart.showChart : t.followerChart.showTable}
           </button>
         )}
       </div>
 
       {data.length < 2 ? (
         <div className="mt-6 rounded border border-border bg-surface/60 p-6 text-center">
-          <p className="text-sm text-foreground">Collecting follower history</p>
+          <p className="text-sm text-foreground">{t.followerChart.collecting}</p>
           <p className="mt-1 text-sm text-muted">
             {data.length === 0
-              ? "No snapshots recorded yet."
-              : "One day recorded so far."}{" "}
-            A point is added daily — the chart appears once there are at least
-            two.
+              ? t.followerChart.noSnapshots
+              : t.followerChart.oneDayRecorded}{" "}
+            {t.followerChart.pointAddedDaily}
           </p>
         </div>
       ) : showTable ? (
@@ -143,16 +145,16 @@ export default function FollowerChart({
           <table className="w-full text-sm">
             <thead>
               <tr className="label-mono border-b border-border text-left text-[11px] text-muted">
-                <th className="py-2 pr-4 font-medium">Date</th>
-                <th className="py-2 px-3 font-medium text-right">Followers</th>
-                <th className="py-2 pl-3 font-medium text-right">Change</th>
+                <th className="py-2 pr-4 font-medium">{t.followerChart.colDate}</th>
+                <th className="py-2 px-3 font-medium text-right">{t.followerChart.colFollowers}</th>
+                <th className="py-2 pl-3 font-medium text-right">{t.followerChart.colChange}</th>
               </tr>
             </thead>
             <tbody>
               {[...data].reverse().map((p) => (
                 <tr key={p.date} className="border-b border-border last:border-0">
                   <td className="py-2 pr-4 text-foreground">
-                    {formatDay(p.date)}
+                    {formatDay(p.date, locale)}
                   </td>
                   <td className="py-2 px-3 text-right text-muted">
                     {p.followers.toLocaleString()}
@@ -179,7 +181,7 @@ export default function FollowerChart({
               />
               <XAxis
                 dataKey="date"
-                tickFormatter={formatDay}
+                tickFormatter={(d) => formatDay(d, locale)}
                 tick={{ fill: AXIS_TEXT, fontSize: 12 }}
                 stroke={GRID_COLOR}
                 tickLine={false}

@@ -65,10 +65,8 @@ export async function generateMetadata({
 
 export default async function ReportPage({ params }: ReportPageProps) {
   const { shareSlug } = await params;
-  const [report, locale] = await Promise.all([
-    getCampaignReportBySlug(shareSlug),
-    getServerLocale(),
-  ]);
+  const locale = await getServerLocale();
+  const report = await getCampaignReportBySlug(shareSlug, locale);
   const t = dictionaries[locale];
 
   if (!report) {

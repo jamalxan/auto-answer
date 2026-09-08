@@ -9,6 +9,8 @@ export const en = {
     copy: "Copy",
     copied: "Copied!",
     unknown: "unknown",
+    allAccounts: "All accounts",
+    instagramAccountLabel: "Instagram account",
   },
   nav: {
     dashboard: "Dashboard",
@@ -515,6 +517,58 @@ export const en = {
       verificationBody:
         "We may ask you to verify control of the email address or connected business account before deleting data. Deletion requests are processed as quickly as practical unless retention is required for legal, billing, fraud prevention, or security reasons.",
     },
+  },
+  instagramNotice: {
+    deniedTitle: "Instagram connection cancelled",
+    deniedDetail:
+      "You declined the permission prompt on Instagram. Start again and accept all requested permissions.",
+    invalidTitle: "Instagram connection expired",
+    invalidDetail:
+      "The login link was missing or older than 10 minutes. Click Connect Instagram to start a fresh attempt.",
+    forbiddenTitle: "Not permitted",
+    forbiddenDetail: "Only workspace owners and admins can connect an Instagram account.",
+    alreadyConnectedTitle: "Account already connected",
+    alreadyConnectedDetail:
+      "That Instagram account is connected to another workspace. Disconnect it there first, or connect a different account.",
+    misconfiguredTitle: "Instagram app not configured",
+    setTheseVars: "Set these environment variables and restart the server:",
+    setRequiredVars: "Set the required environment variables and restart the server:",
+    fromMetaDashboard:
+      "These come from the Meta app dashboard. Note that ENCRYPTION_KEY must be a 64-character hex string.",
+    failedTitle: "Instagram connection failed",
+    failedDetail:
+      "Instagram accepted the login but the connection could not be completed. This is usually a mismatched redirect URI or an app that is missing the required permissions.",
+  },
+  postPicker: {
+    errorFailedToLoad: "Failed to load posts",
+    connectFirst: "Connect your Instagram account first",
+    noPostsFound: "No posts found",
+    searchPlaceholder: "Search your posts by caption…",
+    noPostsMatch: (query) => `No posts match "${query}"`,
+    alreadyUsed: "Already used",
+    alreadyUsedByTooltip: (name) => `Already used by "${name}"`,
+    noImage: "No image",
+    selected: "Selected",
+    showMore: (n) => `Show ${n} more`,
+    instagramPostAlt: "Instagram post",
+  },
+  followerChart: {
+    title: "Followers over time",
+    currentNow: (n) => `${n} now`,
+    unavailable: "Follower count unavailable",
+    overDays: (days) => `over ${days} days`,
+    showChart: "Show chart",
+    showTable: "Show table",
+    collecting: "Collecting follower history",
+    noSnapshots: "No snapshots recorded yet.",
+    oneDayRecorded: "One day recorded so far.",
+    pointAddedDaily:
+      "A point is added daily — the chart appears once there are at least two.",
+    colDate: "Date",
+    colFollowers: "Followers",
+    colChange: "Change",
+    tooltipFollowersSuffix: "followers",
+    tooltipThatDay: "that day",
   },
   home: {
     officialApi: "Official Meta API",

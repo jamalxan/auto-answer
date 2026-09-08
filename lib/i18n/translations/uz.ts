@@ -9,6 +9,8 @@ export const uz = {
     copy: "Nusxalash",
     copied: "Nusxalandi!",
     unknown: "noma'lum",
+    allAccounts: "Barcha akkauntlar",
+    instagramAccountLabel: "Instagram akkaunti",
   },
   nav: {
     dashboard: "Boshqaruv paneli",
@@ -520,6 +522,58 @@ export const uz = {
       verificationBody:
         "Ma'lumotlarni o'chirishdan oldin biz sizdan email manzili yoki ulangan biznes akkaunt ustidan nazoratni tasdiqlashingizni so'rashimiz mumkin. O'chirish so'rovlari, agar yuridik, to'lov, firibgarlikning oldini olish yoki xavfsizlik sabablari bo'yicha saqlash talab qilinmasa, imkon qadar tezroq ko'rib chiqiladi.",
     },
+  },
+  instagramNotice: {
+    deniedTitle: "Instagram ulanishi bekor qilindi",
+    deniedDetail:
+      "Siz Instagram'dagi ruxsat so'rovini rad etdingiz. Qaytadan boshlang va so'ralgan barcha ruxsatlarni qabul qiling.",
+    invalidTitle: "Instagram ulanish muddati tugagan",
+    invalidDetail:
+      "Kirish havolasi yo'q edi yoki 10 daqiqadan eski edi. Qaytadan urinish uchun \"Instagram'ni ulash\"ni bosing.",
+    forbiddenTitle: "Ruxsat yo'q",
+    forbiddenDetail: "Faqat ish maydoni egalari va adminlar Instagram akkauntini ulashi mumkin.",
+    alreadyConnectedTitle: "Akkaunt allaqachon ulangan",
+    alreadyConnectedDetail:
+      "Ushbu Instagram akkaunti boshqa ish maydoniga ulangan. Avval uni o'sha yerda uzing yoki boshqa akkaunt ulang.",
+    misconfiguredTitle: "Instagram ilovasi sozlanmagan",
+    setTheseVars: "Quyidagi muhit o'zgaruvchilarini o'rnating va serverni qayta ishga tushiring:",
+    setRequiredVars: "Kerakli muhit o'zgaruvchilarini o'rnating va serverni qayta ishga tushiring:",
+    fromMetaDashboard:
+      "Bular Meta ilova panelidan olinadi. ENCRYPTION_KEY 64 belgili o'n oltilik (hex) qator bo'lishi kerakligini unutmang.",
+    failedTitle: "Instagram ulanishi amalga oshmadi",
+    failedDetail:
+      "Instagram kirishni qabul qildi, lekin ulanishni yakunlab bo'lmadi. Odatda bu redirect URI mos kelmasligi yoki ilovada kerakli ruxsatlar yo'qligi sababli bo'ladi.",
+  },
+  postPicker: {
+    errorFailedToLoad: "Postlarni yuklab bo'lmadi",
+    connectFirst: "Avval Instagram akkauntini ulang",
+    noPostsFound: "Postlar topilmadi",
+    searchPlaceholder: "Postlaringizni sarlavha bo'yicha qidiring…",
+    noPostsMatch: (query) => `"${query}" ga mos post topilmadi`,
+    alreadyUsed: "Allaqachon ishlatilgan",
+    alreadyUsedByTooltip: (name) => `"${name}" tomonidan allaqachon ishlatilgan`,
+    noImage: "Rasm yo'q",
+    selected: "Tanlangan",
+    showMore: (n) => `Yana ${n} tasini ko'rsatish`,
+    instagramPostAlt: "Instagram posti",
+  },
+  followerChart: {
+    title: "Vaqt bo'yicha obunachilar",
+    currentNow: (n) => `hozir ${n}`,
+    unavailable: "Obunachilar soni mavjud emas",
+    overDays: (days) => `${days} kun ichida`,
+    showChart: "Grafikni ko'rsatish",
+    showTable: "Jadvalni ko'rsatish",
+    collecting: "Obunachilar tarixi yig'ilmoqda",
+    noSnapshots: "Hali hech qanday ma'lumot yozilmagan.",
+    oneDayRecorded: "Hozircha bitta kun yozilgan.",
+    pointAddedDaily:
+      "Har kuni bitta nuqta qo'shiladi — kamida ikkitasi bo'lgach, grafik paydo bo'ladi.",
+    colDate: "Sana",
+    colFollowers: "Obunachilar",
+    colChange: "O'zgarish",
+    tooltipFollowersSuffix: "obunachi",
+    tooltipThatDay: "o'sha kuni",
   },
   home: {
     officialApi: "Rasmiy Meta API",

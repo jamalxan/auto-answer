@@ -12,6 +12,8 @@ export interface Dictionary {
     copy: string;
     copied: string;
     unknown: string;
+    allAccounts: string;
+    instagramAccountLabel: string;
   };
   nav: {
     dashboard: string;
@@ -486,6 +488,52 @@ export interface Dictionary {
       verificationTitle: string;
       verificationBody: string;
     };
+  };
+  instagramNotice: {
+    deniedTitle: string;
+    deniedDetail: string;
+    invalidTitle: string;
+    invalidDetail: string;
+    forbiddenTitle: string;
+    forbiddenDetail: string;
+    alreadyConnectedTitle: string;
+    alreadyConnectedDetail: string;
+    misconfiguredTitle: string;
+    setTheseVars: string;
+    setRequiredVars: string;
+    fromMetaDashboard: string;
+    failedTitle: string;
+    failedDetail: string;
+  };
+  postPicker: {
+    errorFailedToLoad: string;
+    connectFirst: string;
+    noPostsFound: string;
+    searchPlaceholder: string;
+    noPostsMatch: (query: string) => string;
+    alreadyUsed: string;
+    alreadyUsedByTooltip: (name: string) => string;
+    noImage: string;
+    selected: string;
+    showMore: (n: number) => string;
+    instagramPostAlt: string;
+  };
+  followerChart: {
+    title: string;
+    currentNow: (n: string) => string;
+    unavailable: string;
+    overDays: (days: number) => string;
+    showChart: string;
+    showTable: string;
+    collecting: string;
+    noSnapshots: string;
+    oneDayRecorded: string;
+    pointAddedDaily: string;
+    colDate: string;
+    colFollowers: string;
+    colChange: string;
+    tooltipFollowersSuffix: string;
+    tooltipThatDay: string;
   };
   home: {
     officialApi: string;

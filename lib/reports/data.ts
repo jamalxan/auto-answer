@@ -5,6 +5,7 @@ import {
   summarizeDmStatuses,
 } from "@/lib/tracking/analytics";
 import { buildReportUrl, isReportBranded } from "@/lib/reports/share";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
 
 function getHostname(url: string) {
   try {
@@ -25,7 +26,10 @@ function getDayWindow(daysAgo: number) {
   return { start, end };
 }
 
-export async function getCampaignReportBySlug(shareSlug: string) {
+export async function getCampaignReportBySlug(
+  shareSlug: string,
+  locale: Locale = defaultLocale
+) {
   const automation = await prisma.automation.findFirst({
     where: {
       reportShareSlug: shareSlug,
@@ -139,7 +143,7 @@ export async function getCampaignReportBySlug(shareSlug: string) {
       ]);
 
       return {
-        date: start.toLocaleDateString("en-US", {
+        date: start.toLocaleDateString(locale, {
           month: "short",
           day: "numeric",
         }),

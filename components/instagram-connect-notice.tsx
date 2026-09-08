@@ -1,6 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useLanguage } from "@/components/language-provider";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 type Tone = "error" | "warning" | "success";
 
@@ -10,35 +12,36 @@ const TONE_CLASSES: Record<Tone, string> = {
   success: "border-success/20 bg-success/10 text-success",
 };
 
-const MESSAGES: Record<string, { tone: Tone; title: string; detail: string }> = {
-  denied: {
-    tone: "warning",
-    title: "Instagram connection cancelled",
-    detail:
-      "You declined the permission prompt on Instagram. Start again and accept all requested permissions.",
-  },
-  invalid: {
-    tone: "error",
-    title: "Instagram connection expired",
-    detail:
-      "The login link was missing or older than 10 minutes. Click Connect Instagram to start a fresh attempt.",
-  },
-  forbidden: {
-    tone: "error",
-    title: "Not permitted",
-    detail:
-      "Only workspace owners and admins can connect an Instagram account.",
-  },
-  already_connected: {
-    tone: "warning",
-    title: "Account already connected",
-    detail:
-      "That Instagram account is connected to another workspace. Disconnect it there first, or connect a different account.",
-  },
-};
+function getMessages(
+  t: Dictionary
+): Record<string, { tone: Tone; title: string; detail: string }> {
+  return {
+    denied: {
+      tone: "warning",
+      title: t.instagramNotice.deniedTitle,
+      detail: t.instagramNotice.deniedDetail,
+    },
+    invalid: {
+      tone: "error",
+      title: t.instagramNotice.invalidTitle,
+      detail: t.instagramNotice.invalidDetail,
+    },
+    forbidden: {
+      tone: "error",
+      title: t.instagramNotice.forbiddenTitle,
+      detail: t.instagramNotice.forbiddenDetail,
+    },
+    already_connected: {
+      tone: "warning",
+      title: t.instagramNotice.alreadyConnectedTitle,
+      detail: t.instagramNotice.alreadyConnectedDetail,
+    },
+  };
+}
 
 export function InstagramConnectNotice() {
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   const status = searchParams.get("instagram");
 
   if (!status) return null;
@@ -49,13 +52,11 @@ export function InstagramConnectNotice() {
       .filter(Boolean);
 
     return (
-      <Notice tone="error" title="Instagram app not configured">
+      <Notice tone="error" title={t.instagramNotice.misconfiguredTitle}>
         <p>
-          Set{" "}
           {missing.length > 0
-            ? "these environment variables"
-            : "the required environment variables"}{" "}
-          and restart the server:
+            ? t.instagramNotice.setTheseVars
+            : t.instagramNotice.setRequiredVars}
         </p>
         {missing.length > 0 && (
           <ul className="mt-2 space-y-1">
@@ -66,11 +67,7 @@ export function InstagramConnectNotice() {
             ))}
           </ul>
         )}
-        <p className="mt-2">
-          These come from the Meta app dashboard. Note that{" "}
-          <span className="font-mono text-xs">ENCRYPTION_KEY</span> must be a
-          64-character hex string.
-        </p>
+        <p className="mt-2">{t.instagramNotice.fromMetaDashboard}</p>
       </Notice>
     );
   }
@@ -79,12 +76,8 @@ export function InstagramConnectNotice() {
     const reason = searchParams.get("reason");
 
     return (
-      <Notice tone="error" title="Instagram connection failed">
-        <p>
-          Instagram accepted the login but the connection could not be
-          completed. This is usually a mismatched redirect URI or an app that is
-          missing the required permissions.
-        </p>
+      <Notice tone="error" title={t.instagramNotice.failedTitle}>
+        <p>{t.instagramNotice.failedDetail}</p>
         {reason && (
           <p className="mt-2 font-mono text-xs break-words opacity-80">
             {reason}
@@ -94,7 +87,7 @@ export function InstagramConnectNotice() {
     );
   }
 
-  const known = MESSAGES[status];
+  const known = getMessages(t)[status];
   if (!known) return null;
 
   return (

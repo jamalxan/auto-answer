@@ -9,6 +9,8 @@ export const ru = {
     copy: "Копировать",
     copied: "Скопировано!",
     unknown: "неизвестно",
+    allAccounts: "Все аккаунты",
+    instagramAccountLabel: "Аккаунт Instagram",
   },
   nav: {
     dashboard: "Панель управления",
@@ -520,6 +522,58 @@ export const ru = {
       verificationBody:
         "Мы можем попросить подтвердить контроль над email-адресом или подключённым бизнес-аккаунтом перед удалением данных. Запросы на удаление обрабатываются максимально быстро, если только хранение данных не требуется по юридическим, биллинговым причинам, для предотвращения мошенничества или по соображениям безопасности.",
     },
+  },
+  instagramNotice: {
+    deniedTitle: "Подключение Instagram отменено",
+    deniedDetail:
+      "Вы отклонили запрос разрешений в Instagram. Начните заново и примите все запрошенные разрешения.",
+    invalidTitle: "Срок подключения Instagram истёк",
+    invalidDetail:
+      "Ссылка для входа отсутствовала или ей больше 10 минут. Нажмите «Подключить Instagram», чтобы начать заново.",
+    forbiddenTitle: "Недостаточно прав",
+    forbiddenDetail: "Подключать аккаунт Instagram могут только владельцы и администраторы рабочего пространства.",
+    alreadyConnectedTitle: "Аккаунт уже подключён",
+    alreadyConnectedDetail:
+      "Этот аккаунт Instagram подключён к другому рабочему пространству. Сначала отключите его там или подключите другой аккаунт.",
+    misconfiguredTitle: "Приложение Instagram не настроено",
+    setTheseVars: "Установите эти переменные окружения и перезапустите сервер:",
+    setRequiredVars: "Установите необходимые переменные окружения и перезапустите сервер:",
+    fromMetaDashboard:
+      "Они берутся из панели приложения Meta. Обратите внимание, что ENCRYPTION_KEY должен быть 64-символьной шестнадцатеричной строкой.",
+    failedTitle: "Не удалось подключить Instagram",
+    failedDetail:
+      "Instagram принял вход, но подключение не удалось завершить. Обычно это несовпадение redirect URI или отсутствие нужных разрешений у приложения.",
+  },
+  postPicker: {
+    errorFailedToLoad: "Не удалось загрузить посты",
+    connectFirst: "Сначала подключите аккаунт Instagram",
+    noPostsFound: "Посты не найдены",
+    searchPlaceholder: "Поиск постов по подписи…",
+    noPostsMatch: (query) => `Нет постов, соответствующих «${query}»`,
+    alreadyUsed: "Уже используется",
+    alreadyUsedByTooltip: (name) => `Уже используется в «${name}»`,
+    noImage: "Нет изображения",
+    selected: "Выбрано",
+    showMore: (n) => `Показать ещё ${n}`,
+    instagramPostAlt: "Пост Instagram",
+  },
+  followerChart: {
+    title: "Подписчики по времени",
+    currentNow: (n) => `${n} сейчас`,
+    unavailable: "Количество подписчиков недоступно",
+    overDays: (days) => `за ${days} дн.`,
+    showChart: "Показать график",
+    showTable: "Показать таблицу",
+    collecting: "Сбор истории подписчиков",
+    noSnapshots: "Пока нет записанных снимков.",
+    oneDayRecorded: "Пока записан один день.",
+    pointAddedDaily:
+      "Точка добавляется ежедневно — график появится, когда их будет не менее двух.",
+    colDate: "Дата",
+    colFollowers: "Подписчики",
+    colChange: "Изменение",
+    tooltipFollowersSuffix: "подписчиков",
+    tooltipThatDay: "за этот день",
   },
   home: {
     officialApi: "Официальный Meta API",

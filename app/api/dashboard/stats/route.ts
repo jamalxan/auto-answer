@@ -6,6 +6,7 @@ import {
   normalizeTopKeywords,
   summarizeDmStatuses,
 } from "@/lib/tracking/analytics";
+import { getServerLocale } from "@/lib/i18n/get-locale";
 
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = await getCurrentUserId();
+  const locale = await getServerLocale();
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -166,7 +168,7 @@ export async function GET(request: NextRequest) {
     });
 
     dailyDMs.push({
-      date: dayStart.toLocaleDateString("en-US", { weekday: "short" }),
+      date: dayStart.toLocaleDateString(locale, { weekday: "short" }),
       count,
     });
   }
