@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PublicSiteHeader from "@/components/public-site-header";
+import SiteFooter from "@/components/site-footer";
 import TemplateVisual from "@/components/template-visual";
 import {
   getCampaignTemplate,
@@ -221,6 +222,8 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
           </div>
         </div>
       </section>
+
+      <SiteFooter />
     </main>
   );
 }

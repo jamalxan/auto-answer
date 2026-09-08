@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PublicSiteHeader from "@/components/public-site-header";
+import SiteFooter from "@/components/site-footer";
 import TemplateVisual from "@/components/template-visual";
 import { getCampaignTemplates } from "@/lib/templates/campaign-templates";
 import { getServerLocale } from "@/lib/i18n/get-locale";
@@ -112,6 +113,8 @@ export default async function TemplatesPage() {
           ))}
         </div>
       </section>
+
+      <SiteFooter />
     </main>
   );
 }

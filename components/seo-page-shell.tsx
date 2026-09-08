@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import PublicSiteHeader from "@/components/public-site-header";
+import SiteFooter from "@/components/site-footer";
 import { useLanguage } from "@/components/language-provider";
 
 export interface SeoPageSection {
@@ -183,6 +184,8 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
           </Link>
         </div>
       </section>
+
+      <SiteFooter />
     </main>
   );
 }

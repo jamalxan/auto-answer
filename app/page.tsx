@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
-import LanguageSwitcher from "@/components/language-switcher";
+import PublicSiteHeader from "@/components/public-site-header";
+import SiteFooter from "@/components/site-footer";
 
 export const metadata: Metadata = {
   title: "SocialAuto - Instagram comment-to-DM automation",
@@ -239,25 +240,7 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b-2 border-border bg-background/95">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="SocialAuto home">
-            <span className="font-display text-lg font-extrabold text-foreground">
-              SocialAuto
-            </span>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <LanguageSwitcher />
-            <Link
-              href="/login"
-              className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-4 py-2 text-xs font-bold text-background transition hover:bg-accent-hover"
-            >
-              {t.home.getStarted}
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicSiteHeader active="home" />
 
       <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
         <div className="max-w-3xl">
@@ -392,11 +375,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <footer className="border-t-2 border-border py-8">
-        <div className="mx-auto w-full max-w-7xl px-5 text-sm text-muted sm:px-6 lg:px-8">
-          <span className="font-display font-bold text-foreground">SocialAuto</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

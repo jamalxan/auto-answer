@@ -14,12 +14,14 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceName: string;
+  isAdmin?: boolean;
 }
 
 export default function Sidebar({
   isOpen,
   onClose,
   workspaceName,
+  isAdmin = false,
 }: SidebarProps) {
   const pathname = usePathname();
   const { t } = useLanguage();
@@ -32,6 +34,7 @@ export default function Sidebar({
     { label: t.nav.dmLogs, href: "/logs" },
     { label: t.nav.settings, href: "/settings" },
     { label: t.nav.diagnostics, href: "/diagnostics" },
+    ...(isAdmin ? [{ label: t.admin.navLabel, href: "/admin" }] : []),
   ];
 
   return (

@@ -21,10 +21,17 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
 });
 
+const title = "SocialAuto - Instagram comment-to-DM automation";
+const description =
+  "Send an Instagram DM automatically when someone comments a keyword on your post or reel, using the official Meta API.";
+
 export const metadata: Metadata = {
-  title: "SocialAuto - Instagram comment-to-DM automation",
-  description:
-    "Send an Instagram DM automatically when someone comments a keyword on your post or reel, using the official Meta API.",
+  metadataBase: new URL("https://socialauto.uz"),
+  title: {
+    default: title,
+    template: "%s - SocialAuto",
+  },
+  description,
   keywords: [
     "instagram automation",
     "comment to DM",
@@ -44,6 +51,20 @@ export const metadata: Metadata = {
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title,
+    description,
+    url: "/",
+    siteName: "SocialAuto",
+    images: [{ url: "/icon-512.png", width: 512, height: 512 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
+    images: ["/icon-512.png"],
   },
 };
 

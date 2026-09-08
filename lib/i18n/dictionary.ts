@@ -505,6 +505,44 @@ export interface Dictionary {
     failedTitle: string;
     failedDetail: string;
   };
+  footer: {
+    tagline: string;
+    product: string;
+    legal: string;
+    linkTemplates: string;
+    linkCommentLink: string;
+    linkManychat: string;
+    linkAgencies: string;
+    linkPrivacy: string;
+    linkTerms: string;
+    linkDataDeletion: string;
+    linkSignIn: string;
+    rights: (year: number) => string;
+  };
+  admin: {
+    navLabel: string;
+    title: string;
+    subtitle: string;
+    statWorkspaces: string;
+    statUsers: string;
+    statInstagramAccounts: string;
+    statActiveCampaigns: string;
+    statDmsAllTime: string;
+    statDmsLast30Days: string;
+    statNewWorkspaces30Days: string;
+    workspacesTitle: string;
+    colWorkspace: string;
+    colOwner: string;
+    colCreated: string;
+    colMembers: string;
+    colAccounts: string;
+    colCampaigns: string;
+    colDmsSent: string;
+    colDmsThisPeriod: string;
+    colLastDm: string;
+    never: string;
+    noEmail: string;
+  };
   postPicker: {
     errorFailedToLoad: string;
     connectFirst: string;

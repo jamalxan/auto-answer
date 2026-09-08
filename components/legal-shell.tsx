@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useLanguage } from "@/components/language-provider";
+import SiteFooter from "@/components/site-footer";
 
 interface LegalShellProps {
   title: string;
@@ -47,6 +48,8 @@ export default function LegalShell({
           {children}
         </div>
       </article>
+
+      <SiteFooter />
     </main>
   );
 }
