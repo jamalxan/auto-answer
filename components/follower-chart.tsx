@@ -23,6 +23,8 @@ import {
   YAxis,
 } from "recharts";
 import { useLanguage } from "@/components/language-provider";
+import { formatShortMonthDay } from "@/lib/i18n/format-date";
+import type { Locale } from "@/lib/i18n/config";
 
 export interface FollowerChartPoint {
   date: string;
@@ -42,12 +44,8 @@ function formatCompact(n: number): string {
   return n.toLocaleString();
 }
 
-function formatDay(iso: string, locale: string): string {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale, {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+function formatDay(iso: string, locale: Locale): string {
+  return formatShortMonthDay(new Date(`${iso}T00:00:00Z`), locale, { utc: true });
 }
 
 function formatSigned(n: number): string {

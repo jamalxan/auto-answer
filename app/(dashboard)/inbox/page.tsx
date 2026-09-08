@@ -16,6 +16,8 @@ import { readCache, writeCache } from "@/lib/client-cache";
 import type { ConversationListItem } from "@/app/api/instagram/conversations/route";
 import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
 import { useLanguage } from "@/components/language-provider";
+import { formatShortMonthDay } from "@/lib/i18n/format-date";
+import type { Locale } from "@/lib/i18n/config";
 
 const POLL_MS = 12_000;
 // Cached list/threads are shown instantly on revisit, then revalidated in the
@@ -25,19 +27,19 @@ const CACHE_MAX_AGE_MS = 60_000;
 const convCacheKey = (accountId: string) => `inbox:convs:${accountId}`;
 const msgCacheKey = (conversationId: string) => `inbox:msgs:${conversationId}`;
 
-function formatTime(iso: string | null): string {
+function formatTime(iso: string | null, locale: Locale): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   return sameDay
-    ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    ? d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" })
+    : formatShortMonthDay(d, locale);
 }
 
 export default function InboxPage() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   // Seed from the last-used account so a revisit can paint the cached
   // conversation list immediately, before the account list even loads.
@@ -307,7 +309,7 @@ export default function InboxPage() {
                         @{c.contact.username ?? t.common.unknown}
                       </span>
                       <span className="shrink-0 text-[11px] text-muted">
-                        {formatTime(c.updatedTime)}
+                        {formatTime(c.updatedTime, locale)}
                       </span>
                     </div>
                     {c.lastMessage && (
@@ -372,7 +374,7 @@ export default function InboxPage() {
                             m.fromMe ? "text-background/70" : "text-muted"
                           }`}
                         >
-                          {formatTime(m.createdTime)}
+                          {formatTime(m.createdTime, locale)}
                         </p>
                       </div>
                     </div>

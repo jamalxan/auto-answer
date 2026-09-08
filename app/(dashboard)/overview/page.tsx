@@ -14,6 +14,7 @@ import StatCard from "@/components/stat-card";
 import FollowerChart from "@/components/follower-chart";
 import type { OverviewResponse } from "@/app/api/instagram/overview/route";
 import { useLanguage } from "@/components/language-provider";
+import { formatShortMonthDay } from "@/lib/i18n/format-date";
 
 function formatNumber(n: number | null): string {
   if (n === null) return "—";
@@ -22,13 +23,9 @@ function formatNumber(n: number | null): string {
   return n.toLocaleString();
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 export default function OverviewPage() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const formatDate = (iso: string) => formatShortMonthDay(new Date(iso), locale);
   const COUNT_OPTIONS = [
     { value: "25", label: t.overview.last25 },
     { value: "50", label: t.overview.last50 },
