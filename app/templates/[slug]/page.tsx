@@ -8,6 +8,8 @@ import {
   getCampaignTemplate,
   getCampaignTemplateSlugs,
 } from "@/lib/templates/campaign-templates";
+import { getServerLocale } from "@/lib/i18n/get-locale";
+import { dictionaries } from "@/lib/i18n/translations";
 
 type TemplatePageProps = {
   params: Promise<{ slug: string }>;
@@ -45,6 +47,8 @@ export async function generateMetadata({
 export default async function TemplateDetailPage({ params }: TemplatePageProps) {
   const { slug } = await params;
   const template = getCampaignTemplate(slug);
+  const locale = await getServerLocale();
+  const t = dictionaries[locale];
 
   if (!template) {
     notFound();
@@ -65,10 +69,10 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
               href="/templates"
               className="text-sm font-semibold text-muted transition hover:text-foreground"
             >
-              Back to templates
+              {t.templateDetail.backToTemplates}
             </Link>
             <p className="label-mono mt-8 text-sm font-bold text-accent">
-              {template.category} template
+              {t.templateDetail.categoryTemplateSuffix(template.category)}
             </p>
             <h1 className="mt-4 font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
               {template.title}
@@ -81,13 +85,13 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
                 href={`/login?template=${template.slug}`}
                 className="label-mono inline-flex items-center justify-center rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
               >
-                Use this template
+                {t.templateDetail.useThisTemplate}
               </Link>
               <a
                 href="#playbook"
                 className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
               >
-                Read playbook
+                {t.templateDetail.readPlaybook}
               </a>
             </div>
           </div>
@@ -100,21 +104,21 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
         <aside className="space-y-4">
           <div className="panel rounded p-5">
             <p className="label-mono text-[11px] font-semibold text-muted">
-              Audience
+              {t.templateDetail.audienceLabel}
             </p>
             <p className="mt-2 text-lg font-bold text-foreground">{template.audience}</p>
           </div>
           <div className="panel rounded p-5">
             <p className="label-mono text-[11px] font-semibold text-muted">
-              Setup time
+              {t.templateDetail.setupTimeLabel}
             </p>
             <p className="mt-2 text-lg font-bold text-foreground">
-              {template.setupMinutes} minutes
+              {t.templateDetail.setupMinutesValue(template.setupMinutes)}
             </p>
           </div>
           <div className="panel rounded p-5">
             <p className="label-mono text-[11px] font-semibold text-muted">
-              Campaign goal
+              {t.templateDetail.goalLabel}
             </p>
             <p className="mt-2 text-lg font-bold text-foreground">{template.goal}</p>
           </div>
@@ -123,7 +127,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
         <div id="playbook" className="space-y-8">
           <section className="panel rounded p-6">
             <h2 className="font-display text-2xl font-extrabold text-foreground">
-              Campaign Outcome
+              {t.templateDetail.outcomeTitle}
             </h2>
             <p className="mt-3 text-base leading-8 text-muted">
               {template.outcome}
@@ -132,7 +136,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
 
           <section className="panel rounded p-6">
             <h2 className="font-display text-2xl font-extrabold text-foreground">
-              Setup Playbook
+              {t.templateDetail.playbookTitle}
             </h2>
             <ol className="mt-5 space-y-3">
               {template.playbook.map((step, index) => (
@@ -148,7 +152,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
 
           <section className="grid gap-4 md:grid-cols-2">
             <div className="panel rounded p-6">
-              <h2 className="text-xl font-black text-foreground">Best For</h2>
+              <h2 className="text-xl font-black text-foreground">{t.templateDetail.bestForTitle}</h2>
               <ul className="mt-4 space-y-2">
                 {template.bestFor.map((item) => (
                   <li key={item} className="text-sm text-muted">
@@ -158,7 +162,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
               </ul>
             </div>
             <div className="panel rounded p-6">
-              <h2 className="text-xl font-black text-foreground">Metrics To Watch</h2>
+              <h2 className="text-xl font-black text-foreground">{t.templateDetail.metricsTitle}</h2>
               <ul className="mt-4 space-y-2">
                 {template.metrics.map((item) => (
                   <li key={item} className="text-sm text-muted">
@@ -173,18 +177,17 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
             <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <h2 className="font-display text-2xl font-extrabold text-foreground">
-                  Copy this campaign into SocialAuto
+                  {t.templateDetail.copyIntoTitle}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  Sign in, connect Instagram, pick a post or reel, and the
-                  template copy will be ready for your campaign draft.
+                  {t.templateDetail.copyIntoBody}
                 </p>
               </div>
               <Link
                 href={`/login?template=${template.slug}`}
                 className="label-mono inline-flex items-center justify-center rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
               >
-                Use this template
+                {t.templateDetail.useThisTemplate}
               </Link>
             </div>
           </section>
@@ -194,7 +197,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
       <section className="border-t-2 border-border bg-surface py-14">
         <div className="mx-auto w-full max-w-7xl px-5 sm:px-6 lg:px-8">
           <h2 className="font-display text-2xl font-extrabold text-foreground">
-            More templates
+            {t.templateDetail.moreTemplatesTitle}
           </h2>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {relatedTemplates.map((item) => (

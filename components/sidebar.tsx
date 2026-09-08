@@ -9,7 +9,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
-import LanguageSwitcher from "@/components/language-switcher";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -92,9 +91,8 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className="flex items-center justify-between gap-2 px-5 py-4 border-t-2 border-border">
+        <div className="px-5 py-4 border-t-2 border-border">
           <p className="min-w-0 truncate text-sm text-foreground">{workspaceName}</p>
-          <LanguageSwitcher />
         </div>
       </aside>
     </>

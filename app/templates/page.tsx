@@ -3,6 +3,8 @@ import Link from "next/link";
 import PublicSiteHeader from "@/components/public-site-header";
 import TemplateVisual from "@/components/template-visual";
 import { CAMPAIGN_TEMPLATES } from "@/lib/templates/campaign-templates";
+import { getServerLocale } from "@/lib/i18n/get-locale";
+import { dictionaries } from "@/lib/i18n/translations";
 
 export const metadata: Metadata = {
   title: "Instagram Comment to DM Templates - SocialAuto",
@@ -16,7 +18,9 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function TemplatesPage() {
+export default async function TemplatesPage() {
+  const locale = await getServerLocale();
+  const t = dictionaries[locale];
   return (
     <main className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader active="templates" />
@@ -25,27 +29,26 @@ export default function TemplatesPage() {
         <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
           <div>
             <p className="label-mono text-sm font-bold text-accent">
-              Public template library
+              {t.templatesPage.eyebrow}
             </p>
             <h1 className="mt-4 font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
-              Instagram campaigns you can copy in minutes
+              {t.templatesPage.title}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-              Start with proven comment-to-DM playbooks for lead magnets,
-              product links, events, service menus, and agency client campaigns.
+              {t.templatesPage.body}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/login"
                 className="label-mono inline-flex items-center justify-center rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
               >
-                Start free
+                {t.templatesPage.startFree}
               </Link>
               <a
                 href="#template-grid"
                 className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
               >
-                Browse templates
+                {t.templatesPage.browseTemplates}
               </a>
             </div>
           </div>
@@ -95,13 +98,13 @@ export default function TemplatesPage() {
                   href={`/templates/${template.slug}`}
                   className="label-mono inline-flex w-full items-center justify-center rounded border-2 border-border bg-transparent px-4 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
                 >
-                  View playbook
+                  {t.templatesPage.viewPlaybook}
                 </Link>
                 <Link
                   href={`/login?template=${template.slug}`}
                   className="label-mono inline-flex w-full items-center justify-center rounded bg-accent px-4 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
                 >
-                  Use this template
+                  {t.templatesPage.useThisTemplate}
                 </Link>
               </div>
             </article>

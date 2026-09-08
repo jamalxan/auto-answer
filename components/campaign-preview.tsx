@@ -10,6 +10,8 @@
  * the identical frame so switching tabs never resizes the phone.
  */
 
+import { useLanguage } from "@/components/language-provider";
+
 export type PreviewTab = "post" | "comments" | "dm" | "dmTrigger";
 
 interface CampaignPreviewProps {
@@ -474,13 +476,14 @@ function DmScreen({
 /* ----------------------------- root ----------------------------- */
 
 export default function CampaignPreview(props: CampaignPreviewProps) {
+  const { t } = useLanguage();
   const { tab, onTabChange } = props;
   const tabs: { key: PreviewTab; label: string }[] = [
-    { key: "post", label: "Post" },
-    { key: "comments", label: "Comments" },
-    { key: "dm", label: "DM" },
+    { key: "post", label: t.builder.previewTabPost },
+    { key: "comments", label: t.builder.previewTabComments },
+    { key: "dm", label: t.builder.previewTabDm },
     ...(props.dmTriggerEnabled
-      ? [{ key: "dmTrigger" as const, label: "DM trigger" }]
+      ? [{ key: "dmTrigger" as const, label: t.builder.previewTabDmTrigger }]
       : []),
   ];
 

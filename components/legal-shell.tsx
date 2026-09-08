@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useLanguage } from "@/components/language-provider";
 
 interface LegalShellProps {
   title: string;
@@ -13,6 +16,7 @@ export default function LegalShell({
   updatedAt,
   children,
 }: LegalShellProps) {
+  const { t } = useLanguage();
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b-2 border-border">
@@ -26,14 +30,14 @@ export default function LegalShell({
             href="/login"
             className="text-sm font-semibold text-muted transition hover:text-foreground"
           >
-            Sign in
+            {t.legalShell.signIn}
           </Link>
         </div>
       </header>
 
       <article className="mx-auto max-w-3xl px-5 py-14">
         <p className="label-mono text-sm font-semibold text-accent">
-          Last updated {updatedAt}
+          {t.legalShell.lastUpdated(updatedAt)}
         </p>
         <h1 className="mt-4 font-display text-4xl font-extrabold text-foreground sm:text-5xl">
           {title}

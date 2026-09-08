@@ -8,6 +8,7 @@
 
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
+import LanguageSwitcher from "@/components/language-switcher";
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -61,22 +62,25 @@ export default function TopBar({
         </h1>
       </div>
 
-      {instagramAccountCount > 0 ? (
-        <p className="shrink-0 truncate text-sm text-muted">
-          {instagramAccountCount > 1
-            ? t.topbar.accountsCount(instagramAccountCount)
-            : `@${instagramUsername}`}
-        </p>
-      ) : (
-        <a
-          href="/api/instagram/connect"
-          className="label-mono shrink-0 whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded bg-accent text-background hover:bg-accent-hover"
-        >
-          {/* Full label needs more room than a 360px header has to spare. */}
-          <span className="sm:hidden">{t.topbar.connect}</span>
-          <span className="hidden sm:inline">{t.topbar.connectInstagram}</span>
-        </a>
-      )}
+      <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+        {instagramAccountCount > 0 ? (
+          <p className="hidden truncate text-sm text-muted sm:block">
+            {instagramAccountCount > 1
+              ? t.topbar.accountsCount(instagramAccountCount)
+              : `@${instagramUsername}`}
+          </p>
+        ) : (
+          <a
+            href="/api/instagram/connect"
+            className="label-mono whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded bg-accent text-background hover:bg-accent-hover"
+          >
+            {/* Full label needs more room than a 360px header has to spare. */}
+            <span className="sm:hidden">{t.topbar.connect}</span>
+            <span className="hidden sm:inline">{t.topbar.connectInstagram}</span>
+          </a>
+        )}
+        <LanguageSwitcher />
+      </div>
     </header>
   );
 }

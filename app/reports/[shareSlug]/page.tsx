@@ -2,14 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCampaignReportBySlug } from "@/lib/reports/data";
+import LanguageSwitcher from "@/components/language-switcher";
+import { getServerLocale } from "@/lib/i18n/get-locale";
+import { dictionaries } from "@/lib/i18n/translations";
+import type { Dictionary } from "@/lib/i18n/dictionary";
+import type { Locale } from "@/lib/i18n/config";
 
 type ReportPageProps = {
   params: Promise<{ shareSlug: string }>;
 };
 
-function formatDate(date: Date | null) {
-  if (!date) return "No sends yet";
-  return date.toLocaleDateString("en-US", {
+function formatDate(date: Date | null, locale: Locale, t: Dictionary) {
+  if (!date) return t.reportPage.noSendsYet;
+  return date.toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -60,7 +65,11 @@ export async function generateMetadata({
 
 export default async function ReportPage({ params }: ReportPageProps) {
   const { shareSlug } = await params;
-  const report = await getCampaignReportBySlug(shareSlug);
+  const [report, locale] = await Promise.all([
+    getCampaignReportBySlug(shareSlug),
+    getServerLocale(),
+  ]);
+  const t = dictionaries[locale];
 
   if (!report) {
     notFound();
@@ -74,11 +83,16 @@ export default async function ReportPage({ params }: ReportPageProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-b-2 border-border bg-surface">
+        <div className="mx-auto w-full max-w-6xl px-5 pt-6 sm:px-6 lg:px-8">
+          <div className="flex justify-end">
+            <LanguageSwitcher />
+          </div>
+        </div>
         <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="label-mono text-sm font-bold text-accent">
-                Client campaign report
+                {t.reportPage.clientCampaignReport}
               </p>
               <h1 className="mt-4 max-w-3xl font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
                 {report.campaign.name}
@@ -93,25 +107,27 @@ export default async function ReportPage({ params }: ReportPageProps) {
                 )}
                 <span>·</span>
                 <span>
-                  {report.campaign.isActive ? "Active campaign" : "Paused campaign"}
+                  {report.campaign.isActive
+                    ? t.reportPage.activeCampaign
+                    : t.reportPage.pausedCampaign}
                 </span>
               </div>
             </div>
 
             <div className="panel rounded p-4 text-sm text-foreground md:min-w-64">
               <p className="label-mono text-[11px] font-semibold text-muted">
-                Workspace
+                {t.reportPage.workspaceLabel}
               </p>
               <p className="mt-2 font-bold text-foreground">{report.workspace.name}</p>
               <p className="mt-4 text-xs text-muted">
-                Generated {formatDate(report.generatedAt)}
+                {t.reportPage.generated(formatDate(report.generatedAt, locale, t))}
               </p>
               {report.branded && (
                 <Link
                   href="/"
                   className="mt-4 inline-flex items-center justify-center rounded border border-accent/20 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent transition hover:border-accent/40"
                 >
-                  Powered by SocialAuto
+                  {t.reportPage.poweredBy}
                 </Link>
               )}
             </div>
@@ -122,29 +138,29 @@ export default async function ReportPage({ params }: ReportPageProps) {
       <section className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard
-            label="DMs sent"
+            label={t.reportPage.metricSentLabel}
             value={report.metrics.sent}
-            helper="Private replies successfully sent."
+            helper={t.reportPage.metricSentHelper}
           />
           <MetricCard
-            label="Skipped"
+            label={t.reportPage.metricSkippedLabel}
             value={report.metrics.skipped}
-            helper="Duplicates, limits, or no-send outcomes."
+            helper={t.reportPage.metricSkippedHelper}
           />
           <MetricCard
-            label="Failed"
+            label={t.reportPage.metricFailedLabel}
             value={report.metrics.failed}
-            helper="Replies that need operational review."
+            helper={t.reportPage.metricFailedHelper}
           />
           <MetricCard
-            label="Clicks"
+            label={t.reportPage.metricClicksLabel}
             value={report.metrics.clicks}
-            helper="Tracked link visits from replies."
+            helper={t.reportPage.metricClicksHelper}
           />
           <MetricCard
-            label="CTR"
+            label={t.reportPage.metricCtrLabel}
             value={`${report.metrics.ctr}%`}
-            helper="Clicks divided by sent replies."
+            helper={t.reportPage.metricCtrHelper}
           />
         </div>
 
@@ -153,14 +169,14 @@ export default async function ReportPage({ params }: ReportPageProps) {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="font-display text-xl font-extrabold text-foreground">
-                  Last 7 Days
+                  {t.reportPage.last7Days}
                 </h2>
                 <p className="mt-2 text-sm text-muted">
-                  Sent replies and tracked clicks by day.
+                  {t.reportPage.last7DaysBody}
                 </p>
               </div>
               <p className="text-xs text-muted">
-                Last send: {formatDate(report.metrics.latestSentAt)}
+                {t.reportPage.lastSend(formatDate(report.metrics.latestSentAt, locale, t))}
               </p>
             </div>
             <div className="mt-8 grid h-56 grid-cols-7 items-end gap-1.5 sm:gap-3">
@@ -191,11 +207,11 @@ export default async function ReportPage({ params }: ReportPageProps) {
             <div className="mt-5 flex flex-wrap gap-4 text-xs text-muted">
               <span className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 bg-accent" />
-                Sent replies
+                {t.reportPage.legendSent}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 bg-gold" />
-                Link clicks
+                {t.reportPage.legendClicks}
               </span>
             </div>
           </section>
@@ -203,12 +219,12 @@ export default async function ReportPage({ params }: ReportPageProps) {
           <aside className="space-y-6">
             <section className="panel rounded p-4 sm:p-6">
               <h2 className="font-display text-xl font-extrabold text-foreground">
-                Top Keywords
+                {t.reportPage.topKeywords}
               </h2>
               <div className="mt-5 space-y-3">
                 {report.topKeywords.length === 0 && (
                   <p className="text-sm text-muted">
-                    No matched keyword data yet.
+                    {t.reportPage.noKeywordData}
                   </p>
                 )}
                 {report.topKeywords.map((keyword) => (
@@ -229,12 +245,12 @@ export default async function ReportPage({ params }: ReportPageProps) {
 
             <section className="panel rounded p-4 sm:p-6">
               <h2 className="font-display text-xl font-extrabold text-foreground">
-                Tracked Links
+                {t.reportPage.trackedLinksTitle}
               </h2>
               <div className="mt-5 space-y-3">
                 {report.trackedLinks.length === 0 && (
                   <p className="text-sm text-muted">
-                    This campaign does not have a tracked link.
+                    {t.reportPage.noTrackedLink}
                   </p>
                 )}
                 {report.trackedLinks.map((link) => (
@@ -257,12 +273,12 @@ export default async function ReportPage({ params }: ReportPageProps) {
 
         <section className="panel mt-8 rounded p-4 sm:p-6">
           <h2 className="font-display text-xl font-extrabold text-foreground">
-            Campaign Setup
+            {t.reportPage.campaignSetupTitle}
           </h2>
           <div className="mt-5 grid gap-5 md:grid-cols-3">
             <div>
               <p className="label-mono text-[11px] font-semibold text-muted">
-                Keywords
+                {t.reportPage.keywordsLabel}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {report.campaign.keywords.map((keyword) => (
@@ -277,15 +293,15 @@ export default async function ReportPage({ params }: ReportPageProps) {
             </div>
             <div>
               <p className="label-mono text-[11px] font-semibold text-muted">
-                Created
+                {t.reportPage.createdLabel}
               </p>
               <p className="mt-3 text-sm text-muted">
-                {formatDate(report.campaign.createdAt)}
+                {formatDate(report.campaign.createdAt, locale, t)}
               </p>
             </div>
             <div>
               <p className="label-mono text-[11px] font-semibold text-muted">
-                Source post
+                {t.reportPage.sourcePostLabel}
               </p>
               {report.campaign.postUrl ? (
                 <a
@@ -294,10 +310,10 @@ export default async function ReportPage({ params }: ReportPageProps) {
                   rel="noreferrer"
                   className="mt-3 inline-flex text-sm font-semibold text-accent transition hover:text-accent-hover"
                 >
-                  View Instagram post
+                  {t.reportPage.viewInstagramPost}
                 </a>
               ) : (
-                <p className="mt-3 text-sm text-muted">Not attached</p>
+                <p className="mt-3 text-sm text-muted">{t.reportPage.notAttached}</p>
               )}
             </div>
           </div>
@@ -305,7 +321,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
 
         {report.branded && (
           <footer className="mt-8 border-t-2 border-border pt-6 text-center text-xs text-muted">
-            Built with SocialAuto, the Instagram comment-to-DM campaign OS.
+            {t.reportPage.builtWithFooter}
           </footer>
         )}
       </section>

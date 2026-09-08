@@ -1,4 +1,7 @@
+"use client";
+
 import type { CampaignTemplate } from "@/lib/templates/campaign-templates";
+import { useLanguage } from "@/components/language-provider";
 
 interface TemplateVisualProps {
   template: CampaignTemplate;
@@ -9,13 +12,14 @@ export default function TemplateVisual({
   template,
   compact = false,
 }: TemplateVisualProps) {
+  const { t } = useLanguage();
   return (
     <div className="rounded border-2 border-border p-4">
       <div className="rounded border-2 border-border bg-surface p-4">
         <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
           <div>
             <p className="label-mono text-[11px] font-semibold text-muted">
-              Comment trigger
+              {t.publicSite.triggerLabel}
             </p>
             <p className="mt-1 text-sm font-bold text-foreground">
               {template.triggerExample}
@@ -29,7 +33,7 @@ export default function TemplateVisual({
         <div className={`grid gap-3 pt-4 ${compact ? "" : "sm:grid-cols-2"}`}>
           <div className="rounded border border-border bg-background p-3">
             <p className="label-mono text-[11px] font-semibold text-muted">
-              Keywords
+              {t.publicSite.keywordsLabel}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {template.keywords.map((keyword) => (
@@ -44,7 +48,7 @@ export default function TemplateVisual({
           </div>
           <div className="rounded border border-border bg-background p-3">
             <p className="label-mono text-[11px] font-semibold text-muted">
-              Private reply
+              {t.publicSite.privateReplyLabel}
             </p>
             <p className="mt-3 text-sm leading-6 text-foreground">
               {template.privateReplyPreview}

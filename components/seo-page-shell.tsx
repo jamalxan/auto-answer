@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import PublicSiteHeader from "@/components/public-site-header";
+import { useLanguage } from "@/components/language-provider";
 
 export interface SeoPageSection {
   title: string;
@@ -28,6 +31,7 @@ export interface SeoPageConfig {
 }
 
 export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
+  const { t } = useLanguage();
   return (
     <main className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
@@ -55,14 +59,14 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
                 href="/templates"
                 className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
               >
-                {config.secondaryCta ?? "Browse templates"}
+                {config.secondaryCta ?? t.seoShell.browseTemplates}
               </Link>
             </div>
           </div>
 
           <div className="panel rounded p-6">
             <p className="label-mono text-[11px] font-bold text-muted">
-              Campaign OS checklist
+              {t.seoShell.checklistTitle}
             </p>
             <ul className="mt-5 space-y-4">
               {config.bullets.map((bullet) => (
@@ -95,9 +99,9 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
           </h2>
           <div className="mt-8 overflow-hidden rounded border-2 border-border">
             <div className="label-mono grid grid-cols-[0.8fr_1fr_1fr] border-b-2 border-border bg-background text-[11px] font-bold text-muted">
-              <div className="p-4">Need</div>
-              <div className="p-4 text-accent">SocialAuto</div>
-              <div className="p-4">Generic automation</div>
+              <div className="p-4">{t.seoShell.compareNeed}</div>
+              <div className="p-4 text-accent">{t.seoShell.compareOurs}</div>
+              <div className="p-4">{t.seoShell.compareOther}</div>
             </div>
             {config.comparisons.map((item) => (
               <div
@@ -122,14 +126,13 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
       <section className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
         <div>
           <p className="label-mono text-sm font-bold text-gold">
-            Start from a template
+            {t.seoShell.templateEyebrow}
           </p>
           <h2 className="mt-3 font-display text-4xl font-extrabold text-foreground">
-            Launch a campaign faster than building a chatbot flow
+            {t.seoShell.templateTitle}
           </h2>
           <p className="mt-5 text-sm leading-7 text-muted">
-            Use a campaign template, connect the right Instagram account, pick
-            the post, and ship a measurable comment-to-DM loop.
+            {t.seoShell.templateBody}
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -148,9 +151,9 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
       <section className="border-t-2 border-border bg-surface py-16">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
-            <p className="label-mono text-sm font-bold text-accent">FAQ</p>
+            <p className="label-mono text-sm font-bold text-accent">{t.seoShell.faqEyebrow}</p>
             <h2 className="mt-3 font-display text-4xl font-extrabold text-foreground">
-              Search questions, answered clearly
+              {t.seoShell.faqTitle}
             </h2>
           </div>
           <div className="grid gap-3">
@@ -167,17 +170,16 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
       <section className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
         <div className="rounded border-2 border-accent/30 bg-accent/10 p-8 text-center">
           <h2 className="font-display text-4xl font-extrabold text-foreground">
-            Turn the next high-intent comment into a private reply
+            {t.seoShell.ctaTitle}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-muted">
-            SocialAuto is built for Instagram professional accounts, official
-            Meta private replies, and campaign reporting teams can show clients.
+            {t.seoShell.ctaBody}
           </p>
           <Link
             href="/login"
             className="label-mono mt-8 inline-flex items-center justify-center rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
           >
-            Start free
+            {t.seoShell.startFree}
           </Link>
         </div>
       </section>
