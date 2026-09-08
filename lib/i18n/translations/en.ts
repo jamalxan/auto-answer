@@ -287,6 +287,19 @@ export const en = {
     previewTabComments: "Comments",
     previewTabDm: "DM",
     previewTabDmTrigger: "DM trigger",
+    publicReplyPlaceholder: "Sent you a DM! 📩",
+    openingDmPlaceholder: "Hey there! I'm so happy you're here 😊",
+    openingDmButtonPlaceholder: "Send me the link",
+    followPromptPlaceholder:
+      "thanks for following! tap the button below once you're following and I'll send your link right over.",
+    followButtonPlaceholder: "i'm following",
+    dmMessagePlaceholder: "Write a message",
+    linkButtonLabelPlaceholder: "Button label (e.g. Open link)",
+    secondButtonLabelPlaceholder: "Second button label",
+    followUpMessagePlaceholder:
+      "Btw just wanted to say thanks for following me, I appreciate the support 🙌",
+    openingMessageEmptyPlaceholder: "Your opening message…",
+    minutesLaterCaption: (min) => `${min} min later`,
   },
   campaignDetail: {
     backLink: "← Campaigns",
@@ -449,6 +462,59 @@ export const en = {
   legalShell: {
     signIn: "Sign in",
     lastUpdated: (date) => `Last updated ${date}`,
+  },
+  legal: {
+    privacy: {
+      title: "Privacy Policy",
+      description:
+        "SocialAuto helps businesses send Meta-compliant private replies when people comment on connected Instagram posts or reels.",
+      dataWeCollectTitle: "Data We Collect",
+      dataWeCollectBody:
+        "We collect account email addresses for authentication, workspace and billing metadata, connected Instagram account identifiers, encrypted Instagram access tokens, campaign settings, webhook payloads, comments needed to process campaigns, delivery logs, and operational diagnostics.",
+      howWeUseTitle: "How We Use Data",
+      howWeUseBody:
+        "We use this data to authenticate users, connect Instagram integrations, match comment keywords, send private replies through the official Meta APIs, prevent duplicate sends, troubleshoot failures, and protect the service.",
+      instagramMetaTitle: "Instagram And Meta Data",
+      instagramMetaBody:
+        "SocialAuto does not ask for Instagram passwords, scrape Instagram, or use browser automation. Instagram tokens are encrypted at rest and are used only to perform actions authorized by the connected business account.",
+      subprocessorsTitle: "Subprocessors",
+      subprocessorsBody:
+        "The production service may use hosting, database, Redis queue, email, and observability providers. These providers process data only as needed to run the service.",
+      retentionTitle: "Retention And Deletion",
+      retentionBody:
+        "Customers can disconnect Instagram from settings, which removes the stored Instagram connection and stops campaigns. For account or data deletion, follow the Data Deletion page linked from the footer.",
+      contactTitle: "Contact",
+      contactBody:
+        "For privacy questions, contact us through the support email configured for the hosted SocialAuto service.",
+    },
+    terms: {
+      title: "Terms of Service",
+      description:
+        "These terms define acceptable use for SocialAuto's hosted Instagram comment-to-DM campaign service.",
+      authorizedUseTitle: "Authorized Use",
+      authorizedUseBody:
+        "You may use SocialAuto only with Instagram professional accounts you own or are authorized to manage. You are responsible for the campaigns, keywords, links, and messages you configure.",
+      complianceTitle: "Platform Compliance",
+      complianceBody:
+        "You agree to follow Meta Platform Terms, Instagram policies, applicable messaging rules, privacy laws, advertising rules, and anti-spam laws. SocialAuto may rate-limit, pause, or disable campaigns that create compliance, abuse, security, or deliverability risk.",
+      availabilityTitle: "Availability",
+      availabilityBody:
+        "SocialAuto depends on third-party platforms including Meta, email, hosting, database, and queue providers. We work to operate the service reliably, but uninterrupted availability is not guaranteed.",
+    },
+    dataDeletion: {
+      title: "Data Deletion",
+      description:
+        "Use this page for Meta App Review and customer requests about removing SocialAuto account, workspace, Instagram, and campaign data.",
+      disconnectTitle: "Disconnect Instagram",
+      disconnectBody:
+        "Sign in, open Settings, and select Disconnect. This removes the stored Instagram connection token and stops campaigns from sending private replies for that workspace.",
+      deleteWorkspaceTitle: "Delete Workspace Data",
+      deleteWorkspaceBody:
+        "To delete workspace, campaign, log, webhook, billing reference, and operational diagnostic data, contact support from the email address used to sign in. Include the workspace name and the Instagram username connected to the workspace.",
+      verificationTitle: "Verification",
+      verificationBody:
+        "We may ask you to verify control of the email address or connected business account before deleting data. Deletion requests are processed as quickly as practical unless retention is required for legal, billing, fraud prevention, or security reasons.",
+    },
   },
   home: {
     officialApi: "Official Meta API",

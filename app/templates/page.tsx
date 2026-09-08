@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import PublicSiteHeader from "@/components/public-site-header";
 import TemplateVisual from "@/components/template-visual";
-import { CAMPAIGN_TEMPLATES } from "@/lib/templates/campaign-templates";
+import { getCampaignTemplates } from "@/lib/templates/campaign-templates";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 
@@ -21,6 +21,7 @@ export const metadata: Metadata = {
 export default async function TemplatesPage() {
   const locale = await getServerLocale();
   const t = dictionaries[locale];
+  const campaignTemplates = getCampaignTemplates(locale);
   return (
     <main className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader active="templates" />
@@ -54,7 +55,7 @@ export default async function TemplatesPage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {CAMPAIGN_TEMPLATES.slice(0, 2).map((template) => (
+            {campaignTemplates.slice(0, 2).map((template) => (
               <TemplateVisual key={template.slug} template={template} compact />
             ))}
           </div>
@@ -66,7 +67,7 @@ export default async function TemplatesPage() {
         className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-6 lg:px-8"
       >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {CAMPAIGN_TEMPLATES.map((template) => (
+          {campaignTemplates.map((template) => (
             <article
               key={template.slug}
               className="panel flex min-h-full flex-col rounded p-5 transition hover:border-accent/40"

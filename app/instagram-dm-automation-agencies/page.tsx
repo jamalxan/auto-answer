@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SeoPageShell from "@/components/seo-page-shell";
-import { agenciesSeoPage } from "@/lib/seo-pages";
+import { getAgenciesSeoPage } from "@/lib/seo-pages";
+import { getServerLocale } from "@/lib/i18n/get-locale";
 
 export const metadata: Metadata = {
   title: "Instagram DM Automation for Agencies",
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function InstagramDmAutomationAgenciesPage() {
-  return <SeoPageShell config={agenciesSeoPage} />;
+export default async function InstagramDmAutomationAgenciesPage() {
+  const locale = await getServerLocale();
+  return <SeoPageShell config={getAgenciesSeoPage(locale)} />;
 }
 

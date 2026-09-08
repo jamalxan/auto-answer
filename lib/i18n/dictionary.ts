@@ -281,6 +281,17 @@ export interface Dictionary {
     previewTabComments: string;
     previewTabDm: string;
     previewTabDmTrigger: string;
+    publicReplyPlaceholder: string;
+    openingDmPlaceholder: string;
+    openingDmButtonPlaceholder: string;
+    followPromptPlaceholder: string;
+    followButtonPlaceholder: string;
+    dmMessagePlaceholder: string;
+    linkButtonLabelPlaceholder: string;
+    secondButtonLabelPlaceholder: string;
+    followUpMessagePlaceholder: string;
+    openingMessageEmptyPlaceholder: string;
+    minutesLaterCaption: (min: number) => string;
   };
   campaignDetail: {
     backLink: string;
@@ -437,6 +448,44 @@ export interface Dictionary {
   legalShell: {
     signIn: string;
     lastUpdated: (date: string) => string;
+  };
+  legal: {
+    privacy: {
+      title: string;
+      description: string;
+      dataWeCollectTitle: string;
+      dataWeCollectBody: string;
+      howWeUseTitle: string;
+      howWeUseBody: string;
+      instagramMetaTitle: string;
+      instagramMetaBody: string;
+      subprocessorsTitle: string;
+      subprocessorsBody: string;
+      retentionTitle: string;
+      retentionBody: string;
+      contactTitle: string;
+      contactBody: string;
+    };
+    terms: {
+      title: string;
+      description: string;
+      authorizedUseTitle: string;
+      authorizedUseBody: string;
+      complianceTitle: string;
+      complianceBody: string;
+      availabilityTitle: string;
+      availabilityBody: string;
+    };
+    dataDeletion: {
+      title: string;
+      description: string;
+      disconnectTitle: string;
+      disconnectBody: string;
+      deleteWorkspaceTitle: string;
+      deleteWorkspaceBody: string;
+      verificationTitle: string;
+      verificationBody: string;
+    };
   };
   home: {
     officialApi: string;

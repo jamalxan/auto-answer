@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SeoPageShell from "@/components/seo-page-shell";
-import { commentLinkSeoPage } from "@/lib/seo-pages";
+import { getCommentLinkSeoPage } from "@/lib/seo-pages";
+import { getServerLocale } from "@/lib/i18n/get-locale";
 
 export const metadata: Metadata = {
   title: "Comment LINK Automation for Instagram",
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function CommentLinkAutomationPage() {
-  return <SeoPageShell config={commentLinkSeoPage} />;
+export default async function CommentLinkAutomationPage() {
+  const locale = await getServerLocale();
+  return <SeoPageShell config={getCommentLinkSeoPage(locale)} />;
 }
 

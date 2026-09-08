@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SeoPageShell from "@/components/seo-page-shell";
-import { templatesSeoPage } from "@/lib/seo-pages";
+import { getTemplatesSeoPage } from "@/lib/seo-pages";
+import { getServerLocale } from "@/lib/i18n/get-locale";
 
 export const metadata: Metadata = {
   title: "Instagram Comment-to-DM Templates for Campaigns",
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function InstagramCommentToDmTemplatesPage() {
-  return <SeoPageShell config={templatesSeoPage} />;
+export default async function InstagramCommentToDmTemplatesPage() {
+  const locale = await getServerLocale();
+  return <SeoPageShell config={getTemplatesSeoPage(locale)} />;
 }
 

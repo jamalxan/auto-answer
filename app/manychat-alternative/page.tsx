@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SeoPageShell from "@/components/seo-page-shell";
-import { manychatAlternativePage } from "@/lib/seo-pages";
+import { getManychatAlternativePage } from "@/lib/seo-pages";
+import { getServerLocale } from "@/lib/i18n/get-locale";
 
 export const metadata: Metadata = {
   title: "Manychat Alternative for Instagram Comment-to-DM Campaigns",
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ManychatAlternativePage() {
-  return <SeoPageShell config={manychatAlternativePage} />;
+export default async function ManychatAlternativePage() {
+  const locale = await getServerLocale();
+  return <SeoPageShell config={getManychatAlternativePage(locale)} />;
 }
 

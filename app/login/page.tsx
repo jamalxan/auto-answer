@@ -20,13 +20,13 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const checkEmail = params.checkEmail === "1";
-  const selectedTemplate = getCampaignTemplate(params.template);
+  const locale = await getServerLocale();
+  const t = dictionaries[locale];
+  const selectedTemplate = getCampaignTemplate(params.template, locale);
   const templateCallbackUrl = selectedTemplate
     ? `/campaigns/new?template=${selectedTemplate.slug}`
     : null;
   const callbackUrl = params.callbackUrl ?? templateCallbackUrl ?? "/dashboard";
-  const locale = await getServerLocale();
-  const t = dictionaries[locale];
 
   async function sendMagicLink(formData: FormData) {
     "use server";

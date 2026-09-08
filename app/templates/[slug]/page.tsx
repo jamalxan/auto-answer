@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import PublicSiteHeader from "@/components/public-site-header";
 import TemplateVisual from "@/components/template-visual";
 import {
-  CAMPAIGN_TEMPLATES,
   getCampaignTemplate,
+  getCampaignTemplates,
   getCampaignTemplateSlugs,
 } from "@/lib/templates/campaign-templates";
 import { getServerLocale } from "@/lib/i18n/get-locale";
@@ -23,7 +23,8 @@ export async function generateMetadata({
   params,
 }: TemplatePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const template = getCampaignTemplate(slug);
+  const locale = await getServerLocale();
+  const template = getCampaignTemplate(slug, locale);
 
   if (!template) {
     return {
@@ -46,17 +47,17 @@ export async function generateMetadata({
 
 export default async function TemplateDetailPage({ params }: TemplatePageProps) {
   const { slug } = await params;
-  const template = getCampaignTemplate(slug);
   const locale = await getServerLocale();
   const t = dictionaries[locale];
+  const template = getCampaignTemplate(slug, locale);
 
   if (!template) {
     notFound();
   }
 
-  const relatedTemplates = CAMPAIGN_TEMPLATES.filter(
-    (item) => item.slug !== template.slug
-  ).slice(0, 3);
+  const relatedTemplates = getCampaignTemplates(locale)
+    .filter((item) => item.slug !== template.slug)
+    .slice(0, 3);
 
   return (
     <main className="min-h-screen bg-background text-foreground">

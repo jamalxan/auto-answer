@@ -251,6 +251,7 @@ function CommentsScreen({
   publicReplyEnabled: boolean;
   publicReplyMessage: string;
 }) {
+  const { t } = useLanguage();
   const reactions = ["❤️", "🙌", "🔥", "👏", "😢", "😍", "😮", "😂"];
   return (
     <div className="flex h-full flex-col text-white">
@@ -281,7 +282,7 @@ function CommentsScreen({
                 <span className="font-semibold">{username}</span>{" "}
                 <span className="text-zinc-500">Now</span>
               </p>
-              <p className="text-sm">{publicReplyMessage || "Sent you a DM! 📩"}</p>
+              <p className="text-sm">{publicReplyMessage || t.builder.publicReplyPlaceholder}</p>
               <p className="mt-0.5 text-xs text-zinc-500">Reply</p>
             </div>
             <span className="mt-1">{Ico.heart("h-3.5 w-3.5 text-zinc-500")}</span>
@@ -346,6 +347,7 @@ function DmScreen({
   // Present on the keyword-trigger thread: the DM the user sends to start it.
   inboundMessage?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="flex h-full flex-col text-white">
       <StatusBar />
@@ -372,7 +374,7 @@ function DmScreen({
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
               <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
-                <p className="whitespace-pre-wrap px-3 py-2 text-sm">{openingDmMessage || "Your opening message…"}</p>
+                <p className="whitespace-pre-wrap px-3 py-2 text-sm">{openingDmMessage || t.builder.openingMessageEmptyPlaceholder}</p>
                 <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
                   {openingDmButtonLabel || "Button label"}
                 </div>
@@ -391,17 +393,16 @@ function DmScreen({
               <Avatar url={avatarUrl} size={24} />
               <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
                 <p className="whitespace-pre-wrap px-3 py-2 text-sm">
-                  {followPromptMessage ||
-                    "thanks for following! tap the button below once you're following and I'll send your link right over."}
+                  {followPromptMessage || t.builder.followPromptPlaceholder}
                 </p>
                 <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                  {followPromptButtonLabel || "i'm following"}
+                  {followPromptButtonLabel || t.builder.followButtonPlaceholder}
                 </div>
               </div>
             </div>
             <div className="flex justify-end">
               <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
-                {followPromptButtonLabel || "i'm following"}
+                {followPromptButtonLabel || t.builder.followButtonPlaceholder}
               </div>
             </div>
           </>
@@ -420,7 +421,7 @@ function DmScreen({
                 {(!showCard || bodyText) && (
                   <p className="whitespace-pre-wrap px-3 py-2 text-sm">
                     {!revealMessage
-                      ? "Write a message"
+                      ? t.builder.dmMessagePlaceholder
                       : showCard
                         ? bodyText
                         : renderMessage(revealMessage, hasLink, linkUrl)}
@@ -446,7 +447,7 @@ function DmScreen({
           <>
             {followUpDelayMinutes > 0 && (
               <p className="py-1 text-center text-[11px] text-zinc-500">
-                {followUpDelayMinutes} min later
+                {t.builder.minutesLaterCaption(followUpDelayMinutes)}
               </p>
             )}
             <div className="flex items-end gap-2">
@@ -455,7 +456,7 @@ function DmScreen({
                 <p className="whitespace-pre-wrap text-sm">
                   {followUpMessage.trim()
                     ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER)
-                    : "Btw just wanted to say thanks for following me, I appreciate the support 🙌"}
+                    : t.builder.followUpMessagePlaceholder}
                 </p>
               </div>
             </div>

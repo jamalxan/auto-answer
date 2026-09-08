@@ -292,6 +292,19 @@ export const uz = {
     previewTabComments: "Izohlar",
     previewTabDm: "DM",
     previewTabDmTrigger: "DM trigger",
+    publicReplyPlaceholder: "Sizga DM yubordim! 📩",
+    openingDmPlaceholder: "Salom! Bu yerda ekaningizdan juda xursandman 😊",
+    openingDmButtonPlaceholder: "Havolani yuboring",
+    followPromptPlaceholder:
+      "obuna bo'lganingiz uchun rahmat! obuna bo'lgach quyidagi tugmani bosing, men darhol havolangizni yuboraman.",
+    followButtonPlaceholder: "men obuna bo'ldim",
+    dmMessagePlaceholder: "Xabar yozing",
+    linkButtonLabelPlaceholder: "Tugma nomi (masalan, \"Havolani ochish\")",
+    secondButtonLabelPlaceholder: "Ikkinchi tugma nomi",
+    followUpMessagePlaceholder:
+      "Aytgancha, obuna bo'lganingiz uchun rahmat aytmoqchi edim, qo'llab-quvvatlashingiz uchun minnatdorman 🙌",
+    openingMessageEmptyPlaceholder: "Kirish xabaringiz…",
+    minutesLaterCaption: (min) => `${min} daqiqa keyin`,
   },
   campaignDetail: {
     backLink: "← Kampaniyalar",
@@ -454,6 +467,59 @@ export const uz = {
   legalShell: {
     signIn: "Kirish",
     lastUpdated: (date) => `${date} sanasida yangilangan`,
+  },
+  legal: {
+    privacy: {
+      title: "Maxfiylik siyosati",
+      description:
+        "SocialAuto ulangan Instagram post yoki rilslariga odamlar izoh qoldirganda, korxonalarga Meta talablariga mos shaxsiy javoblar yuborishga yordam beradi.",
+      dataWeCollectTitle: "Biz qanday ma'lumotlarni to'playmiz",
+      dataWeCollectBody:
+        "Biz autentifikatsiya uchun akkaunt email manzillarini, ish maydoni va to'lov metama'lumotlarini, ulangan Instagram akkaunt identifikatorlarini, shifrlangan Instagram kirish tokenlarini, kampaniya sozlamalarini, webhook ma'lumotlarini, kampaniyalarni qayta ishlash uchun kerakli izohlarni, yetkazib berish jurnallarini va operatsion diagnostikani to'playmiz.",
+      howWeUseTitle: "Ma'lumotlardan qanday foydalanamiz",
+      howWeUseBody:
+        "Biz bu ma'lumotlardan foydalanuvchilarni autentifikatsiya qilish, Instagram integratsiyalarini ulash, izoh kalit so'zlarini moslashtirish, rasmiy Meta API orqali shaxsiy javoblar yuborish, takroriy yuborishlarning oldini olish, muammolarni bartaraf etish va xizmatni himoya qilish uchun foydalanamiz.",
+      instagramMetaTitle: "Instagram va Meta ma'lumotlari",
+      instagramMetaBody:
+        "SocialAuto Instagram parollarini so'ramaydi, Instagram'ni skrayping qilmaydi va brauzer avtomatlashtirishdan foydalanmaydi. Instagram tokenlari saqlashda shifrlanadi va faqat ulangan biznes akkaunt ruxsat bergan amallar uchun ishlatiladi.",
+      subprocessorsTitle: "Yordamchi xizmat ko'rsatuvchilar",
+      subprocessorsBody:
+        "Ishlab chiqarish xizmati hosting, ma'lumotlar bazasi, Redis navbati, email va monitoring provayderlaridan foydalanishi mumkin. Bu provayderlar ma'lumotlarni faqat xizmatni ishga tushirish uchun zarur bo'lgan darajada qayta ishlaydi.",
+      retentionTitle: "Saqlash va o'chirish",
+      retentionBody:
+        "Mijozlar sozlamalardan Instagram'ni uzishlari mumkin — bu saqlangan Instagram ulanishini o'chiradi va kampaniyalarni to'xtatadi. Akkaunt yoki ma'lumotlarni o'chirish uchun footer'dagi \"Ma'lumotlarni o'chirish\" sahifasiga o'ting.",
+      contactTitle: "Aloqa",
+      contactBody:
+        "Maxfiylik bo'yicha savollar uchun SocialAuto xizmati uchun belgilangan qo'llab-quvvatlash email manziliga murojaat qiling.",
+    },
+    terms: {
+      title: "Foydalanish shartlari",
+      description:
+        "Ushbu shartlar SocialAuto'ning Instagram uchun \"izoh → DM\" kampaniya xizmatidan ruxsat etilgan foydalanishni belgilaydi.",
+      authorizedUseTitle: "Ruxsat etilgan foydalanish",
+      authorizedUseBody:
+        "SocialAuto'dan faqat o'zingizga tegishli yoki boshqarishga vakolatli bo'lgan Instagram professional akkauntlari bilan foydalanishingiz mumkin. Siz sozlagan kampaniyalar, kalit so'zlar, havolalar va xabarlar uchun javobgarsiz.",
+      complianceTitle: "Platforma qoidalariga muvofiqlik",
+      complianceBody:
+        "Siz Meta platforma shartlariga, Instagram qoidalariga, amaldagi xabar almashish qoidalariga, maxfiylik qonunlariga, reklama qoidalariga va spamga qarshi qonunlarga rioya qilishga rozilik bildirasiz. SocialAuto muvofiqlik, suiiste'mol, xavfsizlik yoki yetkazib berish xavfini keltirib chiqaradigan kampaniyalarni cheklashi, to'xtatishi yoki o'chirib qo'yishi mumkin.",
+      availabilityTitle: "Mavjudlik",
+      availabilityBody:
+        "SocialAuto Meta, email, hosting, ma'lumotlar bazasi va navbat provayderlari kabi uchinchi tomon platformalariga bog'liq. Biz xizmatni ishonchli ishlatishga harakat qilamiz, lekin uzluksiz mavjudlik kafolatlanmaydi.",
+    },
+    dataDeletion: {
+      title: "Ma'lumotlarni o'chirish",
+      description:
+        "Ushbu sahifadan Meta App Review va mijozlarning SocialAuto akkaunti, ish maydoni, Instagram va kampaniya ma'lumotlarini o'chirish so'rovlari uchun foydalaning.",
+      disconnectTitle: "Instagram ulanishini uzish",
+      disconnectBody:
+        "Tizimga kiring, Sozlamalarni oching va \"Uzish\"ni tanlang. Bu saqlangan Instagram ulanish tokenini o'chiradi va shu ish maydonidagi kampaniyalarning shaxsiy javob yuborishini to'xtatadi.",
+      deleteWorkspaceTitle: "Ish maydoni ma'lumotlarini o'chirish",
+      deleteWorkspaceBody:
+        "Ish maydoni, kampaniya, jurnal, webhook, to'lov ma'lumotnomasi va operatsion diagnostika ma'lumotlarini o'chirish uchun tizimga kirish uchun ishlatilgan email manzilidan qo'llab-quvvatlash xizmatiga murojaat qiling. Ish maydoni nomi va unga ulangan Instagram foydalanuvchi nomini ko'rsating.",
+      verificationTitle: "Tasdiqlash",
+      verificationBody:
+        "Ma'lumotlarni o'chirishdan oldin biz sizdan email manzili yoki ulangan biznes akkaunt ustidan nazoratni tasdiqlashingizni so'rashimiz mumkin. O'chirish so'rovlari, agar yuridik, to'lov, firibgarlikning oldini olish yoki xavfsizlik sabablari bo'yicha saqlash talab qilinmasa, imkon qadar tezroq ko'rib chiqiladi.",
+    },
   },
   home: {
     officialApi: "Rasmiy Meta API",
