@@ -1,11 +1,28 @@
 import type { Metadata, Viewport } from "next";
+import { Unbounded, Manrope, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
+const unbounded = Unbounded({
+  subsets: ["latin"],
+  weight: ["800", "900"],
+  variable: "--font-unbounded",
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+});
+
 export const metadata: Metadata = {
-  title: "OpenReply - Open source Instagram comment-to-DM automation",
+  title: "SocialAuto - Instagram comment-to-DM automation",
   description:
-    "A free, self-hosted ManyChat alternative. Send an Instagram DM automatically when someone comments a keyword on your post or reel, using the official Meta API.",
+    "Send an Instagram DM automatically when someone comments a keyword on your post or reel, using the official Meta API.",
   keywords: [
     "instagram automation",
     "comment to DM",
@@ -16,7 +33,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "OpenReply",
+    title: "SocialAuto",
     statusBarStyle: "black-translucent",
   },
   icons: {
@@ -29,7 +46,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#18181b",
+  themeColor: "#1a1b72",
   width: "device-width",
   initialScale: 1,
   // Installed on iOS the app owns the full screen, notch included; the safe
@@ -43,7 +60,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full dark">
+    <html
+      lang="en"
+      className={`h-full ${unbounded.variable} ${manrope.variable} ${jetbrainsMono.variable}`}
+    >
       <body
         className="min-h-full bg-background text-foreground font-sans antialiased"
         // Clears the home indicator when installed; 0 everywhere else.

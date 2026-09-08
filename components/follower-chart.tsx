@@ -31,9 +31,9 @@ export interface FollowerChartPoint {
 
 // Colors read against the light chart surface (#ffffff): the accent line clears
 // 3:1 contrast and grid/axis text match the muted/border tokens. See globals.css.
-const SERIES_COLOR = "#f97316";
+const SERIES_COLOR = "#00f0b5";
 const GRID_COLOR = "#e4e4e7";
-const AXIS_TEXT = "#71717a";
+const AXIS_TEXT = "#9c9bc4";
 
 function formatCompact(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -142,7 +142,7 @@ export default function FollowerChart({
         <div className="mt-4 max-h-72 overflow-y-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-zinc-500">
+              <tr className="label-mono border-b border-border text-left text-[11px] text-muted">
                 <th className="py-2 pr-4 font-medium">Date</th>
                 <th className="py-2 px-3 font-medium text-right">Followers</th>
                 <th className="py-2 pl-3 font-medium text-right">Change</th>

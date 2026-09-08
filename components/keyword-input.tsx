@@ -65,7 +65,7 @@ export default function KeywordInput({ keywords, onChange, max = 10 }: KeywordIn
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={keywords.length === 0 ? "Type keyword and press Enter..." : ""}
-          className="flex-1 min-w-[120px] bg-transparent text-sm text-foreground placeholder:text-zinc-500 outline-none"
+          className="flex-1 min-w-[120px] bg-transparent text-sm text-foreground placeholder:text-muted outline-none"
         />
       </div>
       <p className="text-xs text-muted">

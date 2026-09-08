@@ -131,7 +131,7 @@ export default function ImportCampaignsPage() {
           onChange={(e) => setCsv(e.target.value)}
           placeholder={SAMPLE}
           rows={10}
-          className="w-full px-4 py-3 rounded bg-surface border border-border text-sm font-mono text-foreground placeholder:text-zinc-600 focus:border-accent/40 focus:outline-none resize-y"
+          className="w-full px-4 py-3 rounded bg-surface border border-border text-sm font-mono text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none resize-y"
         />
         <button
           type="button"
@@ -145,7 +145,7 @@ export default function ImportCampaignsPage() {
       <div className="flex items-center gap-4">
         <button
           onClick={startImport}
-          className="px-5 py-2 rounded bg-accent text-sm font-medium text-white hover:bg-accent-hover"
+          className="px-5 py-2 rounded bg-accent text-sm font-medium text-background hover:bg-accent-hover"
         >
           Review and import
         </button>

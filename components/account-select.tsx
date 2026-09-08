@@ -24,7 +24,7 @@ export default function AccountSelect({
 }: AccountSelectProps) {
   return (
     <label className="flex flex-col gap-2 text-sm">
-      <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+      <span className="label-mono text-[11px] font-semibold text-muted">
         {label}
       </span>
       <select

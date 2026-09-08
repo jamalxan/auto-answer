@@ -304,7 +304,7 @@ export default function InboxPage() {
                       <span className="truncate text-sm font-medium text-foreground">
                         @{c.contact.username ?? "unknown"}
                       </span>
-                      <span className="shrink-0 text-[11px] text-zinc-500">
+                      <span className="shrink-0 text-[11px] text-muted">
                         {formatTime(c.updatedTime)}
                       </span>
                     </div>
@@ -360,14 +360,14 @@ export default function InboxPage() {
                       <div
                         className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
                           m.fromMe
-                            ? "bg-accent text-white"
+                            ? "bg-accent text-background"
                             : "bg-surface text-foreground border border-border"
                         }`}
                       >
                         <p className="whitespace-pre-wrap break-words">{m.text}</p>
                         <p
                           className={`mt-1 text-[10px] ${
-                            m.fromMe ? "text-white/70" : "text-zinc-500"
+                            m.fromMe ? "text-background/70" : "text-muted"
                           }`}
                         >
                           {formatTime(m.createdTime)}
@@ -389,13 +389,13 @@ export default function InboxPage() {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
-                    className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                    className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => void handleSend()}
                     disabled={sending || !draft.trim()}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-background hover:bg-accent-hover disabled:opacity-50"
                   >
                     {sending ? "Sending…" : "Send"}
                   </button>

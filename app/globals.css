@@ -1,27 +1,31 @@
 @import "tailwindcss";
 
-/* ManyChat Alternative — Design System
-   Plain and functional. No gradients, glass, glow, or animation. */
+/* SocialAuto — Design System
+   Bold retro-tech: deep navy panels, cream headlines, mint/gold accents,
+   thick borders, uppercase mono labels. Ported from socialauto.uz. */
 
 @theme inline {
-  --color-background: #ffffff;
-  --color-foreground: #18181b;
-  --color-surface: #f7f7f8;
-  --color-surface-hover: #efeff1;
-  --color-border: #e4e4e7;
-  --color-border-hover: #d4d4d8;
-  --color-muted: #71717a;
-  --color-accent: #f97316;
-  --color-accent-hover: #ea580c;
-  --color-success: #16a34a;
-  --color-error: #dc2626;
-  --color-warning: #d97706;
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, monospace;
+  --color-background: #1a1b72;
+  --color-foreground: #f3ead9;
+  --color-surface: #0c0d3f;
+  --color-surface-hover: #171856;
+  --color-border: rgba(243, 234, 217, 0.18);
+  --color-border-hover: rgba(243, 234, 217, 0.32);
+  --color-muted: #9c9bc4;
+  --color-accent: #00f0b5;
+  --color-accent-hover: #00d49e;
+  --color-gold: #ffb01f;
+  --color-alert: #e23d2c;
+  --color-success: #00f0b5;
+  --color-error: #e23d2c;
+  --color-warning: #ffb01f;
+  --font-sans: var(--font-manrope), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-unbounded), var(--font-sans);
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 html {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
@@ -55,29 +59,17 @@ select:focus-visible {
   }
 }
 
-/* Panel — flat container. Replaces .glass / .glass-strong. */
+/* Panel — thick-bordered flat container, the base card look site-wide. */
 .panel {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
 
-/* Kept as no-op aliases so existing markup degrades to plain surfaces
-   instead of breaking. Prefer .panel in new code. */
-.glass,
-.glass-strong {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.gradient-mesh {
-  background: none;
-}
-
-.animate-fade-in,
-.animate-slide-in,
-.animate-pulse-glow,
-.stagger > * {
-  animation: none;
+/* Uppercase, tracked-out mono label — nav items, stat labels, section eyebrows. */
+.label-mono {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 @media (prefers-reduced-motion: reduce) {

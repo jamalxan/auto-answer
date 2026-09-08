@@ -1,9 +1,8 @@
 import { EMAIL_PROVIDER_ID, signIn } from "@/lib/auth";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
-import { DemoNotice } from "@/components/demo-notice";
 
 export const metadata = {
-  title: "Login - OpenReply",
+  title: "Login - SocialAuto",
   description: "Sign in to manage Instagram comment-to-DM campaigns.",
 };
 
@@ -36,8 +35,8 @@ export default async function LoginPage({
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold text-foreground">
-            OpenReply
+          <h1 className="font-display text-2xl font-extrabold text-foreground">
+            SocialAuto
           </h1>
           <p className="text-muted text-sm leading-relaxed mt-2">
             {selectedTemplate
@@ -46,12 +45,10 @@ export default async function LoginPage({
           </p>
         </div>
 
-        <DemoNotice variant="panel" />
-
         <div className="panel rounded p-8 shadow-black/40">
           {selectedTemplate && !checkEmail && (
             <div className="mb-5 border border-accent/20 bg-accent/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-accent">
+              <p className="label-mono text-[11px] font-semibold text-accent">
                 Template selected
               </p>
               <p className="mt-2 text-sm font-semibold text-foreground">
@@ -84,13 +81,13 @@ export default async function LoginPage({
                   required
                   autoComplete="email"
                   placeholder="you@company.com"
-                  className="w-full px-4 py-3 rounded bg-surface border border-border text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 rounded bg-surface border border-border text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none transition-colors"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-indigo-500/25 transition-all hover:shadow-indigo-500/30"
+                className="label-mono w-full inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3.5 text-xs font-bold text-background transition-all hover:bg-accent-hover"
               >
                 Email me a magic link
               </button>

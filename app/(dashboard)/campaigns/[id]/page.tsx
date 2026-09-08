@@ -185,7 +185,7 @@ export default function CampaignDetailPage() {
             className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${
               campaign.isActive
                 ? "bg-success/10 text-success"
-                : "bg-zinc-500/10 text-muted"
+                : "bg-border text-muted"
             }`}
           >
             {campaign.isActive ? "LIVE" : "Paused"}
@@ -239,7 +239,7 @@ export default function CampaignDetailPage() {
           <Summary title="They must follow first">
             <FieldBox>
               {campaign.followPromptMessage ||
-                "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"}
+                "thanks for following! tap the button below once you're following and I'll send your link right over."}
             </FieldBox>
             <FieldBox>
               {campaign.followPromptButtonLabel || "i'm following"}

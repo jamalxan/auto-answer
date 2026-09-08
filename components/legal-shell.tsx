@@ -15,10 +15,12 @@ export default function LegalShell({
 }: LegalShellProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border">
+      <header className="border-b-2 border-border">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
           <Link href="/" className="flex items-center gap-3">
-            <span className="text-lg font-bold text-foreground">OpenReply</span>
+            <span className="font-display text-lg font-extrabold text-foreground">
+              SocialAuto
+            </span>
           </Link>
           <Link
             href="/login"
@@ -30,10 +32,10 @@ export default function LegalShell({
       </header>
 
       <article className="mx-auto max-w-3xl px-5 py-14">
-        <p className="text-sm font-semibold uppercase text-accent">
+        <p className="label-mono text-sm font-semibold text-accent">
           Last updated {updatedAt}
         </p>
-        <h1 className="mt-4 text-4xl font-black text-foreground sm:text-5xl">
+        <h1 className="mt-4 font-display text-4xl font-extrabold text-foreground sm:text-5xl">
           {title}
         </h1>
         <p className="mt-5 text-base leading-8 text-muted">{description}</p>

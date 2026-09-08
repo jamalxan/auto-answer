@@ -1,27 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { DemoNotice } from "@/components/demo-notice";
 
 export const metadata: Metadata = {
-  title: "OpenReply - Open source Instagram comment-to-DM automation",
+  title: "SocialAuto - Instagram comment-to-DM automation",
   description:
-    "A free, self-hosted ManyChat alternative. Turn Instagram keyword comments into automatic private replies using the official Meta API.",
+    "Turn Instagram keyword comments into automatic private replies using the official Meta API.",
 };
-
-const GITHUB_URL = "https://github.com/diwenne/openreply";
-const SETUP_DOCS_URL =
-  "https://github.com/diwenne/openreply/blob/main/docs/setup.md";
-
-function formatStars(count: number): string {
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}K`;
-  }
-  return count.toLocaleString();
-}
-
-const githubIconPath =
-  "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z";
 
 const heroStats = [
   { value: "24/7", label: "Comment monitoring" },
@@ -59,7 +44,7 @@ const features = [
   "Per-account rate limiting",
   "Tracked links with click stats",
   "DM logs with full status",
-  "No plan limits, fully self-hosted",
+  "No plan limits",
 ];
 
 /* Static, faithful copies of the real Overview and Dashboard screens, built in
@@ -67,12 +52,12 @@ const features = [
 
 function AppWindow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background shadow-2xl shadow-black/50">
-      <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
+    <div className="overflow-hidden rounded-lg border-2 border-border bg-background shadow-2xl shadow-black/50">
+      <div className="flex items-center gap-2 border-b-2 border-border bg-surface px-4 py-3">
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
         <span className="h-2.5 w-2.5 rounded-full bg-border" />
-        <span className="ml-2 text-xs text-muted">{label}</span>
+        <span className="label-mono ml-2 text-[11px] text-muted">{label}</span>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -81,9 +66,11 @@ function AppWindow({ label, children }: { label: string; children: ReactNode }) 
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-border bg-surface p-4">
-      <p className="text-sm text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
+    <div className="panel rounded p-4">
+      <p className="label-mono text-[11px] text-muted">{label}</p>
+      <p className="mt-1 font-display text-2xl font-extrabold text-foreground">
+        {value}
+      </p>
     </div>
   );
 }
@@ -156,7 +143,7 @@ function OverviewPreview() {
         <p className="text-sm font-semibold text-foreground">Posts</p>
         <table className="mt-3 w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-zinc-500">
+            <tr className="label-mono border-b border-border text-left text-[11px] text-muted">
               <th className="pb-2 pr-3 font-medium">Post</th>
               <th className="pb-2 px-3 text-right font-medium">Views</th>
               <th className="pb-2 px-3 text-right font-medium">Likes</th>
@@ -169,7 +156,7 @@ function OverviewPreview() {
                 <td className="py-2 pr-3 text-foreground">{post}</td>
                 <td className="py-2 px-3 text-right text-muted">{views}</td>
                 <td className="py-2 px-3 text-right text-muted">{likes}</td>
-                <td className="py-2 pl-3 text-right text-zinc-500">{date}</td>
+                <td className="py-2 pl-3 text-right text-muted">{date}</td>
               </tr>
             ))}
           </tbody>
@@ -181,7 +168,7 @@ function OverviewPreview() {
 
 function MatchedCommentCard() {
   return (
-    <div className="w-64 rounded-lg border border-border bg-surface p-4 shadow-2xl shadow-black/50">
+    <div className="w-64 rounded-lg border-2 border-border bg-surface p-4 shadow-2xl shadow-black/50">
       <p className="text-xs text-muted">New comment</p>
       <p className="mt-1 text-sm font-semibold text-foreground">@maya.co</p>
       <p className="mt-1 text-sm text-muted">LINK please</p>
@@ -245,7 +232,7 @@ function DashboardPreview() {
                 className="w-full rounded-sm bg-accent"
                 style={{ height: `${Math.max((n / maxDM) * 100, 4)}%` }}
               />
-              <span className="text-[10px] text-zinc-500">{day}</span>
+              <span className="text-[10px] text-muted">{day}</span>
             </div>
           ))}
         </div>
@@ -270,81 +257,51 @@ function DashboardPreview() {
   );
 }
 
-async function getGitHubStars(): Promise<number | null> {
-  try {
-    const res = await fetch("https://api.github.com/repos/diwenne/openreply", {
-      headers: { Accept: "application/vnd.github+json" },
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { stargazers_count?: number };
-    return typeof data.stargazers_count === "number" ? data.stargazers_count : null;
-  } catch {
-    return null;
-  }
-}
-
-export default async function Home() {
-  const stars = await getGitHubStars();
+export default function Home() {
   return (
-    <main className="min-h-screen bg-white text-zinc-900">
-      <DemoNotice variant="banner" />
-
-      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white">
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b-2 border-border bg-background/95">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="OpenReply home">
-            <span className="text-lg font-bold text-zinc-900">OpenReply</span>
+          <Link href="/" className="flex items-center gap-3" aria-label="SocialAuto home">
+            <span className="font-display text-lg font-extrabold text-foreground">
+              SocialAuto
+            </span>
           </Link>
 
-          <div className="flex items-center gap-4">
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900"
-              aria-label="View OpenReply on GitHub"
-            >
-              <svg viewBox="0 0 16 16" aria-hidden="true" className="h-4 w-4 fill-current">
-                <path d={githubIconPath} />
-              </svg>
-              {stars !== null && <span>{formatStars(stars)}</span>}
-            </a>
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center gap-2 bg-orange-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-orange-600"
-            >
-              Get started
-            </Link>
-          </div>
+          <Link
+            href="/login"
+            className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-4 py-2 text-xs font-bold text-background transition hover:bg-accent-hover"
+          >
+            Get started
+          </Link>
         </div>
       </header>
 
       <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600">
-            Open source · Official Meta API
+          <div className="label-mono inline-flex items-center gap-2 rounded border-2 border-border bg-surface px-3 py-2 text-xs font-semibold text-muted">
+            Official Meta API
           </div>
 
-          <h1 className="mt-7 text-balance text-5xl font-black leading-[1.02] text-zinc-900 sm:text-6xl lg:text-7xl">
+          <h1 className="mt-7 text-balance font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
             Make every comment start the right DM
           </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-600">
-            Open-sourced ManyChat. When someone comments your keyword on a post
-            or reel, they get your DM a second later. Free, self-hosted, and
-            built on the official Instagram API.
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
+            When someone comments your keyword on a post or reel, they get
+            your DM a second later — built on the official Instagram API.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/login"
-              className="inline-flex items-center justify-center gap-2 bg-orange-500 px-6 py-3 text-sm font-bold text-white transition hover:bg-orange-600"
+              className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
             >
               Get started
             </Link>
             <a
               href="#how"
-              className="inline-flex items-center justify-center border border-zinc-200 bg-white px-6 py-3 text-sm font-bold text-zinc-900 transition hover:border-zinc-300 hover:bg-zinc-100"
+              className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
             >
               See how it works
             </a>
@@ -352,9 +309,11 @@ export default async function Home() {
 
           <dl className="mt-10 grid max-w-xl grid-cols-3 gap-3">
             {heroStats.map((stat) => (
-              <div key={stat.label} className="border border-zinc-200 bg-zinc-50 p-4">
-                <dt className="text-2xl font-black text-zinc-900">{stat.value}</dt>
-                <dd className="mt-1 text-xs leading-5 text-zinc-500">{stat.label}</dd>
+              <div key={stat.label} className="panel rounded p-4">
+                <dt className="font-display text-2xl font-extrabold text-foreground">
+                  {stat.value}
+                </dt>
+                <dd className="mt-1 text-xs leading-5 text-muted">{stat.label}</dd>
               </div>
             ))}
           </dl>
@@ -371,11 +330,11 @@ export default async function Home() {
       <section id="how" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
           <div>
-            <p className="text-sm font-bold uppercase text-orange-600">How it works</p>
-            <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+            <p className="label-mono text-sm font-bold text-accent">How it works</p>
+            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               A comment in, a DM out
             </h2>
-            <p className="mt-5 text-base leading-8 text-zinc-600">
+            <p className="mt-5 text-base leading-8 text-muted">
               Three steps. Connect an account, build a campaign, and let it run.
               The webhook handles it live and the poll sweeps up whatever the
               webhook misses.
@@ -386,12 +345,14 @@ export default async function Home() {
             {flowSteps.map((step) => (
               <article
                 key={step.title}
-                className="grid gap-4 border border-zinc-200 bg-zinc-50 p-5 sm:grid-cols-[120px_1fr]"
+                className="panel grid gap-4 rounded p-5 sm:grid-cols-[120px_1fr]"
               >
-                <p className="text-sm font-bold text-orange-600">{step.eyebrow}</p>
+                <p className="label-mono text-xs font-bold text-accent">
+                  {step.eyebrow}
+                </p>
                 <div>
-                  <h3 className="text-xl font-bold text-zinc-900">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-600">{step.description}</p>
+                  <h3 className="text-xl font-bold text-foreground">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted">{step.description}</p>
                 </div>
               </article>
             ))}
@@ -399,16 +360,16 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="border-y border-zinc-200 bg-zinc-50 py-20">
+      <section className="border-y-2 border-border bg-surface py-20">
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:items-center">
           <DashboardPreview />
 
           <div>
-            <p className="text-sm font-bold uppercase text-orange-600">The dashboard</p>
-            <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+            <p className="label-mono text-sm font-bold text-accent">The dashboard</p>
+            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               See exactly what happened
             </h2>
-            <p className="mt-5 text-base leading-8 text-zinc-600">
+            <p className="mt-5 text-base leading-8 text-muted">
               Every comment event is traceable: queued, matched, sent, skipped,
               failed, or rate-limited. No black box.
             </p>
@@ -418,22 +379,21 @@ export default async function Home() {
 
       <section id="features" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
-          <p className="text-sm font-bold uppercase text-orange-600">What&rsquo;s included</p>
-          <h2 className="mt-3 text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+          <p className="label-mono text-sm font-bold text-gold">
+            What&rsquo;s included
+          </p>
+          <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
             Everything, no tiers
           </h2>
-          <p className="mt-5 text-base leading-8 text-zinc-600">
-            It is self-hosted and open source, so there is nothing to unlock. You
-            run it, you own it.
+          <p className="mt-5 text-base leading-8 text-muted">
+            No upgrade prompts and no locked features — every account gets the
+            full toolset.
           </p>
         </div>
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
-            <div
-              key={feature}
-              className="border border-zinc-200 bg-zinc-50 p-4 text-sm font-semibold text-zinc-700"
-            >
+            <div key={feature} className="panel rounded p-4 text-sm font-semibold text-foreground">
               {feature}
             </div>
           ))}
@@ -441,66 +401,28 @@ export default async function Home() {
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-6 lg:px-8">
-        <div className="grid gap-8 border border-orange-200 bg-orange-50 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="grid gap-8 rounded border-2 border-accent/30 bg-accent/10 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <h2 className="max-w-3xl text-4xl font-black leading-tight text-zinc-900 sm:text-5xl">
+            <h2 className="max-w-3xl font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               Turn your next reel&rsquo;s comments into DMs
             </h2>
-            <p className="mt-4 text-base text-zinc-600">
-              Free and open source. Star it if it saves you a subscription.
-            </p>
-            <p className="mt-3 text-sm leading-6 text-zinc-600">
-              <span className="font-bold text-zinc-900">
-                On your own deployment, not this one.
-              </span>{" "}
-              Clone the repo and follow the{" "}
-              <a
-                href={SETUP_DOCS_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="font-bold text-orange-700 underline underline-offset-2 transition hover:text-orange-800"
-              >
-                setup guide
-              </a>{" "}
-              — a Meta app and a domain of your own are required before anything
-              sends.
+            <p className="mt-4 text-base text-muted">
+              Connect your Instagram professional account and ship your first
+              campaign in minutes.
             </p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center gap-2 bg-orange-500 px-6 py-3 text-sm font-bold text-white transition hover:bg-orange-600"
-            >
-              Get started
-            </Link>
-            <a
-              href={GITHUB_URL}
-              className="inline-flex items-center justify-center border border-zinc-200 bg-white px-6 py-3 text-sm font-bold text-zinc-900 transition hover:border-zinc-300 hover:bg-zinc-100"
-            >
-              View on GitHub
-            </a>
-          </div>
+          <Link
+            href="/login"
+            className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
+          >
+            Get started
+          </Link>
         </div>
       </section>
 
-      <footer className="border-t border-zinc-200 py-8">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 text-sm text-zinc-500 sm:px-6 lg:px-8">
-          <span className="font-semibold text-zinc-600">OpenReply</span>
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 transition hover:text-zinc-900"
-          >
-            <svg
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-              className="h-4 w-4 fill-current"
-            >
-              <path d={githubIconPath} />
-            </svg>
-            {stars !== null && <span>{formatStars(stars)}</span>}
-          </a>
+      <footer className="border-t-2 border-border py-8">
+        <div className="mx-auto w-full max-w-7xl px-5 text-sm text-muted sm:px-6 lg:px-8">
+          <span className="font-display font-bold text-foreground">SocialAuto</span>
         </div>
       </footer>
     </main>

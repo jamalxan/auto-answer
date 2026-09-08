@@ -211,7 +211,7 @@ export default function SettingsPage() {
         <div className="mt-6 pt-4 border-t border-border flex gap-3">
           <a
             href="/api/instagram/connect"
-            className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-white hover:bg-accent-hover"
+            className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-background hover:bg-accent-hover"
           >
             {accounts.length > 0 ? "Connect another account" : "Connect Instagram"}
           </a>
@@ -241,7 +241,7 @@ export default function SettingsPage() {
 
         {membersData?.invitations.length ? (
           <div className="mt-6 border-t border-border pt-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <p className="label-mono mb-3 text-[11px] font-semibold text-muted">
               Pending invites
             </p>
             <div className="space-y-3">
@@ -309,7 +309,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={busy === "invite"}
-              className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+              className="rounded bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-50"
             >
               {busy === "invite" ? "Inviting..." : "Invite"}
             </button>
@@ -327,9 +327,7 @@ export default function SettingsPage() {
             <p className="text-sm font-medium text-foreground">
               DMs sent this month
             </p>
-            <p className="text-xs text-muted mt-0.5">
-              Self-hosted — no plan limits.
-            </p>
+            <p className="text-xs text-muted mt-0.5">No plan limits.</p>
           </div>
           <span className="text-sm font-semibold text-foreground">
             {data?.workspace.dmsSentThisPeriod ?? 0}

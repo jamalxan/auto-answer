@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Check your email - OpenReply",
+  title: "Check your email - SocialAuto",
   description: "A sign-in link was sent to your email.",
 };
 
@@ -10,8 +10,8 @@ export default function VerifyRequestPage() {
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold text-foreground">
-            OpenReply
+          <h1 className="font-display text-2xl font-extrabold text-foreground">
+            SocialAuto
           </h1>
         </div>
 
