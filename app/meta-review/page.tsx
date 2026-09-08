@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Meta App Review Support - SocialAuto",
+  title: "Meta App Review Support",
   description:
     "Meta App Review notes for SocialAuto's official Instagram private reply workflow.",
 };

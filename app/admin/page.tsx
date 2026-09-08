@@ -9,7 +9,7 @@ import { dictionaries } from "@/lib/i18n/translations";
 import LanguageSwitcher from "@/components/language-switcher";
 
 export const metadata: Metadata = {
-  title: "Admin - SocialAuto",
+  title: "Admin",
   robots: { index: false, follow: false },
 };
 

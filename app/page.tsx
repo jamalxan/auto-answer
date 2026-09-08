@@ -7,7 +7,7 @@ import PublicSiteHeader from "@/components/public-site-header";
 import SiteFooter from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "SocialAuto - Instagram comment-to-DM automation",
+  title: { absolute: "SocialAuto - Instagram comment-to-DM automation" },
   description:
     "Turn Instagram keyword comments into automatic private replies using the official Meta API.",
 };

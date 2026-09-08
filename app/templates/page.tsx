@@ -8,7 +8,7 @@ import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 
 export const metadata: Metadata = {
-  title: "Instagram Comment to DM Templates - SocialAuto",
+  title: "Instagram Comment to DM Templates",
   description:
     "Copy ready-to-launch Instagram comment-to-DM campaign templates for product links, lead magnets, real estate, fitness, restaurants, events, and creators.",
   keywords: [

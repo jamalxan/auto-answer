@@ -13,7 +13,7 @@ type InvitePageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "Accept Workspace Invitation - SocialAuto",
+  title: "Accept Workspace Invitation",
   robots: { index: false, follow: false },
 };
 

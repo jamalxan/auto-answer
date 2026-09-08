@@ -4,7 +4,7 @@ import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 
 export const metadata: Metadata = {
-  title: "Data Deletion - SocialAuto",
+  title: "Data Deletion",
   description:
     "How SocialAuto customers can disconnect Instagram and request account or campaign data deletion.",
 };

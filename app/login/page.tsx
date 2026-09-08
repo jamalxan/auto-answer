@@ -5,7 +5,7 @@ import { dictionaries } from "@/lib/i18n/translations";
 import LanguageSwitcher from "@/components/language-switcher";
 
 export const metadata = {
-  title: "Login - SocialAuto",
+  title: "Login",
   description: "Sign in to manage Instagram comment-to-DM campaigns.",
 };
 

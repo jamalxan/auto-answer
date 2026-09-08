@@ -29,7 +29,7 @@ export async function generateMetadata({
 
   if (!template) {
     return {
-      title: "Template Not Found - SocialAuto",
+      title: "Template Not Found",
     };
   }
 

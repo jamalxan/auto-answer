@@ -4,7 +4,7 @@ import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy - SocialAuto",
+  title: "Privacy Policy",
   description:
     "How SocialAuto handles Instagram account data, webhook payloads, billing data, and customer campaign information.",
 };

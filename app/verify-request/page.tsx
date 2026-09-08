@@ -3,7 +3,7 @@ import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 
 export const metadata = {
-  title: "Check your email - SocialAuto",
+  title: "Check your email",
   description: "A sign-in link was sent to your email.",
 };
 

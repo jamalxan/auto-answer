@@ -4,7 +4,7 @@ import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 
 export const metadata: Metadata = {
-  title: "Terms of Service - SocialAuto",
+  title: "Terms of Service",
   description:
     "Terms for using SocialAuto's Instagram comment-to-DM campaign software.",
 };
