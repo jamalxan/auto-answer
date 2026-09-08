@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { readCache, writeCache } from "@/lib/client-cache";
+import { useLanguage } from "@/components/language-provider";
 
 interface Campaign {
   id: string;
@@ -63,6 +64,7 @@ interface Campaign {
 }
 
 export default function CampaignsPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [automations, setAutomations] = useState<Campaign[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
@@ -228,7 +230,7 @@ export default function CampaignsPage() {
   }
 
   async function deleteAutomation(id: string) {
-    if (!confirm("Delete this campaign? This cannot be undone.")) return;
+    if (!confirm(t.campaigns.confirmDelete)) return;
     try {
       await fetch(`/api/automations?id=${id}`, { method: "DELETE" });
       setAutomations((prev) => prev.filter((a) => a.id !== id));
@@ -282,11 +284,10 @@ export default function CampaignsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm text-muted">
-            {filtered.length}
             {filtered.length !== automations.length
-              ? ` of ${automations.length}`
-              : ""}{" "}
-            campaign{automations.length !== 1 ? "s" : ""}
+              ? `${filtered.length} / `
+              : ""}
+            {t.campaigns.campaignCount(automations.length)}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
@@ -301,13 +302,13 @@ export default function CampaignsPage() {
             href="/campaigns/import"
             className="flex-1 rounded border border-border px-4 py-2 text-center text-sm font-medium text-muted hover:text-foreground sm:flex-none"
           >
-            Import
+            {t.campaigns.importButton}
           </Link>
           <Link
             href="/campaigns/new"
             className="flex-1 rounded bg-accent px-4 py-2 text-center text-sm font-medium text-background hover:bg-accent-hover sm:flex-none"
           >
-            New Campaign
+            {t.campaigns.newCampaignButton}
           </Link>
         </div>
       </div>
@@ -318,7 +319,7 @@ export default function CampaignsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search campaigns by name, keyword, or message…"
+            placeholder={t.campaigns.searchPlaceholder}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
           />
           <div className="inline-flex shrink-0 rounded-lg bg-surface p-1">
@@ -327,13 +328,17 @@ export default function CampaignsPage() {
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`rounded-md px-3 py-1.5 text-sm capitalize transition-colors ${
+                className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
                   statusFilter === s
                     ? "bg-background font-medium text-foreground ring-1 ring-accent/40"
                     : "text-muted hover:text-foreground"
                 }`}
               >
-                {s}
+                {s === "all"
+                  ? t.campaigns.filterAll
+                  : s === "active"
+                    ? t.campaigns.filterActive
+                    : t.campaigns.filterPaused}
               </button>
             ))}
           </div>
@@ -343,15 +348,15 @@ export default function CampaignsPage() {
       {/* Empty state */}
       {automations.length === 0 && (
         <div className="panel rounded p-8 text-center sm:p-12">
-          <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
+          <h3 className="text-lg font-semibold mb-2">{t.campaigns.noCampaignsYet}</h3>
           <p className="text-sm text-muted mb-6 max-w-sm mx-auto">
-            Create your first comment-to-DM campaign to turn a post or reel into a measurable conversation flow.
+            {t.campaigns.noCampaignsBody}
           </p>
           <Link
             href="/campaigns/new"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-accent text-sm font-semibold text-background hover:bg-accent-hover transition-colors"
           >
-            Create Campaign
+            {t.campaigns.createCampaignButton}
           </Link>
         </div>
       )}
@@ -359,7 +364,7 @@ export default function CampaignsPage() {
       {/* No matches for the current filter */}
       {automations.length > 0 && filtered.length === 0 && (
         <div className="panel rounded p-8 text-center text-sm text-muted">
-          No campaigns match your search.
+          {t.campaigns.noMatches}
         </div>
       )}
 
@@ -430,21 +435,21 @@ export default function CampaignsPage() {
                         : "bg-border text-muted"
                     }`}
                   >
-                    {auto.isActive ? "Active" : "Paused"}
+                    {auto.isActive ? t.campaigns.active : t.campaigns.paused}
                   </span>
                   {auto.pendingNextReel && (
                     <span className="shrink-0 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
-                      Waiting for next reel
+                      {t.campaigns.waitingForNextReel}
                     </span>
                   )}
                   {auto.requireFollow && (
                     <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                      Follow gate
+                      {t.campaigns.followGate}
                     </span>
                   )}
                   {auto.trackedLinks.length >= 2 && (
                     <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                      2 links
+                      {t.campaigns.twoLinks}
                     </span>
                   )}
                 </div>
@@ -474,20 +479,20 @@ export default function CampaignsPage() {
                 {/* Stats */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-muted">
                   <span className="font-medium text-foreground">
-                    {auto._count.dmLogs} runs
+                    {t.campaigns.runs(auto._count.dmLogs)}
                   </span>
                   <span>·</span>
                   <span className="font-medium text-foreground">
-                    {auto.analytics.ctr}% CTR
+                    {t.campaigns.ctr(String(auto.analytics.ctr))}
                   </span>
                   <span>·</span>
-                  <span>{auto.analytics.sent} sent</span>
+                  <span>{t.campaigns.sent(auto.analytics.sent)}</span>
                   <span>·</span>
-                  <span>{auto.analytics.skipped} skipped</span>
+                  <span>{t.campaigns.skipped(auto.analytics.skipped)}</span>
                   <span>·</span>
-                  <span>{auto.analytics.failed} failed</span>
+                  <span>{t.campaigns.failed(auto.analytics.failed)}</span>
                   <span>·</span>
-                  <span>{auto.analytics.clicks} clicks</span>
+                  <span>{t.campaigns.clicks(auto.analytics.clicks)}</span>
                 </div>
 
                 {auto.analytics.topKeywords.length > 0 && (
@@ -515,7 +520,7 @@ export default function CampaignsPage() {
                     onClick={() => void copyReelUrl(auto)}
                     className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
                   >
-                    {copiedId === auto.id ? "Copied!" : "Copy URL"}
+                    {copiedId === auto.id ? t.campaigns.copied : t.campaigns.copyUrl}
                   </button>
                 )}
                 {/* Toggle */}
@@ -556,7 +561,7 @@ export default function CampaignsPage() {
                           onClick={() => void duplicateAutomation(auto.id)}
                           className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-hover"
                         >
-                          Duplicate
+                          {t.campaigns.duplicate}
                         </button>
                         <button
                           onClick={() => {
@@ -565,7 +570,7 @@ export default function CampaignsPage() {
                           }}
                           className="block w-full px-3 py-2 text-left text-sm text-error hover:bg-surface-hover"
                         >
-                          Delete
+                          {t.campaigns.delete}
                         </button>
                       </div>
                     </>

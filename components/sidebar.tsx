@@ -8,16 +8,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Overview", href: "/overview" },
-  { label: "Inbox", href: "/inbox" },
-  { label: "Campaigns", href: "/campaigns" },
-  { label: "DM Logs", href: "/logs" },
-  { label: "Settings", href: "/settings" },
-  { label: "Diagnostics", href: "/diagnostics" },
-];
+import { useLanguage } from "@/components/language-provider";
+import LanguageSwitcher from "@/components/language-switcher";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -31,6 +23,17 @@ export default function Sidebar({
   workspaceName,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { t } = useLanguage();
+
+  const navItems = [
+    { label: t.nav.dashboard, href: "/dashboard" },
+    { label: t.nav.overview, href: "/overview" },
+    { label: t.nav.inbox, href: "/inbox" },
+    { label: t.nav.campaigns, href: "/campaigns" },
+    { label: t.nav.dmLogs, href: "/logs" },
+    { label: t.nav.settings, href: "/settings" },
+    { label: t.nav.diagnostics, href: "/diagnostics" },
+  ];
 
   return (
     <>
@@ -89,8 +92,9 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className="px-5 py-4 border-t-2 border-border">
-          <p className="text-sm text-foreground truncate">{workspaceName}</p>
+        <div className="flex items-center justify-between gap-2 px-5 py-4 border-t-2 border-border">
+          <p className="min-w-0 truncate text-sm text-foreground">{workspaceName}</p>
+          <LanguageSwitcher />
         </div>
       </aside>
     </>

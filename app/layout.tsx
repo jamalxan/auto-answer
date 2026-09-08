@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Unbounded, Manrope, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { LanguageProvider } from "@/components/language-provider";
+import { getServerLocale } from "@/lib/i18n/get-locale";
 import "./globals.css";
 
 const unbounded = Unbounded({
@@ -54,14 +56,16 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getServerLocale();
+
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`h-full ${unbounded.variable} ${manrope.variable} ${jetbrainsMono.variable}`}
     >
       <body
@@ -69,7 +73,7 @@ export default function RootLayout({
         // Clears the home indicator when installed; 0 everywhere else.
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        {children}
+        <LanguageProvider initialLocale={locale}>{children}</LanguageProvider>
         <Analytics />
       </body>
     </html>

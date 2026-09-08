@@ -1,51 +1,15 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { getServerLocale } from "@/lib/i18n/get-locale";
+import { dictionaries } from "@/lib/i18n/translations";
+import LanguageSwitcher from "@/components/language-switcher";
 
 export const metadata: Metadata = {
   title: "SocialAuto - Instagram comment-to-DM automation",
   description:
     "Turn Instagram keyword comments into automatic private replies using the official Meta API.",
 };
-
-const heroStats = [
-  { value: "24/7", label: "Comment monitoring" },
-  { value: "1", label: "DM per matched comment" },
-  { value: "0", label: "Scraping required" },
-];
-
-const flowSteps = [
-  {
-    eyebrow: "Connect",
-    title: "Link your Instagram professional account",
-    description:
-      "Sign in by email and connect Instagram once. No password sharing, no browser automation.",
-  },
-  {
-    eyebrow: "Build",
-    title: "Pick a post, keywords, and the DM",
-    description:
-      "Create a campaign for a reel or post: the keyword to watch, the public reply, and the DM to send.",
-  },
-  {
-    eyebrow: "Deliver",
-    title: "Replies go out through the official API",
-    description:
-      "Webhooks catch comments instantly and a polling sweep catches the ones Instagram never pushes, so nothing is missed. Every send is queued, rate-limited, and logged.",
-  },
-];
-
-const features = [
-  "Email magic-link sign-in",
-  "Multiple Instagram accounts",
-  "Encrypted tokens at rest",
-  "Webhook + polling reconciliation",
-  "Queue-backed delivery worker",
-  "Per-account rate limiting",
-  "Tracked links with click stats",
-  "DM logs with full status",
-  "No plan limits",
-];
 
 /* Static, faithful copies of the real Overview and Dashboard screens, built in
    the app's own design tokens so what visitors see is what the app looks like. */
@@ -257,7 +221,22 @@ function DashboardPreview() {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const locale = await getServerLocale();
+  const t = dictionaries[locale];
+
+  const heroStats = [
+    { value: t.home.statMonitoring, label: t.home.statMonitoringLabel },
+    { value: t.home.statOnePerComment, label: t.home.statOnePerCommentLabel },
+    { value: t.home.statZeroScraping, label: t.home.statZeroScrapingLabel },
+  ];
+
+  const flowSteps = [
+    { eyebrow: t.home.step1Eyebrow, title: t.home.step1Title, description: t.home.step1Body },
+    { eyebrow: t.home.step2Eyebrow, title: t.home.step2Title, description: t.home.step2Body },
+    { eyebrow: t.home.step3Eyebrow, title: t.home.step3Title, description: t.home.step3Body },
+  ];
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b-2 border-border bg-background/95">
@@ -268,28 +247,30 @@ export default function Home() {
             </span>
           </Link>
 
-          <Link
-            href="/login"
-            className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-4 py-2 text-xs font-bold text-background transition hover:bg-accent-hover"
-          >
-            Get started
-          </Link>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+            <Link
+              href="/login"
+              className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-4 py-2 text-xs font-bold text-background transition hover:bg-accent-hover"
+            >
+              {t.home.getStarted}
+            </Link>
+          </div>
         </div>
       </header>
 
       <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
         <div className="max-w-3xl">
           <div className="label-mono inline-flex items-center gap-2 rounded border-2 border-border bg-surface px-3 py-2 text-xs font-semibold text-muted">
-            Official Meta API
+            {t.home.officialApi}
           </div>
 
           <h1 className="mt-7 text-balance font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
-            Make every comment start the right DM
+            {t.home.heroTitle}
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-            When someone comments your keyword on a post or reel, they get
-            your DM a second later — built on the official Instagram API.
+            {t.home.heroSubtitle}
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -297,13 +278,13 @@ export default function Home() {
               href="/login"
               className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
             >
-              Get started
+              {t.home.getStarted}
             </Link>
             <a
               href="#how"
               className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
             >
-              See how it works
+              {t.home.seeHowItWorks}
             </a>
           </div>
 
@@ -330,15 +311,13 @@ export default function Home() {
       <section id="how" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
           <div>
-            <p className="label-mono text-sm font-bold text-accent">How it works</p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
-              A comment in, a DM out
-            </h2>
-            <p className="mt-5 text-base leading-8 text-muted">
-              Three steps. Connect an account, build a campaign, and let it run.
-              The webhook handles it live and the poll sweeps up whatever the
-              webhook misses.
+            <p className="label-mono text-sm font-bold text-accent">
+              {t.home.howItWorksEyebrow}
             </p>
+            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+              {t.home.howItWorksTitle}
+            </h2>
+            <p className="mt-5 text-base leading-8 text-muted">{t.home.howItWorksBody}</p>
           </div>
 
           <div className="grid gap-4">
@@ -365,14 +344,13 @@ export default function Home() {
           <DashboardPreview />
 
           <div>
-            <p className="label-mono text-sm font-bold text-accent">The dashboard</p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
-              See exactly what happened
-            </h2>
-            <p className="mt-5 text-base leading-8 text-muted">
-              Every comment event is traceable: queued, matched, sent, skipped,
-              failed, or rate-limited. No black box.
+            <p className="label-mono text-sm font-bold text-accent">
+              {t.home.dashboardEyebrow}
             </p>
+            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+              {t.home.dashboardTitle}
+            </h2>
+            <p className="mt-5 text-base leading-8 text-muted">{t.home.dashboardBody}</p>
           </div>
         </div>
       </section>
@@ -380,19 +358,16 @@ export default function Home() {
       <section id="features" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
           <p className="label-mono text-sm font-bold text-gold">
-            What&rsquo;s included
+            {t.home.featuresEyebrow}
           </p>
           <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
-            Everything, no tiers
+            {t.home.featuresTitle}
           </h2>
-          <p className="mt-5 text-base leading-8 text-muted">
-            No upgrade prompts and no locked features — every account gets the
-            full toolset.
-          </p>
+          <p className="mt-5 text-base leading-8 text-muted">{t.home.featuresBody}</p>
         </div>
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
+          {t.home.features.map((feature) => (
             <div key={feature} className="panel rounded p-4 text-sm font-semibold text-foreground">
               {feature}
             </div>
@@ -404,18 +379,15 @@ export default function Home() {
         <div className="grid gap-8 rounded border-2 border-accent/30 bg-accent/10 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <h2 className="max-w-3xl font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
-              Turn your next reel&rsquo;s comments into DMs
+              {t.home.ctaTitle}
             </h2>
-            <p className="mt-4 text-base text-muted">
-              Connect your Instagram professional account and ship your first
-              campaign in minutes.
-            </p>
+            <p className="mt-4 text-base text-muted">{t.home.ctaBody}</p>
           </div>
           <Link
             href="/login"
             className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
           >
-            Get started
+            {t.home.getStarted}
           </Link>
         </div>
       </section>

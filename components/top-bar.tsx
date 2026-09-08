@@ -7,17 +7,7 @@
  */
 
 import { usePathname } from "next/navigation";
-
-const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/campaigns": "Campaigns",
-  "/campaigns/new": "New Campaign",
-  "/automations": "Campaigns",
-  "/automations/new": "New Campaign",
-  "/logs": "DM Logs",
-  "/settings": "Settings",
-  "/diagnostics": "Diagnostics",
-};
+import { useLanguage } from "@/components/language-provider";
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -31,7 +21,21 @@ export default function TopBar({
   instagramAccountCount,
 }: TopBarProps) {
   const pathname = usePathname();
-  const title = pageTitles[pathname] ?? "Dashboard";
+  const { t } = useLanguage();
+
+  const pageTitles: Record<string, string> = {
+    "/dashboard": t.nav.dashboard,
+    "/overview": t.nav.overview,
+    "/inbox": t.nav.inbox,
+    "/campaigns": t.nav.campaigns,
+    "/campaigns/new": t.nav.newCampaign,
+    "/automations": t.nav.campaigns,
+    "/automations/new": t.nav.newCampaign,
+    "/logs": t.nav.dmLogs,
+    "/settings": t.nav.settings,
+    "/diagnostics": t.nav.diagnostics,
+  };
+  const title = pageTitles[pathname] ?? t.nav.dashboard;
 
   return (
     <header
@@ -50,7 +54,7 @@ export default function TopBar({
           className="lg:hidden shrink-0 px-2.5 py-1.5 rounded border border-border text-sm text-muted hover:text-foreground"
           aria-label="Toggle sidebar"
         >
-          Menu
+          {t.nav.menu}
         </button>
         <h1 className="truncate font-display text-base font-extrabold sm:text-lg">
           {title}
@@ -60,7 +64,7 @@ export default function TopBar({
       {instagramAccountCount > 0 ? (
         <p className="shrink-0 truncate text-sm text-muted">
           {instagramAccountCount > 1
-            ? `${instagramAccountCount} accounts`
+            ? t.topbar.accountsCount(instagramAccountCount)
             : `@${instagramUsername}`}
         </p>
       ) : (
@@ -69,8 +73,8 @@ export default function TopBar({
           className="label-mono shrink-0 whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded bg-accent text-background hover:bg-accent-hover"
         >
           {/* Full label needs more room than a 360px header has to spare. */}
-          <span className="sm:hidden">Connect</span>
-          <span className="hidden sm:inline">Connect Instagram</span>
+          <span className="sm:hidden">{t.topbar.connect}</span>
+          <span className="hidden sm:inline">{t.topbar.connectInstagram}</span>
         </a>
       )}
     </header>
