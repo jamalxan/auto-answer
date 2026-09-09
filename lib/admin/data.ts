@@ -17,7 +17,7 @@ export interface AdminWorkspaceRow {
   isSuspended: boolean;
 }
 
-export interface AdminOverview {
+export interface AdminStats {
   totalWorkspaces: number;
   totalUsers: number;
   totalInstagramAccounts: number;
@@ -26,32 +26,66 @@ export interface AdminOverview {
   dmsSentAllTime: number;
   dmsSentLast30Days: number;
   newWorkspacesLast30Days: number;
+}
+
+export interface AdminWorkspacesPage {
   workspaces: AdminWorkspaceRow[];
-  // Count of workspaces matching the current search, for pagination — not
-  // the same as totalWorkspaces once a query narrows the result.
+  // Count of workspaces matching the current search, for pagination.
   matchingWorkspaces: number;
   page: number;
   pageCount: number;
 }
 
-export interface AdminOverviewOptions {
-  /** Filters the workspace table by workspace name or owner email. */
+/** Cross-workspace aggregate counts — the platform-admin Stats page. */
+export async function getAdminStats(): Promise<AdminStats> {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [
+    totalWorkspaces,
+    totalUsers,
+    totalInstagramAccounts,
+    totalAutomations,
+    activeAutomations,
+    dmsSentAllTime,
+    dmsSentLast30Days,
+    newWorkspacesLast30Days,
+  ] = await Promise.all([
+    prisma.workspace.count(),
+    prisma.user.count(),
+    prisma.instagramAccount.count(),
+    prisma.automation.count(),
+    prisma.automation.count({ where: { isActive: true } }),
+    prisma.dmLog.count({ where: { status: "SENT" } }),
+    prisma.dmLog.count({
+      where: { status: "SENT", dmSentAt: { gte: thirtyDaysAgo } },
+    }),
+    prisma.workspace.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+  ]);
+
+  return {
+    totalWorkspaces,
+    totalUsers,
+    totalInstagramAccounts,
+    totalAutomations,
+    activeAutomations,
+    dmsSentAllTime,
+    dmsSentLast30Days,
+    newWorkspacesLast30Days,
+  };
+}
+
+export interface AdminWorkspacesOptions {
+  /** Filters by workspace name or owner email. */
   query?: string;
   /** 1-indexed. */
   page?: number;
 }
 
-/**
- * Cross-workspace snapshot for the platform-admin panel. The top-line stats
- * are always computed over every workspace; only the workspace table itself
- * is filtered and paginated by `options`.
- */
-export async function getAdminOverview(
-  options: AdminOverviewOptions = {}
-): Promise<AdminOverview> {
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
+/** The searchable, paginated workspace table — the platform-admin Workspaces page. */
+export async function getAdminWorkspaces(
+  options: AdminWorkspacesOptions = {}
+): Promise<AdminWorkspacesPage> {
   const query = options.query?.trim();
   const page = Math.max(1, options.page ?? 1);
 
@@ -64,28 +98,7 @@ export async function getAdminOverview(
       }
     : undefined;
 
-  const [
-    totalWorkspaces,
-    totalUsers,
-    totalInstagramAccounts,
-    totalAutomations,
-    activeAutomations,
-    dmsSentAllTime,
-    dmsSentLast30Days,
-    newWorkspacesLast30Days,
-    matchingWorkspaces,
-    workspaces,
-  ] = await Promise.all([
-    prisma.workspace.count(),
-    prisma.user.count(),
-    prisma.instagramAccount.count(),
-    prisma.automation.count(),
-    prisma.automation.count({ where: { isActive: true } }),
-    prisma.dmLog.count({ where: { status: "SENT" } }),
-    prisma.dmLog.count({
-      where: { status: "SENT", dmSentAt: { gte: thirtyDaysAgo } },
-    }),
-    prisma.workspace.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+  const [matchingWorkspaces, workspaces] = await Promise.all([
     prisma.workspace.count({ where }),
     prisma.workspace.findMany({
       where,
@@ -131,14 +144,6 @@ export async function getAdminOverview(
   );
 
   return {
-    totalWorkspaces,
-    totalUsers,
-    totalInstagramAccounts,
-    totalAutomations,
-    activeAutomations,
-    dmsSentAllTime,
-    dmsSentLast30Days,
-    newWorkspacesLast30Days,
     matchingWorkspaces,
     page,
     pageCount: Math.max(1, Math.ceil(matchingWorkspaces / ADMIN_PAGE_SIZE)),
