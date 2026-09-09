@@ -92,7 +92,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
               <p className="label-mono text-sm font-bold text-accent">
                 {t.reportPage.clientCampaignReport}
               </p>
-              <h1 className="mt-4 max-w-3xl font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+              <h1 className="mt-4 max-w-3xl break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
                 {report.campaign.name}
               </h1>
               <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-muted">

@@ -76,7 +76,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
             <p className="label-mono mt-8 text-sm font-bold text-accent">
               {t.templateDetail.categoryTemplateSuffix(template.category)}
             </p>
-            <h1 className="mt-4 font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
+            <h1 className="mt-4 break-words font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
               {template.title}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">

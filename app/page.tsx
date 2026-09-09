@@ -271,13 +271,19 @@ export default async function Home() {
       />
       <PublicSiteHeader active="home" />
 
+      {/* min-w-0 on both grid items: below `lg` this collapses to one implicit
+          column, and without it a grid item's min-width defaults to its
+          content's intrinsic width — the OverviewPreview mockup (a dense
+          table + stat grid, never designed to shrink below ~440px) was
+          forcing the whole section wider than the viewport, dragging the
+          entire page into horizontal scroll on every phone. */}
       <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
-        <div className="max-w-3xl">
+        <div className="min-w-0 max-w-3xl">
           <div className="label-mono inline-flex items-center gap-2 rounded border-2 border-border bg-surface px-3 py-2 text-xs font-semibold text-muted">
             {t.home.officialApi}
           </div>
 
-          <h1 className="mt-7 text-balance font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
+          <h1 className="mt-7 break-words text-balance font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
             {t.home.heroTitle}
           </h1>
 
@@ -312,7 +318,7 @@ export default async function Home() {
           </dl>
         </div>
 
-        <div className="relative">
+        <div className="relative min-w-0">
           <OverviewPreview />
           <div className="absolute -bottom-8 -left-6 hidden lg:block">
             <MatchedCommentCard />
@@ -326,7 +332,7 @@ export default async function Home() {
             <p className="label-mono text-sm font-bold text-accent">
               {t.home.howItWorksEyebrow}
             </p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               {t.home.howItWorksTitle}
             </h2>
             <p className="mt-5 text-base leading-8 text-muted">{t.home.howItWorksBody}</p>
@@ -359,7 +365,7 @@ export default async function Home() {
             <p className="label-mono text-sm font-bold text-accent">
               {t.home.dashboardEyebrow}
             </p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               {t.home.dashboardTitle}
             </h2>
             <p className="mt-5 text-base leading-8 text-muted">{t.home.dashboardBody}</p>
@@ -372,7 +378,7 @@ export default async function Home() {
           <p className="label-mono text-sm font-bold text-gold">
             {t.home.featuresEyebrow}
           </p>
-          <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+          <h2 className="mt-3 break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
             {t.home.featuresTitle}
           </h2>
           <p className="mt-5 text-base leading-8 text-muted">{t.home.featuresBody}</p>
@@ -393,7 +399,7 @@ export default async function Home() {
             <p className="label-mono text-sm font-bold text-accent">
               {t.home.trustEyebrow}
             </p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               {t.home.trustTitle}
             </h2>
             <p className="mt-5 text-base leading-8 text-muted">{t.home.trustBody}</p>
@@ -416,7 +422,7 @@ export default async function Home() {
             <p className="label-mono text-sm font-bold text-gold">
               {t.home.pricingEyebrow}
             </p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+            <h2 className="mt-3 break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               {t.home.pricingTitle}
             </h2>
             <p className="mt-5 text-base leading-8 text-muted">{t.home.pricingBody}</p>
@@ -484,7 +490,7 @@ export default async function Home() {
       <section id="faq" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
           <p className="label-mono text-sm font-bold text-accent">{t.home.faqEyebrow}</p>
-          <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+          <h2 className="mt-3 break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
             {t.home.faqTitle}
           </h2>
         </div>
@@ -502,7 +508,7 @@ export default async function Home() {
       <section className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-6 lg:px-8">
         <div className="grid gap-8 rounded border-2 border-accent/30 bg-accent/10 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <h2 className="max-w-3xl font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+            <h2 className="max-w-3xl break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
               {t.home.ctaTitle}
             </h2>
             <p className="mt-4 text-base text-muted">{t.home.ctaBody}</p>

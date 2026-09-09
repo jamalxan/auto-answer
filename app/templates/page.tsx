@@ -29,12 +29,16 @@ export default async function TemplatesPage() {
       <PublicSiteHeader active="templates" />
 
       <section className="border-b-2 border-border bg-surface">
+        {/* min-w-0 on both grid items: same overflow this section's own
+            template-preview mockups were causing on the homepage's hero —
+            below `lg` this is one implicit column, and without min-w-0 a
+            grid item can't shrink past its content's intrinsic width. */}
         <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
-          <div>
+          <div className="min-w-0">
             <p className="label-mono text-sm font-bold text-accent">
               {t.templatesPage.eyebrow}
             </p>
-            <h1 className="mt-4 font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
+            <h1 className="mt-4 break-words font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
               {t.templatesPage.title}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
@@ -56,7 +60,7 @@ export default async function TemplatesPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
             {campaignTemplates.slice(0, 2).map((template) => (
               <TemplateVisual key={template.slug} template={template} compact />
             ))}
