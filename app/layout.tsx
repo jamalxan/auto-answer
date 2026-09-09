@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Unbounded, Manrope, JetBrains_Mono } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import { LanguageProvider } from "@/components/language-provider";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import "./globals.css";
@@ -95,7 +94,6 @@ export default async function RootLayout({
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <LanguageProvider initialLocale={locale}>{children}</LanguageProvider>
-        <Analytics />
       </body>
     </html>
   );
