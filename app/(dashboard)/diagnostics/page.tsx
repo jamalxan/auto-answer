@@ -9,20 +9,7 @@ interface DiagnosticsData {
   workerHealth: {
     healthy: boolean;
     ageMs: number | null;
-    heartbeat: {
-      checkedAt: string;
-      hostname?: string;
-      pid: number;
-      startedAt?: string;
-    } | null;
   };
-  workerAlerts: Array<{
-    level: string;
-    message: string;
-    jobId?: string;
-    commentId?: string;
-    createdAt: string;
-  }>;
   webhookFailures: Array<{
     id: string;
     object: string | null;
@@ -170,34 +157,6 @@ export default function DiagnosticsPage() {
           </div>
         ))}
       </div>
-
-      <Section title={t.diagnostics.recentWorkerAlerts}>
-        {data?.workerAlerts.length ? (
-          <div className="space-y-3">
-            {data.workerAlerts.map((alert) => (
-              <div
-                key={`${alert.createdAt}-${alert.jobId ?? alert.message}`}
-                className="rounded border border-border bg-surface/50 p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                  <p className="min-w-0 flex-1 break-words text-sm font-semibold text-foreground">
-                    {alert.message}
-                  </p>
-                  <span className="shrink-0 rounded-full bg-error/10 px-2 py-1 text-xs font-semibold text-error">
-                    {alert.level}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs text-muted">
-                  {formatDate(alert.createdAt)}
-                  {alert.commentId ? ` · ${alert.commentId}` : ""}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState label={t.diagnostics.noWorkerAlerts} />
-        )}
-      </Section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title={t.diagnostics.campaignDmFailures}>
