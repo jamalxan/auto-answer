@@ -1,0 +1,6 @@
+-- AlterEnum
+ALTER TYPE "DmStatus" ADD VALUE 'SKIPPED_WORKSPACE_SUSPENDED';
+
+-- AlterTable
+ALTER TABLE "Workspace" ADD COLUMN     "isSuspended" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "suspendedAt" TIMESTAMP(3);

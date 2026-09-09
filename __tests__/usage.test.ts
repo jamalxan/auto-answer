@@ -91,6 +91,24 @@ describe("reserveWorkspaceDMSend", () => {
     expect(mockTx.workspace.updateMany).toHaveBeenCalledTimes(1);
   });
 
+  it("denies without incrementing when the workspace is suspended, even under its limit", async () => {
+    const periodStart = new Date("2026-05-01T00:00:00.000Z");
+    mockTx.workspace.updateMany.mockResolvedValueOnce({ count: 0 }); // reset-usage call only
+    mockTx.workspace.findUnique.mockResolvedValueOnce({
+      usagePeriodStart: periodStart,
+      dmsSentThisPeriod: 5,
+      isSuspended: true,
+    });
+
+    const result = await reserveWorkspaceDMSend("workspace_123");
+
+    expect(result.allowed).toBe(false);
+    expect(result.reserved).toBe(false);
+    expect(result.reason).toBe("suspended");
+    // Only the reset-usage updateMany ran — the reservation increment never fires.
+    expect(mockTx.workspace.updateMany).toHaveBeenCalledTimes(1);
+  });
+
   it("denies if another concurrent reservation wins the last slot", async () => {
     const periodStart = new Date("2026-05-01T00:00:00.000Z");
     mockTx.workspace.updateMany

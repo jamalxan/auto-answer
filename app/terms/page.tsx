@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Terms of Service",
   description:
     "Terms for using SocialAuto's Instagram comment-to-DM campaign software.",
+  alternates: { canonical: "/terms" },
 };
 
 export default async function TermsPage() {

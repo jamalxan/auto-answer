@@ -390,6 +390,70 @@ describe("DM Worker — Full Pipeline", () => {
     expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
   });
 
+  it("should not retry a comment that already failed permanently (e.g. user not found)", async () => {
+    // Simulates the polling reconciler re-sweeping a comment whose earlier
+    // job exhausted its retries and was cleared from BullMQ's failed set —
+    // without this check it would re-enqueue and re-fail forever.
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      id: "existing_log",
+      status: "FAILED",
+      errorMessage: "The requested user cannot be found (/some/path) [code=100 sub=- type=- trace=-]",
+      publicReplySentAt: null,
+    });
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+    expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
+  });
+
+  it("should not send when another attempt owns a fresh PENDING lease on the same comment", async () => {
+    // Simulates the webhook and the polling reconciler (or two workers on a
+    // stalled BullMQ job) both processing the same comment concurrently —
+    // without this guard both would call the send API before either finishes.
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      id: "existing_log",
+      status: "PENDING",
+      updatedAt: new Date(Date.now() - 10_000), // 10s ago, well under the lease
+      publicReplySentAt: null,
+    });
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+    expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
+  });
+
+  it("should retry a comment stuck on a stale PENDING lease (worker crashed mid-send)", async () => {
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      id: "existing_log",
+      status: "PENDING",
+      updatedAt: new Date(Date.now() - 5 * 60_000), // 5 minutes ago, past the lease
+      publicReplySentAt: null,
+    });
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).toHaveBeenCalled();
+  });
+
+  it("should retry a comment that failed for a non-permanent reason", async () => {
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      id: "existing_log",
+      status: "FAILED",
+      errorMessage: "Meta API Error 1: Unknown Meta API error",
+      publicReplySentAt: null,
+    });
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).toHaveBeenCalled();
+  });
+
   it("should skip when monthly plan limit is reached", async () => {
     mockReserveWorkspaceDMSend.mockResolvedValue({
       allowed: false,
@@ -407,6 +471,30 @@ describe("DM Worker — Full Pipeline", () => {
     expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "SKIPPED_PLAN_LIMIT" }),
+      })
+    );
+  });
+
+  it("should skip and log the real reason when the workspace is suspended", async () => {
+    mockReserveWorkspaceDMSend.mockResolvedValue({
+      allowed: false,
+      reserved: false,
+      remaining: 100,
+      limit: 100,
+      periodStart: usagePeriodStart,
+      reason: "suspended",
+    });
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockReserveDMSlot).not.toHaveBeenCalled();
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "SKIPPED_WORKSPACE_SUSPENDED",
+        }),
       })
     );
   });

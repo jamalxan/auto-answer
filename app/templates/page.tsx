@@ -17,6 +17,7 @@ export const metadata: Metadata = {
     "Instagram DM automation templates",
     "Manychat alternative templates",
   ],
+  alternates: { canonical: "/templates" },
 };
 
 export default async function TemplatesPage() {

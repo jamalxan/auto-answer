@@ -368,7 +368,18 @@ export default function InboxPage() {
                             : "bg-surface text-foreground border border-border"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                        {/* Media, story-reply, and reaction messages have no
+                            `message` text from the Graph API (see
+                            getConversationMessages) — without this fallback
+                            the bubble renders empty, showing only its
+                            timestamp caption below. */}
+                        <p
+                          className={`whitespace-pre-wrap break-words ${
+                            m.text ? "" : "italic opacity-70"
+                          }`}
+                        >
+                          {m.text || t.inbox.noText}
+                        </p>
                         <p
                           className={`mt-1 text-[10px] ${
                             m.fromMe ? "text-background/70" : "text-muted"

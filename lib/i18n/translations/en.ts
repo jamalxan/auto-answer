@@ -574,8 +574,51 @@ export const en = {
     colDmsSent: "DMs Sent",
     colDmsThisPeriod: "This Period",
     colLastDm: "Last DM",
+    colStatus: "Status",
+    colAction: "Action",
     never: "Never",
     noEmail: "no email",
+    statusActive: "Active",
+    statusSuspended: "Suspended",
+    actionSuspend: "Suspend",
+    actionReactivate: "Reactivate",
+    confirmSuspend: "Suspend this workspace? It will immediately stop sending DMs.",
+    confirmReactivate: "Reactivate this workspace?",
+    searchPlaceholder: "Search by workspace or owner email…",
+    searchButton: "Search",
+    clearSearch: "Clear",
+    noResults: "No workspaces match your search.",
+    pageOf: (page, pageCount) => `Page ${page} of ${pageCount}`,
+    prevPage: "Previous",
+    nextPage: "Next",
+    pricingTitle: "Pricing Plans",
+    pricingSubtitle:
+      "Landing-page marketing copy — there's no billing yet, so these plans aren't enforced anywhere.",
+    pricingFieldSlug: "Slug",
+    pricingFieldPrice: "Price",
+    pricingFieldCurrency: "Currency",
+    pricingFieldSuffix: "Suffix",
+    pricingFieldOrder: "Order",
+    pricingFieldFeatured: "Featured",
+    pricingFieldActive: "Active",
+    pricingFieldContent: "Content (JSON)",
+    pricingContentHint:
+      'Shape: { "en": { "name", "description", "features": [...] }, "ru": {...}, "uz": {...} }',
+    pricingSave: "Save",
+    pricingDelete: "Delete",
+    pricingConfirmDelete: "Delete this plan? This can't be undone.",
+    pricingAddTitle: "Add a plan",
+    pricingNewSlugPlaceholder: "e.g. pro",
+  },
+  workspaceSuspendedBanner: {
+    title: "This workspace is suspended",
+    body: "Comment and DM automations are paused and new DMs won't send. Contact support if you believe this is a mistake.",
+  },
+  notFound: {
+    eyebrow: "404",
+    title: "This page doesn't exist",
+    body: "The link may be broken, or the page may have moved.",
+    cta: "Back to home",
   },
   postPicker: {
     errorFailedToLoad: "Failed to load posts",
@@ -642,9 +685,9 @@ export const en = {
     dashboardBody:
       "Every comment event is traceable: queued, matched, sent, skipped, failed, or rate-limited. No black box.",
     featuresEyebrow: "What's included",
-    featuresTitle: "Everything, no tiers",
+    featuresTitle: "The full toolset, every plan",
     featuresBody:
-      "No upgrade prompts and no locked features — every account gets the full toolset.",
+      "No feature is locked behind a higher plan — pricing only scales with how many Instagram accounts you connect.",
     ctaTitle: "Turn your next reel's comments into DMs",
     ctaBody:
       "Connect your Instagram professional account and ship your first campaign in minutes.",
@@ -658,6 +701,62 @@ export const en = {
       "Tracked links with click stats",
       "DM logs with full status",
       "No plan limits",
+    ],
+    trustEyebrow: "Why teams choose SocialAuto",
+    trustTitle: "Built on the rails Instagram actually allows",
+    trustBody:
+      "No scraping, no shared passwords, no browser bots that can get an account flagged — every send goes through the official Meta API.",
+    trustPoints: [
+      {
+        title: "Official API only",
+        body: "Comments and DMs move through Meta's own endpoints — nothing that risks a ban for automation Instagram doesn't sanction.",
+      },
+      {
+        title: "Nothing falls through",
+        body: "Webhooks catch comments the instant they post; a polling sweep catches whatever Instagram never pushes.",
+      },
+      {
+        title: "Full audit trail",
+        body: "Every send is queued, rate-limited, and logged as sent, skipped, failed, or rate-limited — never a silent black box.",
+      },
+      {
+        title: "Tokens encrypted at rest",
+        body: "Instagram access tokens are encrypted in the database, not stored in plain text.",
+      },
+    ],
+    pricingEyebrow: "Pricing",
+    pricingTitle: "Simple pricing that scales with your accounts",
+    pricingBody:
+      "No feature is locked behind a plan — pricing only reflects how many Instagram accounts you connect.",
+    pricingMostPopular: "Most popular",
+    faqEyebrow: "FAQ",
+    faqTitle: "Questions people ask before connecting an account",
+    faqs: [
+      {
+        question: "Do I need to share my Instagram password?",
+        answer:
+          "No. You connect your Instagram professional account through Meta's own login — SocialAuto never sees or stores your password.",
+      },
+      {
+        question: "Will this get my account flagged for automation?",
+        answer:
+          "Every comment reply and DM goes through the official Instagram Graph API, the same channel Meta provides for this exact use case — not scraping or browser automation.",
+      },
+      {
+        question: "What happens to comments the webhook misses?",
+        answer:
+          "A polling sweep runs alongside the webhook and catches anything Instagram didn't push in real time, so a matching comment is never silently dropped.",
+      },
+      {
+        question: "Can I invite my team or manage client accounts?",
+        answer:
+          "Yes. Invite teammates as owner, admin, or member, and filter campaigns, logs, and stats per Instagram account — the setup agencies use for client work.",
+      },
+      {
+        question: "Is there a free way to try it?",
+        answer:
+          "The Starter plan connects one Instagram account at no cost, with the same full feature set as every other plan.",
+      },
     ],
   },
 } satisfies Dictionary;

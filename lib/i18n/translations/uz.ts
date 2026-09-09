@@ -579,8 +579,51 @@ export const uz = {
     colDmsSent: "Yuborilgan DM",
     colDmsThisPeriod: "Shu davrda",
     colLastDm: "Oxirgi DM",
+    colStatus: "Holati",
+    colAction: "Amal",
     never: "Hech qachon",
     noEmail: "email yo'q",
+    statusActive: "Faol",
+    statusSuspended: "Bloklangan",
+    actionSuspend: "Bloklash",
+    actionReactivate: "Qayta faollashtirish",
+    confirmSuspend: "Bu ish maydonini bloklaysizmi? DM yuborish darhol to'xtaydi.",
+    confirmReactivate: "Bu ish maydonini qayta faollashtirasizmi?",
+    searchPlaceholder: "Ish maydoni yoki egasi emaili bo'yicha qidirish…",
+    searchButton: "Qidirish",
+    clearSearch: "Tozalash",
+    noResults: "Qidiruvingizga mos ish maydoni topilmadi.",
+    pageOf: (page, pageCount) => `${page}-sahifa, jami ${pageCount}`,
+    prevPage: "Oldingi",
+    nextPage: "Keyingi",
+    pricingTitle: "Narx rejalari",
+    pricingSubtitle:
+      "Landing sahifa uchun marketing matni — hozircha to'lov tizimi yo'q, bu rejalar hech qayerda amalda qo'llanilmaydi.",
+    pricingFieldSlug: "Slug",
+    pricingFieldPrice: "Narx",
+    pricingFieldCurrency: "Valyuta",
+    pricingFieldSuffix: "Qo'shimcha",
+    pricingFieldOrder: "Tartib",
+    pricingFieldFeatured: "Tavsiya etilgan",
+    pricingFieldActive: "Faol",
+    pricingFieldContent: "Kontent (JSON)",
+    pricingContentHint:
+      'Format: { "en": { "name", "description", "features": [...] }, "ru": {...}, "uz": {...} }',
+    pricingSave: "Saqlash",
+    pricingDelete: "O'chirish",
+    pricingConfirmDelete: "Bu rejani o'chirasizmi? Buni qaytarib bo'lmaydi.",
+    pricingAddTitle: "Reja qo'shish",
+    pricingNewSlugPlaceholder: "masalan, pro",
+  },
+  workspaceSuspendedBanner: {
+    title: "Bu ish maydoni bloklangan",
+    body: "Kommentariya va DM avtomatlashtirish to'xtatildi, yangi DM'lar yuborilmaydi. Agar bu xato deb hisoblasangiz, qo'llab-quvvatlash xizmatiga murojaat qiling.",
+  },
+  notFound: {
+    eyebrow: "404",
+    title: "Bunday sahifa mavjud emas",
+    body: "Havola noto'g'ri bo'lishi yoki sahifa ko'chirilgan bo'lishi mumkin.",
+    cta: "Bosh sahifaga qaytish",
   },
   postPicker: {
     errorFailedToLoad: "Postlarni yuklab bo'lmadi",
@@ -647,9 +690,9 @@ export const uz = {
     dashboardBody:
       "Har bir izoh hodisasi kuzatiladi: navbatda, mos keldi, yuborildi, o'tkazib yuborildi, xato yoki chegaralandi. Hech qanday qora quti yo'q.",
     featuresEyebrow: "Nimalar kiradi",
-    featuresTitle: "Hammasi, cheklovsiz",
+    featuresTitle: "Har qanday rejada to'liq vositalar to'plami",
     featuresBody:
-      "Yangilash takliflari yoki qulflangan funksiyalar yo'q — har bir akkaunt to'liq vositalar to'plamini oladi.",
+      "Hech qanday funksiya yuqori rejaga qulflanmagan — narx faqat ulangan Instagram akkauntlar soniga qarab o'sadi.",
     ctaTitle: "Keyingi reelingiz izohlarini DM ga aylantiring",
     ctaBody:
       "Instagram professional akkauntingizni ulang va birinchi kampaniyangizni bir necha daqiqada ishga tushiring.",
@@ -663,6 +706,62 @@ export const uz = {
       "Bosish statistikasi bilan kuzatiladigan havolalar",
       "To'liq holatga ega DM jurnallari",
       "Tarif chegarasi yo'q",
+    ],
+    trustEyebrow: "Nega SocialAuto'ni tanlashadi",
+    trustTitle: "Instagram haqiqatan ruxsat bergan yo'l bilan qurilgan",
+    trustBody:
+      "Skraping yo'q, umumiy parollar yo'q, akkauntni bloklatib qo'yishi mumkin bo'lgan brauzer botlari yo'q — har bir yuborish rasmiy Meta API orqali amalga oshadi.",
+    trustPoints: [
+      {
+        title: "Faqat rasmiy API",
+        body: "Kommentariyalar va DM'lar Meta'ning o'z endpoint'lari orqali o'tadi — Instagram ruxsat bermagan avtomatlashtirish uchun bloklanish xavfi yo'q.",
+      },
+      {
+        title: "Hech narsa qochib ketmaydi",
+        body: "Webhook kommentariyalarni darhol tutib oladi; polling esa Instagram yubormagan narsalarni yig'ib oladi.",
+      },
+      {
+        title: "To'liq audit izi",
+        body: "Har bir yuborish navbatga qo'yiladi, tezlik cheklanadi va yuborildi, o'tkazib yuborildi, xato yoki chegaralandi deb qayd etiladi — hech qanday qora quti yo'q.",
+      },
+      {
+        title: "Tokenlar saqlashda shifrlangan",
+        body: "Instagram access tokenlari bazada shifrlangan holda saqlanadi, oddiy matn sifatida emas.",
+      },
+    ],
+    pricingEyebrow: "Narxlar",
+    pricingTitle: "Akkauntlaringiz soniga qarab o'sadigan sodda narxlar",
+    pricingBody:
+      "Hech qanday funksiya rejaga qulflanmagan — narx faqat ulangan Instagram akkauntlar soniga bog'liq.",
+    pricingMostPopular: "Eng ommabop",
+    faqEyebrow: "Savol-javob",
+    faqTitle: "Akkaunt ulashdan oldin ko'p so'raladigan savollar",
+    faqs: [
+      {
+        question: "Instagram parolimni ulashishim kerakmi?",
+        answer:
+          "Yo'q. Siz Instagram professional akkauntingizni Meta'ning o'z kirish tizimi orqali ulaysiz — SocialAuto parolingizni hech qachon ko'rmaydi va saqlamaydi.",
+      },
+      {
+        question: "Bu akkauntni avtomatlashtirish uchun bloklatib qo'ymaydimi?",
+        answer:
+          "Har bir kommentariya javobi va DM aynan shu maqsad uchun Meta taqdim etgan rasmiy Instagram Graph API orqali yuboriladi — skraping yoki brauzer avtomatlashtirishi emas.",
+      },
+      {
+        question: "Webhook o'tkazib yuborgan kommentariyalar-chi?",
+        answer:
+          "Webhook bilan bir qatorda polling ham ishlaydi va Instagram real vaqtda yubormagan narsalarni tutib oladi — mos kommentariya hech qachon sezilmay yo'qolmaydi.",
+      },
+      {
+        question: "Jamoamni taklif qila olamanmi yoki mijoz akkauntlarini boshqara olamanmi?",
+        answer:
+          "Ha. Hamkasblaringizni owner, admin yoki member sifatida taklif qiling va kampaniyalar, jurnallar hamda statistikani har bir Instagram akkaunti bo'yicha filtrlang — agentliklar mijozlar bilan aynan shunday ishlaydi.",
+      },
+      {
+        question: "Bepul sinab ko'rish imkoniyati bormi?",
+        answer:
+          "Starter reja bitta Instagram akkauntini bepul ulaydi, boshqa har qanday reja bilan bir xil to'liq funksiyalar to'plami bilan.",
+      },
     ],
   },
 } satisfies Dictionary;

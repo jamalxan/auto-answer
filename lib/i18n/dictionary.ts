@@ -540,8 +540,49 @@ export interface Dictionary {
     colDmsSent: string;
     colDmsThisPeriod: string;
     colLastDm: string;
+    colStatus: string;
+    colAction: string;
     never: string;
     noEmail: string;
+    statusActive: string;
+    statusSuspended: string;
+    actionSuspend: string;
+    actionReactivate: string;
+    confirmSuspend: string;
+    confirmReactivate: string;
+    searchPlaceholder: string;
+    searchButton: string;
+    clearSearch: string;
+    noResults: string;
+    pageOf: (page: number, pageCount: number) => string;
+    prevPage: string;
+    nextPage: string;
+    pricingTitle: string;
+    pricingSubtitle: string;
+    pricingFieldSlug: string;
+    pricingFieldPrice: string;
+    pricingFieldCurrency: string;
+    pricingFieldSuffix: string;
+    pricingFieldOrder: string;
+    pricingFieldFeatured: string;
+    pricingFieldActive: string;
+    pricingFieldContent: string;
+    pricingContentHint: string;
+    pricingSave: string;
+    pricingDelete: string;
+    pricingConfirmDelete: string;
+    pricingAddTitle: string;
+    pricingNewSlugPlaceholder: string;
+  };
+  workspaceSuspendedBanner: {
+    title: string;
+    body: string;
+  };
+  notFound: {
+    eyebrow: string;
+    title: string;
+    body: string;
+    cta: string;
   };
   postPicker: {
     errorFailedToLoad: string;
@@ -606,5 +647,16 @@ export interface Dictionary {
     ctaTitle: string;
     ctaBody: string;
     features: string[];
+    trustEyebrow: string;
+    trustTitle: string;
+    trustBody: string;
+    trustPoints: { title: string; body: string }[];
+    pricingEyebrow: string;
+    pricingTitle: string;
+    pricingBody: string;
+    pricingMostPopular: string;
+    faqEyebrow: string;
+    faqTitle: string;
+    faqs: { question: string; answer: string }[];
   };
 }

@@ -5,9 +5,24 @@ import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 import PublicSiteHeader from "@/components/public-site-header";
 import SiteFooter from "@/components/site-footer";
+import { getActivePricingPlans } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: { absolute: "SocialAuto - Instagram comment-to-DM automation" },
+  description:
+    "Turn Instagram keyword comments into automatic private replies using the official Meta API.",
+  alternates: { canonical: "/" },
+};
+
+// Minimal, honest JSON-LD: no aggregateRating/review — there's no review
+// data behind those fields, and a fabricated one is a Google spam violation.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "SocialAuto",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  url: "https://socialauto.uz",
   description:
     "Turn Instagram keyword comments into automatic private replies using the official Meta API.",
 };
@@ -223,7 +238,10 @@ function DashboardPreview() {
 }
 
 export default async function Home() {
-  const locale = await getServerLocale();
+  const [locale, pricingPlans] = await Promise.all([
+    getServerLocale(),
+    getActivePricingPlans(),
+  ]);
   const t = dictionaries[locale];
 
   const heroStats = [
@@ -240,6 +258,11 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
+      {/* Static, hand-authored JSON — not user input. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <PublicSiteHeader active="home" />
 
       <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
@@ -354,6 +377,118 @@ export default async function Home() {
             <div key={feature} className="panel rounded p-4 text-sm font-semibold text-foreground">
               {feature}
             </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y-2 border-border bg-surface py-20">
+        <div className="mx-auto w-full max-w-6xl px-5 sm:px-6 lg:px-8">
+          <div className="max-w-2xl">
+            <p className="label-mono text-sm font-bold text-accent">
+              {t.home.trustEyebrow}
+            </p>
+            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+              {t.home.trustTitle}
+            </h2>
+            <p className="mt-5 text-base leading-8 text-muted">{t.home.trustBody}</p>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {t.home.trustPoints.map((point) => (
+              <div key={point.title} className="panel rounded p-5">
+                <h3 className="text-base font-bold text-foreground">{point.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted">{point.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {pricingPlans.length > 0 && (
+        <section id="pricing" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
+          <div className="max-w-2xl">
+            <p className="label-mono text-sm font-bold text-gold">
+              {t.home.pricingEyebrow}
+            </p>
+            <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+              {t.home.pricingTitle}
+            </h2>
+            <p className="mt-5 text-base leading-8 text-muted">{t.home.pricingBody}</p>
+          </div>
+
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {pricingPlans.map((plan) => {
+              const copy = plan.content[locale];
+              return (
+                <div
+                  key={plan.id}
+                  className={`rounded border-2 p-6 ${
+                    plan.isFeatured
+                      ? "border-accent bg-accent/5"
+                      : "panel"
+                  }`}
+                >
+                  {plan.isFeatured && (
+                    <span className="label-mono inline-flex rounded border-2 border-accent bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
+                      {t.home.pricingMostPopular}
+                    </span>
+                  )}
+                  <h3 className="mt-3 font-display text-xl font-extrabold text-foreground">
+                    {copy.name}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-muted">{copy.description}</p>
+                  <p className="mt-5 font-display text-3xl font-extrabold text-foreground">
+                    {plan.priceAmount === 0
+                      ? plan.priceCurrency + "0"
+                      : `${plan.priceCurrency}${plan.priceAmount}`}
+                    <span className="text-sm font-semibold text-muted">
+                      {plan.priceSuffix}
+                    </span>
+                  </p>
+                  <ul className="mt-5 space-y-2">
+                    {copy.features.map((feature) => (
+                      <li
+                        key={feature}
+                        className="flex items-start gap-2 text-sm text-foreground"
+                      >
+                        <span aria-hidden className="mt-1 text-accent">
+                          ✓
+                        </span>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/login"
+                    className={`label-mono mt-6 inline-flex w-full items-center justify-center gap-2 rounded px-5 py-2.5 text-xs font-bold transition ${
+                      plan.isFeatured
+                        ? "bg-accent text-background hover:bg-accent-hover"
+                        : "border-2 border-border text-foreground hover:border-border-hover hover:bg-surface-hover"
+                    }`}
+                  >
+                    {t.home.getStarted}
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section id="faq" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
+        <div className="max-w-2xl">
+          <p className="label-mono text-sm font-bold text-accent">{t.home.faqEyebrow}</p>
+          <h2 className="mt-3 font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+            {t.home.faqTitle}
+          </h2>
+        </div>
+
+        <div className="mt-10 grid gap-4 sm:grid-cols-2">
+          {t.home.faqs.map((faq) => (
+            <article key={faq.question} className="panel rounded p-5">
+              <h3 className="text-base font-bold text-foreground">{faq.question}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted">{faq.answer}</p>
+            </article>
           ))}
         </div>
       </section>

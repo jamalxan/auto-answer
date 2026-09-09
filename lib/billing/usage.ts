@@ -43,6 +43,9 @@ export interface WorkspaceDMReservation {
   remaining: number;
   limit: number;
   periodStart: Date | null;
+  // Only set when `allowed` is false, so callers can log the real reason
+  // instead of always blaming the plan limit.
+  reason?: "suspended" | "limit";
 }
 
 export async function reserveWorkspaceDMSend(
@@ -57,6 +60,7 @@ export async function reserveWorkspaceDMSend(
       select: {
         usagePeriodStart: true,
         dmsSentThisPeriod: true,
+        isSuspended: true,
       },
     });
 
@@ -67,10 +71,24 @@ export async function reserveWorkspaceDMSend(
         remaining: 0,
         limit: 0,
         periodStart: null,
+        reason: "limit",
       };
     }
 
     const limit = MONTHLY_DM_LIMIT;
+
+    // Platform-admin suspension (lib/admin) takes priority over the usage
+    // check below — a suspended workspace stays blocked even mid-period.
+    if (workspace.isSuspended) {
+      return {
+        allowed: false,
+        reserved: false,
+        remaining: Math.max(0, limit - workspace.dmsSentThisPeriod),
+        limit,
+        periodStart: workspace.usagePeriodStart,
+        reason: "suspended",
+      };
+    }
 
     if (workspace.dmsSentThisPeriod >= limit) {
       return {
@@ -79,6 +97,7 @@ export async function reserveWorkspaceDMSend(
         remaining: 0,
         limit,
         periodStart: workspace.usagePeriodStart,
+        reason: "limit",
       };
     }
 
@@ -105,6 +124,7 @@ export async function reserveWorkspaceDMSend(
         remaining: Math.max(0, limit - (current?.dmsSentThisPeriod ?? limit)),
         limit,
         periodStart: current?.usagePeriodStart ?? workspace.usagePeriodStart,
+        reason: "limit",
       };
     }
 

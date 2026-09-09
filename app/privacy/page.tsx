@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
     "How SocialAuto handles Instagram account data, webhook payloads, billing data, and customer campaign information.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default async function PrivacyPage() {

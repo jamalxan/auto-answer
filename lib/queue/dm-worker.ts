@@ -31,6 +31,7 @@ import { reserveDMSlot } from "@/lib/utils/rate-limiter";
 import {
   releaseWorkspaceDMReservation,
   reserveWorkspaceDMSend,
+  type WorkspaceDMReservation,
 } from "@/lib/billing/usage";
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
 import {
@@ -40,6 +41,36 @@ import {
 } from "@/lib/tracking/message";
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
+
+// How long a PENDING DmLog is trusted as "another attempt is actively
+// sending this right now" — comfortably longer than a Meta API round trip.
+// Guards the send-then-log gap: the webhook and the polling reconciler (or a
+// stalled BullMQ job retried on a fresh worker) can both read no-existing-log
+// for the same comment before either finishes, and without this window both
+// go on to call the send API, producing two real DMs for one comment even
+// though only one DmLog row ends up SENT. Past this window a PENDING row is
+// assumed to be from a worker that crashed mid-send, so it's fair game again.
+const PENDING_LEASE_MS = 2 * 60 * 1000;
+
+function hasFreshPendingLease(log: { status: string; updatedAt: Date } | null): boolean {
+  if (!log || log.status !== "PENDING") return false;
+  return Date.now() - log.updatedAt.getTime() < PENDING_LEASE_MS;
+}
+
+/** Turns a denied reservation into the right DmLog status + message, so a
+ * platform-admin suspension doesn't get logged as "monthly limit reached". */
+function dmSkipStatusFor(usage: WorkspaceDMReservation) {
+  if (usage.reason === "suspended") {
+    return {
+      status: "SKIPPED_WORKSPACE_SUSPENDED" as const,
+      errorMessage: "Workspace suspended by platform admin",
+    };
+  }
+  return {
+    status: "SKIPPED_PLAN_LIMIT" as const,
+    errorMessage: `Monthly DM limit reached (${usage.limit})`,
+  };
+}
 
 function formatError(error: unknown): string {
   if (error instanceof MetaApiError) {
@@ -51,23 +82,35 @@ function formatError(error: unknown): string {
   return "Unknown error";
 }
 
-// Meta rejections that a plain-text retry cannot fix: the send was refused for
-// the conversation, not for the button template. Retrying as text just burns
-// the attempt and — worse — overwrites the real error with a misleading one
-// ("invalid for a private reply", because the first attempt already used up the
-// comment's single allowed private reply).
-const NON_TEMPLATE_REJECTIONS = [
+// Meta rejections that are permanent for this specific comment/message: no
+// number of retries fixes them, because the thing they complain about (the
+// private-reply window, the single allowed private reply, the sender's
+// account) can't change on a later attempt.
+//   - "invalid for a private reply": the first attempt already used up the
+//     comment's single allowed private reply.
+//   - "outside of allowed window": Instagram's reply window only closes, it
+//     never reopens for a comment that's already past it.
+//   - "requested user cannot be found": the commenter's account is gone or
+//     unreachable — true forever, not just on this attempt.
+// Also used to decide whether a plain-text retry can fix a button-template
+// rejection: it can't, for the same reasons above.
+const PERMANENT_SEND_FAILURES = [
   /outside of allowed window/i,
   /invalid for a private reply/i,
   /requested user cannot be found/i,
 ];
+
+function isPermanentSendFailure(message: string | null | undefined): boolean {
+  if (!message) return false;
+  return PERMANENT_SEND_FAILURES.some((pattern) => pattern.test(message));
+}
 
 function isTemplateRejection(error: unknown): boolean {
   if (error instanceof TokenExpiredError || error instanceof RateLimitError) {
     return false;
   }
   const message = error instanceof Error ? error.message : "";
-  return !NON_TEMPLATE_REJECTIONS.some((pattern) => pattern.test(message));
+  return !isPermanentSendFailure(message);
 }
 
 type WorkerTrackedLink = {
@@ -261,7 +304,29 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // Skip only when there is genuinely nothing left to do. A comment whose DM
     // already sent but whose public reply never posted (e.g. it hit a rate
     // limit) must still come back so the public reply can be retried.
-    if (existingLog?.status === "SKIPPED_PLAN_LIMIT") continue;
+    if (
+      existingLog?.status === "SKIPPED_PLAN_LIMIT" ||
+      existingLog?.status === "SKIPPED_WORKSPACE_SUSPENDED"
+    ) {
+      continue;
+    }
+    // A FAILED log from a permanent-for-this-comment error (see
+    // isPermanentSendFailure) must not come back through the reconciler: its
+    // BullMQ job is long gone by the next sweep (removeOnFail clears it after
+    // 5 minutes so transient failures get retried), and without this check
+    // the sweep re-enqueues the same doomed send forever — burning API calls
+    // and re-logging the identical error every cycle.
+    if (
+      existingLog?.status === "FAILED" &&
+      isPermanentSendFailure(existingLog.errorMessage)
+    ) {
+      continue;
+    }
+    // Another attempt (webhook vs. reconciler, or a stalled job picked up by
+    // a second worker) is already sending this exact comment right now.
+    if (hasFreshPendingLease(existingLog)) {
+      continue;
+    }
     if (alreadyDmd && (alreadyPublicReplied || !automation.publicReplyEnabled)) {
       continue;
     }
@@ -444,9 +509,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           },
         },
         data: {
-          status: "SKIPPED_PLAN_LIMIT",
+          ...dmSkipStatusFor(usage),
           matchedKeyword: matchResult.matchedKeyword,
-          errorMessage: `Monthly DM limit reached (${usage.limit})`,
         },
       });
       continue;
@@ -782,6 +846,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
   const usage = await reserveWorkspaceDMSend(automation.workspaceId);
   if (!usage.allowed) {
+    const skip = dmSkipStatusFor(usage);
     await prisma.dmLog.upsert({
       where: {
         automationId_commentId: { automationId: automation.id, commentId: dedupeId },
@@ -794,10 +859,9 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
         commenterName,
         commentText: "(button tap)",
         commentId: dedupeId,
-        status: "SKIPPED_PLAN_LIMIT",
-        errorMessage: `Monthly DM limit reached (${usage.limit})`,
+        ...skip,
       },
-      update: { status: "SKIPPED_PLAN_LIMIT" },
+      update: { status: skip.status },
     });
     return;
   }
@@ -897,7 +961,7 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
 
   const automation = await prisma.automation.findFirst({
     where: { id: automationId, isActive: true },
-    include: { instagramAccount: true },
+    include: { instagramAccount: true, workspace: { select: { isSuspended: true } } },
   });
 
   if (
@@ -905,7 +969,8 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
     !automation.followUpEnabled ||
     !automation.followUpMessage?.trim() ||
     automation.instagramAccount.instagramId !== instagramAccountId ||
-    !automation.instagramAccount.accessToken
+    !automation.instagramAccount.accessToken ||
+    automation.workspace.isSuspended
   ) {
     return;
   }
@@ -989,7 +1054,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     // of the job must not send a second DM.
     if (
       existingLog?.status === "SENT" ||
-      existingLog?.status === "SKIPPED_PLAN_LIMIT"
+      existingLog?.status === "SKIPPED_PLAN_LIMIT" ||
+      existingLog?.status === "SKIPPED_WORKSPACE_SUSPENDED"
     ) {
       continue;
     }
@@ -1072,6 +1138,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
 
     const usage = await reserveWorkspaceDMSend(automation.workspaceId);
     if (!usage.allowed) {
+      const skip = dmSkipStatusFor(usage);
       await prisma.dmLog.upsert({
         where: {
           automationId_commentId: {
@@ -1079,15 +1146,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
             commentId: dedupeId,
           },
         },
-        create: {
-          ...logBase,
-          status: "SKIPPED_PLAN_LIMIT",
-          errorMessage: `Monthly DM limit reached (${usage.limit})`,
-        },
-        update: {
-          status: "SKIPPED_PLAN_LIMIT",
-          errorMessage: `Monthly DM limit reached (${usage.limit})`,
-        },
+        create: { ...logBase, ...skip },
+        update: skip,
       });
       continue;
     }

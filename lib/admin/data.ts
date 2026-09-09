@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db/client";
 
+export const ADMIN_PAGE_SIZE = 20;
+
 export interface AdminWorkspaceRow {
   id: string;
   name: string;
@@ -12,6 +14,7 @@ export interface AdminWorkspaceRow {
   dmsSentAllTime: number;
   dmsSentThisPeriod: number;
   lastDmAt: Date | null;
+  isSuspended: boolean;
 }
 
 export interface AdminOverview {
@@ -24,17 +27,42 @@ export interface AdminOverview {
   dmsSentLast30Days: number;
   newWorkspacesLast30Days: number;
   workspaces: AdminWorkspaceRow[];
+  // Count of workspaces matching the current search, for pagination — not
+  // the same as totalWorkspaces once a query narrows the result.
+  matchingWorkspaces: number;
+  page: number;
+  pageCount: number;
+}
+
+export interface AdminOverviewOptions {
+  /** Filters the workspace table by workspace name or owner email. */
+  query?: string;
+  /** 1-indexed. */
+  page?: number;
 }
 
 /**
- * Cross-workspace snapshot for the platform-admin panel. Runs a handful of
- * aggregate queries rather than loading every row — fine at this scale, but
- * revisit with real pagination if the workspace count grows into the
- * thousands.
+ * Cross-workspace snapshot for the platform-admin panel. The top-line stats
+ * are always computed over every workspace; only the workspace table itself
+ * is filtered and paginated by `options`.
  */
-export async function getAdminOverview(): Promise<AdminOverview> {
+export async function getAdminOverview(
+  options: AdminOverviewOptions = {}
+): Promise<AdminOverview> {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const query = options.query?.trim();
+  const page = Math.max(1, options.page ?? 1);
+
+  const where = query
+    ? {
+        OR: [
+          { name: { contains: query, mode: "insensitive" as const } },
+          { owner: { email: { contains: query, mode: "insensitive" as const } } },
+        ],
+      }
+    : undefined;
 
   const [
     totalWorkspaces,
@@ -45,6 +73,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     dmsSentAllTime,
     dmsSentLast30Days,
     newWorkspacesLast30Days,
+    matchingWorkspaces,
     workspaces,
   ] = await Promise.all([
     prisma.workspace.count(),
@@ -57,13 +86,18 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       where: { status: "SENT", dmSentAt: { gte: thirtyDaysAgo } },
     }),
     prisma.workspace.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+    prisma.workspace.count({ where }),
     prisma.workspace.findMany({
+      where,
       orderBy: { createdAt: "desc" },
+      skip: (page - 1) * ADMIN_PAGE_SIZE,
+      take: ADMIN_PAGE_SIZE,
       select: {
         id: true,
         name: true,
         createdAt: true,
         dmsSentThisPeriod: true,
+        isSuspended: true,
         owner: { select: { email: true } },
         _count: {
           select: {
@@ -86,10 +120,10 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   ]);
 
   // dmsSentAllTime per workspace isn't a stored column, so it's counted
-  // separately per workspace rather than joined above.
+  // separately, scoped to just the page of workspaces being rendered.
   const dmsSentByWorkspace = await prisma.dmLog.groupBy({
     by: ["workspaceId"],
-    where: { status: "SENT" },
+    where: { status: "SENT", workspaceId: { in: workspaces.map((w) => w.id) } },
     _count: { _all: true },
   });
   const dmsSentMap = new Map(
@@ -105,6 +139,9 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     dmsSentAllTime,
     dmsSentLast30Days,
     newWorkspacesLast30Days,
+    matchingWorkspaces,
+    page,
+    pageCount: Math.max(1, Math.ceil(matchingWorkspaces / ADMIN_PAGE_SIZE)),
     workspaces: workspaces.map((w) => ({
       id: w.id,
       name: w.name,
@@ -117,6 +154,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       dmsSentAllTime: dmsSentMap.get(w.id) ?? 0,
       dmsSentThisPeriod: w.dmsSentThisPeriod,
       lastDmAt: w.dmLogs[0]?.dmSentAt ?? null,
+      isSuspended: w.isSuspended,
     })),
   };
 }

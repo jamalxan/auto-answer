@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Data Deletion",
   description:
     "How SocialAuto customers can disconnect Instagram and request account or campaign data deletion.",
+  alternates: { canonical: "/data-deletion" },
 };
 
 export default async function DataDeletionPage() {

@@ -10,6 +10,7 @@ interface DashboardShellProps {
   instagramUsername: string | null;
   instagramAccountCount: number;
   isAdmin?: boolean;
+  suspendedBanner?: { title: string; body: string } | null;
 }
 
 export default function DashboardShell({
@@ -18,6 +19,7 @@ export default function DashboardShell({
   instagramUsername,
   instagramAccountCount,
   isAdmin = false,
+  suspendedBanner = null,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -44,6 +46,12 @@ export default function DashboardShell({
             whole page sideways on a phone. */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="px-4 lg:px-8 py-5 sm:py-6 max-w-7xl mx-auto">
+            {suspendedBanner && (
+              <div className="mb-5 rounded border-2 border-red-500/40 bg-red-500/10 p-4">
+                <p className="text-sm font-bold text-red-500">{suspendedBanner.title}</p>
+                <p className="mt-1 text-sm text-red-500/90">{suspendedBanner.body}</p>
+              </div>
+            )}
             {children}
           </div>
         </main>

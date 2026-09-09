@@ -75,6 +75,12 @@ model Workspace {
   usagePeriodStart  DateTime @default(now())
   dmsSentThisPeriod Int      @default(0)
 
+  // Platform-admin kill switch (lib/admin), not a per-workspace setting the
+  // owner controls. Suspended workspaces keep their data but stop sending —
+  // enforced in reserveWorkspaceDMSend rather than scattered across callers.
+  isSuspended Boolean   @default(false)
+  suspendedAt DateTime?
+
   members           WorkspaceMember[]
   invitations       WorkspaceInvitation[]
   instagramAccounts InstagramAccount[]
@@ -363,6 +369,7 @@ enum DmStatus {
   SKIPPED_RATE_LIMIT
   SKIPPED_PLAN_LIMIT
   SKIPPED_NO_MATCH
+  SKIPPED_WORKSPACE_SUSPENDED
 }
 
 enum WebhookStatus {
@@ -382,4 +389,25 @@ enum OperationalEventLevel {
   INFO
   WARNING
   ERROR
+}
+
+// Public pricing shown on the landing page. There's no billing integration
+// yet (see lib/billing/usage.ts) — these rows are marketing copy the
+// platform admin edits from /admin, not enforced plan limits. `content`
+// holds the localized copy: { en: { name, description, features: string[] },
+// ru: {...}, uz: {...} } — see lib/pricing.ts's PricingPlanContent type.
+model PricingPlan {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  priceAmount   Int      @default(0)
+  priceCurrency String   @default("$")
+  priceSuffix   String   @default("/mo")
+  content       Json
+  isFeatured    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sortOrder])
 }

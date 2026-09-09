@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
 import { isAdminEmail } from "@/lib/admin";
+import { getServerLocale } from "@/lib/i18n/get-locale";
+import { dictionaries } from "@/lib/i18n/translations";
 
 export default async function DashboardLayout({
   children,
@@ -26,12 +28,17 @@ export default async function DashboardLayout({
     select: { username: true },
   });
 
+  const locale = await getServerLocale();
+
   return (
     <DashboardShell
       workspaceName={workspace.name}
       instagramUsername={accounts[0]?.username ?? null}
       instagramAccountCount={accounts.length}
       isAdmin={isAdminEmail(session.user.email)}
+      suspendedBanner={
+        workspace.isSuspended ? dictionaries[locale].workspaceSuspendedBanner : null
+      }
     >
       {children}
     </DashboardShell>
