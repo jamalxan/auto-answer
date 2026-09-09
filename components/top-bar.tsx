@@ -6,6 +6,7 @@
  * Page title, mobile hamburger, and connection status.
  */
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
 import LanguageSwitcher from "@/components/language-switcher";
@@ -24,19 +25,45 @@ export default function TopBar({
   const pathname = usePathname();
   const { t } = useLanguage();
 
-  const pageTitles: Record<string, string> = {
+  const exactTitles: Record<string, string> = {
     "/dashboard": t.nav.dashboard,
     "/overview": t.nav.overview,
     "/inbox": t.nav.inbox,
     "/campaigns": t.nav.campaigns,
     "/campaigns/new": t.nav.newCampaign,
+    "/campaigns/import": t.campaignImport.title,
     "/automations": t.nav.campaigns,
     "/automations/new": t.nav.newCampaign,
     "/logs": t.nav.dmLogs,
     "/settings": t.nav.settings,
     "/diagnostics": t.nav.diagnostics,
   };
-  const title = pageTitles[pathname] ?? t.nav.dashboard;
+  // Dynamic/nested routes (/campaigns/<id>, /campaigns/<id>/edit, ...) have
+  // no exact entry above, so without this the header fell back straight to
+  // "Dashboard" — a campaign's own edit screen, inbox thread, etc. all read
+  // "Dashboard" in the header no matter what the sidebar had selected. Each
+  // page still renders its own specific heading below this bar; this only
+  // has to get the *section* right.
+  const sectionFallbacks: Array<[string, string]> = [
+    ["/campaigns/", t.nav.campaigns],
+    ["/automations/", t.nav.campaigns],
+    ["/inbox/", t.nav.inbox],
+    ["/logs/", t.nav.dmLogs],
+    ["/settings/", t.nav.settings],
+    ["/diagnostics/", t.nav.diagnostics],
+    ["/overview/", t.nav.overview],
+  ];
+  const title =
+    exactTitles[pathname] ??
+    sectionFallbacks.find(([prefix]) => pathname.startsWith(prefix))?.[1] ??
+    t.nav.dashboard;
+
+  // These pages are all "use client" and fetch their own data, so none of
+  // them can export the usual `metadata.title` — this is the only place
+  // that knows the current section, so it also owns the browser tab title.
+  useEffect(() => {
+    document.title = `${title} - SocialAuto`;
+  }, [title]);
 
   return (
     <header
