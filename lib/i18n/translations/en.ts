@@ -71,6 +71,12 @@ export const en = {
     none: "None",
     connectPrompt: "Connect an Instagram professional account to launch campaigns.",
     tokenExpires: (date) => `Token expires ${date}`,
+    tokenExpiringSoon: (days) =>
+      days <= 0
+        ? "⚠️ Token has expired — reconnect to keep automations running"
+        : days === 1
+          ? "⚠️ Token expires tomorrow — reconnect soon"
+          : `⚠️ Token expires in ${days} days — reconnect soon`,
     notAvailable: "not available",
     webhookReady: "Webhook ready",
     webhookPending: "Webhook pending",
@@ -91,6 +97,9 @@ export const en = {
     invite: "Invite",
     inviting: "Inviting...",
     inviteError: "Could not invite member",
+    removeMember: "Remove",
+    removingMember: "Removing…",
+    confirmRemoveMember: "Remove this member from the workspace?",
     usage: "Usage",
     dmsSentThisMonth: "DMs sent this month",
     noPlanLimits: "No plan limits.",
@@ -187,14 +196,22 @@ export const en = {
     conversations: "Conversations",
     noConversationsYet: "No conversations yet.",
     selectConversation: "Select a conversation to read and reply.",
-    writeReplyPlaceholder: "Write a reply…  (Enter to send, Shift+Enter for a new line)",
+    // Short on purpose: a placeholder that wraps to a 2nd line gets clipped by
+    // this textarea's fixed one-line height. The full instruction lives in
+    // replyHint, rendered as a caption instead.
+    writeReplyPlaceholder: "Write a reply…",
+    replyHint: "Enter to send, Shift+Enter for a new line",
     send: "Send",
     sending: "Sending…",
     loading: "Loading…",
     noMessages: "No messages.",
     back: "Back",
     youPrefix: "You: ",
-    noText: "(no text)",
+    // Instagram sends no `message` text for a sticker/photo/reaction reply —
+    // the Conversations API doesn't currently request the attachment-type
+    // fields needed to tell those apart (see getConversationMessages), so
+    // this stays a single honest "not text" label rather than guessing.
+    noText: "📎 Attachment",
     failedToLoadConversations: "Failed to load conversations",
     failedToSendMessage: "Failed to send message",
   },
@@ -592,6 +609,7 @@ export const en = {
     prevPage: "Previous",
     nextPage: "Next",
     pricingTitle: "Pricing Plans",
+    pricingDraftBadge: "Draft — not billed",
     pricingSubtitle:
       "Landing-page marketing copy — there's no billing yet, so these plans aren't enforced anywhere.",
     pricingFieldSlug: "Slug",

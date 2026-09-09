@@ -73,6 +73,12 @@ export const uz = {
     connectPrompt:
       "Kampaniyalarni ishga tushirish uchun Instagram professional akkauntini ulang.",
     tokenExpires: (date) => `Token muddati: ${date}`,
+    tokenExpiringSoon: (days) =>
+      days <= 0
+        ? "⚠️ Token muddati tugagan — avtomatizatsiyalar ishlashda davom etishi uchun qayta ulang"
+        : days === 1
+          ? "⚠️ Token muddati ertaga tugaydi — oldindan qayta ulang"
+          : `⚠️ Token muddati ${days} kundan so'ng tugaydi — oldindan qayta ulang`,
     notAvailable: "mavjud emas",
     webhookReady: "Webhook tayyor",
     webhookPending: "Webhook kutilmoqda",
@@ -93,6 +99,9 @@ export const uz = {
     invite: "Taklif qilish",
     inviting: "Taklif yuborilmoqda...",
     inviteError: "A'zoni taklif qilib bo'lmadi",
+    removeMember: "O'chirish",
+    removingMember: "O'chirilmoqda…",
+    confirmRemoveMember: "Bu a'zoni ish maydonidan o'chirishni xohlaysizmi?",
     usage: "Foydalanish",
     dmsSentThisMonth: "Shu oyda yuborilgan DM",
     noPlanLimits: "Tarif chegarasi yo'q.",
@@ -191,15 +200,15 @@ export const uz = {
     conversations: "Suhbatlar",
     noConversationsYet: "Hozircha suhbatlar yo'q.",
     selectConversation: "O'qish va javob berish uchun suhbatni tanlang.",
-    writeReplyPlaceholder:
-      "Javob yozing… (Enter — yuborish, Shift+Enter — yangi qator)",
+    writeReplyPlaceholder: "Javob yozing…",
+    replyHint: "Enter — yuborish, Shift+Enter — yangi qator",
     send: "Yuborish",
     sending: "Yuborilmoqda…",
     loading: "Yuklanmoqda…",
     noMessages: "Xabarlar yo'q.",
     back: "Orqaga",
     youPrefix: "Siz: ",
-    noText: "(matn yo'q)",
+    noText: "📎 Ilova",
     failedToLoadConversations: "Suhbatlarni yuklab bo'lmadi",
     failedToSendMessage: "Xabarni yuborib bo'lmadi",
   },
@@ -597,6 +606,7 @@ export const uz = {
     prevPage: "Oldingi",
     nextPage: "Keyingi",
     pricingTitle: "Narx rejalari",
+    pricingDraftBadge: "Qoralama — hisoblanmaydi",
     pricingSubtitle:
       "Landing sahifa uchun marketing matni — hozircha to'lov tizimi yo'q, bu rejalar hech qayerda amalda qo'llanilmaydi.",
     pricingFieldSlug: "Slug",

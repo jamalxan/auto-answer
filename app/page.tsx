@@ -46,9 +46,13 @@ function AppWindow({ label, children }: { label: string; children: ReactNode }) 
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="panel rounded p-4">
+    // min-w-0: a grid item's min-width is "auto" (its content's intrinsic
+    // width) by default, so a single unbreakable token like "847.2K" was
+    // forcing this column wider than its 1/3 share and spilling into the
+    // next card. min-w-0 + truncate let the grid track win instead.
+    <div className="panel min-w-0 rounded p-4">
       <p className="label-mono text-[11px] text-muted">{label}</p>
-      <p className="mt-1 font-display text-2xl font-extrabold text-foreground">
+      <p className="mt-1 truncate font-display text-2xl font-extrabold text-foreground">
         {value}
       </p>
     </div>

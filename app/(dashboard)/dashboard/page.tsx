@@ -176,7 +176,10 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-foreground mb-4">
             {t.dashboard.recentActivity}
           </h2>
-          <div className="space-y-3 max-h-60 overflow-y-auto">
+          {/* pr-2: without this, a status like "Yuborildi" sitting flush
+              against the right edge gets its last characters covered by the
+              scrollbar that appears once content exceeds max-h-60. */}
+          <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
             {stats?.recentLogs.length === 0 && (
               <p className="text-sm text-muted text-center py-8">{t.dashboard.noActivity}</p>
             )}

@@ -77,7 +77,14 @@ export default async function AdminWorkspacesPage({
           <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="label-mono text-left text-[11px] text-muted border-b border-border">
-                <th className="py-2 pr-4 font-medium">{t.colWorkspace}</th>
+                {/* sticky: 11 columns don't fit any viewport, so this table always
+                    scrolls horizontally — without an anchor, scrolling loses the
+                    one column (which workspace this row even is) that makes the
+                    rest legible. shadow gives the sticky edge a visible boundary
+                    against whatever column is scrolled underneath it. */}
+                <th className="sticky left-0 z-10 bg-surface py-2 pr-4 font-medium shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)]">
+                  {t.colWorkspace}
+                </th>
                 <th className="py-2 px-3 font-medium">{t.colOwner}</th>
                 <th className="py-2 px-3 font-medium">{t.colCreated}</th>
                 <th className="py-2 px-3 font-medium text-right">{t.colMembers}</th>
@@ -93,7 +100,9 @@ export default async function AdminWorkspacesPage({
             <tbody>
               {overview.workspaces.map((w) => (
                 <tr key={w.id} className="border-b border-border last:border-0">
-                  <td className="py-3 pr-4 text-foreground">{w.name}</td>
+                  <td className="sticky left-0 z-10 bg-surface py-3 pr-4 text-foreground shadow-[2px_0_4px_-2px_rgba(0,0,0,0.25)]">
+                    {w.name}
+                  </td>
                   <td className="py-3 px-3 text-muted">{w.ownerEmail ?? t.noEmail}</td>
                   <td className="py-3 px-3 text-muted whitespace-nowrap">
                     {formatDate(w.createdAt)}

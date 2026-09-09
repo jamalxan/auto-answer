@@ -73,6 +73,7 @@ export interface Dictionary {
     none: string;
     connectPrompt: string;
     tokenExpires: (date: string) => string;
+    tokenExpiringSoon: (days: number) => string;
     notAvailable: string;
     webhookReady: string;
     webhookPending: string;
@@ -92,6 +93,9 @@ export interface Dictionary {
     invite: string;
     inviting: string;
     inviteError: string;
+    removeMember: string;
+    removingMember: string;
+    confirmRemoveMember: string;
     usage: string;
     dmsSentThisMonth: string;
     noPlanLimits: string;
@@ -187,6 +191,7 @@ export interface Dictionary {
     noConversationsYet: string;
     selectConversation: string;
     writeReplyPlaceholder: string;
+    replyHint: string;
     send: string;
     sending: string;
     loading: string;
@@ -558,6 +563,7 @@ export interface Dictionary {
     prevPage: string;
     nextPage: string;
     pricingTitle: string;
+    pricingDraftBadge: string;
     pricingSubtitle: string;
     pricingFieldSlug: string;
     pricingFieldPrice: string;

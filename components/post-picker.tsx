@@ -51,6 +51,11 @@ export default function PostPicker({
   const [query, setQuery] = useState("");
   // The post currently hovered — its video (if it's a reel) plays a preview.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Instagram's CDN thumbnail URLs expire; a post whose URL has already
+  // lapsed by the time this grid renders was showing a broken-image icon on
+  // a bare (no background) tile with nothing to say why. Tracked so it falls
+  // back to the same "no image" placeholder as a post with no thumb at all.
+  const [failedThumbIds, setFailedThumbIds] = useState<Set<string>>(new Set());
   // The grid loads the whole library (all=true). On accounts with hundreds of
   // posts, rendering every tile at once is enough to make mobile Safari drop
   // the page, so they are revealed in batches.
@@ -173,7 +178,9 @@ export default function PostPicker({
               const isSelected = selectedPostId === post.id;
               const usedByName = usedPostIds?.[post.id];
               const isUsed = Boolean(usedByName) && !isSelected;
-              const thumb = post.thumbnail_url ?? post.media_url;
+              const thumb = failedThumbIds.has(post.id)
+                ? undefined
+                : post.thumbnail_url ?? post.media_url;
               const isVideo = post.media_type === "VIDEO";
               const showVideo =
                 isVideo && hoveredId === post.id && Boolean(post.media_url);
@@ -189,7 +196,7 @@ export default function PostPicker({
             aria-pressed={isSelected}
             title={isUsed ? t.postPicker.alreadyUsedByTooltip(usedByName ?? "") : undefined}
             className={`
-              relative aspect-square rounded overflow-hidden border-2
+              relative aspect-square rounded overflow-hidden border-2 bg-surface
               ${
                 isSelected
                   ? "border-accent"
@@ -205,6 +212,9 @@ export default function PostPicker({
                 alt={post.caption?.slice(0, 50) ?? t.postPicker.instagramPostAlt}
                 loading="lazy"
                 decoding="async"
+                onError={() =>
+                  setFailedThumbIds((prev) => new Set(prev).add(post.id))
+                }
                 className={`w-full h-full object-cover ${isUsed ? "opacity-75" : ""}`}
               />
             ) : (
