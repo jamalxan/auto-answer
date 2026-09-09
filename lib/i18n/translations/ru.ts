@@ -73,6 +73,12 @@ export const ru = {
     connectPrompt:
       "Подключите профессиональный аккаунт Instagram, чтобы запускать кампании.",
     tokenExpires: (date) => `Токен истекает ${date}`,
+    tokenExpiringSoon: (days) =>
+      days <= 0
+        ? "⚠️ Срок токена истёк — переподключите, чтобы автоматизации продолжали работать"
+        : days === 1
+          ? "⚠️ Токен истекает завтра — переподключите заранее"
+          : `⚠️ Токен истекает через ${days} дн. — переподключите заранее`,
     notAvailable: "недоступно",
     webhookReady: "Webhook готов",
     webhookPending: "Webhook в ожидании",
@@ -93,6 +99,9 @@ export const ru = {
     invite: "Пригласить",
     inviting: "Приглашение...",
     inviteError: "Не удалось пригласить участника",
+    removeMember: "Удалить",
+    removingMember: "Удаление…",
+    confirmRemoveMember: "Удалить этого участника из пространства?",
     usage: "Использование",
     dmsSentThisMonth: "DM отправлено в этом месяце",
     noPlanLimits: "Без ограничений тарифа.",
@@ -191,15 +200,15 @@ export const ru = {
     conversations: "Диалоги",
     noConversationsYet: "Пока нет диалогов.",
     selectConversation: "Выберите диалог, чтобы прочитать и ответить.",
-    writeReplyPlaceholder:
-      "Напишите ответ… (Enter — отправить, Shift+Enter — новая строка)",
+    writeReplyPlaceholder: "Напишите ответ…",
+    replyHint: "Enter — отправить, Shift+Enter — новая строка",
     send: "Отправить",
     sending: "Отправка…",
     loading: "Загрузка…",
     noMessages: "Сообщений нет.",
     back: "Назад",
     youPrefix: "Вы: ",
-    noText: "(без текста)",
+    noText: "📎 Вложение",
     failedToLoadConversations: "Не удалось загрузить диалоги",
     failedToSendMessage: "Не удалось отправить сообщение",
   },
@@ -597,6 +606,7 @@ export const ru = {
     prevPage: "Назад",
     nextPage: "Далее",
     pricingTitle: "Тарифные планы",
+    pricingDraftBadge: "Черновик — не тарифицируется",
     pricingSubtitle:
       "Маркетинговый текст для главной страницы — биллинга пока нет, эти планы нигде не применяются.",
     pricingFieldSlug: "Slug",

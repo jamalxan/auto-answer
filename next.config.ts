@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   // cross-origin webpack-hmr websocket the tunnel origin needs, which left
   // every client component stuck on its initial render (skeletons forever,
   // no hydration) even though the page itself loaded fine.
-  allowedDevOrigins: ["*.trycloudflare.com"],
+  allowedDevOrigins: ["*.trycloudflare.com", "127.0.0.1"],
 };
 
 export default nextConfig;

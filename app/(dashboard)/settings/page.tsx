@@ -120,6 +120,41 @@ export default function SettingsPage() {
     setBusy(null);
   }
 
+  async function updateMemberRole(memberId: string, role: "ADMIN" | "MEMBER") {
+    setMemberError(null);
+    setBusy(`role:${memberId}`);
+    const res = await fetch("/api/workspace/members", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, role }),
+    });
+    const payload = await res.json();
+    if (payload.success) {
+      setMembersData(payload.data);
+    } else {
+      setMemberError(payload.error ?? t.settings.inviteError);
+    }
+    setBusy(null);
+  }
+
+  async function removeMember(memberId: string) {
+    if (!window.confirm(t.settings.confirmRemoveMember)) return;
+    setMemberError(null);
+    setBusy(`member:${memberId}`);
+    const res = await fetch("/api/workspace/members", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId }),
+    });
+    const payload = await res.json();
+    if (payload.success) {
+      setMembersData(payload.data);
+    } else {
+      setMemberError(payload.error ?? t.settings.inviteError);
+    }
+    setBusy(null);
+  }
+
   if (loading) {
     return <div className="panel rounded p-8 h-64" />;
   }
@@ -176,38 +211,55 @@ export default function SettingsPage() {
             {accounts.length === 0 && (
               <p className="text-sm text-muted">{t.settings.connectPrompt}</p>
             )}
-            {accounts.map((account) => (
-              <div
-                key={account.id}
-                className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    @{account.username}
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {t.settings.tokenExpires(
-                      account.tokenExpiresAt
-                        ? new Date(account.tokenExpiresAt).toLocaleDateString()
-                        : t.settings.notAvailable
-                    )}{" "}
-                    ·{" "}
-                    {account.webhookSubscribed
-                      ? t.settings.webhookReady
-                      : t.settings.webhookPending}
-                  </p>
-                </div>
-                <button
-                  onClick={() => disconnectInstagram(account.id)}
-                  disabled={busy === `disconnect:${account.id}`}
-                  className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
+            {accounts.map((account) => {
+              // 14/7/1-day heads-up so a token doesn't lapse silently — Meta
+              // gives no other signal before automations just stop delivering.
+              const daysUntilExpiry = account.tokenExpiresAt
+                ? Math.ceil(
+                    (new Date(account.tokenExpiresAt).getTime() - new Date().getTime()) /
+                      (24 * 60 * 60 * 1000)
+                  )
+                : null;
+              const expiringSoon = daysUntilExpiry !== null && daysUntilExpiry <= 14;
+
+              return (
+                <div
+                  key={account.id}
+                  className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  {busy === `disconnect:${account.id}`
-                    ? t.settings.disconnecting
-                    : t.settings.disconnect}
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      @{account.username}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {t.settings.tokenExpires(
+                        account.tokenExpiresAt
+                          ? new Date(account.tokenExpiresAt).toLocaleDateString()
+                          : t.settings.notAvailable
+                      )}{" "}
+                      ·{" "}
+                      {account.webhookSubscribed
+                        ? t.settings.webhookReady
+                        : t.settings.webhookPending}
+                    </p>
+                    {expiringSoon && (
+                      <p className="mt-1 text-xs font-medium text-warning">
+                        {t.settings.tokenExpiringSoon(Math.max(daysUntilExpiry, 0))}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => disconnectInstagram(account.id)}
+                    disabled={busy === `disconnect:${account.id}`}
+                    className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
+                  >
+                    {busy === `disconnect:${account.id}`
+                      ? t.settings.disconnecting
+                      : t.settings.disconnect}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -224,26 +276,60 @@ export default function SettingsPage() {
       <section className="panel rounded p-4 sm:p-6">
         <h2 className="text-base font-semibold mb-6">{t.settings.team}</h2>
         <div className="space-y-3">
-          {membersData?.members.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-0"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {member.user.name ?? member.user.email ?? t.settings.unknownMember}
-                </p>
-                <p className="text-xs text-muted">{member.user.email}</p>
+          {membersData?.members.map((member) => {
+            // Owners aren't editable — canManageWorkspace already blocks the
+            // API from touching an OWNER row, so there's nothing to offer here.
+            const canEditThisMember = canManageMembers && member.role !== "OWNER";
+            return (
+              <div
+                key={member.id}
+                className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {member.user.name ?? member.user.email ?? t.settings.unknownMember}
+                  </p>
+                  <p className="text-xs text-muted">{member.user.email}</p>
+                </div>
+                {canEditThisMember ? (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <select
+                      value={member.role}
+                      disabled={busy === `role:${member.id}`}
+                      onChange={(e) =>
+                        void updateMemberRole(
+                          member.id,
+                          e.target.value as "ADMIN" | "MEMBER"
+                        )
+                      }
+                      className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-foreground disabled:opacity-50"
+                    >
+                      <option value="ADMIN">{t.settings.roleAdmin}</option>
+                      <option value="MEMBER">{t.settings.roleMember}</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void removeMember(member.id)}
+                      disabled={busy === `member:${member.id}`}
+                      className="rounded-lg border border-error/20 px-3 py-1.5 text-xs font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-50"
+                    >
+                      {busy === `member:${member.id}`
+                        ? t.settings.removingMember
+                        : t.settings.removeMember}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted">
+                    {member.role === "OWNER"
+                      ? t.settings.roleOwner
+                      : member.role === "ADMIN"
+                        ? t.settings.roleAdmin
+                        : t.settings.roleMember}
+                  </span>
+                )}
               </div>
-              <span className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted">
-                {member.role === "OWNER"
-                  ? t.settings.roleOwner
-                  : member.role === "ADMIN"
-                    ? t.settings.roleAdmin
-                    : t.settings.roleMember}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {membersData?.invitations.length ? (

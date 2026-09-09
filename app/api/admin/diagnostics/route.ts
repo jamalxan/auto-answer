@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { getDMQueue } from "@/lib/queue/client";
-import { getWorkerAlerts, getWorkerHealth } from "@/lib/ops/worker-health";
+import { getWorkerHealth } from "@/lib/ops/worker-health";
 
 export const runtime = "nodejs";
 
@@ -17,8 +17,7 @@ export async function GET() {
 
   const [
     queueCounts,
-    workerHealth,
-    workerAlerts,
+    rawWorkerHealth,
     webhookFailures,
     dmFailures,
     tokenRefreshFailures,
@@ -26,7 +25,6 @@ export async function GET() {
   ] = await Promise.all([
     getDMQueue().getJobCounts("waiting", "active", "delayed", "failed"),
     getWorkerHealth(),
-    getWorkerAlerts(10),
     prisma.webhookEvent.findMany({
       where: { workspaceId, status: "FAILED" },
       orderBy: { createdAt: "desc" },
@@ -91,12 +89,25 @@ export async function GET() {
     }),
   ]);
 
+  // getWorkerHealth()/getWorkerAlerts() read one shared Redis key for the
+  // whole platform (health:worker:dm / alerts:worker:dm) — there's no
+  // workspaceId on a heartbeat or alert to filter by. This endpoint is
+  // per-workspace and reachable by any signed-in customer (getCurrentWorkspaceId
+  // only checks *a* session, not which workspace), so the alerts list — other
+  // customers' commentId/jobId/instagramAccountId and error text — was being
+  // sent to every customer who opened Diagnostics. Dropped here entirely
+  // rather than filtered, since alerts carry no workspace to filter by; only
+  // the healthy/ageMs signal (no hostname/pid) is safe to expose this way.
+  const workerHealth = {
+    healthy: rawWorkerHealth.healthy,
+    ageMs: rawWorkerHealth.ageMs,
+  };
+
   return NextResponse.json({
     success: true,
     data: {
       queueCounts,
       workerHealth,
-      workerAlerts,
       webhookFailures,
       dmFailures,
       tokenRefreshFailures,

@@ -3,7 +3,7 @@ import { getAllPricingPlans } from "@/lib/pricing";
 import { savePricingPlan, deletePricingPlan } from "@/lib/admin/actions";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
-import AdminConfirmForm from "@/components/admin-confirm-form";
+import AdminConfirmSubmitButton from "@/components/admin-confirm-submit-button";
 import AdminPricingPlanForm from "@/components/admin-pricing-plan-form";
 
 export const metadata: Metadata = {
@@ -23,7 +23,12 @@ export default async function AdminPricingPage() {
 
   return (
     <section className="panel rounded p-4 sm:p-6">
-      <h1 className="font-display text-xl font-extrabold text-foreground">{t.pricingTitle}</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="font-display text-xl font-extrabold text-foreground">{t.pricingTitle}</h1>
+        <span className="label-mono inline-flex items-center rounded border-2 border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-bold text-gold">
+          {t.pricingDraftBadge}
+        </span>
+      </div>
       <p className="mt-1 text-sm text-muted">{t.pricingSubtitle}</p>
 
       <div className="mt-6 space-y-6">
@@ -50,11 +55,10 @@ export default async function AdminPricingPage() {
                 >
                   {t.pricingSave}
                 </button>
-                <AdminConfirmForm
-                  action={deletePricingPlan}
+                <AdminConfirmSubmitButton
+                  formAction={deletePricingPlan}
                   confirmMessage={t.pricingConfirmDelete}
                   label={t.pricingDelete}
-                  hiddenFields={{ id: plan.id }}
                   className="label-mono rounded border-2 border-red-500/40 px-4 py-1.5 text-xs font-bold text-red-500 transition hover:bg-red-500/10"
                 />
               </div>

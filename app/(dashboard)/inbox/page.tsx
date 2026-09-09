@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import Skeleton from "@/components/skeleton";
 import { readCache, writeCache } from "@/lib/client-cache";
 import type { ConversationListItem } from "@/app/api/instagram/conversations/route";
 import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
@@ -287,7 +288,14 @@ export default function InboxPage() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {convLoading ? (
-              <p className="px-4 py-6 text-sm text-muted">{t.inbox.loading}</p>
+              <div className="space-y-1 p-4">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 py-2">
+                    <Skeleton className="h-3.5 w-24" />
+                    <Skeleton className="h-3 w-8" />
+                  </div>
+                ))}
+              </div>
             ) : convError ? (
               <p className="px-4 py-6 text-sm text-error">{convError}</p>
             ) : conversations.length === 0 ? (
@@ -352,7 +360,13 @@ export default function InboxPage() {
 
               <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
                 {threadLoading && messages.length === 0 ? (
-                  <p className="text-sm text-muted">{t.inbox.loading}</p>
+                  <div className="space-y-3">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}>
+                        <Skeleton className="h-9 w-2/5" />
+                      </div>
+                    ))}
+                  </div>
                 ) : messages.length === 0 ? (
                   <p className="text-sm text-muted">{t.inbox.noMessages}</p>
                 ) : (
@@ -415,6 +429,7 @@ export default function InboxPage() {
                     {sending ? t.inbox.sending : t.inbox.send}
                   </button>
                 </div>
+                <p className="mt-1.5 text-[11px] text-muted">{t.inbox.replyHint}</p>
               </div>
             </>
           )}
