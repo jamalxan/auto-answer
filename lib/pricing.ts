@@ -194,8 +194,32 @@ function normalizeContent(raw: unknown): PricingPlanContent {
   return { en: pick("en"), ru: pick("ru"), uz: pick("uz") };
 }
 
-/** Public, active plans in display order — for the landing page. */
+// Simple in-process TTL cache, not Next's `unstable_cache`/`"use cache"`:
+// this app now runs as one long-lived Node process per container (see
+// docker-compose.prod.yml) rather than ephemeral serverless functions, so a
+// module-level cache lives exactly as long as it should. It only covers a
+// single `web` replica — if this ever scales to more than one, switch to a
+// Redis-backed cache (a connection already exists in lib/queue/client.ts).
+let activePlansCache: { data: PricingPlan[]; expiresAt: number } | null = null;
+const ACTIVE_PLANS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** Called by savePricingPlan/deletePricingPlan so an edit is visible on the
+ * very next request instead of waiting out the TTL. */
+export function invalidateActivePricingPlansCache(): void {
+  activePlansCache = null;
+}
+
+/**
+ * Public, active plans in display order — for the landing page. The
+ * homepage already renders per-request (it reads the locale cookie), so
+ * this is the layer that actually saves work: cached for 5 minutes rather
+ * than re-querying Postgres on every visit.
+ */
 export async function getActivePricingPlans(): Promise<PricingPlan[]> {
+  if (activePlansCache && activePlansCache.expiresAt > Date.now()) {
+    return activePlansCache.data;
+  }
+
   await ensureDefaultPricingPlans();
 
   const plans = await prisma.pricingPlan.findMany({
@@ -203,7 +227,7 @@ export async function getActivePricingPlans(): Promise<PricingPlan[]> {
     orderBy: { sortOrder: "asc" },
   });
 
-  return plans.map((p) => ({
+  const data = plans.map((p) => ({
     id: p.id,
     slug: p.slug,
     priceAmount: p.priceAmount,
@@ -214,6 +238,9 @@ export async function getActivePricingPlans(): Promise<PricingPlan[]> {
     isActive: p.isActive,
     sortOrder: p.sortOrder,
   }));
+
+  activePlansCache = { data, expiresAt: Date.now() + ACTIVE_PLANS_CACHE_TTL_MS };
+  return data;
 }
 
 /** Every plan (including hidden ones) in display order — for /admin. */

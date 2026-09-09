@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/db/client";
+import { invalidateActivePricingPlansCache } from "@/lib/pricing";
 import type { Prisma } from "@/app/generated/prisma/client";
 
 async function requireAdmin() {
@@ -88,6 +89,7 @@ export async function savePricingPlan(formData: FormData): Promise<void> {
 
   revalidatePath("/admin");
   revalidatePath("/");
+  invalidateActivePricingPlansCache();
 }
 
 export async function deletePricingPlan(formData: FormData): Promise<void> {
@@ -102,4 +104,5 @@ export async function deletePricingPlan(formData: FormData): Promise<void> {
 
   revalidatePath("/admin");
   revalidatePath("/");
+  invalidateActivePricingPlansCache();
 }

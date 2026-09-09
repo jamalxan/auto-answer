@@ -1,0 +1,101 @@
+# SocialAuto — Production stack (self-hosted).
+#
+# Three app processes share one image (see Dockerfile): web (next start),
+# worker (the BullMQ consumer), and cron (the /api/cron scheduler that
+# replaces Vercel's cron block — see scripts/cron.sh). Caddy terminates TLS
+# and reverse-proxies to `web`; nothing else is published to the host, so
+# this stack cannot collide with anything else already running on the box.
+#
+# .env holds DATABASE_URL/REDIS_URL already pointed at the `postgres`/`redis`
+# service names below (see .env.example) — no compose-level var overrides
+# needed, just env_file everywhere.
+#
+# Deploy / redeploy:
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: socialauto
+      POSTGRES_USER: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Migrations run once here, ahead of the app, rather than in a separate
+    # one-shot container — keeps the happy path to one `up -d --build`.
+    command: sh -c "npx prisma migrate deploy && npm run start"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run worker
+
+  cron:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CRON_BASE_URL: http://web:3000
+    depends_on:
+      web:
+        condition: service_healthy
+    command: sh scripts/cron.sh
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
