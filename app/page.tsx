@@ -49,10 +49,12 @@ function Stat({ label, value }: { label: string; value: string }) {
     // min-w-0: a grid item's min-width is "auto" (its content's intrinsic
     // width) by default, so a single unbreakable token like "847.2K" was
     // forcing this column wider than its 1/3 share and spilling into the
-    // next card. min-w-0 + truncate let the grid track win instead.
-    <div className="panel min-w-0 rounded p-4">
+    // next card. min-w-0 + truncate are the safety net; text-lg (down from
+    // text-2xl) is the actual fit — at ~115px per card this is as small as
+    // "847.2K" goes before truncate has to start eating characters.
+    <div className="panel min-w-0 rounded px-2.5 py-3">
       <p className="label-mono text-[11px] text-muted">{label}</p>
-      <p className="mt-1 truncate font-display text-2xl font-extrabold text-foreground">
+      <p className="mt-1 truncate font-display text-lg font-extrabold text-foreground">
         {value}
       </p>
     </div>
