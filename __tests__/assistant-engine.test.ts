@@ -169,6 +169,24 @@ describe("inbound webhook handling", () => {
   });
 });
 
+describe("privacy: accounts without the assistant keep no records", () => {
+  it("stores nothing for a stranger's DM when the assistant is off", async () => {
+    seedWorld({ enabled: false });
+    await inbound("salom, 90 123 45 67");
+    expect(db.rows("conversation")).toHaveLength(0);
+    expect(db.rows("conversationMessage")).toHaveLength(0);
+    expect(vi.mocked(sendDirectMessage)).not.toHaveBeenCalled();
+  });
+
+  it("still keeps a campaign reply (so a typed number becomes a lead)", async () => {
+    seedWorld({ enabled: false });
+    const campaign = db.seed("automation", { id: "c1", name: "A", instagramAccountId: "a1" });
+    db.seed("dmLog", { instagramAccountId: "a1", automationId: campaign.id, commenterId: "u1", status: "SENT", dmSentAt: new Date() });
+    await inbound("90 123 45 67");
+    expect(db.rows("lead")).toHaveLength(1);
+  });
+});
+
 describe("conversation flow", () => {
   it("answers a greeting with typing indicators and moves to NEED", async () => {
     seedWorld();
@@ -373,6 +391,15 @@ describe("operator takeover (TZ section 5)", () => {
     seedWorld();
     await inbound("salom");
     await handleEcho({ instagramAccountId: "ig1", customerId: "u1", messageId: "echo-2", text: "kampaniya DM", appId: "own-app-id" });
+    expect(conv().operatorActiveUntil).toBeNull();
+  });
+
+  it("an echo right after our own campaign DM is never an operator, even with an unknown app id", async () => {
+    seedWorld();
+    await inbound("salom");
+    const campaign = db.seed("automation", { id: "c1", name: "A", instagramAccountId: "a1" });
+    db.seed("dmLog", { instagramAccountId: "a1", automationId: campaign.id, commenterId: "u1", status: "SENT", dmSentAt: new Date() });
+    await handleEcho({ instagramAccountId: "ig1", customerId: "u1", messageId: "echo-x", text: "kampaniya", appId: "some-other-id" });
     expect(conv().operatorActiveUntil).toBeNull();
   });
 

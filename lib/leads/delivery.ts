@@ -351,6 +351,19 @@ export async function processDelivery(deliveryId: string): Promise<void> {
     return;
   }
 
+  // Claim the delivery with a 5-minute lease. A retry job and the sweeper can
+  // both fire for the same row; only the one that wins this update may send.
+  const now = new Date();
+  const claimed = await prisma.leadDelivery.updateMany({
+    where: {
+      id: delivery.id,
+      status: { in: ["PENDING", "FAILED"] },
+      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+    },
+    data: { nextAttemptAt: new Date(now.getTime() + 5 * 60_000) },
+  });
+  if (claimed.count === 0) return;
+
   const lead = await loadLead(delivery.leadId);
   if (!lead) return;
   const kind = delivery.kind as DeliveryKind;

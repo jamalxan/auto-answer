@@ -164,6 +164,7 @@ describe("processDelivery — Telegram", () => {
     vi.mocked(sendWithRetry).mockRejectedValue(new Error("chat not found"));
 
     for (let attempt = 1; attempt <= MAX_DELIVERY_ATTEMPTS; attempt++) {
+      d.nextAttemptAt = new Date(Date.now() - 1000); // the scheduled retry fires
       await processDelivery(d.id as string);
       if (attempt < MAX_DELIVERY_ATTEMPTS) {
         expect(d.status).toBe("FAILED");
@@ -178,6 +179,25 @@ describe("processDelivery — Telegram", () => {
     expect(alertWorkspace).toHaveBeenCalledTimes(1);
     expect(lead.status).toBe("FAILED");
     expect(d.lastError).toContain("chat not found");
+  });
+});
+
+describe("delivery lease", () => {
+  it("two concurrent workers send a delivery only once", async () => {
+    const { lead, telegram } = seedBase();
+    db.tables.integration = db.rows("integration").filter((i) => i.id === telegram.id);
+    const d = db.seed("leadDelivery", { leadId: lead.id, integrationId: telegram.id, nextAttemptAt: new Date() });
+    await Promise.all([processDelivery(d.id as string), processDelivery(d.id as string)]);
+    expect(sendWithRetry).toHaveBeenCalledTimes(1);
+    expect(d.status).toBe("SENT");
+  });
+
+  it("an attempt scheduled in the future is not run early by the sweeper or a stray job", async () => {
+    const { lead, telegram } = seedBase();
+    db.tables.integration = db.rows("integration").filter((i) => i.id === telegram.id);
+    const d = db.seed("leadDelivery", { leadId: lead.id, integrationId: telegram.id, status: "FAILED", nextAttemptAt: new Date(Date.now() + 60_000) });
+    await processDelivery(d.id as string);
+    expect(sendWithRetry).not.toHaveBeenCalled();
   });
 });
 

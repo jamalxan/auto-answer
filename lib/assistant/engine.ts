@@ -47,7 +47,8 @@ import { runTurn, type ActiveState } from "./turn";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NEW_CONVERSATION_AFTER_MS = 30 * DAY_MS;
 const CAMPAIGN_REPLY_WINDOW_MS = 3 * DAY_MS;
-const LOCK_TTL_SECONDS = 30;
+// Longer than LLM retries (2 x 12s) + the typing delay (<= 9s) + sends.
+const LOCK_TTL_SECONDS = 90;
 const LLM_FAIL_LIMIT = 3;
 const TEMPLATE_MODE_MS = 10 * 60_000;
 
@@ -150,6 +151,28 @@ export async function handleInboundMessage(job: InboundJob): Promise<void> {
   });
   if (!account) return;
 
+  // Accounts that do not use the assistant keep no conversation records at all:
+  // we only look at a DM when it answers one of OUR campaign DMs (a number typed
+  // there still becomes a lead), otherwise nothing is stored.
+  const profileRow = await findProfile(account.workspaceId, account.id);
+  const live = profileRow ? isProfileLive(profileRow) : false;
+  if (!live) {
+    const existing = await prisma.conversation.findUnique({
+      where: { instagramAccountId_igUserId: { instagramAccountId: account.id, igUserId: job.senderId } },
+      select: { id: true },
+    });
+    const recentCampaignDm = await prisma.dmLog.findFirst({
+      where: {
+        instagramAccountId: account.id,
+        commenterId: job.senderId,
+        status: "SENT",
+        dmSentAt: { gte: new Date(Date.now() - CAMPAIGN_REPLY_WINDOW_MS) },
+      },
+      select: { id: true },
+    });
+    if (!existing && !recentCampaignDm) return;
+  }
+
   let conversation = await upsertConversation(account, job.senderId);
   const text = job.text.trim() || (job.hasAttachment ? "[rasm/fayl]" : "");
   if (!text) return;
@@ -193,9 +216,6 @@ export async function handleInboundMessage(job: InboundJob): Promise<void> {
       });
     }
   }
-
-  const profileRow = await findProfile(account.workspaceId, account.id);
-  const live = profileRow ? isProfileLive(profileRow) : false;
 
   // After hand-off: stay silent, but tell the operators the customer is back.
   if (conversation.assistantState === "HANDED_OFF") {
@@ -255,6 +275,20 @@ export async function handleEcho(job: EchoJob): Promise<void> {
     where: { instagramId: job.instagramAccountId },
   });
   if (!account) return;
+
+  // Campaign DMs / reveals sent by our own worker are echoed too. Their app_id
+  // should match ours, but if Meta reports a different id they must still never
+  // be mistaken for a human: a DM we logged as sent to this customer moments ago
+  // is ours.
+  const justSent = await prisma.dmLog.findFirst({
+    where: {
+      instagramAccountId: account.id,
+      commenterId: job.customerId,
+      dmSentAt: { gte: new Date(Date.now() - 2 * 60_000) },
+    },
+    select: { id: true },
+  });
+  if (justSent) return;
 
   const known = await prisma.conversationMessage.findFirst({
     where: { mid: job.messageId, conversation: { instagramAccountId: account.id } },

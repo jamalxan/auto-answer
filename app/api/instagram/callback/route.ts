@@ -101,6 +101,13 @@ export async function GET(request: NextRequest) {
         accessToken: encryptedToken,
         tokenExpiresAt,
         webhookSubscribed,
+        // A fresh token from Meta: stop showing "disconnected" right away
+        // instead of waiting for the next 6-hourly health check.
+        tokenStatus: "ACTIVE",
+        tokenCheckedAt: new Date(),
+        tokenLastError: null,
+        tokenBrokenAt: null,
+        tokenAlertedAt: null,
       },
     });
 
