@@ -19,7 +19,7 @@ import type { Collected } from "@/lib/leads/service";
 import { isRepeat } from "./humanize";
 import { detectLanguage, normalizeLang, type Lang } from "./language";
 import { LLM_JSON_SCHEMA, parseLlmOutput, type LlmOutput } from "./llm-output";
-import type { LLMProvider, LlmMessage } from "./llm/provider";
+import { llmTimeoutMs, type LLMProvider, type LlmMessage } from "./llm/provider";
 import { filterReply, type BlockReason } from "./post-filter";
 import {
   buildSystemPrompt,
@@ -158,7 +158,7 @@ async function callLlm(
         schemaName: "assistant_reply",
         temperature: 0.4,
         maxTokens: 500,
-        timeoutMs: 12_000,
+        timeoutMs: llmTimeoutMs(),
       });
       usages.push({
         model: response.model,

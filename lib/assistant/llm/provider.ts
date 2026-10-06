@@ -67,6 +67,12 @@ const PRICES: Array<[RegExp, number, number]> = [
   [/gpt-4o|gpt-4\.1/i, 2.5, 10],
 ];
 
+/** Per-request timeout. Local models (Ollama) need far more than a hosted API. */
+export function llmTimeoutMs(fallback = 12_000): number {
+  const value = Number(process.env.LLM_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 export function priceFor(model: string): [number, number] {
   const envIn = Number(process.env.LLM_COST_INPUT_PER_M);
   const envOut = Number(process.env.LLM_COST_OUTPUT_PER_M);
