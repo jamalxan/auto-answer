@@ -37,6 +37,9 @@ export default function TopBar({
     "/logs": t.nav.dmLogs,
     "/settings": t.nav.settings,
     "/diagnostics": t.nav.diagnostics,
+    "/assistant": t.assistant.nav.assistant,
+    "/leads": t.assistant.nav.leads,
+    "/integrations": t.assistant.nav.integrations,
   };
   // Dynamic/nested routes (/campaigns/<id>, /campaigns/<id>/edit, ...) have
   // no exact entry above, so without this the header fell back straight to
@@ -51,6 +54,9 @@ export default function TopBar({
     ["/logs/", t.nav.dmLogs],
     ["/settings/", t.nav.settings],
     ["/diagnostics/", t.nav.diagnostics],
+    ["/assistant/", t.assistant.nav.assistant],
+    ["/leads/", t.assistant.nav.leads],
+    ["/integrations/", t.assistant.nav.integrations],
     ["/overview/", t.nav.overview],
   ];
   const title =

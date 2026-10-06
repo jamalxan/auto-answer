@@ -26,6 +26,7 @@ interface Overview {
     lastCheckedAt: string | null;
   }>;
   llm: {
+    configured: boolean;
     errors7d: number;
     blocked7d: number;
     templateOnlyUntil: string | null;
@@ -112,7 +113,9 @@ export default function AssistantDiagnostics() {
         <h2 className="text-base font-semibold text-foreground">{D.llmHealth}</h2>
         <ul className="mt-3 space-y-2 text-sm text-foreground">
           <li>
-            {data.llm.templateOnlyUntil ? (
+            {!data.llm.configured ? (
+              <Badge tone="error">{D.llmNotConfigured}</Badge>
+            ) : data.llm.templateOnlyUntil ? (
               <Badge tone="warning">{D.templateMode(when(data.llm.templateOnlyUntil))}</Badge>
             ) : (
               <Badge tone="success">{D.llmOk}</Badge>

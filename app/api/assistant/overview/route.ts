@@ -1,6 +1,7 @@
 import { jsonOk, requireWorkspace } from "@/lib/api-auth";
 import { prisma } from "@/lib/db/client";
 import { aiConversationLimit } from "@/lib/assistant/profile";
+import { getLlmProvider } from "@/lib/assistant/llm/provider";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +116,7 @@ export async function GET() {
       lastCheckedAt: i.lastCheckedAt,
     })),
     llm: {
+      configured: getLlmProvider() !== null,
       errors7d: llmErrors,
       blocked7d: blocked,
       templateOnlyUntil: templateUntil,

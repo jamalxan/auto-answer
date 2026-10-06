@@ -294,6 +294,7 @@ export interface AssistantDictionary {
     llmHealth: string;
     templateMode: (until: string) => string;
     llmOk: string;
+    llmNotConfigured: string;
     llmErrors: (n: number) => string;
     blockedReplies: (n: number) => string;
     aiUsage: (used: number, limit: number) => string;
@@ -634,6 +635,7 @@ export const assistantUz: AssistantDictionary = {
     llmHealth: "AI / zaxira rejimi",
     templateMode: (u) => `Zaxira shablon rejimi ${u} gacha`,
     llmOk: "AI provayder ishlayapti",
+    llmNotConfigured: "AI provayder sozlanmagan — assistent faqat shablonlar bilan ishlaydi",
     llmErrors: (n) => `AI xatolari (7 kun): ${n}`,
     blockedReplies: (n) => `Bloklangan javoblar (7 kun): ${n}`,
     aiUsage: (u, l) => `AI suhbatlar: ${u} / ${l}`,
@@ -974,6 +976,7 @@ export const assistantRu: AssistantDictionary = {
     llmHealth: "AI / резервный режим",
     templateMode: (u) => `Режим шаблонов до ${u}`,
     llmOk: "AI-провайдер работает",
+    llmNotConfigured: "AI-провайдер не настроен — ассистент работает только по шаблонам",
     llmErrors: (n) => `Ошибки AI (7 дней): ${n}`,
     blockedReplies: (n) => `Заблокированные ответы (7 дней): ${n}`,
     aiUsage: (u, l) => `AI-диалоги: ${u} / ${l}`,
@@ -1314,6 +1317,7 @@ export const assistantEn: AssistantDictionary = {
     llmHealth: "AI / fallback mode",
     templateMode: (u) => `Template-only mode until ${u}`,
     llmOk: "AI provider is working",
+    llmNotConfigured: "No AI provider configured — the assistant uses fixed templates only",
     llmErrors: (n) => `AI errors (7 days): ${n}`,
     blockedReplies: (n) => `Blocked replies (7 days): ${n}`,
     aiUsage: (u, l) => `AI conversations: ${u} / ${l}`,
