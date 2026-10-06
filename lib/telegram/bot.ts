@@ -362,6 +362,12 @@ async function handleCallback(io: BotIO, update: TgUpdate) {
   if (data.startsWith("contacted:")) return handleContacted(io, cb, data.slice("contacted:".length));
   if (cb.message && cb.message.chat.type !== "private") return;
 
+  // The welcome message's language buttons work before the account is linked.
+  if (data.startsWith("lang:") && !(await prisma.telegramUser.findUnique({ where: { tgUserId } }))) {
+    const chosen: BotLang = data === "lang:ru" ? "ru" : "uz";
+    return void (await io.send(tgUserId, tr(chosen).notLinked));
+  }
+
   const parts = data.split(":");
   const owner = await resolveOwner(tgUserId);
   if (owner.status !== "ok") {
