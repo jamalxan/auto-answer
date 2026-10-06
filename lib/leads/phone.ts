@@ -1,4 +1,10 @@
-import { parsePhoneNumberFromString } from "libphonenumber-js/max";
+// The core API with explicit metadata behaves identically under Next, Vitest and
+// tsx (the worker); the "/max" wrapper loses its metadata when loaded as CJS.
+import { parsePhoneNumberFromString as parseWithMetadata } from "libphonenumber-js/core";
+import metadata from "libphonenumber-js/metadata.max.json";
+
+const parsePhoneNumberFromString = (text: string, region: "UZ") =>
+  parseWithMetadata(text, region, metadata);
 
 export interface ParsedPhone {
   e164: string;

@@ -62,7 +62,7 @@ export function createAssistantWorker(): Worker<AssistantJob> {
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[Assistant Worker] job ${job?.id} (${job?.name}) failed:`, err.message);
+    console.error(`[Assistant Worker] job ${job?.id} (${job?.name}) failed:`, err.stack ?? err.message);
     void prisma.operationalEvent
       .create({
         data: {
