@@ -17,6 +17,7 @@ import { readCache, writeCache } from "@/lib/client-cache";
 import type { ConversationListItem } from "@/app/api/instagram/conversations/route";
 import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
 import { useLanguage } from "@/components/language-provider";
+import InboxAssistantBar from "@/components/inbox-assistant-bar";
 import { formatShortMonthDay } from "@/lib/i18n/format-date";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -62,6 +63,8 @@ export default function InboxPage() {
   const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Deep link target (?conversation=<our id>) from a lead / Telegram button.
+  const [pendingContactId, setPendingContactId] = useState<string | null>(null);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
@@ -86,6 +89,33 @@ export default function InboxPage() {
       })
       .catch(() => setAccounts([]));
   }, []);
+
+  // Resolve ?conversation=<id> into an account + customer, once.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("conversation");
+    if (!id) return;
+    fetch(`/api/assistant/inbox-state?conversationId=${id}`)
+      .then((r) => r.json())
+      .then((payload) => {
+        const resolved = payload.success ? payload.data.resolved : null;
+        if (!resolved) return;
+        setSelectedAccountId(resolved.instagramAccountId);
+        setPendingContactId(resolved.igUserId);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Once the list is loaded, open the deep-linked thread.
+  useEffect(() => {
+    if (!pendingContactId) return;
+    const match = conversations.find((c) => c.contact.id === pendingContactId);
+    if (match) {
+      // Opening a thread from a URL target is an external-input sync.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveId(match.id);
+      setPendingContactId(null);
+    }
+  }, [pendingContactId, conversations]);
 
   // Remember the chosen account for the next visit.
   useEffect(() => {
@@ -357,6 +387,14 @@ export default function InboxPage() {
                   @{active.contact.username ?? t.common.unknown}
                 </span>
               </div>
+
+              {active.contact.id && selectedAccountId && (
+                <InboxAssistantBar
+                  key={active.contact.id}
+                  accountId={selectedAccountId}
+                  contactId={active.contact.id}
+                />
+              )}
 
               <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
                 {threadLoading && messages.length === 0 ? (

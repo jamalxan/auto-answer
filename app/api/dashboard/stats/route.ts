@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId, getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
+import { aiConversationLimit } from "@/lib/assistant/profile";
 import {
   calculateCtr,
   normalizeTopKeywords,
@@ -58,6 +59,8 @@ export async function GET(request: NextRequest) {
       select: {
         name: true,
         dmsSentThisPeriod: true,
+        aiConversationsThisPeriod: true,
+        aiConversationsLimit: true,
       },
     }),
     prisma.instagramAccount.findFirst({
@@ -198,7 +201,9 @@ export async function GET(request: NextRequest) {
     data: {
       userName: firstName,
       contactsCount: contactRows.length,
-      workspace,
+      workspace: workspace
+        ? { ...workspace, aiConversationsLimit: aiConversationLimit(workspace) }
+        : workspace,
       instagramAccount,
       instagramAccounts,
       selectedInstagramAccountId: selectedAccountId,

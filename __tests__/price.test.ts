@@ -45,6 +45,12 @@ describe("parsePrice", () => {
     expect(parsePrice("").amount).toBeNull();
   });
 
+  it("refuses to guess ambiguous text (acceptance #15)", () => {
+    for (const text of ["kelishiladi 5-6", "5-6 ming", "taxminan 300 ming atrofida", "1 va 2 mln", "ikki yuz ming 300"]) {
+      expect(parsePrice(text).amount, text).toBeNull();
+    }
+  });
+
   it("returns null for zero", () => {
     expect(parsePrice("0").amount).toBeNull();
   });

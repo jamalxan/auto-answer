@@ -472,6 +472,8 @@ export interface Dictionary {
       subprocessorsBody: string;
       retentionTitle: string;
       retentionBody: string;
+      leadsTitle: string;
+      leadsBody: string;
       contactTitle: string;
       contactBody: string;
     };

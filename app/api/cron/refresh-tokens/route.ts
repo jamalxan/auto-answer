@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     data: {
       usagePeriodStart: monthStart,
       dmsSentThisPeriod: 0,
+      aiConversationsThisPeriod: 0,
     },
   });
 

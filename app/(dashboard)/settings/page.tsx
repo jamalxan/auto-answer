@@ -9,6 +9,8 @@ interface SettingsData {
   workspace: {
     name: string;
     dmsSentThisPeriod: number;
+    aiConversationsThisPeriod?: number;
+    aiConversationsLimit?: number;
   };
   instagramAccount: {
     id: string;
@@ -441,6 +443,17 @@ export default function SettingsPage() {
           </div>
           <span className="text-sm font-semibold text-foreground">
             {data?.workspace.dmsSentThisPeriod ?? 0}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t border-border py-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {t.assistant.usage.aiConversations}
+            </p>
+            <p className="text-xs text-muted mt-0.5">{t.assistant.usage.aiConversationsHelp}</p>
+          </div>
+          <span className="text-sm font-semibold text-foreground">
+            {data?.workspace.aiConversationsThisPeriod ?? 0} / {data?.workspace.aiConversationsLimit ?? "—"}
           </span>
         </div>
       </section>

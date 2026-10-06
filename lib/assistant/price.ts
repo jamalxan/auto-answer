@@ -53,6 +53,23 @@ function readNumber(token: string, hasMultiplier: boolean, currency: Currency): 
   return Number.isFinite(n) ? n : null;
 }
 
+/** Words that legitimately accompany a price; anything else makes the text ambiguous. */
+const PRICE_WORDS =
+  /(?<!\p{L})(?:mln|million\p{L}*|миллион\p{L}*|млн|mlrd|milliard\p{L}*|млрд|ming|минг|тыс\p{L}*|thousand|k|к|so['‘’`ʻ]?m\p{L}*|сўм\p{L}*|сум\p{L}*|sum|som|uzs|usd|dollar\p{L}*|доллар\p{L}*|ye|у|е|руб\p{L}*|rub|от|from|starting|boshlab|dan|дан|и|выше|больше|бошлаб)(?!\p{L})/giu;
+
+/**
+ * True when, besides ONE number and price words, there is other text or a second
+ * number ("kelishiladi 5-6", "5-6 ming"): we refuse to guess.
+ */
+function isAmbiguous(text: string, numberToken: string): boolean {
+  const rest = text
+    .replace(numberToken, " ")
+    .replace(PRICE_WORDS, " ")
+    .replace(/[$₽.,;:()\-–—/\s]+/g, " ")
+    .trim();
+  return /[\p{L}\d]/u.test(rest);
+}
+
 export function parsePrice(input: string): ParsedPrice {
   const text = (input ?? "").trim();
   const currency = detectCurrency(text);
@@ -69,6 +86,8 @@ export function parsePrice(input: string): ParsedPrice {
       : THOUSAND.test(text)
         ? 1_000
         : 1;
+
+  if (isAmbiguous(text, match[0])) return { amount: null, currency, isFrom };
 
   const base = readNumber(match[0], multiplier > 1, currency);
   if (base === null || base <= 0) return { amount: null, currency, isFrom };

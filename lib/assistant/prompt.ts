@@ -187,8 +187,12 @@ Javobni faqat JSON ko'rinishida ber.`;
 const INSTRUCTION_LIKE =
   /\b(ignore|forget|disregard|override|system prompt|unut|unutib|e'tiborsiz|har doim ayt|doim ayt|hech qachon aytma|ты должен|игнорируй|забудь)\b|\b(ayt|yoz)(?:ing|gin)?\b.*\b(chegirma|discount|skidka|50%)/i;
 
+const DISCOUNT_WORD = /(chegirma|discount|skidka|скидк|bepul|бесплатн)/i;
+const COMMAND_VERB = /(^|[\s,.;:!])(ayt|ayting|yoz|yozing|ber|bering|taklif|говори|скажи|предлагай|always|never|doim)(?=[\s,.;:!?]|$)/i;
+
+/** Owner text that reads like an order to the bot ("always give 50% off", "ignore ..."). */
 export function looksLikeInstruction(text: string): boolean {
-  return INSTRUCTION_LIKE.test(text);
+  return INSTRUCTION_LIKE.test(text) || (DISCOUNT_WORD.test(text) && COMMAND_VERB.test(text));
 }
 
 export function profileCharCount(profile: Pick<ProfileSnapshot, "companyName" | "description" | "categories" | "faqs" | "address" | "delivery" | "workingHours">): number {

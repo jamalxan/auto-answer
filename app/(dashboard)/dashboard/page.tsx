@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatCard from "@/components/stat-card";
+import LeadStatCards from "@/components/lead-stat-cards";
 import StatusBadge from "@/components/status-badge";
 import { useLanguage } from "@/components/language-provider";
 
@@ -126,6 +127,8 @@ export default function DashboardPage() {
         <StatCard label={t.dashboard.statClicks} value={stats?.clicksThisMonth ?? 0} />
         <StatCard label={t.dashboard.statCtr} value={`${stats?.ctrThisMonth ?? 0}%`} />
       </div>
+
+      <LeadStatCards />
 
       {/* Chart + Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">

@@ -7,6 +7,7 @@
  */
 
 import { prisma } from "@/lib/db/client";
+import { runTokenExpiryWarnings } from "@/lib/integrations/expiry";
 import { esc, isTelegramConfigured, sendMessage, TelegramApiError } from "./api";
 
 const HOUR_MS = 60 * 60_000;
@@ -206,5 +207,6 @@ export async function runAllOwnerNotifications(now = new Date()) {
     gaps: await runGapDigest(now),
     prices: await runPriceReminders(now),
     onboarding: await runOnboardingReminders(now),
+    tokenExpiry: await runTokenExpiryWarnings(now),
   };
 }

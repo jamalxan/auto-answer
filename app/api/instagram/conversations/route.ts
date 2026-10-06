@@ -7,6 +7,7 @@ import {
   MetaApiError,
 } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
+import { markOperatorActiveForContact } from "@/lib/assistant/engine";
 
 export interface ConversationListItem {
   id: string;
@@ -140,6 +141,13 @@ export async function POST(request: NextRequest) {
       body.recipientId,
       text
     );
+    // A human is now in the conversation: the lead assistant stays quiet.
+    await markOperatorActiveForContact(
+      account.id,
+      body.recipientId,
+      text,
+      result.message_id
+    ).catch(() => {});
     return NextResponse.json({ success: true, data: result });
   } catch (err) {
     console.error("[Conversations] Send error:", err);

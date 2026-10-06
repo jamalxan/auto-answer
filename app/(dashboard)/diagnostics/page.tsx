@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import StatusBadge from "@/components/status-badge";
 import { useLanguage } from "@/components/language-provider";
+import AssistantDiagnostics from "@/components/assistant-diagnostics";
 
 interface DiagnosticsData {
   queueCounts: Record<string, number>;
@@ -228,6 +229,8 @@ export default function DiagnosticsPage() {
         </Section>
 
       </div>
+
+      <AssistantDiagnostics />
 
       <Section title={t.diagnostics.operationalEventTimeline}>
         {data?.operationalEvents.length ? (

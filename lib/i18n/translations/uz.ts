@@ -500,6 +500,9 @@ export const uz = {
       retentionTitle: "Saqlash va o'chirish",
       retentionBody:
         "Mijozlar sozlamalardan Instagram'ni uzishlari mumkin — bu saqlangan Instagram ulanishini o'chiradi va kampaniyalarni to'xtatadi. Akkaunt yoki ma'lumotlarni o'chirish uchun footer'dagi \"Ma'lumotlarni o'chirish\" sahifasiga o'ting.",
+      leadsTitle: "Lid ma'lumotlari va CRM'ga uzatish",
+      leadsBody:
+        "Lid yig'uvchi assistent mijozning ismi, telefon raqami, Instagram username'i va suhbat yozuvini faqat sizning ish maydoningizda saqlaydi. Siz ulagan Telegram, amoCRM yoki Bitrix24 hisobingizga bu ma'lumotlar uzatiladi — ular sizning nazoratingizdagi servislar. Assistent javoblarini yaratish uchun suhbat matni AI provayderga yuboriladi. Ish maydonini yoki Instagram akkauntni o'chirsangiz, unga tegishli lidlar va suhbat yozuvlari ham o'chiriladi; CRM'ga allaqachon uzatilgan nusxalarni CRM ichida o'zingiz o'chirasiz.",
       contactTitle: "Aloqa",
       contactBody:
         "Maxfiylik bo'yicha savollar uchun SocialAuto xizmati uchun belgilangan qo'llab-quvvatlash email manziliga murojaat qiling.",

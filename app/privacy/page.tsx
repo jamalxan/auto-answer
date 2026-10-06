@@ -42,6 +42,11 @@ export default async function PrivacyPage() {
       </section>
 
       <section>
+        <h2 className="text-xl font-bold text-white">{t.leadsTitle}</h2>
+        <p className="mt-3">{t.leadsBody}</p>
+      </section>
+
+      <section>
         <h2 className="text-xl font-bold text-white">{t.contactTitle}</h2>
         <p className="mt-3">{t.contactBody}</p>
       </section>

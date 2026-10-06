@@ -284,6 +284,29 @@ export async function handleEcho(job: EchoJob): Promise<void> {
   await logEvent(account.workspaceId, conversation.id, "operator_takeover", { pauseHours });
 }
 
+/**
+ * A human answered from the SocialAuto inbox: the bot goes quiet for the
+ * configured pause, and the message is kept in the conversation record.
+ */
+export async function markOperatorActiveForContact(
+  instagramAccountId: string,
+  igUserId: string,
+  text: string,
+  messageId?: string
+) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { instagramAccountId_igUserId: { instagramAccountId, igUserId } },
+    select: { id: true },
+  });
+  if (!conversation) return; // never talked to the assistant: nothing to pause
+  await prisma.conversationMessage
+    .create({
+      data: { conversationId: conversation.id, mid: messageId ?? null, author: "OPERATOR", text },
+    })
+    .catch(() => {});
+  await markOperatorActive(conversation.id);
+}
+
 /** Called when a human answers from the SocialAuto inbox. */
 export async function markOperatorActive(conversationId: string) {
   const conversation = await prisma.conversation.findUnique({

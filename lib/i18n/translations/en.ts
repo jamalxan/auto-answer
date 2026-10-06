@@ -503,6 +503,9 @@ export const en = {
       retentionTitle: "Retention And Deletion",
       retentionBody:
         "Customers can disconnect Instagram from settings, which removes the stored Instagram connection and stops campaigns. For account or data deletion, follow the Data Deletion page linked from the footer.",
+      leadsTitle: "Lead data and CRM transfer",
+      leadsBody:
+        "The lead assistant stores the customer's name, phone number, Instagram username and conversation transcript only in your workspace. This data is passed to the Telegram, amoCRM or Bitrix24 account you connect — services under your control. Conversation text is sent to the AI provider to generate the assistant's replies. When you delete the workspace or an Instagram account, the related leads and transcripts are deleted too; copies already delivered to your CRM are deleted inside the CRM by you.",
       contactTitle: "Contact",
       contactBody:
         "For privacy questions, contact us through the support email configured for the hosted SocialAuto service.",

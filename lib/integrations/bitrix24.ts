@@ -72,7 +72,7 @@ export class BitrixClient {
 
     let data: { result?: T; error?: string; error_description?: string } = {};
     try {
-      data = await response.json();
+      data = (await response.json()) ?? {};
     } catch {
       // non-JSON body
     }

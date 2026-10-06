@@ -20,6 +20,10 @@ deployment this project runs on.
 | Worker runtime | `tsx` (runs `worker/dm-worker.ts`) |
 | Instagram | Official Meta Graph API (Instagram Login) |
 | i18n | Custom typed dictionary (uz / ru / en), cookie-persisted |
+| Telegram | Bot API over `fetch` (webhook at `/webhooks/telegram/<secret>`), no framework |
+| LLM / STT | Provider interfaces (`lib/assistant/llm`, `lib/assistant/stt.ts`), chosen from `.env` |
+| Phone numbers | `libphonenumber-js` (default region UZ) |
+| Price lists | `read-excel-file` (xlsx), CSV parser, `unpdf` (PDF text) |
 
 ## Runtime — three processes, two datastores
 
@@ -27,10 +31,14 @@ deployment this project runs on.
   callback, and the incoming webhook.
 - **Worker** (`npm run worker`): a long-running Node process. Consumes the
   send queue, sends the DMs, runs the polling reconciler, and performs the
-  follow-gate `is_user_follow_business` checks. Must stay always-on.
+  follow-gate `is_user_follow_business` checks. It also runs the lead-assistant
+  queue (`lead-assistant`): debounced assistant replies, lead deliveries to
+  Telegram / amoCRM / Bitrix24 with retry, owner notifications. Must stay
+  always-on.
 - **Cron** (`scripts/cron.sh`): a lightweight scheduler loop that calls the
   `/api/cron/*` routes on a timer (attach-next-reel every 5 minutes,
-  refresh-tokens and snapshot-followers once a day).
+  refresh-tokens and snapshot-followers once a day, check-tokens every 6 hours,
+  owner-notifications hourly).
 - **PostgreSQL**: campaigns, DM logs, accounts, sessions, tracked links, click
   events.
 - **Redis**: the BullMQ send queue and the per-account rate limiter.
@@ -69,3 +77,10 @@ repo:
 `ADMIN_EMAILS`, `META_GRAPH_API_VERSION`, `INSTAGRAM_APP_ID`,
 `INSTAGRAM_APP_SECRET`, `FACEBOOK_APP_SECRET`, `WEBHOOK_VERIFY_TOKEN`,
 `POSTGRES_PASSWORD`.
+
+Lead assistant and integrations (all optional until the feature is used):
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`,
+`LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`,
+`LLM_COST_INPUT_PER_M`, `LLM_COST_OUTPUT_PER_M`, `STT_PROVIDER`, `STT_API_KEY`,
+`STT_MODEL`, `AI_CONVERSATIONS_PER_MONTH`, `FEATURE_FLAGS`. After deploying run
+`npm run telegram:webhook` once. Design decisions: `docs/DECISIONS.md`.
