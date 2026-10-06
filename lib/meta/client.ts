@@ -757,7 +757,14 @@ export async function subscribeInstagramAccountToWebhooks(
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        subscribed_fields: ["comments", "messages"],
+        // messages also delivers echoes (is_echo) of what the account itself sent,
+        // which is how the assistant notices a human operator taking over.
+        subscribed_fields: [
+          "comments",
+          "messages",
+          "messaging_postbacks",
+          "messaging_seen",
+        ],
       }),
     }
   );
@@ -771,4 +778,64 @@ export async function debugToken(inputToken: string, accessToken: string) {
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url.toString());
   return handleResponse(response);
+}
+
+// --- Messaging helpers for the lead assistant -------------------------------
+
+export type SenderAction = "mark_seen" | "typing_on" | "typing_off";
+
+/**
+ * Show "seen" / typing indicator to the customer. Purely cosmetic, so callers
+ * treat failures as non-fatal.
+ */
+export async function sendSenderAction(
+  accessToken: string,
+  instagramAccountId: string,
+  userId: string,
+  action: SenderAction
+): Promise<void> {
+  const response = await fetch(`${instagramGraphBase()}/${instagramAccountId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ recipient: { id: userId }, sender_action: action }),
+  });
+  await handleResponse(response);
+}
+
+export interface InstagramMessagingProfile {
+  name?: string;
+  username?: string;
+}
+
+/** Name / username of a customer who messaged the account (by IGSID). */
+export async function getMessagingProfile(
+  accessToken: string,
+  igsid: string
+): Promise<InstagramMessagingProfile> {
+  const url = new URL(`${instagramGraphBase()}/${igsid}`);
+  url.searchParams.set("fields", "name,username");
+  url.searchParams.set("access_token", accessToken);
+  const response = await fetch(url.toString());
+  return handleResponse<InstagramMessagingProfile>(response);
+}
+
+export interface ProfileForAutofill {
+  username?: string;
+  name?: string;
+  biography?: string;
+  website?: string;
+}
+
+/** Bio, name and website of the connected professional account (assistant autofill). */
+export async function getAccountProfileForAutofill(
+  accessToken: string
+): Promise<ProfileForAutofill> {
+  const url = new URL(`${instagramGraphBase()}/me`);
+  url.searchParams.set("fields", "username,name,biography,website");
+  url.searchParams.set("access_token", accessToken);
+  const response = await fetch(url.toString());
+  return handleResponse<ProfileForAutofill>(response);
 }

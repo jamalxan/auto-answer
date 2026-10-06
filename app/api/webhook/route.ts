@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getDMQueue } from "@/lib/queue/client";
 import {
+  parseAssistantInbound,
   parseCommentEvents,
+  parseEchoEvents,
   parseMessageEvents,
   parsePostbackEvents,
   parseReadEvents,
   verifyWebhookSignature,
 } from "@/lib/meta/webhook";
 import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
+import { enqueueEcho, enqueueInbound } from "@/lib/queue/assistant-queue";
 import { Prisma } from "@/app/generated/prisma/client";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
@@ -175,6 +178,27 @@ export async function POST(request: NextRequest) {
           data: { workspaceId: account.workspaceId },
         });
       }
+    }
+
+    // Lead assistant: customer DMs (incl. photos/voice) and echoes of what the
+    // account itself sent (operator takeover). Independent queue, so a failure
+    // here can never affect the campaign DM path above.
+    try {
+      for (const event of parseAssistantInbound(
+        payload as Parameters<typeof parseAssistantInbound>[0]
+      )) {
+        await enqueueInbound(event);
+      }
+      for (const event of parseEchoEvents(
+        payload as Parameters<typeof parseEchoEvents>[0]
+      )) {
+        await enqueueEcho(event);
+      }
+    } catch (assistantError) {
+      console.error(
+        "[Webhook] Failed to queue assistant events:",
+        assistantError instanceof Error ? assistantError.message : assistantError
+      );
     }
 
     // If a user reads the opening DM and never taps the button, deliver the

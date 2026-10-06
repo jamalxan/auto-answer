@@ -82,6 +82,7 @@ interface WebhookEntry {
       is_echo?: boolean;
       is_deleted?: boolean;
       is_unsupported?: boolean;
+      app_id?: string | number;
       attachments?: Array<{ type?: string }>;
     };
   }>;
@@ -268,5 +269,78 @@ export function parseReadEvents(payload: WebhookPayload): WebhookReadEvent[] {
     }
   }
 
+  return events;
+}
+
+export interface WebhookAssistantInbound {
+  instagramAccountId: string;
+  senderId: string;
+  messageId: string;
+  text: string;
+  hasAttachment: boolean;
+}
+
+export interface WebhookEchoEvent {
+  instagramAccountId: string;
+  customerId: string;
+  messageId: string;
+  text: string;
+  appId: string | null;
+}
+
+/**
+ * Customer DMs for the lead assistant. Unlike parseMessageEvents this keeps
+ * attachment-only messages (photo, voice note) — the assistant answers those
+ * with a fixed line — and it is a separate function so the keyword-campaign
+ * path stays exactly as it was.
+ */
+export function parseAssistantInbound(payload: WebhookPayload): WebhookAssistantInbound[] {
+  const events: WebhookAssistantInbound[] = [];
+  if (payload.object !== "instagram") return events;
+
+  for (const entry of payload.entry ?? []) {
+    for (const messaging of entry.messaging ?? []) {
+      const message = messaging.message;
+      if (!message || message.is_echo || message.is_deleted) continue;
+      const messageId = message.mid;
+      const senderId = messaging.sender?.id;
+      const accountId = entry.id ?? messaging.recipient?.id;
+      if (!messageId || !senderId || !accountId || senderId === accountId) continue;
+
+      const text = message.text?.trim() ?? "";
+      const hasAttachment = Boolean(message.attachments?.length) || Boolean(message.is_unsupported);
+      if (!text && !hasAttachment) continue;
+
+      events.push({ instagramAccountId: accountId, senderId, messageId, text, hasAttachment });
+    }
+  }
+  return events;
+}
+
+/**
+ * Echoes: messages the connected account itself sent. Used to detect a human
+ * operator answering from the Instagram app (no app_id of ours).
+ */
+export function parseEchoEvents(payload: WebhookPayload): WebhookEchoEvent[] {
+  const events: WebhookEchoEvent[] = [];
+  if (payload.object !== "instagram") return events;
+
+  for (const entry of payload.entry ?? []) {
+    for (const messaging of entry.messaging ?? []) {
+      const message = messaging.message;
+      if (!message?.is_echo || message.is_deleted) continue;
+      const messageId = message.mid;
+      const accountId = entry.id ?? messaging.sender?.id;
+      const customerId = messaging.recipient?.id;
+      if (!messageId || !accountId || !customerId || customerId === accountId) continue;
+      events.push({
+        instagramAccountId: accountId,
+        customerId,
+        messageId,
+        text: message.text?.trim() ?? "",
+        appId: message.app_id !== undefined && message.app_id !== null ? String(message.app_id) : null,
+      });
+    }
+  }
   return events;
 }

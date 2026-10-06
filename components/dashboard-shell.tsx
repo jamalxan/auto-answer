@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/top-bar";
@@ -11,6 +12,7 @@ interface DashboardShellProps {
   instagramAccountCount: number;
   isAdmin?: boolean;
   suspendedBanner?: { title: string; body: string } | null;
+  tokenBanner?: { title: string; body: string; cta: string } | null;
 }
 
 export default function DashboardShell({
@@ -20,6 +22,7 @@ export default function DashboardShell({
   instagramAccountCount,
   isAdmin = false,
   suspendedBanner = null,
+  tokenBanner = null,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -50,6 +53,18 @@ export default function DashboardShell({
               <div className="mb-5 rounded border-2 border-red-500/40 bg-red-500/10 p-4">
                 <p className="text-sm font-bold text-red-500">{suspendedBanner.title}</p>
                 <p className="mt-1 text-sm text-red-500/90">{suspendedBanner.body}</p>
+              </div>
+            )}
+            {tokenBanner && (
+              <div className="mb-5 rounded border-2 border-red-500/40 bg-red-500/10 p-4">
+                <p className="text-sm font-bold text-red-500">{tokenBanner.title}</p>
+                <p className="mt-1 text-sm text-red-500/90">{tokenBanner.body}</p>
+                <Link
+                  href="/settings"
+                  className="mt-2 inline-block text-sm font-semibold text-red-500 underline"
+                >
+                  {tokenBanner.cta}
+                </Link>
               </div>
             )}
             {children}

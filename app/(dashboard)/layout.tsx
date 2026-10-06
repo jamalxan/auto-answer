@@ -25,10 +25,12 @@ export default async function DashboardLayout({
   const accounts = await prisma.instagramAccount.findMany({
     where: { workspaceId: workspace.id },
     orderBy: { connectedAt: "desc" },
-    select: { username: true },
+    select: { username: true, tokenStatus: true },
   });
 
   const locale = await getServerLocale();
+  const brokenAccounts = accounts.filter((a) => a.tokenStatus === "BROKEN");
+  const banner = dictionaries[locale].assistant.tokenBanner;
 
   return (
     <DashboardShell
@@ -36,6 +38,15 @@ export default async function DashboardLayout({
       instagramUsername={accounts[0]?.username ?? null}
       instagramAccountCount={accounts.length}
       isAdmin={isAdminEmail(session.user.email)}
+      tokenBanner={
+        brokenAccounts.length > 0
+          ? {
+              title: banner.title,
+              body: banner.body(brokenAccounts.map((a) => `@${a.username}`).join(", ")),
+              cta: banner.cta,
+            }
+          : null
+      }
       suspendedBanner={
         workspace.isSuspended ? dictionaries[locale].workspaceSuspendedBanner : null
       }

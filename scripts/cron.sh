@@ -40,6 +40,8 @@ echo "[cron] scheduler started, target $BASE_URL"
 
 last_slot=""
 last_daily=""
+last_tokencheck=""
+last_hourly=""
 
 while true; do
   now=$(date -u '+%Y-%m-%d %H:%M')
@@ -66,6 +68,24 @@ while true; do
     last_daily="$today"
     call refresh-tokens
     call snapshot-followers
+  fi
+
+  # Every 6 hours: verify the Instagram tokens against Meta for real, so a
+  # revoked token (error 190) shows as broken instead of "Connected".
+  case "$hour" in
+    00|06|12|18)
+      if [ "$minute" = "10" ] && [ "$last_tokencheck" != "$today-$hour" ]; then
+        last_tokencheck="$today-$hour"
+        call check-tokens
+      fi
+      ;;
+  esac
+
+  # Hourly: owner notifications (knowledge-gap digest, price reminders,
+  # onboarding nudges). Each one limits itself to once a day / month.
+  if [ "$minute" = "20" ] && [ "$last_hourly" != "$today-$hour" ]; then
+    last_hourly="$today-$hour"
+    call owner-notifications
   fi
 
   # Half a minute: short enough never to skip a slot, long enough to stay idle.

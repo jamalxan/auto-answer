@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/snapshot-followers",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/check-tokens",
+      "schedule": "10 */6 * * *"
+    },
+    {
+      "path": "/api/cron/owner-notifications",
+      "schedule": "20 * * * *"
     }
   ]
 }

@@ -26,6 +26,7 @@ import {
   sendPrivateReplyWithLinkButton,
 } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
+import { markTokenBroken } from "@/lib/meta/token-health";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
 import { reserveDMSlot } from "@/lib/utils/rate-limiter";
 import {
@@ -1259,6 +1260,18 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
   return processComment(job as Job<ProcessCommentJob>);
 }
 
+async function flagBrokenToken(instagramId: string, reason: string) {
+  try {
+    const account = await prisma.instagramAccount.findUnique({
+      where: { instagramId },
+      select: { id: true },
+    });
+    if (account) await markTokenBroken(account.id, reason);
+  } catch (error) {
+    console.error("[DM Worker] Failed to flag broken token:", formatError(error));
+  }
+}
+
 async function recordWorkerFailure(
   job: Job<DmQueueJob> | undefined,
   error: Error
@@ -1328,6 +1341,11 @@ export function createDMWorker(): Worker<DmQueueJob> {
       err.message
     );
     void recordWorkerFailure(job, err);
+    if (err instanceof TokenExpiredError && job?.data.instagramAccountId) {
+      // Meta says the token is dead: surface it right away instead of waiting
+      // for the next 6-hourly health check.
+      void flagBrokenToken(job.data.instagramAccountId, err.message);
+    }
   });
 
   worker.on("error", (err) => {

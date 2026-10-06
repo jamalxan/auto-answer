@@ -1,3 +1,5 @@
+import type { AssistantDictionary } from "@/lib/i18n/assistant-dictionary";
+
 /**
  * Shape every locale dictionary must satisfy. Keep this the single source of
  * truth for translation keys — adding a key here and forgetting one locale
@@ -687,4 +689,5 @@ export interface Dictionary {
     faqTitle: string;
     faqs: { question: string; answer: string }[];
   };
+  assistant: AssistantDictionary;
 }

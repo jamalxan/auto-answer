@@ -1,4 +1,5 @@
 import type { Dictionary } from "@/lib/i18n/dictionary";
+import { assistantUz } from "@/lib/i18n/assistant-dictionary";
 
 export const uz = {
   common: {
@@ -795,4 +796,5 @@ export const uz = {
       },
     ],
   },
+  assistant: assistantUz,
 } satisfies Dictionary;

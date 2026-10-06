@@ -23,6 +23,7 @@ model User {
   ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
   workspaceMembers  WorkspaceMember[]
   sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
+  telegramUsers     TelegramUser[]
 }
 
 model Account {
@@ -90,6 +91,24 @@ model Workspace {
   linkClicks        LinkClick[]
   webhookEvents     WebhookEvent[]
   operationalEvents OperationalEvent[]
+  integrations       Integration[]
+  leads              Lead[]
+  conversations      Conversation[]
+  assistantProfiles  AssistantProfile[]
+  telegramUsers      TelegramUser[]
+  onboardingSessions OnboardingSession[]
+  knowledgeGaps      KnowledgeGap[]
+  llmUsage           LlmUsage[]
+  assistantEvents    AssistantEvent[]
+  telegramLinkCodes  TelegramLinkCode[]
+
+  // Monthly AI-conversation quota (TZ section 13). null = default from
+  // lib/assistant/limits. The counter resets with usagePeriodStart.
+  aiConversationsLimit      Int?
+  aiConversationsThisPeriod Int @default(0)
+  // Set when the LLM provider keeps failing: the assistant answers from
+  // templates only until this moment.
+  assistantTemplateOnlyUntil DateTime?
 
   @@index([ownerId])
 }
@@ -139,6 +158,14 @@ model InstagramAccount {
   accessToken       String
   tokenExpiresAt    DateTime?
   webhookSubscribed Boolean  @default(false)
+  // Real token health, verified against Meta every few hours
+  // (lib/meta/token-health). "Connected" in the UI means tokenStatus = ACTIVE,
+  // not merely "a row exists".
+  tokenStatus       TokenStatus @default(ACTIVE)
+  tokenCheckedAt    DateTime?
+  tokenLastError    String?
+  tokenBrokenAt     DateTime?
+  tokenAlertedAt    DateTime?
   connectedAt       DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -147,6 +174,9 @@ model InstagramAccount {
   dmLogs      DmLog[]
   linkClicks  LinkClick[]
   followerSnapshots FollowerSnapshot[]
+  conversations     Conversation[]
+  leads             Lead[]
+  assistantProfiles AssistantProfile[]
 
   @@index([workspaceId])
 }
@@ -188,6 +218,8 @@ model Automation {
   // keywords above. Independent of the post trigger — a DM has no media, so
   // postId / matchAnyPost do not apply to it.
   dmTriggerEnabled Boolean @default(false)
+  // Hand people who reply to this campaign's DM over to the lead assistant.
+  handoffToAssistant Boolean @default(false)
   dmMessage      String
   openingDmEnabled     Boolean @default(false)
   openingDmMessage     String?
@@ -426,4 +458,480 @@ model AdminAccount {
   resetTokenExpiresAt DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+// ─── Lead assistant, leads and CRM integrations ────────────────────────────────
+
+enum TokenStatus {
+  ACTIVE
+  BROKEN
+}
+
+enum IntegrationType {
+  TELEGRAM
+  AMOCRM
+  BITRIX24
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  BROKEN
+  DISABLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  DEAD
+}
+
+enum LeadStatus {
+  NEW
+  SENT
+  PARTIAL
+  FAILED
+}
+
+enum LeadSource {
+  CAMPAIGN
+  INBOUND_DM
+}
+
+enum AssistantState {
+  NEW
+  NEED
+  CONTACT
+  CAPTURED
+  FALLBACK
+  HANDED_OFF
+}
+
+enum MessageAuthor {
+  CUSTOMER
+  ASSISTANT
+  OPERATOR
+  SYSTEM
+}
+
+enum PricePolicy {
+  NEVER
+  FROM_ONLY
+  EXACT
+}
+
+enum AssistantTone {
+  FRIENDLY
+  FORMAL
+}
+
+enum ProfileSource {
+  PANEL
+  TELEGRAM
+}
+
+enum OnboardingStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ABANDONED
+}
+
+enum UploadKind {
+  VOICE
+  PHOTO
+  XLSX
+  CSV
+  PDF
+}
+
+enum GapStatus {
+  OPEN
+  ANSWERED
+  IGNORED
+}
+
+enum FaqSource {
+  OWNER
+  KNOWLEDGE_GAP
+}
+
+model Integration {
+  id                   String            @id @default(cuid())
+  workspaceId          String
+  type                 IntegrationType
+  name                 String
+  status               IntegrationStatus @default(ACTIVE)
+  // AES-GCM, same mechanism as Instagram tokens (lib/meta/oauth encryptToken).
+  // Holds a JSON string, e.g. { token } or { webhookUrl }.
+  credentialsEncrypted String?
+  config               Json              @default("{}")
+  // Empty = deliver leads from every Instagram account of the workspace.
+  igAccountFilter      String[]          @default([])
+  tokenExpiresAt       DateTime?
+  tokenWarnedAt        DateTime?
+  lastCheckedAt        DateTime?
+  lastError            String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  telegramChats TelegramChat[]
+  deliveries    LeadDelivery[]
+
+  @@index([workspaceId, type])
+}
+
+model TelegramChat {
+  id            String   @id @default(cuid())
+  integrationId String
+  chatId        String
+  title         String?
+  type          String   @default("private")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, chatId])
+  @@index([chatId])
+}
+
+model TelegramLinkCode {
+  code        String    @id
+  workspaceId String
+  // "link" connects a chat for lead delivery; "onboarding" starts the owner
+  // Q&A (TZ 3A) and also pins the user + Instagram account.
+  purpose     String    @default("link")
+  userId      String?
+  igAccountId String?
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model TelegramUser {
+  id          String   @id @default(cuid())
+  tgUserId    String   @unique
+  userId      String
+  workspaceId String
+  language    String   @default("uz")
+  linkedAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Conversation {
+  id                 String         @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  // Instagram-scoped id of the customer.
+  igUserId           String
+  igUsername         String?
+  igName             String?
+
+  assistantState      AssistantState @default(NEW)
+  botMessageCount     Int            @default(0)
+  phoneAskCount       Int            @default(0)
+  // Consecutive spam/irrelevant intents.
+  spamStreak          Int            @default(0)
+  // Incremented when a chat restarts after 30 days of silence.
+  leadCycle           Int            @default(0)
+  // The bot stays silent until this moment after a human operator replied.
+  operatorActiveUntil DateTime?
+  // Manual "stop the bot" switch from the inbox.
+  botPaused           Boolean        @default(false)
+  // The campaign whose DM triggered the conversation (trigger A), if any.
+  campaignId          String?
+  source              LeadSource     @default(INBOUND_DM)
+  // { name, phone_e164, product_interest, extra_field, language }
+  collected           Json           @default("{}")
+  lastCustomerMessageAt DateTime?
+  lastBotMessageAt    DateTime?
+  lastNotifiedAt      DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  messages         ConversationMessage[]
+  leads            Lead[]
+
+  @@unique([instagramAccountId, igUserId])
+  @@index([workspaceId, assistantState])
+}
+
+model ConversationMessage {
+  id             String        @id @default(cuid())
+  conversationId String
+  // Instagram message id; unique per conversation so webhook retries are idempotent.
+  mid            String?
+  author         MessageAuthor
+  text           String
+  llmMeta        Json?
+  createdAt      DateTime      @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, mid])
+  @@index([conversationId, createdAt])
+}
+
+model Lead {
+  id                 String     @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  conversationId     String?
+  igUserId           String
+  igUsername         String?
+  name               String?
+  phoneE164          String?
+  phoneRaw           String?
+  productInterest    String?
+  extraField         String?
+  language           String?
+  status             LeadStatus @default(NEW)
+  source             LeadSource @default(INBOUND_DM)
+  campaignId         String?
+  campaignName       String?
+  triggerKeyword     String?
+  postUrl            String?
+  summary            String?
+  transcript         String?
+  // Why the lead is special: "no_phone" | "complaint" | null
+  flag               String?
+  isTest             Boolean    @default(false)
+  // conversationId:leadCycle - makes lead creation idempotent per conversation
+  // while still allowing a fresh lead when the chat restarts after 30 days.
+  idempotencyKey     String     @unique
+  isRepeat           Boolean    @default(false)
+  // Points at the first lead when this one is a repeat inquiry (TZ 7.4).
+  repeatOfId         String?
+  repeatCount        Int        @default(0)
+  trackedLinkClicked Boolean    @default(false)
+  contactedByUserId  String?
+  contactedAt        DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  conversation     Conversation?    @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  deliveries       LeadDelivery[]
+
+  @@index([conversationId])
+  @@index([workspaceId, phoneE164, createdAt])
+  @@index([workspaceId, createdAt])
+}
+
+model LeadDelivery {
+  id            String         @id @default(cuid())
+  leadId        String
+  integrationId String
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime?
+  lastError     String?
+  externalId    String?
+  externalUrl   String?
+  // "new" | "repeat" - repeat deliveries become CRM notes on the existing lead.
+  kind          String         @default("new")
+  sentAt        DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  lead        Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, integrationId, kind])
+  @@index([status, nextAttemptAt])
+  @@index([integrationId, status])
+}
+
+model AssistantProfile {
+  id                       String        @id @default(cuid())
+  workspaceId              String
+  // null = applies to every Instagram account of the workspace.
+  instagramAccountId       String?
+  enabled                  Boolean       @default(false)
+  approvedAt               DateTime?
+  companyName              String        @default("")
+  description              String        @default("")
+  pricePolicy              PricePolicy   @default(NEVER)
+  tone                     AssistantTone @default(FRIENDLY)
+  personaName              String?
+  extraFieldLabel          String?
+  finalMessageTemplate     String?
+  handleCampaignReplies    Boolean       @default(true)
+  handleInboundDm          Boolean       @default(false)
+  operatorPauseHours       Int           @default(24)
+  maxBotMessages           Int           @default(6)
+  fallbackLeadWithoutPhone Boolean       @default(true)
+  postHandoffReply         Boolean       @default(false)
+  workingHours             Json?
+  offHoursMessage          String?
+  address                  String?
+  branches                 Json?
+  delivery                 String?
+  paymentMethods           String[]      @default([])
+  categories               Json          @default("[]")
+  source                   ProfileSource @default(PANEL)
+  languageDefault          String        @default("uz_latn")
+  priceReminderEnabled     Boolean       @default(true)
+  priceReminderSentAt      DateTime?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount?  @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  products         AssistantProduct[]
+  faqs             AssistantFaq[]
+  changes          ProfileChangeLog[]
+
+  @@index([workspaceId])
+}
+
+model AssistantProduct {
+  id             String   @id @default(cuid())
+  profileId      String
+  name           String
+  note           String?
+  price          Decimal? @db.Decimal(14, 2)
+  priceIsFrom    Boolean  @default(false)
+  currency       String   @default("UZS")
+  unit           String?
+  priceUpdatedAt DateTime @default(now())
+  sort           Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  profile AssistantProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, sort])
+}
+
+model AssistantFaq {
+  id        String    @id @default(cuid())
+  profileId String
+  question  String
+  answer    String
+  source    FaqSource @default(OWNER)
+  sort      Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  profile AssistantProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, sort])
+}
+
+model OnboardingSession {
+  id             String           @id @default(cuid())
+  workspaceId    String
+  tgUserId       String
+  igAccountId    String?
+  step           Int              @default(0)
+  answers        Json             @default("{}")
+  status         OnboardingStatus @default(ACTIVE)
+  language       String           @default("uz")
+  // FSM scratch space (pending confirmation, edit pointer, ...).
+  fsm            Json             @default("{}")
+  reminderSentAt DateTime?
+  startedAt      DateTime         @default(now())
+  completedAt    DateTime?
+  updatedAt      DateTime         @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploads   OnboardingUpload[]
+
+  @@index([workspaceId, status])
+  @@index([tgUserId, status])
+}
+
+model OnboardingUpload {
+  id        String     @id @default(cuid())
+  sessionId String
+  kind      UploadKind
+  tgFileId  String
+  parsed    Json?
+  confirmed Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  session OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model ProfileChangeLog {
+  id          String        @id @default(cuid())
+  profileId   String
+  source      ProfileSource
+  actorUserId String?
+  field       String
+  oldValue    Json?
+  newValue    Json?
+  createdAt   DateTime      @default(now())
+
+  profile AssistantProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+}
+
+model KnowledgeGap {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  questionNormalized String
+  examples           Json      @default("[]")
+  hits               Int       @default(1)
+  status             GapStatus @default(OPEN)
+  answer             String?
+  answeredAt         DateTime?
+  lastNotifiedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+}
+
+model LlmUsage {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  conversationId String?
+  kind           String   @default("reply")
+  model          String
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  costUsd        Decimal  @default(0) @db.Decimal(12, 6)
+  latencyMs      Int      @default(0)
+  ok             Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model AssistantEvent {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  conversationId String?
+  // blocked_reply | fallback | llm_error | template_mode | operator_takeover ...
+  type           String
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, type, createdAt])
 }

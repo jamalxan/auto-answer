@@ -15,11 +15,13 @@ interface SettingsData {
     username: string;
     instagramId: string;
     tokenExpiresAt: string | null;
+    tokenStatus?: "ACTIVE" | "BROKEN";
     webhookSubscribed: boolean;
   } | null;
   instagramAccounts: Array<
     AccountOption & {
       tokenExpiresAt: string | null;
+      tokenStatus?: "ACTIVE" | "BROKEN";
       webhookSubscribed: boolean;
     }
   >;
@@ -160,6 +162,7 @@ export default function SettingsPage() {
   }
 
   const accounts = data?.instagramAccounts ?? [];
+  const hasBrokenToken = accounts.some((a) => a.tokenStatus === "BROKEN");
   const canManageMembers =
     membersData?.currentUserRole === "OWNER" ||
     membersData?.currentUserRole === "ADMIN";
@@ -184,12 +187,18 @@ export default function SettingsPage() {
             </div>
             <span
               className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                accounts.length > 0
+                accounts.length > 0 && !hasBrokenToken
                   ? "bg-success/10 text-success"
-                  : "bg-warning/10 text-warning"
+                  : hasBrokenToken
+                    ? "bg-error/10 text-error"
+                    : "bg-warning/10 text-warning"
               }`}
             >
-              {accounts.length > 0 ? t.settings.connected : t.settings.notConnected}
+              {hasBrokenToken
+                ? t.assistant.tokenStatus.broken
+                : accounts.length > 0
+                  ? t.settings.connected
+                  : t.settings.notConnected}
             </span>
           </div>
 
@@ -242,6 +251,11 @@ export default function SettingsPage() {
                         ? t.settings.webhookReady
                         : t.settings.webhookPending}
                     </p>
+                    {account.tokenStatus === "BROKEN" && (
+                      <p className="mt-1 text-xs font-medium text-error">
+                        {t.assistant.tokenStatus.brokenHelp}
+                      </p>
+                    )}
                     {expiringSoon && (
                       <p className="mt-1 text-xs font-medium text-warning">
                         {t.settings.tokenExpiringSoon(Math.max(daysUntilExpiry, 0))}

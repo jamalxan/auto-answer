@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { decryptToken, encryptToken } from "@/lib/meta/oauth";
-import { refreshLongLivedToken } from "@/lib/meta/client";
+import { TokenExpiredError, refreshLongLivedToken } from "@/lib/meta/client";
+import { markTokenBroken } from "@/lib/meta/token-health";
 
 const DAYS_BEFORE_EXPIRY = 10;
 
@@ -65,6 +66,10 @@ export async function GET(request: NextRequest) {
         data: {
           accessToken: encryptedToken,
           tokenExpiresAt: newExpiry,
+          tokenStatus: "ACTIVE",
+          tokenCheckedAt: new Date(),
+          tokenLastError: null,
+          tokenBrokenAt: null,
         },
       });
 
@@ -75,6 +80,9 @@ export async function GET(request: NextRequest) {
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      if (err instanceof TokenExpiredError) {
+        await markTokenBroken(account.id, errorMessage);
+      }
       await prisma.operationalEvent.create({
         data: {
           workspaceId: account.workspaceId,
