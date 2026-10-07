@@ -61,17 +61,25 @@ export async function GET() {
         automation: { select: { name: true } },
       },
     }),
-    prisma.operationalEvent.findMany({
-      where: { workspaceId, source: "TOKEN_REFRESH", level: "ERROR" },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        message: true,
-        createdAt: true,
-        payload: true,
-      },
-    }),
+    // Token errors are only actionable while an account is still broken; once
+    // it is reconnected the old error is history, not a current problem.
+    prisma.instagramAccount
+      .count({ where: { workspaceId, tokenStatus: "BROKEN" } })
+      .then((broken) =>
+        broken === 0
+          ? []
+          : prisma.operationalEvent.findMany({
+              where: { workspaceId, source: "TOKEN_REFRESH", level: "ERROR" },
+              orderBy: { createdAt: "desc" },
+              take: 10,
+              select: {
+                id: true,
+                message: true,
+                createdAt: true,
+                payload: true,
+              },
+            })
+      ),
     prisma.operationalEvent.findMany({
       where: {
         OR: [{ workspaceId }, { workspaceId: null }],
