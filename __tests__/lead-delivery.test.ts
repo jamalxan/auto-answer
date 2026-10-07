@@ -27,6 +27,7 @@ import {
   enqueueLeadDeliveries,
   integrationAcceptsAccount,
   processDelivery,
+  REPEAT_FOLLOW_UP_DELAY_MS,
   redeliverLead,
   refreshLeadStatus,
   resumeIntegration,
@@ -316,14 +317,59 @@ describe("repeat inquiries (TZ 7.4)", () => {
       return { body: [{ id: 1 }] };
     });
 
+    const before = Date.now();
     await processDelivery(d.id as string);
 
     expect(d.status).toBe("SENT");
     expect(d.externalId).toBe("9001");
-    expect(requests).toHaveLength(1);
-    expect(requests[0].url).toContain("/api/v4/leads/9001/notes");
-    expect(requests[0].body).toContain("Takroriy murojaat");
-    expect(requests[0].body).toContain("SECOND TRANSCRIPT");
+    expect(requests.map((r) => new URL(r.url).pathname)).toEqual([
+      "/api/v4/leads/9001/notes",
+      "/api/v4/tasks",
+    ]);
+    const note = JSON.parse(requests[0].body)[0].params.text;
+    expect(note).toContain("Qayta raqam qoldirdi — bugun aloqaga chiqing");
+    expect(note).toContain("Takroriy murojaat");
+    expect(note).toContain("SECOND TRANSCRIPT");
+
+    const [task] = JSON.parse(requests[1].body);
+    expect(task).toMatchObject({ entity_id: 9001, entity_type: "leads", task_type_id: 1 });
+    expect(task.text).toContain("+998901234567");
+    // Due 15 minutes after delivery.
+    const dueMs = task.complete_till * 1000;
+    expect(dueMs).toBeGreaterThanOrEqual(before + REPEAT_FOLLOW_UP_DELAY_MS - 1000);
+    expect(dueMs).toBeLessThanOrEqual(Date.now() + REPEAT_FOLLOW_UP_DELAY_MS);
+  });
+
+  it("waits for the original lead instead of creating a duplicate while it is still being delivered", async () => {
+    const { lead, amo } = seedBase();
+    db.seed("leadDelivery", { leadId: lead.id, integrationId: amo.id, status: "FAILED", kind: "new" });
+    const repeat = db.seed("lead", {
+      id: "l2", workspaceId: "w1", instagramAccountId: "a1", idempotencyKey: "c2:0", igUserId: "u1", name: "Aziz",
+      phoneE164: "+998901234567", isRepeat: true, repeatOfId: lead.id,
+    });
+    const d = db.seed("leadDelivery", { leadId: repeat.id, integrationId: amo.id, kind: "repeat" });
+    mockCrm(amoOk);
+
+    await processDelivery(d.id as string);
+
+    expect(d.status).toBe("FAILED");
+    expect(d.nextAttemptAt).toBeInstanceOf(Date);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("creates a lead for a repeat only when amoCRM never got the original", async () => {
+    const { lead, amo } = seedBase();
+    const repeat = db.seed("lead", {
+      id: "l2", workspaceId: "w1", instagramAccountId: "a1", idempotencyKey: "c2:0", igUserId: "u1", name: "Aziz",
+      phoneE164: "+998901234567", isRepeat: true, repeatOfId: lead.id,
+    });
+    const d = db.seed("leadDelivery", { leadId: repeat.id, integrationId: amo.id, kind: "repeat" });
+    mockCrm(amoOk);
+
+    await processDelivery(d.id as string);
+
+    expect(d.status).toBe("SENT");
+    expect(d.externalId).toBe("9001");
   });
 
   it("Telegram shows the repeat marker", async () => {

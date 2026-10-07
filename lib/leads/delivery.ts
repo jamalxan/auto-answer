@@ -13,6 +13,7 @@ import {
 import {
   AmoClient,
   LongLivedTokenStrategy,
+  amoLeadUrl,
   renderLeadName,
   type AmoConfig,
 } from "@/lib/integrations/amocrm";
@@ -27,6 +28,10 @@ import {
 import { alertWorkspace, sendWithRetry } from "@/lib/telegram/notify";
 
 export type DeliveryKind = "new" | "repeat";
+
+const REPEAT_NOTE_HEADLINE = "Qayta raqam qoldirdi — bugun aloqaga chiqing";
+/** When the follow-up task on a repeat request falls due. */
+export const REPEAT_FOLLOW_UP_DELAY_MS = 15 * 60 * 1000;
 
 type LeadWithAccount = Lead & { instagramAccount: { username: string } };
 
@@ -196,7 +201,7 @@ async function originalExternalId(lead: Lead, integrationId: string): Promise<st
  */
 export function leadDetailsText(lead: LeadWithAccount, extraFieldLabel: string | null): string {
   const lines = [
-    `${lead.isTest ? "[TEST] " : ""}Yangi lid — @${lead.instagramAccount.username}`,
+    `${lead.isTest ? "[TEST] " : ""}${lead.isRepeat ? "Takroriy murojaat" : "Yangi lid"} — @${lead.instagramAccount.username}`,
     `Ism: ${lead.name ?? "—"}`,
     `Telefon: ${lead.phoneE164 ?? "berilmadi"}`,
   ];
@@ -227,16 +232,30 @@ async function sendToAmo(
     .filter(Boolean)
     .join("\n\n");
 
-  if (kind === "repeat") {
-    const existingId = await originalExternalId(lead, integration.id);
-    if (existingId) {
-      const leadId = Number(existingId);
-      await client.addNote(leadId, `🔁 Takroriy murojaat\n${note}`);
-      return {
-        externalId: existingId,
-        externalUrl: `https://${config.subdomain}.${config.zone}/leads/detail/${leadId}`,
-      };
+  // A repeat request goes onto the customer's existing amoCRM lead as a note
+  // plus a follow-up task, never as a new lead.
+  if (kind === "repeat" && lead.repeatOfId) {
+    const original = await prisma.leadDelivery.findFirst({
+      where: { leadId: lead.repeatOfId, integrationId: integration.id, kind: "new" },
+      select: { status: true, externalId: true },
+    });
+    if (original?.status === "SENT" && original.externalId) {
+      const leadId = Number(original.externalId);
+      await client.addNote(leadId, `🔁 ${REPEAT_NOTE_HEADLINE}\n\n${note}`);
+      await client.addTask(
+        leadId,
+        `${REPEAT_NOTE_HEADLINE}: ${lead.name ?? "mijoz"}${lead.phoneE164 ? `, ${lead.phoneE164}` : ""}`,
+        new Date(Date.now() + REPEAT_FOLLOW_UP_DELAY_MS)
+      );
+      return { externalId: original.externalId, externalUrl: amoLeadUrl(config, leadId) };
     }
+    if (original && (original.status === "PENDING" || original.status === "FAILED")) {
+      // The first lead is still on its way to amoCRM. Retry later rather than
+      // racing it with a second, duplicate lead.
+      throw new Error("Original lead is not in amoCRM yet; retrying the repeat later");
+    }
+    // Otherwise there is no earlier amoCRM lead to attach to (the integration
+    // was connected afterwards, or that delivery gave up): create one below.
   }
 
   const result = await client.deliverLead(

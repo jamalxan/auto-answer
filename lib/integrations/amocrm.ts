@@ -160,6 +160,19 @@ export class AmoClient {
     ]);
   }
 
+  /** A "contact the customer" task on a lead, due at `completeTill`. */
+  addTask(leadId: number, text: string, completeTill: Date) {
+    const task: Record<string, unknown> = {
+      task_type_id: 1, // "Связаться" (call/contact), built into every account
+      text,
+      complete_till: Math.floor(completeTill.getTime() / 1000),
+      entity_id: leadId,
+      entity_type: "leads",
+    };
+    if (this.config.responsibleUserId) task.responsible_user_id = this.config.responsibleUserId;
+    return this.request("POST", "/api/v4/tasks", [task]);
+  }
+
   buildComplexPayload(input: AmoLeadInput): Array<Record<string, unknown>> {
     const tags: Array<{ name: string }> = [{ name: "instagram" }, { name: "socialauto" }];
     if (this.config.campaignTag && input.campaignName) {

@@ -131,6 +131,28 @@ describe("amoCRM delivery flow", () => {
   });
 });
 
+describe("amoCRM follow-up task", () => {
+  it("creates a contact task on the lead for the responsible user", async () => {
+    respond(() => ({ body: { _embedded: { tasks: [{ id: 1 }] } } }));
+    const due = new Date("2026-10-07T12:15:00Z");
+    await client().addTask(700, "Qayta raqam qoldirdi", due);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("POST");
+    expect(new URL(calls[0].url).pathname).toBe("/api/v4/tasks");
+    expect(calls[0].body).toEqual([
+      {
+        task_type_id: 1,
+        text: "Qayta raqam qoldirdi",
+        complete_till: Math.floor(due.getTime() / 1000),
+        entity_id: 700,
+        entity_type: "leads",
+        responsible_user_id: 789,
+      },
+    ]);
+  });
+});
+
 describe("amoCRM errors", () => {
   it("401 and 403 are auth errors (integration becomes broken)", async () => {
     for (const status of [401, 403]) {
