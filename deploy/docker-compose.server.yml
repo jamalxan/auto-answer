@@ -1,0 +1,69 @@
+# SocialAuto — production stack for the nginx-fronted AWS box (32.199.91.62).
+#
+# Unlike docker-compose.prod.yml (Caddy + build on the host) this stack never
+# builds: GitHub Actions builds the image (.github/workflows/deploy.yml), pushes
+# it to GHCR and the server only pulls it. The server has 2 GB of RAM shared
+# with other apps, so compiling Next.js there is not safe.
+#
+# nginx on the host terminates TLS and proxies to 127.0.0.1:3000.
+# Volumes keep the names of the original stack (socialauto_pgdata/redisdata).
+name: socialauto
+
+x-app: &app
+  image: ghcr.io/jamalxan/auto-answer:${APP_TAG:-latest}
+  restart: unless-stopped
+  env_file: .env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: socialauto
+      POSTGRES_USER: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    <<: *app
+    command: ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  worker:
+    <<: *app
+    command: ["npm", "run", "worker"]
+
+  cron:
+    <<: *app
+    environment:
+      CRON_BASE_URL: http://web:3000
+    command: ["sh", "scripts/cron.sh"]
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  redisdata:

@@ -110,13 +110,21 @@ async function upsertConversation(account: InstagramAccount, senderId: string) {
     }
     return existing;
   }
-  return prisma.conversation.create({
-    data: {
-      workspaceId: account.workspaceId,
-      instagramAccountId: account.id,
-      igUserId: senderId,
-    },
-  });
+  try {
+    return await prisma.conversation.create({
+      data: {
+        workspaceId: account.workspaceId,
+        instagramAccountId: account.id,
+        igUserId: senderId,
+      },
+    });
+  } catch (error) {
+    // Two messages of a burst raced to create the row; the other worker won.
+    if ((error as { code?: string }).code !== "P2002") throw error;
+    return prisma.conversation.findUniqueOrThrow({
+      where: { instagramAccountId_igUserId: { instagramAccountId: account.id, igUserId: senderId } },
+    });
+  }
 }
 
 async function fillCustomerProfile(conversation: Conversation, account: InstagramAccount) {

@@ -1,0 +1,108 @@
+name: Deploy
+
+# Every push to master: check, build the image on GitHub, push it to GHCR and
+# roll the server over to it. Needs the repo secrets DEPLOY_HOST, DEPLOY_USER
+# and DEPLOY_SSH_KEY (a key used only for deploying).
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/jamalxan/auto-answer
+
+jobs:
+  check:
+    name: Typecheck and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/socialauto
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    name: Build and push image
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to server
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Roll the server over to the new image
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.sha }}
+        run: |
+          install -m 600 /dev/null key
+          printf '%s\n' "$KEY" > key
+          SSH="ssh -i key -o StrictHostKeyChecking=accept-new $USER@$HOST"
+
+          scp -i key -o StrictHostKeyChecking=accept-new \
+            deploy/docker-compose.server.yml "$USER@$HOST:socialauto/docker-compose.server.yml"
+
+          # The token is passed on stdin so it never shows up in a process list.
+          printf '%s' "$GHCR_TOKEN" | $SSH "docker login ghcr.io -u $GHCR_USER --password-stdin"
+          $SSH "cd socialauto && export APP_TAG=$TAG \
+            && docker compose -f docker-compose.server.yml pull web worker cron \
+            && docker compose -f docker-compose.server.yml up -d --remove-orphans \
+            ; status=\$?; docker logout ghcr.io; exit \$status"
+
+      - name: Wait for the app to be healthy
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          for i in $(seq 1 30); do
+            if ssh -i key -o StrictHostKeyChecking=accept-new "$USER@$HOST" \
+              "curl -fsS http://127.0.0.1:3000/api/health >/dev/null"; then
+              echo "healthy"; exit 0
+            fi
+            sleep 5
+          done
+          echo "app did not become healthy" >&2
+          ssh -i key "$USER@$HOST" "docker logs --tail 60 socialauto-web-1" || true
+          exit 1
+
+      - name: Remove old images
+        if: always()
+        run: ssh -i key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "docker image prune -f" || true
