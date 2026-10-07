@@ -306,10 +306,10 @@ export default async function Home() {
             </a>
           </div>
 
-          <dl className="mt-10 grid max-w-xl grid-cols-3 gap-3">
+          <dl className="mt-10 grid max-w-xl grid-cols-3 gap-2 sm:gap-3">
             {heroStats.map((stat) => (
-              <div key={stat.label} className="panel rounded-xl p-4">
-                <dt className="font-display text-2xl font-extrabold text-foreground">
+              <div key={stat.label} className="panel min-w-0 rounded-xl p-3 sm:p-4">
+                <dt className="whitespace-nowrap font-display text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
                   {stat.value}
                 </dt>
                 <dd className="mt-1 text-xs leading-5 text-muted">{stat.label}</dd>
