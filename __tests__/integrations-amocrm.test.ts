@@ -86,11 +86,6 @@ describe("amoCRM complex lead payload", () => {
     expect(contact.custom_fields_values).toBeUndefined();
   });
 
-  it("links an existing contact by id instead of creating one", () => {
-    const [lead] = client().buildComplexPayload(input, 555);
-    expect((lead._embedded as { contacts: unknown[] }).contacts).toEqual([{ id: 555 }]);
-  });
-
   it("puts the instagram username into the chosen custom field", () => {
     const withField = new AmoClient({ ...config, igUsernameFieldId: 42 }, new LongLivedTokenStrategy("x".repeat(20)), "t");
     const [lead] = withField.buildComplexPayload(input);
@@ -100,61 +95,39 @@ describe("amoCRM complex lead payload", () => {
 });
 
 describe("amoCRM delivery flow", () => {
-  it("creates contact+lead and adds the transcript note when nothing exists", async () => {
-    respond((call) => {
-      if (call.url.includes("/contacts?query=")) return { status: 204 };
-      if (call.url.endsWith("/leads/complex")) return { body: [{ id: 9001, contact_id: 5, merged: false }] };
-      return { body: [{ id: 1 }] };
-    });
-    const result = await client().deliverLead(input, "TRANSCRIPT");
+  it("creates a new contact (name + phone) and a new lead, then adds the note", async () => {
+    respond((call) =>
+      call.url.endsWith("/leads/complex")
+        ? { body: [{ id: 9001, contact_id: 5, merged: false }] }
+        : { body: [{ id: 1 }] }
+    );
+    const result = await client().deliverLead(input, "DETAILS");
 
     expect(result).toEqual({ leadId: 9001, url: "https://promtchi.amocrm.ru/leads/detail/9001", mode: "created" });
     expect(calls.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
-      "GET /api/v4/contacts",
       "POST /api/v4/leads/complex",
       "POST /api/v4/leads/9001/notes",
     ]);
-    expect(calls[0].url).toContain("query=998901234567");
-    expect(calls[2].body).toEqual([{ note_type: "common", params: { text: "TRANSCRIPT" } }]);
+    const contact = (calls[0].body as Array<{ _embedded: { contacts: unknown[] } }>)[0]._embedded.contacts[0];
+    expect(contact).toEqual({
+      first_name: "Aziz",
+      custom_fields_values: [
+        { field_code: "PHONE", values: [{ enum_code: "WORK", value: "+998901234567" }] },
+      ],
+    });
+    expect(calls[1].body).toEqual([{ note_type: "common", params: { text: "DETAILS" } }]);
     expect(calls.every((c) => c.auth === "Bearer secret-token-1234567890")).toBe(true);
   });
 
-  it("adds a note to an existing OPEN lead instead of creating one (acceptance #11)", async () => {
-    respond((call) => {
-      if (call.url.includes("/contacts?query=")) {
-        return { body: { _embedded: { contacts: [{ id: 5, _embedded: { leads: [{ id: 700 }] } }] } } };
-      }
-      if (call.url.endsWith("/leads/700")) return { body: { id: 700, status_id: 55, closed_at: null } };
-      return { body: [{ id: 1 }] };
-    });
-    const result = await client().deliverLead(input, "NOTE");
+  it("creates a separate lead every time, even for a phone number seen before", async () => {
+    let nextId = 100;
+    respond((call) => (call.url.endsWith("/leads/complex") ? { body: [{ id: ++nextId }] } : { body: [{ id: 1 }] }));
+    const first = await client().deliverLead(input, "A");
+    const second = await client().deliverLead(input, "B");
 
-    expect(result.mode).toBe("note_on_existing");
-    expect(result.leadId).toBe(700);
-    expect(calls.some((c) => c.url.endsWith("/leads/complex"))).toBe(false);
-    expect(calls.at(-1)?.url).toContain("/leads/700/notes");
-  });
-
-  it("creates a new lead for an existing contact when its leads are all closed", async () => {
-    respond((call) => {
-      if (call.url.includes("/contacts?query=")) {
-        return { body: { _embedded: { contacts: [{ id: 5, _embedded: { leads: [{ id: 700 }] } }] } } };
-      }
-      if (call.url.endsWith("/leads/700")) return { body: { id: 700, status_id: 142 } }; // won
-      if (call.url.endsWith("/leads/complex")) return { body: [{ id: 800 }] };
-      return { body: [{ id: 1 }] };
-    });
-    const result = await client().deliverLead(input, "NOTE");
-    expect(result.mode).toBe("created");
-    const complex = calls.find((c) => c.url.endsWith("/leads/complex"));
-    const contact = ((complex?.body as Array<{ _embedded: { contacts: unknown[] } }>)[0]._embedded.contacts)[0];
-    expect(contact).toEqual({ id: 5 });
-  });
-
-  it("skips dedup for a lead without a number", async () => {
-    respond((call) => (call.url.endsWith("/leads/complex") ? { body: [{ id: 3 }] } : { body: [{ id: 1 }] }));
-    await client().deliverLead({ ...input, phoneE164: null }, "N");
-    expect(calls.some((c) => c.url.includes("/contacts?query="))).toBe(false);
+    expect([first.leadId, second.leadId]).toEqual([101, 102]);
+    expect(calls.filter((c) => c.url.endsWith("/leads/complex"))).toHaveLength(2);
+    expect(calls.some((c) => c.url.includes("/contacts"))).toBe(false);
   });
 });
 

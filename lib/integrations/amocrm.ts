@@ -7,7 +7,6 @@
 
 import { IntegrationAuthError, IntegrationRequestError } from "./errors";
 import { acquireSlot } from "./throttle";
-import { phoneDigits } from "@/lib/leads/phone";
 
 export interface AmoAuthStrategy {
   authorizationHeader(): Promise<string>;
@@ -44,10 +43,9 @@ export interface AmoLeadInput {
 export interface AmoDeliveryResult {
   leadId: number;
   url: string;
-  mode: "created" | "note_on_existing";
+  mode: "created";
 }
 
-const CLOSED_STATUS_IDS = new Set([142, 143]); // successful / lost
 const RATE_PER_SECOND = 5;
 
 export function amoLeadUrl(config: Pick<AmoConfig, "subdomain" | "zone">, leadId: number) {
@@ -156,46 +154,13 @@ export class AmoClient {
     }));
   }
 
-  /** Existing contact by phone, with the ids of the leads linked to it. */
-  async findContactByPhone(
-    e164: string
-  ): Promise<{ id: number; leadIds: number[] } | null> {
-    const data = await this.request<{
-      _embedded?: {
-        contacts: Array<{ id: number; _embedded?: { leads?: Array<{ id: number }> } }>;
-      };
-    }>(
-      "GET",
-      `/api/v4/contacts?query=${encodeURIComponent(phoneDigits(e164))}&with=leads`
-    );
-    const contact = data?._embedded?.contacts?.[0];
-    if (!contact) return null;
-    return {
-      id: contact.id,
-      leadIds: (contact._embedded?.leads ?? []).map((l) => l.id),
-    };
-  }
-
-  async isLeadOpen(leadId: number): Promise<boolean> {
-    const lead = await this.request<{ status_id?: number; closed_at?: number | null }>(
-      "GET",
-      `/api/v4/leads/${leadId}`
-    );
-    if (!lead) return false;
-    if (lead.status_id !== undefined && CLOSED_STATUS_IDS.has(lead.status_id)) return false;
-    return !lead.closed_at;
-  }
-
   addNote(leadId: number, text: string) {
     return this.request("POST", `/api/v4/leads/${leadId}/notes`, [
       { note_type: "common", params: { text } },
     ]);
   }
 
-  buildComplexPayload(
-    input: AmoLeadInput,
-    existingContactId?: number
-  ): Array<Record<string, unknown>> {
+  buildComplexPayload(input: AmoLeadInput): Array<Record<string, unknown>> {
     const tags: Array<{ name: string }> = [{ name: "instagram" }, { name: "socialauto" }];
     if (this.config.campaignTag && input.campaignName) {
       tags.push({ name: input.campaignName.slice(0, 255) });
@@ -215,12 +180,10 @@ export class AmoClient {
       });
     }
 
-    const contact: Record<string, unknown> = existingContactId
-      ? { id: existingContactId }
-      : {
-          first_name: input.contactName ?? input.igUsername ?? "Instagram",
-          ...(contactFields.length ? { custom_fields_values: contactFields } : {}),
-        };
+    const contact: Record<string, unknown> = {
+      first_name: input.contactName ?? input.igUsername ?? "Instagram",
+      ...(contactFields.length ? { custom_fields_values: contactFields } : {}),
+    };
 
     const lead: Record<string, unknown> = {
       name: input.name,
@@ -233,39 +196,24 @@ export class AmoClient {
   }
 
   /**
-   * Full delivery flow (TZ 7.2): dedup by phone -> note on an open lead, or a
-   * new complex lead (linked to the existing contact when there is one) + note.
+   * Full delivery flow: every SocialAuto lead becomes a new amoCRM contact
+   * (name + phone) and a new lead linked to it, with the details as a note.
+   * There is deliberately no phone dedup — the business wants each request
+   * as its own lead in the pipeline, not a note on an older one.
    */
   async deliverLead(input: AmoLeadInput, noteText: string): Promise<AmoDeliveryResult> {
-    let existingContactId: number | undefined;
-
-    if (input.phoneE164) {
-      const contact = await this.findContactByPhone(input.phoneE164);
-      if (contact) {
-        existingContactId = contact.id;
-        for (const leadId of contact.leadIds.slice(0, 5)) {
-          if (await this.isLeadOpen(leadId)) {
-            await this.addNote(leadId, noteText);
-            return {
-              leadId,
-              url: amoLeadUrl(this.config, leadId),
-              mode: "note_on_existing",
-            };
-          }
-        }
-      }
-    }
-
     const created = await this.request<Array<{ id: number; merged?: boolean }>>(
       "POST",
       "/api/v4/leads/complex",
-      this.buildComplexPayload(input, existingContactId)
+      this.buildComplexPayload(input)
     );
     const leadId = created?.[0]?.id;
     if (!leadId) {
       throw new IntegrationRequestError("amocrm", null, "amoCRM returned no lead id");
     }
     if (created?.[0]?.merged) {
+      // amoCRM's own duplicate control ("Контроль дублей") is on for this
+      // account and folded the new contact into an existing one.
       console.log(`[amoCRM] complex lead ${leadId} was merged into an existing one`);
     }
     await this.addNote(leadId, noteText);

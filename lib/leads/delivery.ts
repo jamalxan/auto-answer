@@ -190,13 +190,42 @@ async function originalExternalId(lead: Lead, integrationId: string): Promise<st
   return original?.externalId ?? null;
 }
 
+/**
+ * Plain-text summary of what the customer gave us, for the CRM note (amoCRM
+ * notes don't render HTML, so this can't reuse the Telegram message).
+ */
+export function leadDetailsText(lead: LeadWithAccount, extraFieldLabel: string | null): string {
+  const lines = [
+    `${lead.isTest ? "[TEST] " : ""}Yangi lid — @${lead.instagramAccount.username}`,
+    `Ism: ${lead.name ?? "—"}`,
+    `Telefon: ${lead.phoneE164 ?? "berilmadi"}`,
+  ];
+  if (lead.igUsername) lines.push(`Instagram: @${lead.igUsername}`);
+  if (lead.productInterest) lines.push(`Qiziqish: ${lead.productInterest}`);
+  if (lead.extraField) lines.push(`${extraFieldLabel ?? "Qo'shimcha"}: ${lead.extraField}`);
+  lines.push(
+    lead.source === "CAMPAIGN" && lead.campaignName
+      ? `Manba: Kampaniya "${lead.campaignName}"${lead.triggerKeyword ? ` (${lead.triggerKeyword})` : ""}`
+      : "Manba: Instagram DM"
+  );
+  if (lead.summary) lines.push(`Xulosa: ${lead.summary}`);
+  return lines.join("\n");
+}
+
 async function sendToAmo(
   integration: Integration,
   lead: LeadWithAccount,
   kind: DeliveryKind
 ): Promise<SendResult> {
   const { client, config } = amoClientFor(integration);
-  const note = await transcriptOf(lead);
+  const profile = await prisma.assistantProfile.findFirst({
+    where: { workspaceId: lead.workspaceId },
+    select: { extraFieldLabel: true },
+  });
+  const transcript = await transcriptOf(lead);
+  const note = [leadDetailsText(lead, profile?.extraFieldLabel ?? null), transcript]
+    .filter(Boolean)
+    .join("\n\n");
 
   if (kind === "repeat") {
     const existingId = await originalExternalId(lead, integration.id);

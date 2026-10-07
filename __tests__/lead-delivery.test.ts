@@ -52,11 +52,7 @@ function mockCrm(handler: (url: string, init: RequestInit) => { status?: number;
 }
 
 const amoOk = (url: string) =>
-  url.includes("/contacts?query=")
-    ? { status: 204 }
-    : url.endsWith("/leads/complex")
-      ? { body: [{ id: 9001 }] }
-      : { body: [{ id: 1 }] };
+  url.endsWith("/leads/complex") ? { body: [{ id: 9001 }] } : { body: [{ id: 1 }] };
 
 function seedBase() {
   const ws = db.seed("workspace", { id: "w1" });
@@ -218,6 +214,31 @@ describe("processDelivery — amoCRM", () => {
     const keyboard = vi.mocked(editMessageReplyMarkup).mock.calls[0][2];
     expect(JSON.stringify(keyboard)).toContain("https://promtchi.amocrm.ru/leads/detail/9001");
     expect(lead.status).toBe("SENT");
+  });
+
+  it("creates the contact from the customer's name and phone and notes everything they told us", async () => {
+    const { lead, amo } = seedBase();
+    const requests: Array<{ url: string; body: string }> = [];
+    mockCrm((url, init) => {
+      requests.push({ url, body: String(init.body ?? "") });
+      return amoOk(url);
+    });
+    const d = db.seed("leadDelivery", { leadId: lead.id, integrationId: amo.id });
+
+    await processDelivery(d.id as string);
+
+    expect(d.status).toBe("SENT");
+    const complex = JSON.parse(requests.find((r) => r.url.endsWith("/leads/complex"))!.body);
+    expect(complex[0]._embedded.contacts[0]).toMatchObject({
+      first_name: "Aziz",
+      custom_fields_values: [{ field_code: "PHONE", values: [{ value: "+998901234567" }] }],
+    });
+    const note = JSON.parse(requests.find((r) => r.url.endsWith("/notes"))!.body)[0].params.text;
+    expect(note).toContain("Ism: Aziz");
+    expect(note).toContain("Telefon: +998901234567");
+    expect(note).toContain("Qiziqish: divan");
+    expect(note).toContain("Xulosa: Divan qidiryapti");
+    expect(note).toContain("TRANSCRIPT");
   });
 
   it("an invalid token breaks the integration, keeps the lead, and Telegram still gets it (acceptance #10)", async () => {
