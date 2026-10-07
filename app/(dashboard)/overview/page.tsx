@@ -35,6 +35,7 @@ export default function OverviewPage() {
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsConnect, setNeedsConnect] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [count, setCount] = useState("50");
 
@@ -52,7 +53,10 @@ export default function OverviewPage() {
           setData(res.data);
           setError(null);
         } else {
-          setError(res.error ?? t.overview.failedToLoad);
+          // Server messages are English-only; show the localized text and
+          // keep the connect link when the account isn't connected.
+          setNeedsConnect(String(res.error ?? "").toLowerCase().includes("connect"));
+          setError(t.overview.failedToLoad);
         }
       })
       .catch(() => setError(t.overview.failedToLoad))
@@ -86,7 +90,7 @@ export default function OverviewPage() {
     return (
       <div className="panel rounded p-8 text-center">
         <p className="text-sm text-error">{error}</p>
-        {error.toLowerCase().includes("connect") && (
+        {needsConnect && (
           <a
             href="/api/instagram/connect"
             className="mt-4 inline-block text-sm text-accent hover:underline"
