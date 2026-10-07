@@ -87,7 +87,34 @@ export interface TurnResult {
 const NAME_STOP = new Set([
   "salom", "assalomu", "alaykum", "привет", "здравствуйте", "ha", "yo'q", "yoq", "bor", "kerak",
   "rahmat", "спасибо", "да", "нет", "ok", "okay", "xo'p", "xop", "mayli",
+  "mana", "raqam", "raqamim", "nomer", "nomerim", "telefon", "вот", "номер", "мой",
 ]);
+
+function words(text: string): string[] {
+  return text.toLowerCase().match(/[\p{L}\p{N}'ʻ‘’]{3,}/gu) ?? [];
+}
+
+/**
+ * The category or product the customer's words point at ("web site kerak" ->
+ * "Web site"), matching every word of the catalog name by its first letters
+ * so "ilova" still finds "Mobil ilovalar". Used when the LLM is unavailable,
+ * so a product the customer names is neither lost nor taken for their name.
+ */
+export function catalogMatch(profile: ProfileSnapshot, text: string): string | null {
+  const said = words(text);
+  if (said.length === 0) return null;
+  const names = [...profile.categories.map((c) => c.name), ...profile.products.map((p) => p.name)];
+  for (const name of names) {
+    const parts = words(name);
+    if (parts.length === 0) continue;
+    const hit = parts.every((part) => {
+      const stem = part.slice(0, Math.min(part.length, 4));
+      return said.some((w) => w.startsWith(stem));
+    });
+    if (hit) return name.trim();
+  }
+  return null;
+}
 
 /** A usable first name: 1–3 words, letters only, sensible length. */
 export function sanitizeName(value: string | null | undefined): string | null {
@@ -279,13 +306,21 @@ export async function runTurn(ctx: TurnContext): Promise<TurnResult> {
   const intent = out?.intent ?? "other";
 
   // ── Extraction ────────────────────────────────────────────────────────────
+  // Without the LLM (template mode) the catalog is the only way to tell a
+  // product ("web site") from a name.
+  const mentioned = out ? null : catalogMatch(ctx.profile, ctx.customerText);
   const extractedName = sanitizeName(out?.extracted.name);
   if (extractedName) collected.name = extractedName;
-  else if (phone && !collected.name) collected.name = nameFromRemainder(ctx.customerText);
-  else if (!phone && stage === "CONTACT" && !collected.name && !out) {
+  else if (phone && (!collected.name || !out)) {
+    // A name written next to the number is the customer's own answer, so in
+    // template mode it also replaces an earlier guess.
+    const nameWithPhone = mentioned ? null : nameFromRemainder(ctx.customerText);
+    if (nameWithPhone) collected.name = nameWithPhone;
+  } else if (!phone && stage === "CONTACT" && !collected.name && !out && !mentioned) {
     collected.name = nameFromRemainder(ctx.customerText);
   }
   if (out?.extracted.product_interest) collected.product_interest = out.extracted.product_interest;
+  else if (mentioned && !collected.product_interest) collected.product_interest = mentioned;
   if (out?.extracted.extra_field) collected.extra_field = out.extracted.extra_field;
 
   const wantsOperator = intent === "complaint" || intent === "wants_human";

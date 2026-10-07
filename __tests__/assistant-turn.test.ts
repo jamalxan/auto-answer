@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LLMProvider, LlmRequest, LlmResponse } from "../lib/assistant/llm/provider";
 import type { ProfileSnapshot } from "../lib/assistant/prompt";
-import { runTurn, sanitizeName, type TurnContext } from "../lib/assistant/turn";
+import { catalogMatch, runTurn, sanitizeName, type TurnContext } from "../lib/assistant/turn";
 
 function profile(overrides: Partial<ProfileSnapshot> = {}): ProfileSnapshot {
   return {
@@ -353,6 +353,59 @@ describe("LLM failures (acceptance #12)", () => {
     const final = await runTurn(ctx({ state, botMessageCount: bot, phoneAskCount: asks, customerText: "Ali 901112233", templateOnly: true, llm: null }));
     expect(final.state).toBe("HANDED_OFF");
     expect(final.collected.phone_e164).toBe("+998901112233");
+  });
+
+  // Production, LLM overloaded: "web site" became the customer's name and the
+  // bot answered "Rahmat, Web Site!".
+  it("does not take a product for the name, and uses the name written with the number", async () => {
+    const itShop = profile({ categories: [{ name: "Web site" }, { name: "Mobil ilovalr" }] });
+    let state: TurnContext["state"] = "NEW";
+    let bot = 0;
+    let asks = 0;
+    let collected: TurnContext["collected"] = {};
+    for (const text of ["Assalomu aleykum menga web site kerak edi", "menga web site kerak edi", "web site"]) {
+      const r = await runTurn(
+        ctx({ profile: itShop, state, collected, botMessageCount: bot, phoneAskCount: asks, customerText: text, templateOnly: true, llm: null })
+      );
+      expect(r.collected.name).toBeUndefined();
+      expect(r.reply ?? "").not.toContain("Web Site");
+      ({ state, botMessageCount: bot, phoneAskCount: asks, collected } = {
+        state: r.state as TurnContext["state"],
+        botMessageCount: r.botMessageCount,
+        phoneAskCount: r.phoneAskCount,
+        collected: r.collected,
+      });
+    }
+    expect(collected.product_interest).toBe("Web site");
+
+    const final = await runTurn(
+      ctx({ profile: itShop, state, collected, botMessageCount: bot, phoneAskCount: asks, customerText: "Jamolxon Yo'ldashaliyev\n931606706", templateOnly: true, llm: null })
+    );
+    expect(final.collected.phone_e164).toBe("+998931606706");
+    expect(final.collected.name).toBe("Jamolxon Yo'ldashaliyev");
+  });
+
+  it("replaces an earlier template-mode name guess with the name sent next to the number", async () => {
+    const r = await runTurn(
+      ctx({ state: "CONTACT", collected: { name: "Kechirasiz" }, botMessageCount: 2, phoneAskCount: 1, customerText: "Aziza 901234567", templateOnly: true, llm: null })
+    );
+    expect(r.collected.name).toBe("Aziza");
+  });
+});
+
+describe("catalogMatch", () => {
+  const p = profile({
+    categories: [{ name: "Web site" }, { name: "Mobil ilovalar" }],
+    products: [{ name: "Milan", note: null, price: null, priceIsFrom: false, currency: "UZS", unit: null }],
+  });
+  it("matches a category by its words, tolerating word endings", () => {
+    expect(catalogMatch(p, "menga web site kerak")).toBe("Web site");
+    expect(catalogMatch(p, "mobil ilova qilib berasizmi")).toBe("Mobil ilovalar");
+    expect(catalogMatch(p, "Milan divani bormi")).toBe("Milan");
+  });
+  it("needs every word of the name", () => {
+    expect(catalogMatch(p, "mobil telefon")).toBeNull();
+    expect(catalogMatch(p, "Jamolxon")).toBeNull();
   });
 });
 
