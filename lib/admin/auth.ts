@@ -176,13 +176,18 @@ export async function setAdminSessionCookie(adminId: string): Promise<void> {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/admin",
+    // "/" rather than "/admin": on admin.socialauto.uz the panel is served
+    // without the /admin prefix (see next.config.ts), so a path-scoped cookie
+    // would never be sent back.
+    path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
   });
 }
 
 export async function clearAdminSessionCookie(): Promise<void> {
   const store = await cookies();
+  store.delete({ name: ADMIN_SESSION_COOKIE, path: "/" });
+  // Sessions issued before the path change were scoped to /admin.
   store.delete({ name: ADMIN_SESSION_COOKIE, path: "/admin" });
 }
 
