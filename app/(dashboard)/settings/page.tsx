@@ -305,7 +305,7 @@ export default function SettingsPage() {
                   <p className="truncate text-sm font-medium text-foreground">
                     {member.user.name ?? member.user.email ?? t.settings.unknownMember}
                   </p>
-                  <p className="text-xs text-muted">{member.user.email}</p>
+                  <p className="truncate text-xs text-muted">{member.user.email}</p>
                 </div>
                 {canEditThisMember ? (
                   <div className="flex shrink-0 items-center gap-2">

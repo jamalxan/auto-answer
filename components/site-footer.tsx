@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LogoMark from "@/components/logo-mark";
 import { useLanguage } from "@/components/language-provider";
 
 export default function SiteFooter() {
@@ -25,7 +26,8 @@ export default function SiteFooter() {
       <div className="mx-auto w-full max-w-7xl px-5 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-[1.2fr_1fr_1fr]">
           <div>
-            <Link href="/" className="font-display text-lg font-extrabold text-foreground">
+            <Link href="/" className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-foreground">
+              <LogoMark />
               SocialAuto
             </Link>
             <p className="mt-3 max-w-xs text-sm leading-6 text-muted">{t.footer.tagline}</p>

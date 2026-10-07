@@ -77,6 +77,10 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
+  /* User-supplied strings (an email-style name, a URL, a long Uzbek word)
+     must wrap instead of running off a phone screen. Only breaks a word
+     that cannot fit on its own line, so normal text is unaffected. */
+  overflow-wrap: break-word;
 }
 
 ::selection {

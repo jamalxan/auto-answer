@@ -102,7 +102,7 @@ export default function DashboardPage() {
       {/* Greeting header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+          <h1 className="wrap-anywhere font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
             {t.dashboard.greeting(stats?.userName ?? t.dashboard.guestName)}
           </h1>
           <p className="mt-1 text-sm text-muted">
