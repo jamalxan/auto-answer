@@ -90,7 +90,7 @@ export function calcCostUsd(model: string, inputTokens: number, outputTokens: nu
   return (inputTokens * pin + outputTokens * pout) / 1_000_000;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+async function fetchOnce(url: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -103,6 +103,27 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Statuses a hosted model returns when it is briefly overloaded or rate limited. */
+const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
+/** Short waits: a chat reply should still land within a few seconds. */
+export const LLM_RETRY_DELAYS_MS = [400, 1200];
+
+/**
+ * One request with up to two quick retries on a transient status. Gemini in
+ * particular answers 503 "model is overloaded" for a moment under load; one
+ * such blip used to fail the whole reply (or the profile autofill).
+ */
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  let response = await fetchOnce(url, init, timeoutMs);
+  for (const delay of LLM_RETRY_DELAYS_MS) {
+    if (!TRANSIENT_STATUSES.has(response.status)) break;
+    await response.body?.cancel().catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    response = await fetchOnce(url, init, timeoutMs);
+  }
+  return response;
 }
 
 export class AnthropicProvider implements LLMProvider {
