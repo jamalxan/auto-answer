@@ -1015,7 +1015,7 @@ function ChangesSection({ accountId }: { accountId: string | null }) {
   }, [accountId]);
 
   return (
-    <details className="panel rounded p-4">
+    <details className="panel rounded-xl p-4">
       <summary className="cursor-pointer text-sm font-semibold text-foreground">{H.title}</summary>
       <div className="mt-3">
         {!changes || changes.length === 0 ? (

@@ -27,16 +27,16 @@ export default async function AdminSettingsPage({
     <section className="panel max-w-lg rounded p-4 sm:p-6">
       <h1 className="font-display text-xl font-extrabold text-foreground">{t.settingsTitle}</h1>
 
-      <div className="mt-6 rounded border-2 border-border p-4">
+      <div className="mt-6 rounded border border-border p-4">
         <h2 className="text-sm font-semibold text-foreground">{t.settingsChangePassword}</h2>
 
         {params.success === "1" && (
-          <p className="mt-3 rounded border-2 border-emerald-500/40 bg-emerald-500/10 p-2.5 text-sm text-emerald-500">
+          <p className="mt-3 rounded border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-sm text-emerald-500">
             {t.settingsSuccess}
           </p>
         )}
         {errorMessage && (
-          <p className="mt-3 rounded border-2 border-red-500/40 bg-red-500/10 p-2.5 text-sm text-red-500">
+          <p className="mt-3 rounded border border-red-500/40 bg-red-500/10 p-2.5 text-sm text-red-500">
             {errorMessage}
           </p>
         )}
@@ -49,7 +49,7 @@ export default async function AdminSettingsPage({
               type="password"
               autoComplete="current-password"
               required
-              className="mt-1 w-full rounded border-2 border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
             />
           </label>
           <label className="block text-xs text-muted">
@@ -60,7 +60,7 @@ export default async function AdminSettingsPage({
               autoComplete="new-password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border-2 border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
             />
           </label>
           <label className="block text-xs text-muted">
@@ -71,7 +71,7 @@ export default async function AdminSettingsPage({
               autoComplete="new-password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border-2 border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
             />
           </label>
           <button

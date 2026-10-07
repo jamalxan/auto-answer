@@ -64,9 +64,10 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
     <main className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader active="templates" />
 
-      <section className="border-b-2 border-border bg-surface">
+      <section className="border-b border-border bg-surface">
         <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-14 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
-          <div>
+          {/* min-w-0: lets the grid column shrink below its longest word. */}
+          <div className="min-w-0">
             <Link
               href="/templates"
               className="text-sm font-semibold text-muted transition hover:text-foreground"
@@ -76,7 +77,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
             <p className="label-mono mt-8 text-sm font-bold text-accent">
               {t.templateDetail.categoryTemplateSuffix(template.category)}
             </p>
-            <h1 className="mt-4 break-words font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
+            <h1 className="mt-4 wrap-anywhere text-balance font-display text-3xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl xl:text-6xl">
               {template.title}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
@@ -91,7 +92,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
               </Link>
               <a
                 href="#playbook"
-                className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
+                className="label-mono inline-flex items-center justify-center rounded border border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
               >
                 {t.templateDetail.readPlaybook}
               </a>
@@ -104,13 +105,13 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
 
       <section className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:px-8">
         <aside className="space-y-4">
-          <div className="panel rounded p-5">
+          <div className="panel rounded-xl p-5">
             <p className="label-mono text-[11px] font-semibold text-muted">
               {t.templateDetail.audienceLabel}
             </p>
             <p className="mt-2 text-lg font-bold text-foreground">{template.audience}</p>
           </div>
-          <div className="panel rounded p-5">
+          <div className="panel rounded-xl p-5">
             <p className="label-mono text-[11px] font-semibold text-muted">
               {t.templateDetail.setupTimeLabel}
             </p>
@@ -118,7 +119,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
               {t.templateDetail.setupMinutesValue(template.setupMinutes)}
             </p>
           </div>
-          <div className="panel rounded p-5">
+          <div className="panel rounded-xl p-5">
             <p className="label-mono text-[11px] font-semibold text-muted">
               {t.templateDetail.goalLabel}
             </p>
@@ -127,7 +128,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
         </aside>
 
         <div id="playbook" className="space-y-8">
-          <section className="panel rounded p-6">
+          <section className="panel rounded-xl p-6">
             <h2 className="font-display text-2xl font-extrabold text-foreground">
               {t.templateDetail.outcomeTitle}
             </h2>
@@ -136,7 +137,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
             </p>
           </section>
 
-          <section className="panel rounded p-6">
+          <section className="panel rounded-xl p-6">
             <h2 className="font-display text-2xl font-extrabold text-foreground">
               {t.templateDetail.playbookTitle}
             </h2>
@@ -153,7 +154,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
           </section>
 
           <section className="grid gap-4 md:grid-cols-2">
-            <div className="panel rounded p-6">
+            <div className="panel rounded-xl p-6">
               <h2 className="text-xl font-black text-foreground">{t.templateDetail.bestForTitle}</h2>
               <ul className="mt-4 space-y-2">
                 {template.bestFor.map((item) => (
@@ -163,7 +164,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
                 ))}
               </ul>
             </div>
-            <div className="panel rounded p-6">
+            <div className="panel rounded-xl p-6">
               <h2 className="text-xl font-black text-foreground">{t.templateDetail.metricsTitle}</h2>
               <ul className="mt-4 space-y-2">
                 {template.metrics.map((item) => (
@@ -175,7 +176,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
             </div>
           </section>
 
-          <section className="rounded border-2 border-accent/30 bg-accent/10 p-6">
+          <section className="rounded border border-accent/30 bg-accent/10 p-6">
             <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <h2 className="font-display text-2xl font-extrabold text-foreground">
@@ -196,7 +197,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
         </div>
       </section>
 
-      <section className="border-t-2 border-border bg-surface py-14">
+      <section className="border-t border-border bg-surface py-14">
         <div className="mx-auto w-full max-w-7xl px-5 sm:px-6 lg:px-8">
           <h2 className="font-display text-2xl font-extrabold text-foreground">
             {t.templateDetail.moreTemplatesTitle}
@@ -206,7 +207,7 @@ export default async function TemplateDetailPage({ params }: TemplatePageProps) 
               <Link
                 key={item.slug}
                 href={`/templates/${item.slug}`}
-                className="panel rounded p-5 transition hover:border-accent/40"
+                className="panel rounded-xl p-5 transition hover:border-accent/40"
               >
                 <p className="label-mono text-[11px] font-semibold text-accent">
                   {item.category}

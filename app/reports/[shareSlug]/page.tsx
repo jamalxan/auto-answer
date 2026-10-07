@@ -31,7 +31,7 @@ function MetricCard({
   helper: string;
 }) {
   return (
-    <div className="panel rounded p-5">
+    <div className="panel rounded-xl p-5">
       <p className="label-mono text-[11px] font-semibold text-muted">
         {label}
       </p>
@@ -80,7 +80,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <section className="border-b-2 border-border bg-surface">
+      <section className="border-b border-border bg-surface">
         <div className="mx-auto w-full max-w-6xl px-5 pt-6 sm:px-6 lg:px-8">
           <div className="flex justify-end">
             <LanguageSwitcher />
@@ -92,7 +92,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
               <p className="label-mono text-sm font-bold text-accent">
                 {t.reportPage.clientCampaignReport}
               </p>
-              <h1 className="mt-4 max-w-3xl break-words font-display text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">
+              <h1 className="mt-4 max-w-3xl wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
                 {report.campaign.name}
               </h1>
               <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -112,7 +112,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
               </div>
             </div>
 
-            <div className="panel rounded p-4 text-sm text-foreground md:min-w-64">
+            <div className="panel rounded-xl p-4 text-sm text-foreground md:min-w-64">
               <p className="label-mono text-[11px] font-semibold text-muted">
                 {t.reportPage.workspaceLabel}
               </p>
@@ -163,7 +163,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
-          <section className="panel rounded p-4 sm:p-6">
+          <section className="panel rounded-xl p-4 sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="font-display text-xl font-extrabold text-foreground">
@@ -215,7 +215,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
           </section>
 
           <aside className="space-y-6">
-            <section className="panel rounded p-4 sm:p-6">
+            <section className="panel rounded-xl p-4 sm:p-6">
               <h2 className="font-display text-xl font-extrabold text-foreground">
                 {t.reportPage.topKeywords}
               </h2>
@@ -241,7 +241,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
               </div>
             </section>
 
-            <section className="panel rounded p-4 sm:p-6">
+            <section className="panel rounded-xl p-4 sm:p-6">
               <h2 className="font-display text-xl font-extrabold text-foreground">
                 {t.reportPage.trackedLinksTitle}
               </h2>
@@ -318,7 +318,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
         </section>
 
         {report.branded && (
-          <footer className="mt-8 border-t-2 border-border pt-6 text-center text-xs text-muted">
+          <footer className="mt-8 border-t border-border pt-6 text-center text-xs text-muted">
             {t.reportPage.builtWithFooter}
           </footer>
         )}

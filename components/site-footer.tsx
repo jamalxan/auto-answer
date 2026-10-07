@@ -21,7 +21,7 @@ export default function SiteFooter() {
   ];
 
   return (
-    <footer className="border-t-2 border-border">
+    <footer className="border-t border-border">
       <div className="mx-auto w-full max-w-7xl px-5 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 sm:grid-cols-[1.2fr_1fr_1fr]">
           <div>

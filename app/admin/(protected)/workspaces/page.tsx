@@ -40,7 +40,7 @@ export default async function AdminWorkspacesPage({
   };
 
   return (
-    <section className="panel rounded p-4 sm:p-6">
+    <section className="panel rounded-xl p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-display text-xl font-extrabold text-foreground">
           {t.workspacesTitle}
@@ -51,18 +51,18 @@ export default async function AdminWorkspacesPage({
             name="q"
             defaultValue={query}
             placeholder={t.searchPlaceholder}
-            className="w-full min-w-[220px] rounded border-2 border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none sm:w-72"
+            className="w-full min-w-[220px] rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none sm:w-72"
           />
           <button
             type="submit"
-            className="label-mono rounded border-2 border-border px-3 py-1.5 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
+            className="label-mono rounded border border-border px-3 py-1.5 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
           >
             {t.searchButton}
           </button>
           {query && (
             <Link
               href="/admin/workspaces"
-              className="label-mono flex items-center rounded border-2 border-border px-3 py-1.5 text-xs font-bold text-muted transition hover:border-border-hover hover:bg-surface-hover"
+              className="label-mono flex items-center rounded border border-border px-3 py-1.5 text-xs font-bold text-muted transition hover:border-border-hover hover:bg-surface-hover"
             >
               {t.clearSearch}
             </Link>
@@ -119,7 +119,7 @@ export default async function AdminWorkspacesPage({
                   </td>
                   <td className="py-3 px-3 whitespace-nowrap">
                     <span
-                      className={`label-mono inline-flex items-center rounded border-2 px-2 py-0.5 text-[10px] font-bold ${
+                      className={`label-mono inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-bold ${
                         w.isSuspended
                           ? "border-red-500/40 bg-red-500/10 text-red-500"
                           : "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
@@ -155,7 +155,7 @@ export default async function AdminWorkspacesPage({
             <Link
               href={pageHref(overview.page - 1)}
               aria-disabled={overview.page <= 1}
-              className={`label-mono rounded border-2 border-border px-3 py-1.5 text-xs font-bold transition hover:border-border-hover hover:bg-surface-hover ${
+              className={`label-mono rounded border border-border px-3 py-1.5 text-xs font-bold transition hover:border-border-hover hover:bg-surface-hover ${
                 overview.page <= 1 ? "pointer-events-none opacity-40" : "text-foreground"
               }`}
             >
@@ -164,7 +164,7 @@ export default async function AdminWorkspacesPage({
             <Link
               href={pageHref(overview.page + 1)}
               aria-disabled={overview.page >= overview.pageCount}
-              className={`label-mono rounded border-2 border-border px-3 py-1.5 text-xs font-bold transition hover:border-border-hover hover:bg-surface-hover ${
+              className={`label-mono rounded border border-border px-3 py-1.5 text-xs font-bold transition hover:border-border-hover hover:bg-surface-hover ${
                 overview.page >= overview.pageCount
                   ? "pointer-events-none opacity-40"
                   : "text-foreground"

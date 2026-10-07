@@ -77,7 +77,7 @@ export default function OverviewPage() {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="panel rounded p-4 h-24 sm:p-5">
+          <div key={i} className="panel rounded-xl p-4 h-24 sm:p-5">
             <div className="h-4 w-16 bg-surface-hover rounded" />
             <div className="mt-3 h-6 w-20 bg-surface-hover/60 rounded" />
           </div>
@@ -88,7 +88,7 @@ export default function OverviewPage() {
 
   if (error) {
     return (
-      <div className="panel rounded p-8 text-center">
+      <div className="panel rounded-xl p-8 text-center">
         <p className="text-sm text-error">{error}</p>
         {needsConnect && (
           <a
@@ -157,7 +157,7 @@ export default function OverviewPage() {
       </div>
 
       {!insightsAvailable && (
-        <div className="panel rounded p-4 border border-border">
+        <div className="panel rounded-xl p-4 border border-border">
           <p className="text-sm text-foreground">{t.overview.insightsNeeded}</p>
           <p className="text-sm text-muted mt-1">{t.overview.insightsNeededBody}</p>
           <a
@@ -183,7 +183,7 @@ export default function OverviewPage() {
       <FollowerChart data={followerHistory} followers={followers} />
 
       {/* Per-post table */}
-      <div className="panel rounded p-4 sm:p-6">
+      <div className="panel rounded-xl p-4 sm:p-6">
         <h2 className="text-sm font-semibold text-foreground mb-4">
           {t.overview.postsTableTitle}
         </h2>

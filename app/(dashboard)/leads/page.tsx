@@ -410,7 +410,7 @@ export default function LeadsPage() {
 
       {(detail || detailLoading) && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-6"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-6"
           onClick={() => setDetail(null)}
         >
           <div

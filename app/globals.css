@@ -1,27 +1,65 @@
 @import "tailwindcss";
 
 /* SocialAuto — Design System
-   Bold retro-tech: deep navy panels, cream headlines, mint/gold accents,
-   thick borders, uppercase mono labels. Ported from socialauto.uz. */
+   Modern take on the socialauto.uz brand: deep indigo canvas, cream text,
+   mint/gold accents. Hairline borders, soft radii, layered surfaces and
+   subtle glows instead of the old thick-bordered flat panels. Every page
+   styles itself with these tokens, so a change here reaches all of them. */
 
 @theme inline {
-  --color-background: #1a1b72;
-  --color-foreground: #f3ead9;
-  --color-surface: #0c0d3f;
-  --color-surface-hover: #171856;
-  --color-border: rgba(243, 234, 217, 0.18);
-  --color-border-hover: rgba(243, 234, 217, 0.32);
-  --color-muted: #9c9bc4;
+  --color-background: #0a0b2e;
+  --color-foreground: #f4ecdd;
+  --color-surface: #11123c;
+  --color-surface-hover: #1a1b4e;
+  --color-border: rgba(180, 182, 255, 0.11);
+  --color-border-hover: rgba(180, 182, 255, 0.22);
+  --color-muted: #a19fca;
   --color-accent: #00f0b5;
-  --color-accent-hover: #00d49e;
+  --color-accent-hover: #3cf5c8;
   --color-gold: #ffb01f;
   --color-alert: #e23d2c;
   --color-success: #00f0b5;
-  --color-error: #e23d2c;
+  --color-error: #ff5d4d;
   --color-warning: #ffb01f;
   --font-sans: var(--font-manrope), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: var(--font-unbounded), var(--font-sans);
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* `rounded` (the most used radius here) reads --radius. Softer radii
+     across the board are most of what makes the UI feel current. */
+  --radius: 0.625rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  --shadow-lg: 0 12px 32px -12px rgb(0 0 0 / 0.6), 0 2px 6px -2px rgb(0 0 0 / 0.35);
+  --shadow-glow: 0 0 0 1px rgb(0 240 181 / 0.25), 0 8px 24px -8px rgb(0 240 181 / 0.45);
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.35s ease-out both;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* Opacity only: a transform, even mid-animation, would make the animated
+   element the containing block for any `fixed` modal rendered inside it. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 html {
@@ -29,23 +67,85 @@ html {
 }
 
 body {
-  background: var(--color-background);
+  /* Two faint brand-colored glows behind everything; fixed so they don't
+     scroll away on long pages. */
+  background:
+    radial-gradient(60rem 40rem at 85% -10%, rgb(0 240 181 / 0.07), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 110%, rgb(110 90 255 / 0.12), transparent 60%),
+    var(--color-background);
+  background-attachment: fixed;
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: rgb(0 240 181 / 0.3);
+  color: var(--color-foreground);
+}
+
+/* Thin, quiet scrollbars instead of the chunky OS default on Windows. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(180 182 255 / 0.18) transparent;
+}
+
+@layer base {
+  /* Tailwind v4's preflight resets buttons to the default cursor. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Smooth hover/focus changes everywhere without adding `transition` to
+     every element by hand. A `transition-*` utility still overrides this. */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(161 159 202 / 0.7);
+  }
+
+  /* Fields already have a border, so swap the outline for an accent border
+     and a soft glow — the focus state reads clearly without jumping. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+    border-color: rgb(0 240 181 / 0.6);
+    box-shadow: 0 0 0 3px rgb(0 240 181 / 0.15);
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-accent);
+  }
+
+  select option {
+    background: var(--color-surface);
+    color: var(--color-foreground);
+  }
 }
 
 /* Focus ring — visible, for keyboard users. */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-}
-
-/* Form fields already have a border, so keep the focus ring hugging the
-   field instead of bleeding up toward the label above it. */
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline-offset: 1px;
 }
 
 /* iOS Safari zooms the whole page in when a focused field's text is under 16px,
@@ -59,17 +159,43 @@ select:focus-visible {
   }
 }
 
-/* Panel — thick-bordered flat container, the base card look site-wide. */
-.panel {
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
+@layer components {
+  /* Panel — the base card look site-wide: a layered surface with a hairline
+     border, a faint top highlight and a soft drop shadow. In the components
+     layer so a utility (border-red-500/40, bg-surface-hover…) still wins. */
+  .panel {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.03), rgb(255 255 255 / 0) 55%),
+      var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.04),
+      0 10px 30px -18px rgb(0 0 0 / 0.7);
+  }
+
+  /* Uppercase, tracked-out mono label — stat labels, section eyebrows, CTAs. */
+  .label-mono {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  /* Gradient text for display headlines. */
+  .text-gradient {
+    background: linear-gradient(100deg, var(--color-foreground) 20%, var(--color-accent) 120%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
-/* Uppercase, tracked-out mono label — nav items, stat labels, section eyebrows. */
-.label-mono {
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+/* Accent CTAs get a soft mint glow on hover — the one flourish that makes the
+   primary action feel alive. */
+@media (hover: hover) {
+  a.bg-accent:hover,
+  button.bg-accent:not(:disabled):hover {
+    box-shadow: var(--shadow-glow);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

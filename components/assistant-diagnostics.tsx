@@ -62,7 +62,7 @@ export default function AssistantDiagnostics() {
 
   return (
     <>
-      <section className="panel rounded p-4 sm:p-6">
+      <section className="panel rounded-xl p-4 sm:p-6">
         <h2 className="text-base font-semibold text-foreground">{D.deliveryErrors}</h2>
         {data.deliveryErrors.length === 0 ? (
           <p className="py-5 text-center text-sm text-muted">{D.deliveryErrorsEmpty}</p>
@@ -89,7 +89,7 @@ export default function AssistantDiagnostics() {
         )}
       </section>
 
-      <section className="panel rounded p-4 sm:p-6">
+      <section className="panel rounded-xl p-4 sm:p-6">
         <h2 className="text-base font-semibold text-foreground">{D.integrationHealth}</h2>
         {data.integrations.length === 0 ? (
           <p className="py-5 text-center text-sm text-muted">{D.integrationHealthEmpty}</p>
@@ -109,7 +109,7 @@ export default function AssistantDiagnostics() {
         )}
       </section>
 
-      <section className="panel rounded p-4 sm:p-6">
+      <section className="panel rounded-xl p-4 sm:p-6">
         <h2 className="text-base font-semibold text-foreground">{D.llmHealth}</h2>
         <ul className="mt-3 space-y-2 text-sm text-foreground">
           <li>

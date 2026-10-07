@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="panel rounded p-4">
+    <div className="panel rounded-xl p-4">
       <p className="label-mono text-[11px] text-muted">{label}</p>
       <p className="font-display text-2xl font-extrabold text-foreground mt-1">
         {value.toLocaleString?.() ?? value}

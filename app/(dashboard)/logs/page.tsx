@@ -144,7 +144,7 @@ export default function LogsPage() {
       </div>
 
       {/* Table */}
-      <div className="panel rounded overflow-hidden">
+      <div className="panel rounded-xl overflow-hidden">
         {/* Six columns don't fit a phone; the table keeps its width and scrolls
             horizontally inside the panel rather than crushing every cell. */}
         <div className="overflow-x-auto">
@@ -181,7 +181,7 @@ export default function LogsPage() {
               {!loading &&
                 logs.map((log) => (
                   <tr key={log.id} className="hover:bg-surface-hover/50 transition-colors">
-                    <td className="px-4 py-4 sm:px-6">
+                    <td className="px-4 py-4 whitespace-nowrap sm:px-6">
                       <span className="font-medium text-foreground">
                         @{log.commenterName ?? log.commenterId.slice(0, 8)}
                       </span>
@@ -189,10 +189,15 @@ export default function LogsPage() {
                     <td className="px-4 py-4 max-w-[200px] sm:px-6">
                       <span className="text-muted truncate block">{log.commentText}</span>
                     </td>
-                    <td className="px-4 py-4 sm:px-6">
-                      <span className="text-muted">{log.automation.name}</span>
+                    {/* A long campaign name used to wrap one word per line in
+                        this narrow column, making every row several times
+                        taller; cap it at two lines with the full name on hover. */}
+                    <td className="px-4 py-4 min-w-[160px] max-w-[240px] sm:px-6">
+                      <span className="text-muted line-clamp-2" title={log.automation.name}>
+                        {log.automation.name}
+                      </span>
                     </td>
-                    <td className="px-4 py-4 sm:px-6">
+                    <td className="px-4 py-4 whitespace-nowrap sm:px-6">
                       <span className="text-muted">@{log.instagramAccount.username}</span>
                     </td>
                     <td className="px-4 py-4 sm:px-6">

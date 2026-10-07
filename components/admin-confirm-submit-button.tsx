@@ -32,7 +32,7 @@ export default function AdminConfirmSubmitButton({
       }}
       className={
         className ??
-        "label-mono rounded border-2 border-border px-2.5 py-1 text-[10px] font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
+        "label-mono rounded border border-border px-2.5 py-1 text-[10px] font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
       }
     >
       {label}

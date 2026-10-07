@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LogoMark from "@/components/logo-mark";
 import { useLanguage } from "@/components/language-provider";
 import LanguageSwitcher from "@/components/language-switcher";
 
@@ -21,10 +22,11 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b-2 border-border bg-background/95">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-3" aria-label="SocialAuto home">
-          <span className="font-display text-lg font-extrabold text-foreground">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="SocialAuto home">
+          <LogoMark />
+          <span className="hidden font-display text-base font-extrabold tracking-tight text-foreground min-[400px]:inline sm:text-lg">
             SocialAuto
           </span>
         </Link>
@@ -55,7 +57,7 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
           </Link>
           <Link
             href="/login"
-            className="label-mono inline-flex items-center justify-center rounded bg-accent px-4 py-2 text-xs font-bold text-background transition hover:bg-accent-hover"
+            className="label-mono inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-[11px] font-bold text-background transition hover:bg-accent-hover sm:px-4 sm:text-xs"
           >
             {t.publicSite.startFree}
           </Link>

@@ -1,3 +1,4 @@
+import LogoMark from "@/components/logo-mark";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { adminForgotPasswordAction } from "@/lib/admin/auth-actions";
@@ -18,7 +19,8 @@ export default async function AdminForgotPasswordPage({
     <main className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <span className="font-display text-lg font-extrabold text-foreground">
+          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-foreground">
+            <LogoMark />
             SocialAuto
           </span>
           <h1 className="mt-4 font-display text-2xl font-extrabold text-foreground">
@@ -30,7 +32,7 @@ export default async function AdminForgotPasswordPage({
         </div>
 
         {params.sent === "1" ? (
-          <p className="mt-6 rounded border-2 border-emerald-500/40 bg-emerald-500/10 p-3 text-center text-sm text-emerald-500">
+          <p className="mt-6 rounded border border-emerald-500/40 bg-emerald-500/10 p-3 text-center text-sm text-emerald-500">
             {"Agar bu email admin akkauntga bog'langan bo'lsa, tiklash havolasi yuborildi. Pochta qutingizni tekshiring (spam papkasini ham)."}
           </p>
         ) : (
@@ -41,7 +43,7 @@ export default async function AdminForgotPasswordPage({
                 name="email"
                 type="email"
                 required
-                className="mt-1 w-full rounded border-2 border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+                className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
               />
             </label>
             <button

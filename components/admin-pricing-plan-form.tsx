@@ -22,7 +22,7 @@ interface Labels {
 }
 
 const inputClass =
-  "mt-1 w-full rounded border-2 border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none";
+  "mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none";
 
 /**
  * The plan editor: plain per-locale text fields (name/description/one
@@ -69,7 +69,7 @@ export default function AdminPricingPlanForm({
             <input
               disabled
               defaultValue={slug}
-              className="mt-1 w-full rounded border-2 border-border bg-surface px-2 py-1.5 text-sm text-muted"
+              className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm text-muted"
             />
           ) : (
             <input name="slug" placeholder={slugPlaceholder} className={inputClass} />
@@ -116,7 +116,7 @@ export default function AdminPricingPlanForm({
 
       <div className="grid gap-3 lg:grid-cols-3">
         {LOCALES.map((locale) => (
-          <div key={locale} className="rounded border-2 border-border p-3">
+          <div key={locale} className="rounded border border-border p-3">
             <p className="label-mono text-[11px] font-bold text-accent">
               {localeLabel[locale]}
             </p>

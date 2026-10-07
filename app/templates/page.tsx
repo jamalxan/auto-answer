@@ -28,7 +28,7 @@ export default async function TemplatesPage() {
     <main className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader active="templates" />
 
-      <section className="border-b-2 border-border bg-surface">
+      <section className="border-b border-border bg-surface">
         {/* min-w-0 on both grid items: same overflow this section's own
             template-preview mockups were causing on the homepage's hero —
             below `lg` this is one implicit column, and without min-w-0 a
@@ -38,7 +38,7 @@ export default async function TemplatesPage() {
             <p className="label-mono text-sm font-bold text-accent">
               {t.templatesPage.eyebrow}
             </p>
-            <h1 className="mt-4 break-words font-display text-5xl font-extrabold leading-[1.02] text-foreground sm:text-6xl">
+            <h1 className="mt-4 wrap-anywhere text-balance font-display text-3xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl">
               {t.templatesPage.title}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
@@ -53,7 +53,7 @@ export default async function TemplatesPage() {
               </Link>
               <a
                 href="#template-grid"
-                className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
+                className="label-mono inline-flex items-center justify-center rounded border border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
               >
                 {t.templatesPage.browseTemplates}
               </a>
@@ -103,7 +103,7 @@ export default async function TemplatesPage() {
               <div className="mt-auto grid gap-2 pt-6">
                 <Link
                   href={`/templates/${template.slug}`}
-                  className="label-mono inline-flex w-full items-center justify-center rounded border-2 border-border bg-transparent px-4 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
+                  className="label-mono inline-flex w-full items-center justify-center rounded border border-border bg-transparent px-4 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
                 >
                   {t.templatesPage.viewPlaybook}
                 </Link>

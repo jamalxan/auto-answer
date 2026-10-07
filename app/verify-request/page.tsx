@@ -20,7 +20,7 @@ export default async function VerifyRequestPage() {
           </h1>
         </div>
 
-        <div className="panel rounded p-8 text-center">
+        <div className="panel rounded-xl p-8 text-center">
           <h2 className="text-lg font-semibold mb-2">{t.login.checkEmailTitle}</h2>
           <p className="text-sm text-muted">{t.login.checkEmailBody}</p>
           <p className="mt-6 text-sm">

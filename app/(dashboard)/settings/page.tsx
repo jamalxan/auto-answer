@@ -160,7 +160,7 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-    return <div className="panel rounded p-8 h-64" />;
+    return <div className="panel rounded-xl p-8 h-64" />;
   }
 
   const accounts = data?.instagramAccounts ?? [];
@@ -178,7 +178,7 @@ export default function SettingsPage() {
         <InstagramConnectNotice />
       </Suspense>
 
-      <section className="panel rounded p-4 sm:p-6">
+      <section className="panel rounded-xl p-4 sm:p-6">
         <h2 className="text-base font-semibold mb-6">{t.settings.instagramConnection}</h2>
 
         <div className="space-y-4">
@@ -289,7 +289,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="panel rounded p-4 sm:p-6">
+      <section className="panel rounded-xl p-4 sm:p-6">
         <h2 className="text-base font-semibold mb-6">{t.settings.team}</h2>
         <div className="space-y-3">
           {membersData?.members.map((member) => {
@@ -432,7 +432,7 @@ export default function SettingsPage() {
         )}
       </section>
 
-      <section className="panel rounded p-4 sm:p-6">
+      <section className="panel rounded-xl p-4 sm:p-6">
         <h2 className="text-base font-semibold mb-6">{t.settings.usage}</h2>
         <div className="flex items-center justify-between gap-3 py-3">
           <div>

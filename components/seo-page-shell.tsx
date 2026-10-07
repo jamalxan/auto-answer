@@ -37,13 +37,15 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
     <main className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
 
-      <section className="border-b-2 border-border bg-surface">
+      <section className="border-b border-border bg-surface">
         <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
-          <div>
+          {/* min-w-0: a grid item otherwise grows to its longest unbreakable
+              word, and long Uzbek words in the display font overflow phones. */}
+          <div className="min-w-0">
             <p className="label-mono text-sm font-bold text-accent">
               {config.eyebrow}
             </p>
-            <h1 className="mt-4 font-display text-5xl font-extrabold leading-tight text-foreground sm:text-6xl">
+            <h1 className="mt-4 wrap-anywhere text-balance font-display text-3xl font-extrabold leading-[1.1] tracking-tight text-foreground sm:text-5xl">
               {config.title}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
@@ -58,14 +60,14 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
               </Link>
               <Link
                 href="/templates"
-                className="label-mono inline-flex items-center justify-center rounded border-2 border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
+                className="label-mono inline-flex items-center justify-center rounded border border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
               >
                 {config.secondaryCta ?? t.seoShell.browseTemplates}
               </Link>
             </div>
           </div>
 
-          <div className="panel rounded p-6">
+          <div className="panel rounded-xl p-6">
             <p className="label-mono text-[11px] font-bold text-muted">
               {t.seoShell.checklistTitle}
             </p>
@@ -83,8 +85,8 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
       <section className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-3">
           {config.sections.map((section) => (
-            <article key={section.title} className="panel rounded p-6">
-              <h2 className="font-display text-2xl font-extrabold text-foreground">
+            <article key={section.title} className="panel min-w-0 rounded-xl p-6">
+              <h2 className="wrap-anywhere font-display text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
                 {section.title}
               </h2>
               <p className="mt-4 text-sm leading-7 text-muted">{section.body}</p>
@@ -93,13 +95,15 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
         </div>
       </section>
 
-      <section className="border-y-2 border-border bg-surface py-16">
+      <section className="border-y border-border bg-surface py-16">
         <div className="mx-auto w-full max-w-7xl px-5 sm:px-6 lg:px-8">
-          <h2 className="font-display text-4xl font-extrabold text-foreground">
+          <h2 className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
             {config.comparisonTitle}
           </h2>
-          <div className="mt-8 overflow-hidden rounded border-2 border-border">
-            <div className="label-mono grid grid-cols-[0.8fr_1fr_1fr] border-b-2 border-border bg-background text-[11px] font-bold text-muted">
+          <div className="mt-8 overflow-hidden rounded-xl border border-border">
+            {/* Rows stack on phones, so the column headings only make sense
+                (and only fit) from md up; phones get inline labels instead. */}
+            <div className="label-mono hidden grid-cols-[0.8fr_1fr_1fr] border-b border-border bg-background text-[11px] font-bold text-muted md:grid">
               <div className="p-4">{t.seoShell.compareNeed}</div>
               <div className="p-4 text-accent">{t.seoShell.compareOurs}</div>
               <div className="p-4">{t.seoShell.compareOther}</div>
@@ -113,9 +117,15 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
                   {item.label}
                 </div>
                 <div className="p-4 text-sm leading-6 text-foreground">
+                  <span className="label-mono mb-1 block text-[10px] font-bold text-accent md:hidden">
+                    {t.seoShell.compareOurs}
+                  </span>
                   {item.ours}
                 </div>
-                <div className="p-4 text-sm leading-6 text-muted">
+                <div className="p-4 pt-0 text-sm leading-6 text-muted md:pt-4">
+                  <span className="label-mono mb-1 block text-[10px] font-bold md:hidden">
+                    {t.seoShell.compareOther}
+                  </span>
                   {item.other}
                 </div>
               </div>
@@ -129,7 +139,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
           <p className="label-mono text-sm font-bold text-gold">
             {t.seoShell.templateEyebrow}
           </p>
-          <h2 className="mt-3 font-display text-4xl font-extrabold text-foreground">
+          <h2 className="mt-3 font-display text-3xl font-extrabold text-foreground sm:text-4xl tracking-tight">
             {t.seoShell.templateTitle}
           </h2>
           <p className="mt-5 text-sm leading-7 text-muted">
@@ -141,7 +151,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
             <Link
               key={link.href}
               href={link.href}
-              className="panel rounded p-5 text-sm font-semibold text-foreground transition hover:border-accent/40 hover:bg-accent/10"
+              className="panel rounded-xl p-5 text-sm font-semibold text-foreground transition hover:border-accent/40 hover:bg-accent/10"
             >
               {link.label}
             </Link>
@@ -149,17 +159,17 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
         </div>
       </section>
 
-      <section className="border-t-2 border-border bg-surface py-16">
+      <section className="border-t border-border bg-surface py-16">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
             <p className="label-mono text-sm font-bold text-accent">{t.seoShell.faqEyebrow}</p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold text-foreground">
+            <h2 className="mt-3 font-display text-3xl font-extrabold text-foreground sm:text-4xl tracking-tight">
               {t.seoShell.faqTitle}
             </h2>
           </div>
           <div className="grid gap-3">
             {config.faqs.map((faq) => (
-              <article key={faq.title} className="panel rounded p-5">
+              <article key={faq.title} className="panel rounded-xl p-5">
                 <h3 className="text-lg font-bold text-foreground">{faq.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-muted">{faq.body}</p>
               </article>
@@ -169,8 +179,8 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
       </section>
 
       <section className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-6 lg:px-8">
-        <div className="rounded border-2 border-accent/30 bg-accent/10 p-8 text-center">
-          <h2 className="font-display text-4xl font-extrabold text-foreground">
+        <div className="rounded border border-accent/30 bg-accent/10 p-8 text-center">
+          <h2 className="font-display text-3xl font-extrabold text-foreground sm:text-4xl tracking-tight">
             {t.seoShell.ctaTitle}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-muted">

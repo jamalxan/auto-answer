@@ -22,10 +22,10 @@ export default async function AdminPricingPage() {
   const t = dictionaries[locale].admin;
 
   return (
-    <section className="panel rounded p-4 sm:p-6">
+    <section className="panel rounded-xl p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="font-display text-xl font-extrabold text-foreground">{t.pricingTitle}</h1>
-        <span className="label-mono inline-flex items-center rounded border-2 border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-bold text-gold">
+        <span className="label-mono inline-flex items-center rounded border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-bold text-gold">
           {t.pricingDraftBadge}
         </span>
       </div>
@@ -33,7 +33,7 @@ export default async function AdminPricingPage() {
 
       <div className="mt-6 space-y-6">
         {pricingPlans.map((plan) => (
-          <div key={plan.id} className="rounded border-2 border-border p-4">
+          <div key={plan.id} className="rounded border border-border p-4">
             <form action={savePricingPlan}>
               <input type="hidden" name="id" value={plan.id} />
               <AdminPricingPlanForm
@@ -59,7 +59,7 @@ export default async function AdminPricingPage() {
                   formAction={deletePricingPlan}
                   confirmMessage={t.pricingConfirmDelete}
                   label={t.pricingDelete}
-                  className="label-mono rounded border-2 border-red-500/40 px-4 py-1.5 text-xs font-bold text-red-500 transition hover:bg-red-500/10"
+                  className="label-mono rounded border border-red-500/40 px-4 py-1.5 text-xs font-bold text-red-500 transition hover:bg-red-500/10"
                 />
               </div>
             </form>
@@ -67,7 +67,7 @@ export default async function AdminPricingPage() {
         ))}
       </div>
 
-      <div className="mt-6 rounded border-2 border-dashed border-border p-4">
+      <div className="mt-6 rounded border border-dashed border-border p-4">
         <h2 className="text-xs font-bold text-foreground">{t.pricingAddTitle}</h2>
         <form action={savePricingPlan} className="mt-3">
           <AdminPricingPlanForm

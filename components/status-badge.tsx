@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Status label for DM status. Plain text; color carries the state.
+ * Status pill for DM status; color carries the state.
  */
 
 import { useLanguage } from "@/components/language-provider";
@@ -26,7 +26,10 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
   const config = statusConfig[status] ?? statusConfig.PENDING;
 
   return (
-    <span className={`shrink-0 whitespace-nowrap text-sm ${config.text}`}>
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-current/10 px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ring-current/20 ${config.text}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
       {config.label}
     </span>
   );

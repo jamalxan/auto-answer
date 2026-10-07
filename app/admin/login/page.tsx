@@ -1,3 +1,4 @@
+import LogoMark from "@/components/logo-mark";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -30,7 +31,8 @@ export default async function AdminLoginPage({
     <main className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <span className="font-display text-lg font-extrabold text-foreground">
+          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-foreground">
+            <LogoMark />
             SocialAuto
           </span>
           <h1 className="mt-4 font-display text-2xl font-extrabold text-foreground">
@@ -39,12 +41,12 @@ export default async function AdminLoginPage({
         </div>
 
         {params.reset === "1" && (
-          <p className="mt-6 rounded border-2 border-emerald-500/40 bg-emerald-500/10 p-3 text-center text-sm text-emerald-500">
+          <p className="mt-6 rounded border border-emerald-500/40 bg-emerald-500/10 p-3 text-center text-sm text-emerald-500">
             Parol yangilandi. Endi tizimga kiring.
           </p>
         )}
         {errorMessage && (
-          <p className="mt-6 rounded border-2 border-red-500/40 bg-red-500/10 p-3 text-center text-sm text-red-500">
+          <p className="mt-6 rounded border border-red-500/40 bg-red-500/10 p-3 text-center text-sm text-red-500">
             {errorMessage}
           </p>
         )}
@@ -56,7 +58,7 @@ export default async function AdminLoginPage({
               name="username"
               autoComplete="username"
               required
-              className="mt-1 w-full rounded border-2 border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
             />
           </label>
           <label className="block text-sm">
@@ -66,7 +68,7 @@ export default async function AdminLoginPage({
               type="password"
               autoComplete="current-password"
               required
-              className="mt-1 w-full rounded border-2 border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
             />
           </label>
           <button

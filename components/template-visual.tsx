@@ -14,8 +14,8 @@ export default function TemplateVisual({
 }: TemplateVisualProps) {
   const { t } = useLanguage();
   return (
-    <div className="rounded border-2 border-border p-4">
-      <div className="rounded border-2 border-border bg-surface p-4">
+    <div className="rounded border border-border p-4">
+      <div className="rounded border border-border bg-surface p-4">
         <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
           <div>
             <p className="label-mono text-[11px] font-semibold text-muted">

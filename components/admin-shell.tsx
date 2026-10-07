@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LogoMark from "@/components/logo-mark";
 import { usePathname } from "next/navigation";
 import LanguageSwitcher from "@/components/language-switcher";
 import { adminLogoutAction } from "@/lib/admin/auth-actions";
@@ -28,11 +29,12 @@ export default function AdminShell({ labels, children }: AdminShellProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b-2 border-border">
+      <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5">
           <div className="flex items-center gap-8">
             <Link href="/admin" className="flex items-center gap-3">
-              <span className="font-display text-lg font-extrabold text-foreground">
+              <LogoMark />
+              <span className="font-display text-lg font-extrabold tracking-tight text-foreground">
                 SocialAuto
               </span>
             </Link>
@@ -61,7 +63,7 @@ export default function AdminShell({ labels, children }: AdminShellProps) {
             <form action={adminLogoutAction}>
               <button
                 type="submit"
-                className="label-mono rounded border-2 border-border px-3 py-1.5 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
+                className="label-mono rounded border border-border px-3 py-1.5 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
               >
                 {labels.navLogout}
               </button>

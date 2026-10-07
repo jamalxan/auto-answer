@@ -17,7 +17,7 @@ export default async function NotFound() {
 
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-5 py-20 text-center">
         <p className="label-mono text-sm font-bold text-accent">{t.eyebrow}</p>
-        <h1 className="mt-3 font-display text-4xl font-extrabold text-foreground sm:text-5xl">
+        <h1 className="mt-3 font-display text-3xl font-extrabold text-foreground sm:text-5xl tracking-tight">
           {t.title}
         </h1>
         <p className="mt-4 max-w-md text-base leading-7 text-muted">{t.body}</p>

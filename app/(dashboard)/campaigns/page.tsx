@@ -260,7 +260,7 @@ export default function CampaignsPage() {
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="panel rounded p-6 h-36" />
+          <div key={i} className="panel rounded-xl p-6 h-36" />
         ))}
       </div>
     );
@@ -347,7 +347,7 @@ export default function CampaignsPage() {
 
       {/* Empty state */}
       {automations.length === 0 && (
-        <div className="panel rounded p-8 text-center sm:p-12">
+        <div className="panel rounded-xl p-8 text-center sm:p-12">
           <h3 className="text-lg font-semibold mb-2">{t.campaigns.noCampaignsYet}</h3>
           <p className="text-sm text-muted mb-6 max-w-sm mx-auto">
             {t.campaigns.noCampaignsBody}
@@ -363,7 +363,7 @@ export default function CampaignsPage() {
 
       {/* No matches for the current filter */}
       {automations.length > 0 && filtered.length === 0 && (
-        <div className="panel rounded p-8 text-center text-sm text-muted">
+        <div className="panel rounded-xl p-8 text-center text-sm text-muted">
           {t.campaigns.noMatches}
         </div>
       )}
@@ -376,7 +376,7 @@ export default function CampaignsPage() {
           <div
             key={auto.id}
             onClick={() => router.push(`/campaigns/${auto.id}`)}
-            className="panel rounded p-4 hover:border-border-hover transition-all cursor-pointer"
+            className="panel rounded-xl p-4 hover:border-border-hover transition-all cursor-pointer"
           >
             {/* Wraps rather than compressing: on a phone the action buttons drop
                 to their own line instead of squeezing the campaign summary. */}
@@ -586,7 +586,7 @@ export default function CampaignsPage() {
       {/* Reel lightbox */}
       {playingVideo && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={() => setPlayingVideo(null)}
         >
           <div

@@ -544,7 +544,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
   if (notFound) {
     return (
-      <div className="panel rounded p-8 text-center">
+      <div className="panel rounded-xl p-8 text-center">
         <p className="text-sm text-muted">{t.builder.notFound}</p>
         <button
           onClick={() => router.push("/campaigns")}

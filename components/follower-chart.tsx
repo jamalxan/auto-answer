@@ -96,7 +96,7 @@ export default function FollowerChart({
     data.length > 1 ? data[data.length - 1].followers - data[0].followers : null;
 
   return (
-    <div className="panel rounded p-4 sm:p-6">
+    <div className="panel rounded-xl p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-foreground">

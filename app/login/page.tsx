@@ -3,6 +3,7 @@ import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 import LanguageSwitcher from "@/components/language-switcher";
+import LogoMark from "@/components/logo-mark";
 
 export const metadata = {
   title: "Login",
@@ -43,7 +44,8 @@ export default async function LoginPage({
           <LanguageSwitcher />
         </div>
         <div className="text-center mb-8">
-          <h1 className="font-display text-2xl font-extrabold text-foreground">
+          <LogoMark className="mx-auto mb-4 h-11 w-11 text-lg" />
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
             {t.login.brand}
           </h1>
           <p className="text-muted text-sm leading-relaxed mt-2">
@@ -53,7 +55,7 @@ export default async function LoginPage({
           </p>
         </div>
 
-        <div className="panel rounded p-8 shadow-black/40">
+        <div className="panel rounded-xl p-8 shadow-black/40">
           {selectedTemplate && !checkEmail && (
             <div className="mb-5 border border-accent/20 bg-accent/10 p-4">
               <p className="label-mono text-[11px] font-semibold text-accent">

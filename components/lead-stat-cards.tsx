@@ -33,18 +33,18 @@ export default function LeadStatCards() {
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-      <div className="panel rounded p-4">
+      <div className="panel rounded-xl p-4">
         <p className="label-mono text-[11px] text-muted">
           {D.leadsPeriod} · {D.last30}
         </p>
         <p className="font-display mt-1 text-2xl font-extrabold text-foreground">{cards.leads30}</p>
       </div>
-      <div className="panel rounded p-4" title={D.conversionHelp}>
+      <div className="panel rounded-xl p-4" title={D.conversionHelp}>
         <p className="label-mono text-[11px] text-muted">{D.conversion}</p>
         <p className="font-display mt-1 text-2xl font-extrabold text-foreground">{cards.conversionPct}%</p>
         <p className="mt-1 text-xs text-muted">{D.conversionHelp}</p>
       </div>
-      <div className={`panel rounded p-4 ${cards.undelivered > 0 ? "border-error/60" : ""}`}>
+      <div className={`panel rounded-xl p-4 ${cards.undelivered > 0 ? "border-error/60" : ""}`}>
         <p className="label-mono text-[11px] text-muted">{D.undelivered}</p>
         <p className={`font-display mt-1 text-2xl font-extrabold ${cards.undelivered > 0 ? "text-error" : "text-foreground"}`}>
           {cards.undelivered}

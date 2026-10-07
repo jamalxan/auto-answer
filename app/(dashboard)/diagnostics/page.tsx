@@ -58,7 +58,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="panel rounded p-4 sm:p-6">
+    <section className="panel rounded-xl p-4 sm:p-6">
       <h2 className="text-base font-semibold text-foreground">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
@@ -110,7 +110,7 @@ export default function DiagnosticsPage() {
   }, []);
 
   if (loading && !data) {
-    return <div className="panel rounded p-8 h-64" />;
+    return <div className="panel rounded-xl p-8 h-64" />;
   }
 
   const workerAgeSeconds =
@@ -134,7 +134,7 @@ export default function DiagnosticsPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
-        <div className="panel rounded p-4 sm:p-5">
+        <div className="panel rounded-xl p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase text-muted">
             {t.diagnostics.workerHealth}
           </p>
@@ -159,7 +159,7 @@ export default function DiagnosticsPage() {
             ["failed", t.diagnostics.queueFailed],
           ] as const
         ).map(([key, label]) => (
-          <div key={key} className="panel rounded p-4 sm:p-5">
+          <div key={key} className="panel rounded-xl p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase text-muted">{label}</p>
             <p className="mt-3 text-2xl font-bold text-foreground">
               {data?.queueCounts[key] ?? 0}
