@@ -86,7 +86,7 @@ export const en = {
     connectAnother: "Connect another account",
     connectInstagram: "Connect Instagram",
     confirmDisconnect:
-      "Disconnect Instagram? Campaigns for this account will stop sending DMs.",
+      "Disconnect Instagram? ALL campaigns, DM logs, conversations and leads for this account will be DELETED. To just refresh the token, don't disconnect — use Reconnect.",
     team: "Team",
     unknownMember: "Unknown member",
     pendingInvites: "Pending invites",
