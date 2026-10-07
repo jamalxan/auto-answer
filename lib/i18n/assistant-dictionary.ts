@@ -566,7 +566,7 @@ export const assistantUz: AssistantDictionary = {
     },
     amocrm: {
       name: "amoCRM",
-      desc: "Lid + kontakt yaratiladi, suhbat yozuvi izoh sifatida qo'shiladi. Telefon bo'yicha takrorlar tekshiriladi.",
+      desc: "Har bir lid uchun yangi kontakt (ism + telefon) va yangi lid yaratiladi; mijoz ma'lumotlari va suhbat yozuvi izoh sifatida qo'shiladi.",
       subdomain: "Subdomen",
       zone: "Domen zonasi",
       token: "Uzoq muddatli token",
@@ -907,7 +907,7 @@ export const assistantRu: AssistantDictionary = {
     },
     amocrm: {
       name: "amoCRM",
-      desc: "Создаётся лид и контакт, запись диалога добавляется примечанием. Дубли проверяются по телефону.",
+      desc: "Для каждой заявки создаются новый контакт (имя + телефон) и новая сделка; данные клиента и запись диалога добавляются примечанием.",
       subdomain: "Поддомен",
       zone: "Доменная зона",
       token: "Долгосрочный токен",
@@ -1248,7 +1248,7 @@ export const assistantEn: AssistantDictionary = {
     },
     amocrm: {
       name: "amoCRM",
-      desc: "A lead and a contact are created; the conversation transcript is added as a note. Duplicates are checked by phone.",
+      desc: "Every lead creates a new contact (name + phone) and a new lead; the customer's details and the conversation transcript are added as a note.",
       subdomain: "Subdomain",
       zone: "Domain zone",
       token: "Long-lived token",
