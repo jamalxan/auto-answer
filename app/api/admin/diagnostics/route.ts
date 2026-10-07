@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentWorkspaceId } from "@/lib/auth";
+import { auth, getCurrentWorkspaceId } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/db/client";
 import { getDMQueue } from "@/lib/queue/client";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
@@ -111,9 +112,12 @@ export async function GET() {
     ageMs: rawWorkerHealth.ageMs,
   };
 
+  const session = await auth();
+
   return NextResponse.json({
     success: true,
     data: {
+      canClearFailed: isAdminEmail(session?.user?.email),
       queueCounts,
       workerHealth,
       webhookFailures,

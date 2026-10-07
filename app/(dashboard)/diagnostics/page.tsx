@@ -6,6 +6,7 @@ import { useLanguage } from "@/components/language-provider";
 import AssistantDiagnostics from "@/components/assistant-diagnostics";
 
 interface DiagnosticsData {
+  canClearFailed?: boolean;
   queueCounts: Record<string, number>;
   workerHealth: {
     healthy: boolean;
@@ -68,6 +69,7 @@ export default function DiagnosticsPage() {
   const { t } = useLanguage();
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
 
   async function refreshDiagnostics() {
     setLoading(true);
@@ -77,6 +79,13 @@ export default function DiagnosticsPage() {
       setData(payload.data);
     }
     setLoading(false);
+  }
+
+  async function clearFailedJobs() {
+    setClearing(true);
+    await fetch("/api/admin/diagnostics/clear-failed", { method: "POST" });
+    setClearing(false);
+    await refreshDiagnostics();
   }
 
   useEffect(() => {
@@ -155,6 +164,18 @@ export default function DiagnosticsPage() {
             <p className="mt-3 text-2xl font-bold text-foreground">
               {data?.queueCounts[key] ?? 0}
             </p>
+            {key === "failed" &&
+              data?.canClearFailed &&
+              (data.queueCounts.failed ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFailedJobs}
+                  disabled={clearing}
+                  className="mt-3 text-xs text-accent hover:underline disabled:opacity-50"
+                >
+                  {clearing ? t.diagnostics.clearingFailed : t.diagnostics.clearFailed}
+                </button>
+              )}
           </div>
         ))}
       </div>

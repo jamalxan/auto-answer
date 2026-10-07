@@ -121,6 +121,8 @@ export const ru = {
     queueActive: "Активные в очереди",
     queueDelayed: "Отложено",
     queueFailed: "Ошибки очереди",
+    clearFailed: "Очистить ошибки очереди",
+    clearingFailed: "Очистка…",
     recentWorkerAlerts: "Последние уведомления воркера",
     noWorkerAlerts: "Уведомлений воркера нет.",
     campaignDmFailures: "Ошибки и пропуски DM кампаний",

@@ -118,6 +118,8 @@ export const en = {
     queueActive: "Queue active",
     queueDelayed: "Queue delayed",
     queueFailed: "Queue failed",
+    clearFailed: "Clear failed jobs",
+    clearingFailed: "Clearing…",
     recentWorkerAlerts: "Recent Worker Alerts",
     noWorkerAlerts: "No worker alerts recorded.",
     campaignDmFailures: "Campaign DM Failures And Skips",

@@ -121,6 +121,8 @@ export const uz = {
     queueActive: "Navbatda faol",
     queueDelayed: "Kechiktirilgan",
     queueFailed: "Navbatda xato",
+    clearFailed: "Failed job'larni tozalash",
+    clearingFailed: "Tozalanmoqda…",
     recentWorkerAlerts: "So'nggi worker ogohlantirishlari",
     noWorkerAlerts: "Worker ogohlantirishlari qayd etilmagan.",
     campaignDmFailures: "Kampaniya DM xatolari va o'tkazib yuborishlar",

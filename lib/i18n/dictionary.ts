@@ -115,6 +115,8 @@ export interface Dictionary {
     queueActive: string;
     queueDelayed: string;
     queueFailed: string;
+    clearFailed: string;
+    clearingFailed: string;
     recentWorkerAlerts: string;
     noWorkerAlerts: string;
     campaignDmFailures: string;
