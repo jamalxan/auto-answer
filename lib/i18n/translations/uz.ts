@@ -88,7 +88,7 @@ export const uz = {
     connectAnother: "Yana akkaunt ulash",
     connectInstagram: "Instagram ulash",
     confirmDisconnect:
-      "Instagramni uzasizmi? Bu akkauntning barcha kampaniyalari, DM jurnali, suhbatlari va lidlari O'CHIRIB YUBORILADI. Faqat tokenni yangilash uchun uzmang — «Qayta ulash» ni bosing.",
+      "Instagramni uzasizmi? Kampaniyalar va ma'lumotlar saqlanadi, lekin qayta ulanmaguncha DM yuborilmaydi va assistent ishlamaydi.",
     team: "Jamoa",
     unknownMember: "Noma'lum a'zo",
     pendingInvites: "Kutilayotgan takliflar",

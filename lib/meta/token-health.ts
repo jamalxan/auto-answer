@@ -84,7 +84,12 @@ export async function checkAccountToken(accountId: string): Promise<TokenCheckRe
   if (!account) return "error";
 
   if (!account.accessToken) {
-    await markTokenBroken(account.id, "No access token stored");
+    // Disconnected by the user (see /api/instagram/disconnect): nothing to
+    // verify, and no point alerting them about something they just did.
+    await prisma.instagramAccount.update({
+      where: { id: account.id },
+      data: { tokenCheckedAt: new Date() },
+    });
     return "broken";
   }
 

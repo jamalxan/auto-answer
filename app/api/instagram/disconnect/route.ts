@@ -25,10 +25,25 @@ export async function POST(request: NextRequest) {
   const instagramAccountId =
     typeof body.instagramAccountId === "string" ? body.instagramAccountId : null;
 
-  await prisma.instagramAccount.deleteMany({
+  // Soft disconnect: keep the account row. Deleting it would cascade away every
+  // campaign, DM log, conversation and lead. Dropping the token stops all
+  // sending/reading; reconnecting later reuses the row (same id) via upsert in
+  // the OAuth callback, so the campaigns come back working.
+  const now = new Date();
+  await prisma.instagramAccount.updateMany({
     where: {
       workspaceId: context.workspaceId,
       ...(instagramAccountId ? { id: instagramAccountId } : {}),
+    },
+    data: {
+      accessToken: "",
+      tokenExpiresAt: null,
+      webhookSubscribed: false,
+      tokenStatus: "BROKEN",
+      tokenCheckedAt: now,
+      tokenLastError: "Disconnected by user",
+      tokenBrokenAt: now,
+      tokenAlertedAt: now,
     },
   });
 
