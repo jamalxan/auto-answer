@@ -3,20 +3,24 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 
-interface Cards {
+export interface LeadCards {
   leads30: number;
   conversionPct: number;
   assistantChats: number;
   undelivered: number;
 }
 
-/** Dashboard cards: leads, phone-capture rate and undelivered leads (red when > 0). */
-export default function LeadStatCards() {
+/**
+ * Dashboard cards: leads, phone-capture rate and undelivered leads (red when > 0).
+ * `initial` comes from the server render; without it the cards load themselves.
+ */
+export default function LeadStatCards({ initial = null }: { initial?: LeadCards | null }) {
   const { t } = useLanguage();
   const D = t.assistant.dashboard;
-  const [cards, setCards] = useState<Cards | null>(null);
+  const [cards, setCards] = useState<LeadCards | null>(initial);
 
   useEffect(() => {
+    if (initial) return;
     let cancelled = false;
     fetch("/api/assistant/overview", { cache: "no-store" })
       .then((r) => r.json())
@@ -27,7 +31,7 @@ export default function LeadStatCards() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initial]);
 
   if (!cards) return null;
 

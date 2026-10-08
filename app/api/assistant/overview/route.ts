@@ -2,6 +2,7 @@ import { jsonOk, requireWorkspace } from "@/lib/api-auth";
 import { prisma } from "@/lib/db/client";
 import { aiConversationLimit } from "@/lib/assistant/profile";
 import { getLlmProvider } from "@/lib/assistant/llm/provider";
+import { getLeadCards } from "@/lib/dashboard/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +21,7 @@ export async function GET() {
   const since7 = new Date(now - 7 * DAY_MS);
 
   const [
-    leadsCount,
-    assistantChats,
-    capturedWithPhone,
-    deadDeliveries,
-    heldDeliveries,
+    cards,
     failedRows,
     integrations,
     llmErrors,
@@ -32,25 +29,7 @@ export async function GET() {
     usage,
     workspace,
   ] = await Promise.all([
-    prisma.lead.count({ where: { workspaceId, isTest: false, createdAt: { gte: since30 } } }),
-    prisma.conversation.count({ where: { workspaceId, botMessageCount: { gt: 0 }, createdAt: { gte: since30 } } }),
-    prisma.lead.count({
-      where: {
-        workspaceId,
-        isTest: false,
-        phoneE164: { not: null },
-        createdAt: { gte: since30 },
-        conversation: { botMessageCount: { gt: 0 } },
-      },
-    }),
-    prisma.leadDelivery.count({ where: { lead: { workspaceId, isTest: false }, status: "DEAD" } }),
-    prisma.leadDelivery.count({
-      where: {
-        lead: { workspaceId, isTest: false },
-        status: { in: ["PENDING", "FAILED"] },
-        integration: { status: "BROKEN" },
-      },
-    }),
+    getLeadCards(workspaceId),
     prisma.leadDelivery.findMany({
       where: { lead: { workspaceId }, status: { in: ["DEAD", "FAILED"] } },
       orderBy: { updatedAt: "desc" },
@@ -83,19 +62,13 @@ export async function GET() {
     }),
   ]);
 
-  const conversionPct = assistantChats > 0 ? Math.round((capturedWithPhone / assistantChats) * 100) : 0;
   const templateUntil =
     workspace?.assistantTemplateOnlyUntil && workspace.assistantTemplateOnlyUntil.getTime() > now
       ? workspace.assistantTemplateOnlyUntil
       : null;
 
   return jsonOk({
-    cards: {
-      leads30: leadsCount,
-      conversionPct,
-      assistantChats,
-      undelivered: deadDeliveries + heldDeliveries,
-    },
+    cards,
     deliveryErrors: failedRows.map((d) => ({
       id: d.id,
       leadId: d.leadId,
