@@ -104,6 +104,7 @@ export function catalogMatch(profile: ProfileSnapshot, text: string): string | n
   const said = words(text);
   if (said.length === 0) return null;
   const names = [...profile.categories.map((c) => c.name), ...profile.products.map((p) => p.name)];
+  const bare = (w: string) => w.replace(/['ʻ‘’]/g, "");
   for (const name of names) {
     const parts = words(name);
     if (parts.length === 0) continue;
@@ -111,7 +112,11 @@ export function catalogMatch(profile: ProfileSnapshot, text: string): string | n
       const stem = part.slice(0, Math.min(part.length, 4));
       return said.some((w) => w.startsWith(stem));
     });
-    if (hit) return name.trim();
+    // "website" for "Web site": the name written as one word.
+    const joined = bare(parts.join(""));
+    const joinedHit =
+      parts.length > 1 && said.some((w) => bare(w).startsWith(joined.slice(0, Math.min(joined.length, 6))));
+    if (hit || joinedHit) return name.trim();
   }
   return null;
 }

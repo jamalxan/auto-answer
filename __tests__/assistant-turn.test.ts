@@ -363,7 +363,7 @@ describe("LLM failures (acceptance #12)", () => {
     let bot = 0;
     let asks = 0;
     let collected: TurnContext["collected"] = {};
-    for (const text of ["Assalomu aleykum menga web site kerak edi", "menga web site kerak edi", "web site"]) {
+    for (const text of ["Assalomu aleykum menga web site kerak edi", "menga website kerak edi", "website"]) {
       const r = await runTurn(
         ctx({ profile: itShop, state, collected, botMessageCount: bot, phoneAskCount: asks, customerText: text, templateOnly: true, llm: null })
       );
@@ -402,6 +402,10 @@ describe("catalogMatch", () => {
     expect(catalogMatch(p, "menga web site kerak")).toBe("Web site");
     expect(catalogMatch(p, "mobil ilova qilib berasizmi")).toBe("Mobil ilovalar");
     expect(catalogMatch(p, "Milan divani bormi")).toBe("Milan");
+  });
+  it("matches a two-word name written as one word", () => {
+    expect(catalogMatch(p, "menga website kerak edi")).toBe("Web site");
+    expect(catalogMatch(p, "Website")).toBe("Web site");
   });
   it("needs every word of the name", () => {
     expect(catalogMatch(p, "mobil telefon")).toBeNull();
