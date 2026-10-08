@@ -25,6 +25,21 @@ const nextConfig: NextConfig = {
   // cross-origin webpack-hmr websocket the tunnel origin needs, which left
   // every client component stuck on its initial render (skeletons forever,
   // no hydration) even though the page itself loaded fine.
+  // Icons and the PWA manifest were served with max-age=0, so every page view
+  // re-requested them across the ~0.3s round trip to the server. A day of
+  // caching (with a week of stale-while-revalidate) is plenty for files that
+  // change only on a rebrand.
+  async headers() {
+    const longCache = [
+      { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+    ];
+    return [
+      { source: "/icon-:size.png", headers: longCache },
+      { source: "/apple-touch-icon.png", headers: longCache },
+      { source: "/manifest.webmanifest", headers: longCache },
+      { source: "/favicon.ico", headers: longCache },
+    ];
+  },
   async redirects() {
     // Old /admin/... links (and the app's own redirects) land on the clean URL.
     return [{ source: "/admin/:path*", has: adminHost, destination: "/:path*", permanent: false }];
