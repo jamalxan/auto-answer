@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { invalidateConversationList } from "@/lib/meta/conversation-cache";
 import { getDMQueue } from "@/lib/queue/client";
 import {
   parseAssistantInbound,
@@ -80,6 +81,11 @@ export async function POST(request: NextRequest) {
       status: "PENDING",
     },
   });
+
+  // Any DM in or out changes the inbox list: drop its short-lived cache now.
+  for (const entry of (payload as { entry?: Array<{ id?: string; messaging?: unknown[] }> }).entry ?? []) {
+    if (entry.id && entry.messaging?.length) await invalidateConversationList(entry.id);
+  }
 
   try {
     const commentEvents = parseCommentEvents(

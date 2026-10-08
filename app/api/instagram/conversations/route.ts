@@ -7,6 +7,7 @@ import {
   MetaApiError,
 } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
+import { cachedConversationList, invalidateConversationList } from "@/lib/meta/conversation-cache";
 import { markOperatorActiveForContact } from "@/lib/assistant/engine";
 
 export interface ConversationListItem {
@@ -48,7 +49,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const accessToken = decryptToken(account.accessToken);
-    const raw = await getConversations(accessToken, account.instagramId);
+    const raw = await cachedConversationList(account.instagramId, () =>
+      getConversations(accessToken, account.instagramId)
+    );
 
     const conversations: ConversationListItem[] = raw.map((c) => {
       const participants = c.participants?.data ?? [];
@@ -148,6 +151,7 @@ export async function POST(request: NextRequest) {
       text,
       result.message_id
     ).catch(() => {});
+    await invalidateConversationList(account.instagramId);
     return NextResponse.json({ success: true, data: result });
   } catch (err) {
     console.error("[Conversations] Send error:", err);
