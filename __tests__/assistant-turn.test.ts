@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LLMProvider, LlmRequest, LlmResponse } from "../lib/assistant/llm/provider";
 import type { ProfileSnapshot } from "../lib/assistant/prompt";
-import { catalogMatch, runTurn, sanitizeName, type TurnContext } from "../lib/assistant/turn";
+import { catalogMatch, runPostHandoffTurn, runTurn, sanitizeName, type TurnContext } from "../lib/assistant/turn";
 
 function profile(overrides: Partial<ProfileSnapshot> = {}): ProfileSnapshot {
   return {
@@ -455,5 +455,28 @@ describe("sanitizeName", () => {
     expect(sanitizeName("12345")).toBeNull();
     expect(sanitizeName(null)).toBeNull();
     expect(sanitizeName("x".repeat(50))).toBeNull();
+  });
+});
+
+describe("runPostHandoffTurn", () => {
+  const base = { profile: profile(), collected: { phone_e164: "+998901234567" }, history: [], lastBotMessage: "Rahmat!", templateOnly: false };
+
+  it("answers the follow-up without asking for contact again", async () => {
+    const llm = fakeLlm({ reply: "Burchakli divanlar bor. To'liqroq ma'lumotni menejerimiz beradi." });
+    const r = await runPostHandoffTurn({ ...base, customerText: "burchaklisi bormi?", llm });
+    expect(r.reply).toBe("Burchakli divanlar bor. To'liqroq ma'lumotni menejerimiz beradi.");
+    expect(r.usedTemplate).toBe(false);
+    expect(llm.calls[0].system).toContain("Raqam yoki ism SO'RAMA");
+    expect(llm.calls[0].system).toContain("menejerimiz beradi");
+  });
+
+  it("uses the manager line when the provider fails or in template-only mode", async () => {
+    const down = await runPostHandoffTurn({ ...base, customerText: "savol", llm: fakeLlm("throw") });
+    expect(down).toMatchObject({ reply: "Menejerimiz tez orada javob beradi.", usedTemplate: true, llmFailed: true });
+
+    const llm = fakeLlm({});
+    const quiet = await runPostHandoffTurn({ ...base, customerText: "savol", llm, templateOnly: true });
+    expect(quiet).toMatchObject({ usedTemplate: true, llmFailed: false });
+    expect(llm.calls).toHaveLength(0);
   });
 });

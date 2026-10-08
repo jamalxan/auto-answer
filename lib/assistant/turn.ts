@@ -164,7 +164,7 @@ interface LlmCall {
 }
 
 async function callLlm(
-  ctx: TurnContext,
+  ctx: Pick<TurnContext, "llm" | "profile" | "customerText" | "history">,
   stage: StageValue,
   nextStep: string
 ): Promise<LlmCall> {
@@ -229,6 +229,85 @@ async function callLlm(
   return { output: null, usages, events, failed: true };
 }
 
+/** Facts the post-filter checks a reply against (prices, owner-written URLs). */
+function filterContextFor(profile: ProfileSnapshot) {
+  return {
+    pricePolicy: profile.pricePolicy,
+    knownPrices: profile.products
+      .filter((p) => p.price !== null)
+      .map((p) => ({ amount: p.price as number, currency: p.currency })),
+    profileText: [
+      profile.description,
+      profile.address ?? "",
+      profile.delivery ?? "",
+      ...profile.faqs.map((f) => `${f.question} ${f.answer}`),
+    ].join(" "),
+  };
+}
+
+/** Replies the bot may still send after the number was taken, per conversation. */
+export const MAX_POST_HANDOFF_REPLIES = 3;
+
+const POST_HANDOFF_STEP =
+  "Mijoz telefon raqamini allaqachon qoldirgan, suhbat menejerga topshirilgan. " +
+  "Raqam yoki ism SO'RAMA. Mijozning yangi xabarini o'qi: savoli bo'lsa, faqat " +
+  "KOMPANIYA MA'LUMOTI asosida 1 gapda qisqa javob ber (bilmasang, o'ylab topma). " +
+  "Javobni har doim to'liqroq ma'lumotni menejerimiz beradi degan mazmun bilan tugat.";
+
+export interface PostHandoffResult {
+  reply: string;
+  usedTemplate: boolean;
+  llmFailed: boolean;
+  unknownQuestion: string | null;
+  usages: TurnUsage[];
+  events: TurnEvent[];
+}
+
+/**
+ * The customer wrote again after leaving their number. Answer what they asked
+ * from the company info and point to the manager for the full details; never
+ * ask for contact again. Falls back to the plain "manager will reply" line.
+ */
+export async function runPostHandoffTurn(
+  ctx: Pick<TurnContext, "profile" | "collected" | "history" | "customerText" | "lastBotMessage" | "templateOnly" | "llm">
+): Promise<PostHandoffResult> {
+  const lang = detectLanguage(ctx.customerText, normalizeLang(ctx.collected.language, "uz_latn"));
+  const fallback = (): string => pickTemplate("after_handoff", { lang });
+
+  if (ctx.templateOnly || !ctx.llm || !ctx.customerText.trim()) {
+    return {
+      reply: fallback(),
+      usedTemplate: true,
+      llmFailed: !ctx.templateOnly && !ctx.llm,
+      unknownQuestion: null,
+      usages: [],
+      events: [],
+    };
+  }
+
+  const call = await callLlm(ctx, "CONTACT", POST_HANDOFF_STEP);
+  const events = [...call.events];
+  if (!call.output) {
+    return { reply: fallback(), usedTemplate: true, llmFailed: call.failed, unknownQuestion: null, usages: call.usages, events };
+  }
+  const verdict = filterReply(call.output.reply, filterContextFor(ctx.profile));
+  if (!verdict.ok || isRepeat(verdict.text, ctx.lastBotMessage)) {
+    events.push({
+      type: "blocked_reply",
+      payload: { reason: verdict.ok ? "repeat" : verdict.reason, reply: call.output.reply.slice(0, 300), postHandoff: true },
+    });
+    return { reply: fallback(), usedTemplate: true, llmFailed: false, unknownQuestion: null, usages: call.usages, events };
+  }
+  return {
+    reply: verdict.text,
+    usedTemplate: false,
+    llmFailed: false,
+    unknownQuestion: call.output.unknown_question ?? null,
+    usages: call.usages,
+    events,
+  };
+}
+
 function defaultSummary(collected: Collected, lang: Lang): string {
   void lang;
   const interest = collected.product_interest ? ` (${collected.product_interest})` : "";
@@ -240,15 +319,7 @@ export async function runTurn(ctx: TurnContext): Promise<TurnResult> {
   const usages: TurnUsage[] = [];
   const lang = detectLanguage(ctx.customerText, normalizeLang(ctx.collected.language, "uz_latn"));
   const collected: TurnResult["collected"] = { ...ctx.collected, language: lang };
-  const knownPrices = ctx.profile.products
-    .filter((p) => p.price !== null)
-    .map((p) => ({ amount: p.price as number, currency: p.currency }));
-  const profileText = [
-    ctx.profile.description,
-    ctx.profile.address ?? "",
-    ctx.profile.delivery ?? "",
-    ...ctx.profile.faqs.map((f) => `${f.question} ${f.answer}`),
-  ].join(" ");
+  const { knownPrices, profileText } = filterContextFor(ctx.profile);
 
   const base = {
     collected,

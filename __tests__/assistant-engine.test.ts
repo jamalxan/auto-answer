@@ -483,18 +483,36 @@ describe("hand-off and restarts", () => {
     expect(enqueueNotify).toHaveBeenCalledTimes(2);
   });
 
-  it("optionally sends one short reply after hand-off", async () => {
+  it("after hand-off answers follow-up questions and points to the manager, at most 3 times", async () => {
     await handedOff();
     db.rows("assistantProfile")[0].postHandoffReply = true;
-    await inbound("yana savol", "m-c");
+    setLlmProviderForTests(
+      llm([{ reply: "Ha, Milan divani bor. To'liqroq ma'lumotni menejerimiz beradi." }])
+    );
+    await inbound("Milan divani bormi?", "m-c");
     expect(scheduleReply).toHaveBeenCalledTimes(1);
     settle();
     await runAssistantReply(conv().id as string);
-    expect(sent()).toHaveLength(1);
-    await inbound("yana", "m-d");
+    expect(sent()).toEqual(["Ha, Milan divani bor. To'liqroq ma'lumotni menejerimiz beradi."]);
+    expect(conv().assistantState).toBe("HANDED_OFF");
+
+    for (const [i, text] of ["yana savol", "yana bittasi", "va oxirgisi"].entries()) {
+      setLlmProviderForTests(llm([{ reply: `Javob ${i}. Batafsilini menejerimiz aytadi.` }]));
+      await inbound(text, `m-d${i}`);
+      settle();
+      await runAssistantReply(conv().id as string);
+    }
+    expect(sent()).toHaveLength(3); // capped
+  });
+
+  it("after hand-off falls back to the plain manager line when the LLM is down", async () => {
+    await handedOff();
+    db.rows("assistantProfile")[0].postHandoffReply = true;
+    setLlmProviderForTests(llm(["throw"]));
+    await inbound("yana savol", "m-c");
     settle();
     await runAssistantReply(conv().id as string);
-    expect(sent()).toHaveLength(1); // only one
+    expect(sent()).toEqual(["Menejerimiz tez orada javob beradi."]);
   });
 
   it("a new conversation starts 30 days later, linked by lead dedup", async () => {

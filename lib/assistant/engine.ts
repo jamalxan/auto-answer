@@ -30,7 +30,6 @@ import {
 } from "@/lib/queue/assistant-queue";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
 import { DEBOUNCE_MS, typingDelayMs } from "./humanize";
-import { detectLanguage } from "./language";
 import { recordKnowledgeGap } from "./knowledge-gaps";
 import { getLlmProvider } from "./llm/provider";
 import {
@@ -41,8 +40,14 @@ import {
   readWorkingHours,
   toSnapshot,
 } from "./profile";
-import { pickTemplate } from "./templates";
-import { runTurn, type ActiveState } from "./turn";
+import {
+  MAX_POST_HANDOFF_REPLIES,
+  runPostHandoffTurn,
+  runTurn,
+  type ActiveState,
+  type TurnEvent,
+  type TurnUsage,
+} from "./turn";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NEW_CONVERSATION_AFTER_MS = 30 * DAY_MS;
@@ -472,15 +477,33 @@ async function replyInner(conversationId: string): Promise<void> {
     return;
   }
 
-  // After a hand-off the only thing we may send is one short polite line.
+  // After a hand-off: answer what the customer still asks (briefly, from the
+  // company info) and point to the manager — a few times at most, so the bot
+  // never turns into a second conversation running beside the operator.
   if (postHandoff) {
-    const alreadyAnswered = conversation.messages.some(
+    const answered = conversation.messages.filter(
       (m) => m.author === "ASSISTANT" && m.llmMeta && (m.llmMeta as { postHandoff?: boolean }).postHandoff
-    );
-    if (alreadyAnswered) return;
-    const lang = detectLanguage(pending.map((m) => m.text).join(" "));
-    const reply = pickTemplate("after_handoff", { lang });
-    await deliverReply(conversation, token, reply, { postHandoff: true });
+    ).length;
+    if (answered >= MAX_POST_HANDOFF_REPLIES) return;
+    const handoffChronological = [...conversation.messages].reverse();
+    const handoffLastReply = handoffChronological.map((m) => m.author !== "CUSTOMER").lastIndexOf(true);
+    const handoffEarlier = handoffChronological.slice(0, handoffLastReply + 1);
+    const result = await runPostHandoffTurn({
+      profile: toSnapshot(profileRow),
+      collected: readCollected(conversation.collected),
+      history: handoffEarlier.slice(-12).map((m) => ({
+        role: m.author === "CUSTOMER" ? ("user" as const) : ("assistant" as const),
+        content: m.text,
+      })),
+      customerText: pending.map((m) => m.text).join("\n").replace(/\[rasm\/fayl\]/g, "").trim(),
+      lastBotMessage: [...handoffEarlier].reverse().find((m) => m.author === "ASSISTANT")?.text ?? null,
+      templateOnly: Boolean(
+        workspace.assistantTemplateOnlyUntil && workspace.assistantTemplateOnlyUntil > new Date()
+      ),
+      llm: getLlmProvider(),
+    });
+    await recordTurnBookkeeping(workspace.id, conversationId, result);
+    await deliverReply(conversation, token, result.reply, { postHandoff: true });
     return;
   }
 
@@ -532,28 +555,7 @@ async function replyInner(conversationId: string): Promise<void> {
   });
 
   // Bookkeeping that must survive even if the send below fails.
-  for (const usage of result.usages) {
-    await prisma.llmUsage
-      .create({
-        data: {
-          workspaceId: workspace.id,
-          conversationId,
-          model: usage.model,
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          costUsd: usage.costUsd,
-          latencyMs: usage.latencyMs,
-          ok: usage.ok,
-        },
-      })
-      .catch(() => {});
-  }
-  for (const event of result.events) {
-    await logEvent(workspace.id, conversationId, event.type, event.payload);
-  }
-  if (result.llmFailed) await registerLlmFailure(workspace.id, conversationId);
-  else if (result.usages.some((u) => u.ok)) await registerLlmSuccess(workspace.id);
-  if (result.unknownQuestion) await recordKnowledgeGap(workspace.id, result.unknownQuestion);
+  await recordTurnBookkeeping(workspace.id, conversationId, result);
 
   // A newer customer message arrived while the model was thinking: drop this
   // turn (nothing persisted yet) and answer everything together.
@@ -612,6 +614,36 @@ async function replyInner(conversationId: string): Promise<void> {
 }
 
 /** Send via Instagram and store it. Returns false when Meta refused the message. */
+/** LLM usage rows, assistant events, the failure breaker and knowledge gaps of one turn. */
+async function recordTurnBookkeeping(
+  workspaceId: string,
+  conversationId: string,
+  result: { usages: TurnUsage[]; events: TurnEvent[]; llmFailed: boolean; unknownQuestion: string | null }
+): Promise<void> {
+  for (const usage of result.usages) {
+    await prisma.llmUsage
+      .create({
+        data: {
+          workspaceId,
+          conversationId,
+          model: usage.model,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          costUsd: usage.costUsd,
+          latencyMs: usage.latencyMs,
+          ok: usage.ok,
+        },
+      })
+      .catch(() => {});
+  }
+  for (const event of result.events) {
+    await logEvent(workspaceId, conversationId, event.type, event.payload);
+  }
+  if (result.llmFailed) await registerLlmFailure(workspaceId, conversationId);
+  else if (result.usages.some((u) => u.ok)) await registerLlmSuccess(workspaceId);
+  if (result.unknownQuestion) await recordKnowledgeGap(workspaceId, result.unknownQuestion);
+}
+
 async function deliverReply(
   conversation: Conversation & { workspace: { id: string }; instagramAccount: InstagramAccount },
   token: string,
