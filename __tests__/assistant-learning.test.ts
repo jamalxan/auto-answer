@@ -98,6 +98,13 @@ describe("distillStyle", () => {
     expect(llm.calls[0].messages[0].content).toContain("Menejer: Odatda 2 haftada");
   });
 
+  it("tells the model what the business is and to skip personal chats", async () => {
+    const llm = fakeLlm({ style_rules: ["Qisqa yozadi"], examples: [] });
+    await distillStyle(exchanges, llm, { companyName: "Promtchi", description: "IT xizmatlar" });
+    expect(llm.calls[0].system).toContain("Kompaniya: Promtchi. IT xizmatlar");
+    expect(llm.calls[0].system).toContain("shaxsiy yozishmalar");
+  });
+
   it("accepts the answer as a JSON string in a code fence", async () => {
     const llm = fakeLlm('```json\n{"style_rules":["Qisqa va samimiy yozadi"],"examples":[]}\n```');
     expect((await distillStyle(exchanges, llm)).rules).toEqual(["Qisqa va samimiy yozadi"]);
