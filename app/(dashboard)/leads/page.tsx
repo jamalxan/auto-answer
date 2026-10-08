@@ -12,6 +12,7 @@ import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { Badge, Button, Notice, inputClass } from "@/components/assistant-ui";
 import { useLanguage } from "@/components/language-provider";
 import { formatShortMonthDayTime } from "@/lib/i18n/format-date";
+import { readCache, writeCache } from "@/lib/client-cache";
 
 interface DeliveryBadge {
   id: string;
@@ -59,6 +60,15 @@ interface LeadDetail extends Omit<LeadRow, "deliveries"> {
     nextAttemptAt: string | null;
   }>;
 }
+
+interface LeadsPayload {
+  leads: LeadRow[];
+  total: number;
+  pageSize: number;
+  canManage: boolean;
+}
+
+const LIST_CACHE_MS = 60_000;
 
 const DELIVERY_TONE = {
   SENT: "success",
@@ -117,25 +127,35 @@ export default function LeadsPage() {
     return params;
   }, [status, source, account, from, to, debouncedQuery]);
 
+  const apply = useCallback((data: LeadsPayload) => {
+    setLeads(data.leads);
+    setTotal(data.total);
+    setPageSize(data.pageSize);
+    setCanManage(data.canManage);
+    setLoading(false);
+  }, []);
+
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
+    const params = filterParams();
+    params.set("page", String(page));
+    // Show the last copy of this exact view at once, then refresh it.
+    const cacheKey = `leads:${params}`;
+    const cached = readCache<LeadsPayload>(cacheKey, LIST_CACHE_MS);
+    if (cached.data) apply(cached.data);
+    else setLoading(true);
     try {
-      const params = filterParams();
-      params.set("page", String(page));
       const res = await fetch(`/api/leads?${params}`, { cache: "no-store" });
       const payload = await res.json();
       if (!payload.success) throw new Error(payload.error);
-      setLeads(payload.data.leads);
-      setTotal(payload.data.total);
-      setPageSize(payload.data.pageSize);
-      setCanManage(payload.data.canManage);
+      apply(payload.data);
+      writeCache(cacheKey, payload.data);
     } catch {
       setError(t.assistant.common.loadError);
     } finally {
       setLoading(false);
     }
-  }, [filterParams, page, t]);
+  }, [filterParams, page, t, apply]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);

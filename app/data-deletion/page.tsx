@@ -10,12 +10,26 @@ export const metadata: Metadata = {
   alternates: { canonical: "/data-deletion" },
 };
 
-export default async function DataDeletionPage() {
+export default async function DataDeletionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
   const locale = await getServerLocale();
   const t = dictionaries[locale].legal.dataDeletion;
+  // Meta sends users here with the confirmation code of their request.
+  const raw = (await searchParams).code;
+  const code = typeof raw === "string" && /^[A-F0-9]{16}$/.test(raw) ? raw : null;
 
   return (
     <LegalShell title={t.title} description={t.description} updatedAt="May 24, 2026">
+      {code && (
+        <section className="rounded-xl border border-accent/30 bg-accent/10 p-5">
+          <h2 className="text-xl font-bold text-white">{t.requestTitle}</h2>
+          <p className="mt-3">{t.requestBody(code)}</p>
+        </section>
+      )}
+
       <section>
         <h2 className="text-xl font-bold text-white">{t.disconnectTitle}</h2>
         <p className="mt-3">{t.disconnectBody}</p>

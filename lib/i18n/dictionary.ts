@@ -498,6 +498,8 @@ export interface Dictionary {
       deleteWorkspaceBody: string;
       verificationTitle: string;
       verificationBody: string;
+      requestTitle: string;
+      requestBody: (code: string) => string;
     };
   };
   instagramNotice: {

@@ -539,6 +539,8 @@ export const en = {
       verificationTitle: "Verification",
       verificationBody:
         "We may ask you to verify control of the email address or connected business account before deleting data. Deletion requests are processed as quickly as practical unless retention is required for legal, billing, fraud prevention, or security reasons.",
+      requestTitle: "Status of your deletion request",
+      requestBody: (code) => `Your data deletion request sent through Instagram was received and completed: the Instagram connection was removed and DM conversations and follower history were deleted. Confirmation code: ${code}. If you have questions, contact support and quote this code.`,
     },
   },
   instagramNotice: {

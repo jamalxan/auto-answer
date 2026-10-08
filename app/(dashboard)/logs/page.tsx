@@ -11,6 +11,9 @@ import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatusBadge from "@/components/status-badge";
 import { useLanguage } from "@/components/language-provider";
 import { formatShortMonthDayTime } from "@/lib/i18n/format-date";
+import { readCache, writeCache } from "@/lib/client-cache";
+
+const LIST_CACHE_MS = 60_000;
 
 interface DmLog {
   id: string;
@@ -59,11 +62,21 @@ export default function LogsPage() {
         params.set("instagramAccountId", selectedAccountId);
       }
 
+      // Show the last copy of this exact view at once, then refresh it.
+      const cacheKey = `logs:${params}`;
+      const cached = readCache<{ logs: DmLog[]; pagination: Pagination }>(cacheKey, LIST_CACHE_MS);
+      if (cached.data) {
+        setLogs(cached.data.logs);
+        setPagination(cached.data.pagination);
+        setLoading(false);
+      }
+
       const res = await fetch(`/api/logs?${params}`);
       const data = await res.json();
       if (data.success) {
         setLogs(data.data.logs);
         setPagination(data.data.pagination);
+        writeCache(cacheKey, data.data);
       }
     } catch (err) {
       console.error("Failed to fetch logs:", err);
@@ -73,7 +86,8 @@ export default function LogsPage() {
   }, [page, statusFilter, selectedAccountId]);
 
   useEffect(() => {
-    fetch("/api/dashboard/stats")
+    // Only the account list is needed here, not the whole dashboard summary.
+    fetch("/api/instagram/accounts")
       .then((res) => res.json())
       .then((payload) => {
         if (payload.success) setAccounts(payload.data.instagramAccounts ?? []);

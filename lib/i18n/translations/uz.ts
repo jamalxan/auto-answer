@@ -536,6 +536,8 @@ export const uz = {
       verificationTitle: "Tasdiqlash",
       verificationBody:
         "Ma'lumotlarni o'chirishdan oldin biz sizdan email manzili yoki ulangan biznes akkaunt ustidan nazoratni tasdiqlashingizni so'rashimiz mumkin. O'chirish so'rovlari, agar yuridik, to'lov, firibgarlikning oldini olish yoki xavfsizlik sabablari bo'yicha saqlash talab qilinmasa, imkon qadar tezroq ko'rib chiqiladi.",
+      requestTitle: "O'chirish so'rovingiz holati",
+      requestBody: (code) => `Instagram orqali yuborilgan ma'lumotlarni o'chirish so'rovingiz qabul qilindi va bajarildi: Instagram ulanishi uzildi, DM suhbatlari va obunachilar tarixi o'chirildi. Tasdiqlash kodi: ${code}. Savollar bo'lsa, shu kodni ko'rsatib qo'llab-quvvatlash xizmatiga yozing.`,
     },
   },
   instagramNotice: {

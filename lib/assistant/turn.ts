@@ -308,6 +308,13 @@ export async function runPostHandoffTurn(
   };
 }
 
+const QUESTION_WORDS = /(\?|qancha|qanday|qachon|qayerda|necha|narx|bormi|mumkinmi|сколько|какой|когда|где|цена|можно)/i;
+
+/** Whether the customer's message (phone number removed) asks something. */
+export function askedQuestion(text: string, intent: string): boolean {
+  return intent === "price_question" || intent === "product_question" || QUESTION_WORDS.test(text);
+}
+
 function defaultSummary(collected: Collected, lang: Lang): string {
   void lang;
   const interest = collected.product_interest ? ` (${collected.product_interest})` : "";
@@ -360,7 +367,7 @@ export async function runTurn(ctx: TurnContext): Promise<TurnResult> {
   const stage = stageFor(ctx, complaintAlready);
   const lastAsk = stage === "CONTACT" && ctx.phoneAskCount >= 1;
   const nextStep = phone
-    ? "Mijoz telefon raqamini berdi. Faqat ma'lumotlarni ajrat (ism, qiziqish, xulosa); reply'ga qisqa rahmat yoz."
+    ? "Mijoz telefon raqamini berdi. Ma'lumotlarni ajrat (ism, qiziqish, xulosa). Agar shu xabarda savol ham bergan bo'lsa, reply'da unga faqat KOMPANIYA MA'LUMOTI asosida 1 gapda javob ber (bilmasang: menejerimiz aytib beradi). Savol bo'lmasa, reply'ga qisqa rahmat yoz. Raqamni takrorlama."
     : nextStepInstruction({
         stage,
         name: collected.name ?? null,
@@ -397,7 +404,12 @@ export async function runTurn(ctx: TurnContext): Promise<TurnResult> {
   }
   if (out?.extracted.product_interest) collected.product_interest = out.extracted.product_interest;
   else if (mentioned && !collected.product_interest) collected.product_interest = mentioned;
-  if (out?.extracted.extra_field) collected.extra_field = out.extracted.extra_field;
+  // The model sometimes copies the phone number into the owner's extra field
+  // (seen with a "full name" label); a number is never that field's answer.
+  const extraField = out?.extracted.extra_field;
+  if (extraField && !extractPhone(extraField) && (extraField.match(/\d/g)?.length ?? 0) < 7) {
+    collected.extra_field = extraField;
+  }
 
   const wantsOperator = intent === "complaint" || intent === "wants_human";
   if (wantsOperator && intent === "complaint") collected.flag = "complaint";
@@ -430,12 +442,17 @@ export async function runTurn(ctx: TurnContext): Promise<TurnResult> {
     collected.phone_e164 = phone.e164;
     collected.phone_raw = phone.raw;
     if (!collected.name && ctx.igName) collected.name = sanitizeName(ctx.igName);
-    const reply = renderFinalMessage({
+    const finalMessage = renderFinalMessage({
       lang,
       name: collected.name ?? null,
       phoneE164: phone.e164,
       template: ctx.profile.finalMessageTemplate,
     });
+    // A question asked together with the number ("raqamim …, narxi qancha?")
+    // used to get only the closing line; answer it first when the model did.
+    const answer = out && askedQuestion(stripPhone(ctx.customerText), intent) ? out.reply : null;
+    const verdict = answer ? filterReply(answer, filterContextFor(ctx.profile)) : null;
+    const reply = verdict?.ok ? `${verdict.text}\n${finalMessage}` : finalMessage;
     return {
       ...base,
       reply,

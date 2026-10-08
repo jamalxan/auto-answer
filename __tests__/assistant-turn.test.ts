@@ -30,6 +30,7 @@ type Scripted = Partial<{
   intent: string;
   summary: string | null;
   unknown_question: string | null;
+  extra_field: string | null;
 }>;
 
 function fakeLlm(script: Scripted | Scripted[] | "throw" | "bad-json"): LLMProvider & { calls: LlmRequest[] } {
@@ -51,7 +52,7 @@ function fakeLlm(script: Scripted | Scripted[] | "throw" | "bad-json"): LLMProvi
               extracted: {
                 name: step.name ?? null,
                 product_interest: step.product_interest ?? null,
-                extra_field: null,
+                extra_field: step.extra_field ?? null,
               },
               intent: step.intent ?? "other",
               language: "uz_latn",
@@ -478,5 +479,54 @@ describe("runPostHandoffTurn", () => {
     const quiet = await runPostHandoffTurn({ ...base, customerText: "savol", llm, templateOnly: true });
     expect(quiet).toMatchObject({ usedTemplate: true, llmFailed: false });
     expect(llm.calls).toHaveLength(0);
+  });
+});
+
+describe("extra field", () => {
+  it("keeps a real answer but never a phone number", async () => {
+    const withName = await runTurn(ctx({ llm: fakeLlm({ extra_field: "Jamolxon Yo'ldashaliyev" }) }));
+    expect(withName.collected.extra_field).toBe("Jamolxon Yo'ldashaliyev");
+
+    for (const value of ["931606706", "+998 93 160 67 06"]) {
+      const r = await runTurn(ctx({ llm: fakeLlm({ extra_field: value }) }));
+      expect(r.collected.extra_field).toBeUndefined();
+    }
+  });
+});
+
+describe("number sent together with a question", () => {
+  const contact = { state: "CONTACT" as const, botMessageCount: 2, phoneAskCount: 1 };
+
+  it("answers the question before the closing line", async () => {
+    const r = await runTurn(
+      ctx({
+        ...contact,
+        customerText: "Ali, 901234567. Yetkazib berish bormi?",
+        llm: fakeLlm({ name: "Ali", intent: "gives_contact", reply: "Ha, Toshkent bo'ylab yetkazib beramiz." }),
+      })
+    );
+    expect(r.state).toBe("HANDED_OFF");
+    expect(r.reply).toMatch(/^Ha, Toshkent bo'ylab yetkazib beramiz\.\n/);
+    expect(r.reply).toContain("+998 90 123 45 67");
+  });
+
+  it("sends only the closing line when nothing was asked", async () => {
+    const r = await runTurn(
+      ctx({ ...contact, customerText: "Ali 901234567", llm: fakeLlm({ name: "Ali", intent: "gives_contact", reply: "Rahmat!" }) })
+    );
+    expect(r.reply).not.toContain("Rahmat!\n");
+    expect(r.reply).toContain("+998 90 123 45 67");
+  });
+
+  it("drops an answer that breaks the price rule", async () => {
+    const r = await runTurn(
+      ctx({
+        ...contact,
+        customerText: "901234567 narxi qancha?",
+        llm: fakeLlm({ intent: "price_question", reply: "Narxi 5 000 000 so'm." }),
+      })
+    );
+    expect(r.reply).not.toContain("5 000 000");
+    expect(r.reply).toContain("+998 90 123 45 67");
   });
 });
