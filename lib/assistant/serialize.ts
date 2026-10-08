@@ -1,3 +1,4 @@
+import { readLearnedExamples } from "@/lib/assistant/learning";
 import { findProfile } from "@/lib/assistant/profile";
 import { findInstructionLikeFields } from "@/lib/assistant/profile-write";
 import { MAX_PROFILE_CHARS, profileCharCount } from "@/lib/assistant/prompt";
@@ -38,6 +39,11 @@ export function serializeProfile(profile: LoadedProfile) {
     paymentMethods: profile.paymentMethods,
     categories,
     priceReminderEnabled: profile.priceReminderEnabled,
+    learningEnabled: profile.learningEnabled,
+    learnedStyle: profile.learnedStyle,
+    learnedExamples: readLearnedExamples(profile.learnedExamples),
+    learnedAt: profile.learnedAt,
+    learnedDialogues: profile.learnedDialogues,
     source: profile.source,
     updatedAt: profile.updatedAt,
     products: profile.products.map((p) => ({

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import type { ProfileSnapshot } from "./prompt";
+import { readLearnedExamples } from "./learning";
 
 export interface WorkingHours {
   /** Free text shown to the model and to customers: "Du–Sha 9:00–18:00". */
@@ -87,6 +88,10 @@ export function toSnapshot(profile: LoadedProfile): ProfileSnapshot {
       unit: p.unit,
     })),
     finalMessageTemplate: profile.finalMessageTemplate,
+    learned:
+      profile.learningEnabled && profile.learnedStyle
+        ? { style: profile.learnedStyle, examples: readLearnedExamples(profile.learnedExamples) }
+        : null,
   };
 }
 

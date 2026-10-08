@@ -91,6 +91,11 @@ interface ServerProfile {
   charCount: number;
   charLimit: number;
   instructionWarnings: string[];
+  learningEnabled: boolean;
+  learnedStyle: string | null;
+  learnedExamples: Array<{ customer: string; reply: string }>;
+  learnedAt: string | null;
+  learnedDialogues: number;
 }
 
 interface Gap {
@@ -187,7 +192,7 @@ async function api<T = unknown>(method: string, url: string, body?: unknown) {
   }
 }
 
-type Step = "autofill" | "edit" | "test";
+type Step = "autofill" | "edit" | "test" | "learn";
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
@@ -395,7 +400,7 @@ export default function AssistantPage() {
       </section>
 
       <div className="flex gap-2 overflow-x-auto" role="tablist">
-        {(["autofill", "edit", "test"] as Step[]).map((s) => (
+        {(["autofill", "edit", "test", "learn"] as Step[]).map((s) => (
           <button
             key={s}
             type="button"
@@ -457,6 +462,16 @@ export default function AssistantPage() {
           hasProfile={Boolean(profile?.companyName)}
           dirty={dirty}
           onSave={save}
+        />
+      )}
+
+      {step === "learn" && (
+        <LearningStep
+          key={`${profile?.id ?? "none"}:${profile?.updatedAt ?? ""}`}
+          accountId={instagramAccountId}
+          profile={profile}
+          disabled={disabled}
+          onProfile={setProfile}
         />
       )}
 
@@ -930,6 +945,156 @@ function SandboxStep({
       </div>
       {lead !== null && <Notice tone="success">{S.leadCreated(lead)}</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
+    </Section>
+  );
+}
+
+// ─── Step 4: learn from managers ───────────────────────────────────────────────
+
+function LearningStep({
+  accountId,
+  profile,
+  disabled,
+  onProfile,
+}: {
+  accountId: string | null;
+  profile: ServerProfile | null;
+  disabled: boolean;
+  onProfile: (profile: ServerProfile) => void;
+}) {
+  const { t, locale } = useLanguage();
+  const L = t.assistant.assistant.learning;
+  const C = t.assistant.common;
+  const [style, setStyle] = useState(profile?.learnedStyle ?? "");
+  const [examples, setExamples] = useState(profile?.learnedExamples ?? []);
+  const [busy, setBusy] = useState<"toggle" | "learn" | "save" | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(null);
+  const dirty =
+    style !== (profile?.learnedStyle ?? "") ||
+    JSON.stringify(examples) !== JSON.stringify(profile?.learnedExamples ?? []);
+  const locked = disabled || !profile?.companyName;
+
+  async function put(body: Record<string, unknown>): Promise<boolean> {
+    const result = await api<{ profile: ServerProfile }>("PUT", "/api/assistant/profile", {
+      instagramAccountId: accountId,
+      ...body,
+    });
+    if (!result.ok) {
+      setNotice({ tone: "error", text: t.assistant.assistant.errors.save });
+      return false;
+    }
+    onProfile(result.data.profile);
+    return true;
+  }
+
+  async function toggle() {
+    setBusy("toggle");
+    setNotice(null);
+    await put({ learningEnabled: !profile?.learningEnabled });
+    setBusy(null);
+  }
+
+  async function learnNow() {
+    setBusy("learn");
+    setNotice(null);
+    const result = await api<
+      | { status: "learned"; dialogues: number; rules: number; examples: number }
+      | { status: "not_enough"; dialogues: number }
+    >("POST", "/api/assistant/learning", { instagramAccountId: accountId });
+    if (!result.ok) {
+      setBusy(null);
+      setNotice({ tone: "error", text: result.code === "no_llm" ? L.noLlm : L.failed });
+      return;
+    }
+    if (result.data.status === "not_enough") {
+      setBusy(null);
+      setNotice({ tone: "warning", text: L.notEnough(result.data.dialogues) });
+      return;
+    }
+    const { dialogues, rules, examples: count } = result.data;
+    // Reload so the learned style and its timestamp show up.
+    const fresh = await api<{ profile: ServerProfile | null }>(
+      "GET",
+      `/api/assistant/profile${accountId ? `?instagramAccountId=${accountId}` : ""}`
+    );
+    setBusy(null);
+    if (fresh.ok && fresh.data.profile) onProfile(fresh.data.profile);
+    setNotice({ tone: "success", text: L.learned(dialogues, rules, count) });
+  }
+
+  async function saveLearned() {
+    setBusy("save");
+    setNotice(null);
+    const ok = await put({ learnedStyle: style.trim() || null, learnedExamples: examples });
+    setBusy(null);
+    if (ok) setNotice({ tone: "success", text: C.saved });
+  }
+
+  return (
+    <Section title={L.title} description={L.help}>
+      <ToggleRow
+        label={L.toggle}
+        help={L.toggleHelp}
+        on={Boolean(profile?.learningEnabled)}
+        onToggle={() => void toggle()}
+        disabled={locked || busy !== null}
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled={locked || busy !== null} onClick={() => void learnNow()}>
+          {busy === "learn" ? L.learning : L.learnNow}
+        </Button>
+        <span className="text-xs text-muted">
+          {profile?.learnedAt
+            ? L.lastLearned(formatShortMonthDayTime(new Date(profile.learnedAt), locale), profile.learnedDialogues)
+            : L.never}
+        </span>
+      </div>
+      {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+      {profile?.learnedStyle && !profile.learningEnabled && <Notice tone="warning">{L.offNotice}</Notice>}
+
+      {(profile?.learnedStyle || examples.length > 0) && (
+        <>
+          <Field label={L.styleTitle} help={L.styleHelp}>
+            <textarea
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              rows={Math.min(12, Math.max(4, style.split("\n").length + 1))}
+              maxLength={2500}
+              className={`${inputClass} resize-y`}
+              disabled={locked}
+            />
+          </Field>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">{L.examplesTitle}</p>
+            <p className="text-xs text-muted">{L.examplesHelp}</p>
+            {examples.length === 0 && <p className="text-sm text-muted">{L.noExamples}</p>}
+            {examples.map((example, index) => (
+              <div key={`${index}:${example.reply.slice(0, 20)}`} className="rounded-lg border border-border p-3 text-sm">
+                <p className="text-muted">
+                  <span className="font-medium text-foreground">{L.customer}:</span> {example.customer}
+                </p>
+                <p className="mt-1 text-foreground">
+                  <span className="font-medium text-accent">{L.manager}:</span> {example.reply}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setExamples((prev) => prev.filter((_, i) => i !== index))}
+                  disabled={locked}
+                  className="mt-2 text-xs text-muted hover:text-error"
+                >
+                  {L.remove}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button disabled={locked || busy !== null || !dirty} onClick={() => void saveLearned()}>
+              {busy === "save" ? C.saving : C.save}
+            </Button>
+            {dirty && <span className="text-xs text-warning">●</span>}
+          </div>
+        </>
+      )}
     </Section>
   );
 }

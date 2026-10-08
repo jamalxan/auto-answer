@@ -46,7 +46,7 @@ export interface AssistantDictionary {
     fromTelegram: (date: string) => string;
     accountScope: string;
     allAccounts: string;
-    steps: { autofill: string; edit: string; test: string };
+    steps: { autofill: string; edit: string; test: string; learn: string };
     autofill: {
       title: string;
       help: string;
@@ -147,6 +147,29 @@ export interface AssistantDictionary {
       ignore: string;
     };
     changes: { title: string; empty: string; panel: string; telegram: string };
+    learning: {
+      title: string;
+      help: string;
+      toggle: string;
+      toggleHelp: string;
+      learnNow: string;
+      learning: string;
+      never: string;
+      lastLearned: (date: string, dialogues: number) => string;
+      learned: (dialogues: number, rules: number, examples: number) => string;
+      notEnough: (dialogues: number) => string;
+      failed: string;
+      noLlm: string;
+      styleTitle: string;
+      styleHelp: string;
+      examplesTitle: string;
+      examplesHelp: string;
+      noExamples: string;
+      customer: string;
+      manager: string;
+      remove: string;
+      offNotice: string;
+    };
     errors: { save: string; approve: string; incomplete: string; notApproved: string };
   };
   leads: {
@@ -351,7 +374,7 @@ export const assistantUz: AssistantDictionary = {
     fromTelegram: (d) => `Telegram orqali to'ldirildi, ${d}`,
     accountScope: "Qaysi akkaunt uchun",
     allAccounts: "Barcha akkauntlar",
-    steps: { autofill: "1. Avto-to'ldirish", edit: "2. Tahrirlash", test: "3. Sinov chati" },
+    steps: { autofill: "1. Avto-to'ldirish", edit: "2. Tahrirlash", test: "3. Sinov chati", learn: "4. Menejerlardan o'rganish" },
     autofill: {
       title: "Qoralama tuzish",
       help: "Instagram bio, oxirgi postlar va (ixtiyoriy) sayt matnidan qoralama profil tuziladi. Siz uni ko'rib chiqib, tahrirlab, tasdiqlaysiz.",
@@ -459,6 +482,29 @@ export const assistantUz: AssistantDictionary = {
       ignore: "E'tiborsiz qoldirish",
     },
     changes: { title: "O'zgarishlar tarixi", empty: "O'zgarishlar yo'q.", panel: "panel", telegram: "Telegram" },
+    learning: {
+      title: "Menejerlardan o'rganish",
+      help: "Assistent menejerlaringiz Instagram'da mijozlarga qanday javob berishini kuzatadi: salomlashish, samimiylik, savollarga javob tartibi. Shundan qisqa uslub qoidalari va namunalar chiqaradi va o'z suhbatlarida qo'llaydi. Telefon raqam, email va havolalar yashiriladi. Qat'iy qoidalar (qisqalik, narx qoidasi, faqat profil faktlari) baribir ustun turadi.",
+      toggle: "Menejerlar uslubini o'rganib, suhbatlarda qo'llash",
+      toggleHelp: "Yoqilganda har kuni yangi menejer javoblaridan qayta o'rganadi.",
+      learnNow: "Hozir o'rganish",
+      learning: "O'rganilmoqda…",
+      never: "Hali o'rganilmagan.",
+      lastLearned: (date, n) => `Oxirgi o'rganish: ${date} · ${n} ta suhbat juftligi`,
+      learned: (n, r, e) => `${n} ta suhbat juftligidan ${r} ta qoida va ${e} ta namuna o'rganildi.`,
+      notEnough: (n) => `O'rganish uchun yetarli menejer javobi topilmadi (${n} ta). Kamida 3 ta «mijoz yozdi — menejer javob berdi» juftligi kerak.`,
+      failed: "O'rganib bo'lmadi. Keyinroq qayta urinib ko'ring.",
+      noLlm: "AI sozlanmagan.",
+      styleTitle: "O'rganilgan uslub",
+      styleHelp: "Har qatorda bitta qoida. Tahrirlashingiz yoki keraksizini o'chirishingiz mumkin.",
+      examplesTitle: "Namunalar",
+      examplesHelp: "Assistent shu javoblarning ohangini oladi, so'zma-so'z ko'chirmaydi.",
+      noExamples: "Namuna yo'q.",
+      customer: "Mijoz",
+      manager: "Menejer",
+      remove: "O'chirish",
+      offNotice: "O'rganish o'chiq: o'rganilgan uslub suhbatlarda ishlatilmaydi.",
+    },
     errors: {
       save: "Saqlab bo'lmadi.",
       approve: "Tasdiqlab bo'lmadi.",
@@ -692,7 +738,7 @@ export const assistantRu: AssistantDictionary = {
     fromTelegram: (d) => `Заполнено через Telegram, ${d}`,
     accountScope: "Для какого аккаунта",
     allAccounts: "Все аккаунты",
-    steps: { autofill: "1. Автозаполнение", edit: "2. Правка", test: "3. Тестовый чат" },
+    steps: { autofill: "1. Автозаполнение", edit: "2. Правка", test: "3. Тестовый чат", learn: "4. Обучение у менеджеров" },
     autofill: {
       title: "Создать черновик",
       help: "Черновик профиля собирается из bio Instagram, последних постов и (по желанию) текста сайта. Вы проверяете, правите и утверждаете.",
@@ -800,6 +846,29 @@ export const assistantRu: AssistantDictionary = {
       ignore: "Игнорировать",
     },
     changes: { title: "История изменений", empty: "Изменений нет.", panel: "панель", telegram: "Telegram" },
+    learning: {
+      title: "Обучение у менеджеров",
+      help: "Ассистент смотрит, как ваши менеджеры отвечают клиентам в Instagram: приветствие, тон, порядок ответов на вопросы. Из этого он составляет короткие правила стиля и примеры и применяет их в своих диалогах. Телефоны, email и ссылки скрываются. Жёсткие правила (краткость, правило цен, только факты из профиля) всё равно главнее.",
+      toggle: "Учиться стилю менеджеров и применять в диалогах",
+      toggleHelp: "Пока включено, каждый день заново учится на новых ответах менеджеров.",
+      learnNow: "Обучить сейчас",
+      learning: "Обучение…",
+      never: "Ещё не обучался.",
+      lastLearned: (date, n) => `Последнее обучение: ${date} · ${n} пар диалога`,
+      learned: (n, r, e) => `Из ${n} пар диалога выучено ${r} правил и ${e} примеров.`,
+      notEnough: (n) => `Недостаточно ответов менеджеров для обучения (${n}). Нужно минимум 3 пары «клиент написал — менеджер ответил».`,
+      failed: "Не удалось обучиться. Попробуйте позже.",
+      noLlm: "ИИ не настроен.",
+      styleTitle: "Выученный стиль",
+      styleHelp: "Одно правило в строке. Можно править или удалить лишнее.",
+      examplesTitle: "Примеры",
+      examplesHelp: "Ассистент перенимает тон этих ответов, а не копирует их дословно.",
+      noExamples: "Примеров нет.",
+      customer: "Клиент",
+      manager: "Менеджер",
+      remove: "Удалить",
+      offNotice: "Обучение выключено: выученный стиль в диалогах не используется.",
+    },
     errors: {
       save: "Не удалось сохранить.",
       approve: "Не удалось утвердить.",
@@ -1033,7 +1102,7 @@ export const assistantEn: AssistantDictionary = {
     fromTelegram: (d) => `Filled in via Telegram, ${d}`,
     accountScope: "For account",
     allAccounts: "All accounts",
-    steps: { autofill: "1. Auto-fill", edit: "2. Edit", test: "3. Test chat" },
+    steps: { autofill: "1. Auto-fill", edit: "2. Edit", test: "3. Test chat", learn: "4. Learn from managers" },
     autofill: {
       title: "Create a draft",
       help: "A draft profile is built from your Instagram bio, recent posts and (optionally) your website. You review, edit and approve it.",
@@ -1141,6 +1210,29 @@ export const assistantEn: AssistantDictionary = {
       ignore: "Ignore",
     },
     changes: { title: "Change history", empty: "No changes.", panel: "panel", telegram: "Telegram" },
+    learning: {
+      title: "Learn from managers",
+      help: "The assistant watches how your managers answer customers on Instagram: greetings, warmth, the order in which they answer. It distils short style rules and examples and applies them in its own conversations. Phone numbers, emails and links are hidden. The hard rules (brevity, price rule, only profile facts) still come first.",
+      toggle: "Learn the managers' style and use it in conversations",
+      toggleHelp: "While on, it re-learns from new manager replies every day.",
+      learnNow: "Learn now",
+      learning: "Learning…",
+      never: "Not learned yet.",
+      lastLearned: (date, n) => `Last learned: ${date} · ${n} conversation pairs`,
+      learned: (n, r, e) => `Learned ${r} rules and ${e} examples from ${n} conversation pairs.`,
+      notEnough: (n) => `Not enough manager replies to learn from (${n}). At least 3 "customer wrote — manager answered" pairs are needed.`,
+      failed: "Learning failed. Try again later.",
+      noLlm: "AI is not configured.",
+      styleTitle: "Learned style",
+      styleHelp: "One rule per line. Edit or delete what you don't want.",
+      examplesTitle: "Examples",
+      examplesHelp: "The assistant picks up the tone of these replies, it does not copy them word for word.",
+      noExamples: "No examples.",
+      customer: "Customer",
+      manager: "Manager",
+      remove: "Remove",
+      offNotice: "Learning is off: the learned style is not used in conversations.",
+    },
     errors: {
       save: "Could not save.",
       approve: "Could not approve.",

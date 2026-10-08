@@ -78,6 +78,12 @@ const bodySchema = z.object({
     .max(30)
     .optional(),
   priceReminderEnabled: z.boolean().optional(),
+  learningEnabled: z.boolean().optional(),
+  learnedStyle: z.string().max(2500).nullable().optional(),
+  learnedExamples: z
+    .array(z.object({ customer: z.string().min(1).max(200), reply: z.string().min(1).max(300) }))
+    .max(8)
+    .optional(),
   products: z.array(productSchema).max(200).optional(),
   faqs: z.array(z.object({ question: z.string().min(1).max(200), answer: z.string().min(1).max(400) })).max(5).optional(),
 });

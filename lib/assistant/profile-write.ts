@@ -33,9 +33,12 @@ export interface ProfileFields {
   categories?: Array<{ name: string; note?: string }>;
   priceReminderEnabled?: boolean;
   languageDefault?: string;
+  learningEnabled?: boolean;
+  learnedStyle?: string | null;
+  learnedExamples?: Array<{ customer: string; reply: string }>;
 }
 
-const JSON_FIELDS = new Set(["workingHours", "branches", "categories"]);
+const JSON_FIELDS = new Set(["workingHours", "branches", "categories", "learnedExamples"]);
 
 function same(a: unknown, b: unknown) {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

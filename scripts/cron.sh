@@ -68,6 +68,8 @@ while true; do
     last_daily="$today"
     call refresh-tokens
     call snapshot-followers
+    # Re-learn how the managers talk from the day's operator replies.
+    call assistant-learning
   fi
 
   # Every 6 hours: verify the Instagram tokens against Meta for real, so a

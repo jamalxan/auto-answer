@@ -788,6 +788,13 @@ model AssistantProfile {
   languageDefault          String        @default("uz_latn")
   priceReminderEnabled     Boolean       @default(true)
   priceReminderSentAt      DateTime?
+  // Learning from operators: style rules and example replies distilled from
+  // how human managers answer, applied to the assistant's own replies.
+  learningEnabled          Boolean       @default(false)
+  learnedStyle             String?
+  learnedExamples          Json          @default("[]")
+  learnedAt                DateTime?
+  learnedDialogues         Int           @default(0)
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt
 
