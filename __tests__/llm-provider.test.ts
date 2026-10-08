@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LlmError, OpenAICompatibleProvider } from "../lib/assistant/llm/provider";
+import { LlmError, OpenAICompatibleProvider, fallbackModelsFromEnv } from "../lib/assistant/llm/provider";
 
 const ok = {
   choices: [{ message: { content: '{"reply":"Salom"}' } }],
@@ -53,5 +53,32 @@ describe("LLM transient-error retries", () => {
     const fetchMock = mockStatuses([401]);
     await expect(provider().complete(request)).rejects.toBeInstanceOf(LlmError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("LLM fallback models", () => {
+  it("moves to the next model when the main one stays overloaded", async () => {
+    vi.useFakeTimers();
+    const fetchMock = mockStatuses([503, 503, 503, 200]);
+    const withFallback = new OpenAICompatibleProvider("key", "main-model", "https://x/v1", ["backup-model"]);
+    const pending = withFallback.complete(request);
+    await vi.advanceTimersByTimeAsync(2000);
+    const result = await pending;
+
+    expect(result.model).toBe("backup-model");
+    const models = fetchMock.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string).model);
+    expect(models).toEqual(["main-model", "main-model", "main-model", "backup-model"]);
+  });
+
+  it("does not switch models for a non-transient error", async () => {
+    const fetchMock = mockStatuses([400]);
+    const withFallback = new OpenAICompatibleProvider("key", "main-model", "https://x/v1", ["backup-model"]);
+    await expect(withFallback.complete(request)).rejects.toMatchObject({ status: 400 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the comma list from the environment", () => {
+    expect(fallbackModelsFromEnv(" a , b,,")).toEqual(["a", "b"]);
+    expect(fallbackModelsFromEnv(undefined)).toEqual([]);
   });
 });

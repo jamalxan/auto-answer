@@ -6,6 +6,8 @@
  *                                              OpenAI-compatible endpoint via LLM_BASE_URL)
  *   LLM_MODEL    = model id (cheap + fast; reply must come back in ~3s)
  *   LLM_API_KEY  = key (falls back to ANTHROPIC_API_KEY / OPENAI_API_KEY)
+ *   LLM_FALLBACK_MODELS = optional comma list (openai only), tried in order
+ *                 when LLM_MODEL is overloaded / rate limited
  */
 
 export interface LlmMessage {
@@ -210,7 +212,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
   constructor(
     private apiKey: string,
     readonly model: string,
-    private baseUrl = "https://api.openai.com/v1"
+    private baseUrl = "https://api.openai.com/v1",
+    /** Tried in order when `model` is still overloaded after its retries. */
+    private fallbackModels: string[] = []
   ) {}
 
   costUsd(i: number, o: number) {
@@ -238,24 +242,36 @@ export class OpenAICompatibleProvider implements LLMProvider {
       }
     });
 
-    const response = await fetchWithTimeout(
-      `${this.baseUrl}/chat/completions`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
-        body: JSON.stringify({
-          model: this.model,
-          temperature: req.temperature ?? 0.4,
-          max_tokens: req.maxTokens ?? 600,
-          messages,
-          response_format: {
-            type: "json_schema",
-            json_schema: { name: req.schemaName, schema: req.schema },
-          },
-        }),
-      },
-      req.timeoutMs ?? 12_000
-    );
+    const send = (model: string) =>
+      fetchWithTimeout(
+        `${this.baseUrl}/chat/completions`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+          body: JSON.stringify({
+            model,
+            temperature: req.temperature ?? 0.4,
+            max_tokens: req.maxTokens ?? 600,
+            messages,
+            response_format: {
+              type: "json_schema",
+              json_schema: { name: req.schemaName, schema: req.schema },
+            },
+          }),
+        },
+        req.timeoutMs ?? 12_000
+      );
+
+    // A hosted model can stay "overloaded" for hours (Gemini 503 UNAVAILABLE);
+    // move on to the next configured model instead of failing every reply.
+    let usedModel = this.model;
+    let response = await send(usedModel);
+    for (const fallback of this.fallbackModels) {
+      if (response.ok || !TRANSIENT_STATUSES.has(response.status)) break;
+      await response.body?.cancel().catch(() => {});
+      usedModel = fallback;
+      response = await send(usedModel);
+    }
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -269,10 +285,18 @@ export class OpenAICompatibleProvider implements LLMProvider {
       json: data.choices?.[0]?.message?.content ?? null,
       inputTokens: data.usage?.prompt_tokens ?? 0,
       outputTokens: data.usage?.completion_tokens ?? 0,
-      model: this.model,
+      model: usedModel,
       latencyMs: Date.now() - started,
     };
   }
+}
+
+/** `LLM_FALLBACK_MODELS=a,b` -> ["a", "b"]. */
+export function fallbackModelsFromEnv(value = process.env.LLM_FALLBACK_MODELS): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
 }
 
 let override: LLMProvider | null | undefined;
@@ -293,7 +317,8 @@ export function getLlmProvider(): LLMProvider | null {
     return new OpenAICompatibleProvider(
       key,
       model ?? "gpt-4o-mini",
-      process.env.LLM_BASE_URL ?? undefined
+      process.env.LLM_BASE_URL ?? undefined,
+      fallbackModelsFromEnv()
     );
   }
 
