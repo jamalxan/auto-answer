@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
+import { cachedJson } from "@/lib/redis-cache";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
 import {
   getAllUserMedia,
@@ -96,6 +97,60 @@ function isVideoLike(media: InstagramMedia): boolean {
   );
 }
 
+const OVERVIEW_CACHE_SECONDS = 10 * 60;
+
+async function loadPosts(accessToken: string, target: number) {
+  const media = await getAllUserMedia(accessToken, target);
+  const truncated = media.length >= MAX_POSTS;
+
+  // Likes and comments come free with basic media fields. Views / reach /
+  // saved / shares require the insights permission, so fetch them per media
+  // (bounded concurrency) and degrade gracefully if the token was granted
+  // before that scope.
+  let insightsAvailable = false;
+  let permissionDenied = false;
+
+  const insights = await mapWithConcurrency(
+    media,
+    INSIGHTS_CONCURRENCY,
+    async (m) => {
+      const metrics = isVideoLike(m)
+        ? ["views", "reach", "saved", "shares", "total_interactions"]
+        : ["reach", "saved", "shares", "total_interactions"];
+      try {
+        const data = await getMediaInsights(accessToken, m.id, metrics);
+        insightsAvailable = true;
+        return data;
+      } catch (err) {
+        if (err instanceof PermissionError) permissionDenied = true;
+        return null;
+      }
+    }
+  );
+
+  const posts: OverviewPost[] = media.map((m, i) => {
+    const ins = insights[i];
+    const likes = m.like_count ?? 0;
+    const comments = m.comments_count ?? 0;
+    return {
+      id: m.id,
+      caption: m.caption?.trim().slice(0, 120) ?? null,
+      permalink: m.permalink ?? null,
+      thumbnailUrl: m.thumbnail_url ?? m.media_url ?? null,
+      mediaType: m.media_product_type ?? m.media_type,
+      timestamp: m.timestamp,
+      views: ins?.views ?? null,
+      reach: ins?.reach ?? null,
+      likes,
+      comments,
+      saved: ins?.saved ?? null,
+      shares: ins?.shares ?? null,
+    };
+  });
+
+  return { posts, truncated, insightsAvailable: insightsAvailable && !permissionDenied };
+}
+
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {
@@ -138,53 +193,13 @@ export async function GET(request: NextRequest) {
       ? MAX_POSTS
       : Math.min(requestedCount as number, MAX_POSTS);
 
-    const media = await getAllUserMedia(accessToken, target);
-    const truncated = media.length >= MAX_POSTS;
-
-    // Likes and comments come free with basic media fields. Views / reach /
-    // saved / shares require the insights permission, so fetch them per media
-    // (bounded concurrency) and degrade gracefully if the token was granted
-    // before that scope.
-    let insightsAvailable = false;
-    let permissionDenied = false;
-
-    const insights = await mapWithConcurrency(
-      media,
-      INSIGHTS_CONCURRENCY,
-      async (m) => {
-        const metrics = isVideoLike(m)
-          ? ["views", "reach", "saved", "shares", "total_interactions"]
-          : ["reach", "saved", "shares", "total_interactions"];
-        try {
-          const data = await getMediaInsights(accessToken, m.id, metrics);
-          insightsAvailable = true;
-          return data;
-        } catch (err) {
-          if (err instanceof PermissionError) permissionDenied = true;
-          return null;
-        }
-      }
+    // Posts and their insights take one Graph call per post; they barely move
+    // within minutes, so they are cached briefly. Followers below stay live.
+    const { posts, truncated, insightsAvailable } = await cachedJson(
+      `ig:overview-posts:${account.id}:${target}`,
+      OVERVIEW_CACHE_SECONDS,
+      () => loadPosts(accessToken, target)
     );
-
-    const posts: OverviewPost[] = media.map((m, i) => {
-      const ins = insights[i];
-      const likes = m.like_count ?? 0;
-      const comments = m.comments_count ?? 0;
-      return {
-        id: m.id,
-        caption: m.caption?.trim().slice(0, 120) ?? null,
-        permalink: m.permalink ?? null,
-        thumbnailUrl: m.thumbnail_url ?? m.media_url ?? null,
-        mediaType: m.media_product_type ?? m.media_type,
-        timestamp: m.timestamp,
-        views: ins?.views ?? null,
-        reach: ins?.reach ?? null,
-        likes,
-        comments,
-        saved: ins?.saved ?? null,
-        shares: ins?.shares ?? null,
-      };
-    });
 
     const totals = posts.reduce(
       (acc, p) => {
@@ -239,7 +254,7 @@ export async function GET(request: NextRequest) {
       accounts,
       requestedCount,
       truncated,
-      insightsAvailable: insightsAvailable && !permissionDenied,
+      insightsAvailable,
       followers,
       followerHistory,
       totals,
