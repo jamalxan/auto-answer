@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = [
   "/assistant",
   "/leads",
   "/integrations",
+  "/dev",
 ];
 
 function hasSessionCookie(request: NextRequest): boolean {
@@ -49,6 +50,7 @@ export const config = {
     "/assistant/:path*",
     "/leads/:path*",
     "/integrations/:path*",
+    "/dev/:path*",
     "/login",
   ],
 };

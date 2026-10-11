@@ -2,12 +2,16 @@ import { createDMWorker } from "@/lib/queue/dm-worker";
 import { createAssistantWorker, runAssistantMaintenance } from "@/lib/queue/assistant-worker";
 import { recordWorkerHeartbeat } from "@/lib/ops/worker-health";
 import { reconcileComments } from "@/lib/polling/comment-reconciler";
+import { isTriggerEngineEnabled } from "@/lib/triggers/config";
+import { createTriggerWorker, runTriggerMaintenance } from "@/lib/triggers/worker";
 import os from "node:os";
 
 const worker = createDMWorker();
 // Lead assistant + CRM deliveries run on their own queue so a slow CRM or LLM
 // can never hold up campaign DMs.
 const assistantWorker = createAssistantWorker();
+// Instagram Trigger Engine (dev): its own queue, off with TRIGGER_ENGINE_DISABLED.
+const triggerWorker = isTriggerEngineEnabled() ? createTriggerWorker() : null;
 const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because
@@ -48,7 +52,10 @@ setTimeout(() => void poll(), 10_000);
 const pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
 
 // Re-queue deliveries that are due but have no live job (Redis flush, crash).
-const maintenanceTimer = setInterval(() => void runAssistantMaintenance(), 60_000);
+const maintenanceTimer = setInterval(() => {
+  void runAssistantMaintenance();
+  if (triggerWorker) void runTriggerMaintenance();
+}, 60_000);
 
 async function shutdown(signal: string) {
   console.log(`[DM Worker] ${signal} received, closing worker`);
@@ -57,6 +64,7 @@ async function shutdown(signal: string) {
   clearInterval(maintenanceTimer);
   await worker.close();
   await assistantWorker.close();
+  await triggerWorker?.close();
   process.exit(0);
 }
 

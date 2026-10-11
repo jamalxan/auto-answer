@@ -35,6 +35,8 @@ interface DashboardShellProps {
   instagramUsername: string | null;
   instagramAccountCount: number;
   isAdmin?: boolean;
+  /** Dev-only Instagram Trigger Engine link (TRIGGER_ENGINE_DEV_EMAILS). */
+  isTriggerDev?: boolean;
   suspendedBanner?: { title: string; body: string } | null;
   tokenBanner?: { title: string; body: string; cta: string } | null;
 }
@@ -45,6 +47,7 @@ export default function DashboardShell({
   instagramUsername,
   instagramAccountCount,
   isAdmin = false,
+  isTriggerDev = false,
   suspendedBanner = null,
   tokenBanner = null,
 }: DashboardShellProps) {
@@ -60,6 +63,7 @@ export default function DashboardShell({
         onClose={() => setSidebarOpen(false)}
         workspaceName={workspaceName}
         isAdmin={isAdmin}
+        isTriggerDev={isTriggerDev}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

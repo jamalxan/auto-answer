@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
 import { isAdminEmail } from "@/lib/admin";
+import { isTriggerDevEmail } from "@/lib/triggers/config";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 
@@ -38,6 +39,7 @@ export default async function DashboardLayout({
       instagramUsername={accounts[0]?.username ?? null}
       instagramAccountCount={accounts.length}
       isAdmin={isAdminEmail(session.user.email)}
+      isTriggerDev={isTriggerDevEmail(session.user.email)}
       tokenBanner={
         brokenAccounts.length > 0
           ? {

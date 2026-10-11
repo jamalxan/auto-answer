@@ -13,6 +13,7 @@ import {
 } from "@/lib/meta/webhook";
 import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { enqueueEcho, enqueueInbound } from "@/lib/queue/assistant-queue";
+import { ingestWebhookPayload } from "@/lib/triggers/ingest";
 import { Prisma } from "@/app/generated/prisma/client";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
@@ -204,6 +205,17 @@ export async function POST(request: NextRequest) {
       console.error(
         "[Webhook] Failed to queue assistant events:",
         assistantError instanceof Error ? assistantError.message : assistantError
+      );
+    }
+
+    // Instagram Trigger Engine (dev). Its own queue and its own try/catch, and
+    // it only records events for accounts that have a trigger campaign.
+    try {
+      await ingestWebhookPayload(payload);
+    } catch (triggerError) {
+      console.error(
+        "[Webhook] Trigger engine ingest failed:",
+        triggerError instanceof Error ? triggerError.message : triggerError
       );
     }
 

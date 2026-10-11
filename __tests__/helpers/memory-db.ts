@@ -43,6 +43,40 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     automation: { model: "automation", fk: "automationId", kind: "one" },
   },
   onboardingSession: {},
+  instagramAccount: {
+    triggerCampaigns: { model: "triggerCampaign", fk: "instagramAccountId", kind: "many" },
+  },
+  instagramEvent: {
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+    contact: { model: "instagramContact", fk: "contactId", kind: "one" },
+    executions: { model: "triggerExecution", fk: "eventId", kind: "many" },
+  },
+  triggerCampaign: {
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+  },
+  triggerExecution: {
+    campaign: { model: "triggerCampaign", fk: "campaignId", kind: "one" },
+    event: { model: "instagramEvent", fk: "eventId", kind: "one" },
+  },
+  instagramContact: {
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+  },
+  triggerConversation: {
+    contact: { model: "instagramContact", fk: "contactId", kind: "one" },
+    messages: { model: "triggerMessage", fk: "conversationId", kind: "many" },
+  },
+};
+
+/**
+ * Compound unique keys of the trigger-engine models. A clash throws an error
+ * with Prisma's P2002 code, which is what that code checks for.
+ */
+const UNIQUE_KEYS: Record<string, string[][]> = {
+  instagramEvent: [["instagramAccountId", "messageId"]],
+  triggerExecution: [["eventId", "campaignId"]],
+  instagramContact: [["instagramAccountId", "igUserId"]],
+  triggerConversation: [["contactId"]],
+  triggerMessage: [["conversationId", "mid"]],
 };
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -76,6 +110,17 @@ const DEFAULTS: Record<string, () => Row> = {
   workspaceMember: () => ({ role: "OWNER" }),
   automation: () => ({ keywords: [], isActive: true, dmTriggerEnabled: false, handoffToAssistant: false }),
   dmLog: () => ({ status: "SENT", matchedKeyword: null }),
+  instagramEvent: () => ({
+    processingStatus: "PENDING", attempts: 0, error: null, errorDetail: null, processingStartedAt: null,
+    processedAt: null, contactId: null, conversationId: null, storyId: null, storyUrl: null, mediaId: null,
+    senderUsername: null, text: "",
+  }),
+  triggerCampaign: () => ({ storyScope: "ALL", storyIds: [], keywords: [], matchingMode: "EVERY", responseType: "SEND_MESSAGE", active: true }),
+  triggerExecution: () => ({
+    status: "PENDING", matchedKeyword: null, sentMessageId: null, attempts: 0, error: null, errorDetail: null,
+    nextRetryAt: null, sentAt: null,
+  }),
+  instagramContact: () => ({ username: null, name: null, interactionCount: 0 }),
 };
 
 let seq = 0;
@@ -204,7 +249,7 @@ export class MemoryDb {
   /** Relations requested through `select` behave like `include`. */
   private selectAsInclude(model: string, select?: Record<string, unknown>): Record<string, unknown> | undefined {
     if (!select) return undefined;
-    const entries = Object.entries(select).filter(([key, value]) => RELATIONS[model]?.[key] && value);
+    const entries = Object.entries(select).filter(([key, value]) => (RELATIONS[model]?.[key] || key === "_count") && value);
     return entries.length ? Object.fromEntries(entries) : undefined;
   }
 
@@ -239,6 +284,13 @@ export class MemoryDb {
         if (name === "lead" && db.rows("lead").some((l) => l.idempotencyKey === flat.idempotencyKey)) throw new Error("Unique constraint failed: idempotencyKey");
         if (name === "conversationMessage" && flat.mid && db.rows(name).some((m) => m.conversationId === flat.conversationId && m.mid === flat.mid)) throw new Error("Unique constraint failed: mid");
         if (name === "leadDelivery" && db.rows(name).some((d) => d.leadId === flat.leadId && d.integrationId === flat.integrationId && (d.kind ?? "new") === (flat.kind ?? "new"))) throw new Error("Unique constraint failed: delivery");
+        for (const key of UNIQUE_KEYS[name] ?? []) {
+          // Postgres lets NULLs repeat in a unique index.
+          if (key.some((k) => flat[k] === null || flat[k] === undefined)) continue;
+          if (db.rows(name).some((r) => key.every((k) => r[k] === flat[k]))) {
+            throw Object.assign(new Error(`Unique constraint failed: ${name}(${key.join(",")})`), { code: "P2002" });
+          }
+        }
         return db.withInclude(name, db.seed(name, flat), include);
       },
       async createMany({ data }: { data: Row[] }) {

@@ -24,7 +24,77 @@ model User {
   workspaceMembers  WorkspaceMember[]
   sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
   telegramUsers     TelegramUser[]
+  wordProgress      UserWordProgress[]
+  gameSessions      GameSession[]
+  worldProgress     WorldProgress?
 }
+
+// ... (rest of the models)
+
+model Word {
+  id            String   @id @default(cuid())
+  term          String
+  translation   String
+  definition    String?
+  audioUrl      String?
+  imageRef      String?
+  difficulty    String   @default("beginner") // beginner, intermediate, advanced, ielts
+  category      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userProgress  UserWordProgress[]
+
+  @@index([difficulty])
+  @@index([category])
+}
+
+model UserWordProgress {
+  id             String   @id @default(cuid())
+  userId         String
+  wordId         String
+  accuracy       Float    @default(0) // 0 to 1
+  lastReviewedAt DateTime?
+  masteryLevel   Int      @default(0) // 0: new, 1: learning, 2: mastered
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word           Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId])
+  @@index([userId])
+}
+
+model GameSession {
+  id             String   @id @default(cuid())
+  userId         String
+  mode           String   // memory, runner, word-lab, boss-battle
+  worldAreaId    String?
+  score          Int      @default(0)
+  xpEarned       Int      @default(0)
+  status         String   @default("in_progress") // ready, in_progress, completed, abandoned
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  summary        Json?    // Final results: { correct: 10, wrong: 2, time: 120 }
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model WorldProgress {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  unlockedAreas  String[] @default(["starting-island"])
+  totalXp        Int      @default(0)
+  currentLevel   Int      @default(1)
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 
 model Account {
   id                String  @id @default(cuid())
@@ -102,6 +172,13 @@ model Workspace {
   assistantEvents    AssistantEvent[]
   telegramLinkCodes  TelegramLinkCode[]
 
+  // Instagram Trigger Engine (dev)
+  instagramEvents      InstagramEvent[]
+  triggerCampaigns     TriggerCampaign[]
+  triggerExecutions    TriggerExecution[]
+  instagramContacts    InstagramContact[]
+  triggerConversations TriggerConversation[]
+
   // Monthly AI-conversation quota (TZ section 13). null = default from
   // lib/assistant/limits. The counter resets with usagePeriodStart.
   aiConversationsLimit      Int?
@@ -177,6 +254,12 @@ model InstagramAccount {
   conversations     Conversation[]
   leads             Lead[]
   assistantProfiles AssistantProfile[]
+
+  // Instagram Trigger Engine (dev)
+  instagramEvents      InstagramEvent[]
+  triggerCampaigns     TriggerCampaign[]
+  instagramContacts    InstagramContact[]
+  triggerConversations TriggerConversation[]
 
   @@index([workspaceId])
 }
@@ -941,4 +1024,216 @@ model AssistantEvent {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, type, createdAt])
+}
+
+// ─── Instagram Trigger Engine (DEV) ────────────────────────────────────────────
+//
+// A shared event pipeline: webhook → normalised InstagramEvent → trigger
+// matching → TriggerExecution (the action). Kept apart from the comment→DM
+// campaigns (Automation / DmLog) and the lead assistant (Conversation) until it
+// is promoted out of dev mode — see lib/triggers/README.md.
+
+enum InstagramEventType {
+  STORY_REPLY
+  STORY_MENTION
+  DIRECT_MESSAGE
+  LIVE_COMMENT
+  // Reserved: not produced by the normaliser until the payload of a story
+  // reaction is confirmed against real webhooks.
+  STORY_REACTION
+  COMMENT
+}
+
+enum InstagramEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  IGNORED
+  RETRYING
+  FAILED
+}
+
+enum TriggerStoryScope {
+  ALL
+  SPECIFIC
+}
+
+enum TriggerMatchMode {
+  EVERY
+  CONTAINS
+  EXACT
+}
+
+enum TriggerResponseType {
+  SEND_MESSAGE
+}
+
+enum TriggerExecutionStatus {
+  PENDING
+  // Set right before the Instagram call. Found again on a re-run it means the
+  // process died mid-send, so the engine stops instead of risking a second DM.
+  SENDING
+  SENT
+  RETRYING
+  FAILED
+  SKIPPED
+}
+
+enum TriggerMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+/// One normalised Instagram event. Unique per account + Meta message/comment
+/// id, which is what makes a redelivered webhook a no-op.
+model InstagramEvent {
+  id                  String               @id @default(cuid())
+  workspaceId         String
+  instagramAccountId  String
+  eventType           InstagramEventType
+  senderId            String
+  senderUsername      String?
+  // Meta's mid (DM / story reply / mention) or the comment id (comments).
+  messageId           String
+  storyId             String?
+  storyUrl            String?
+  mediaId             String?
+  text                String               @default("")
+  timestamp           DateTime
+  rawPayload          Json
+  processingStatus    InstagramEventStatus @default(PENDING)
+  // Short reason shown in the logs (why it was ignored / why it failed).
+  error               String?
+  // Full technical detail behind a failure.
+  errorDetail         String?
+  attempts            Int                  @default(0)
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  contactId           String?
+  conversationId      String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount   @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  contact          InstagramContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  executions       TriggerExecution[]
+
+  @@unique([instagramAccountId, messageId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, eventType, createdAt])
+  @@index([processingStatus, updatedAt])
+}
+
+model TriggerCampaign {
+  id                 String              @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  name               String
+  triggerType        InstagramEventType
+  storyScope         TriggerStoryScope   @default(ALL)
+  storyIds           String[]            @default([])
+  keywords           String[]            @default([])
+  matchingMode       TriggerMatchMode    @default(EVERY)
+  responseType       TriggerResponseType @default(SEND_MESSAGE)
+  responseMessage    String
+  active             Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount   @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  executions       TriggerExecution[]
+
+  @@index([workspaceId])
+  @@index([instagramAccountId, triggerType, active])
+}
+
+/// The action one campaign took for one event. Unique per (event, campaign) so
+/// a retried job can see that the DM already went out.
+model TriggerExecution {
+  id             String                 @id @default(cuid())
+  workspaceId    String
+  eventId        String
+  campaignId     String
+  status         TriggerExecutionStatus @default(PENDING)
+  matchedKeyword String?
+  responseText   String
+  sentMessageId  String?
+  attempts       Int                    @default(0)
+  error          String?
+  errorDetail    String?
+  nextRetryAt    DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  event     InstagramEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  campaign  TriggerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, campaignId])
+  @@index([workspaceId, createdAt])
+  @@index([campaignId, createdAt])
+}
+
+model InstagramContact {
+  id                 String             @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  // Instagram-scoped id of the person.
+  igUserId           String
+  username           String?
+  name               String?
+  // The event type that first brought this person in.
+  source             InstagramEventType
+  firstInteractionAt DateTime
+  lastInteractionAt  DateTime
+  interactionCount   Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount     @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  conversation     TriggerConversation?
+  events           InstagramEvent[]
+
+  @@unique([instagramAccountId, igUserId])
+  @@index([workspaceId, lastInteractionAt])
+}
+
+model TriggerConversation {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  contactId          String   @unique
+  lastMessageAt      DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  contact          InstagramContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages         TriggerMessage[]
+
+  @@index([workspaceId, lastMessageAt])
+}
+
+model TriggerMessage {
+  id             String                  @id @default(cuid())
+  conversationId String
+  direction      TriggerMessageDirection
+  eventType      InstagramEventType?
+  text           String
+  // Instagram message id; unique per conversation so a retry never stores twice.
+  mid            String?
+  storyId        String?
+  eventId        String?
+  executionId    String?
+  createdAt      DateTime                @default(now())
+
+  conversation TriggerConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, mid])
+  @@index([conversationId, createdAt])
 }
