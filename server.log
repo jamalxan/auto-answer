@@ -1,0 +1,15 @@
+⚠ Port 3000 is in use by process 9908, using available port 3001 instead.
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://10.92.128.132:3001
+- Environments: .env
+✓ Ready in 1668ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          9908
+- Dir:          C:\Users\Jamolxon\PycharmProjects\auto-answer
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 9908 /F to stop it.
+[?25h

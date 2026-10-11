@@ -71,8 +71,6 @@ export const viewport: Viewport = {
   themeColor: "#0a0b2e",
   width: "device-width",
   initialScale: 1,
-  // Installed on iOS the app owns the full screen, notch included; the safe
-  // area insets below keep content clear of the system UI.
   viewportFit: "cover",
 };
 
@@ -89,14 +87,7 @@ export default async function RootLayout({
       className={`h-full ${unbounded.variable} ${manrope.variable} ${jetbrainsMono.variable}`}
     >
       <body
-        // overflow-x-hidden: the same reasoning as dashboard-shell.tsx's own
-        // comment — one wide/unbreakable child (a long localized word, a
-        // decorative mockup never designed to shrink below ~440px) is enough
-        // to drag the *entire* page sideways on a phone, and that class of
-        // bug turned up in more than one place on the public pages. Belt and
-        // suspenders on top of the specific min-w-0/break-words fixes.
         className="min-h-full overflow-x-hidden bg-background text-foreground font-sans antialiased"
-        // Clears the home indicator when installed; 0 everywhere else.
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <LanguageProvider initialLocale={locale}>{children}</LanguageProvider>
