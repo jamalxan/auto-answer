@@ -1,10 +1,12 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { DashboardShell } from '@/components/dashboard-shell';
 import { startGameSession, finishGameSession } from '@/app/api/game/actions';
 import { VocabularyAdapter } from '@/lib/game/vocabulary-adapter';
+import { GAME_MODES } from '@/lib/game/types';
 
-// Lazy load the 3D Canvas to avoid bloating the initial bundle
 const GameCanvas = dynamic(() => import('@/components/game/GameCanvas'), {
   ssr: false,
   loading: () => (
@@ -15,36 +17,49 @@ const GameCanvas = dynamic(() => import('@/components/game/GameCanvas'), {
 });
 
 export default function VocabularyWorldPage() {
-  const [gameMode, setGameMode] = useState<'world' | 'memory' | 'runner' | 'word-lab' | 'boss-battle'>('world');
+  const [gameMode, setGameMode] = useState<'world' | keyof typeof GAME_MODES>('world');
   const [prompts, setPrompts] = useState<any[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [score, setScore] = useState<any>(null);
+  const [userProgress, setUserProgress] = useState({ xp: 0, level: 1 });
 
   useEffect(() => {
-    async function initGame() {
-      // In a real app, we'd get userId from auth session
+    async function initUser() {
       const mockUserId = 'user_123';
-      const session = await startGameSession(mockUserId, 'memory');
-      setSessionId(session.id);
-
-      const gamePrompts = await VocabularyAdapter.getPromptsForSession(mockUserId, 'beginner');
-      setPrompts(gamePrompts);
+      // In real app, fetch actual progress from DB
+      setUserProgress({ xp: 1250, level: 1 });
     }
-    initGame();
+    initUser();
   }, []);
+
+  async function handleStartGame(mode: keyof typeof GAME_MODES) {
+    const mockUserId = 'user_123';
+
+    // Check if mode is locked
+    if (userProgress.level < GAME_MODES[mode].minLevel) {
+      alert(`This mode requires level ${GAME_MODES[mode].minLevel}! Keep learning.`);
+      return;
+    }
+
+    const session = await startGameSession(mockUserId, mode);
+    setSessionId(session.id);
+
+    const gamePrompts = await VocabularyAdapter.getPromptsForSession(mockUserId, 'beginner');
+    setPrompts(gamePrompts);
+    setGameMode(mode);
+  }
 
   async function handleGameEnd(results: any) {
     if (!sessionId) return;
 
     const finalResult = await finishGameSession(sessionId, results.correct, results.total, results.time, 'beginner');
     setScore(finalResult.result);
-    setGameMode('world'); // Return to map
+    setGameMode('world');
   }
 
   return (
     <DashboardShell>
       <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden bg-[#0a0b2e]">
-        {/* 3D Canvas Layer */}
         <GameCanvas
           gameMode={gameMode}
           setGameMode={setGameMode}
@@ -52,17 +67,16 @@ export default function VocabularyWorldPage() {
           onGameEnd={handleGameEnd}
         />
 
-        {/* HUD Overlay Layer */}
         <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-6">
           <div className="flex justify-between items-start">
             <div className="panel p-4 backdrop-blur-xl border border-white/10 rounded-2xl">
               <h1 className="font-unbounded text-accent text-xl">Vocably World</h1>
-              <p className="text-foreground/60 text-sm font-manrope">Explorer Level 1</p>
+              <p className="text-foreground/60 text-sm font-manrope">Level {userProgress.level} Explorer</p>
             </div>
 
             <div className="panel p-4 backdrop-blur-xl border border-white/10 rounded-2xl text-right">
               <p className="text-accent font-jetbrains-mono font-bold text-2xl">
-                {score ? `XP +${score.xpEarned}` : 'XP: 1,250'}
+                {score ? `XP +${score.xpEarned}` : `XP: ${userProgress.xp}`}
               </p>
             </div>
           </div>
@@ -86,24 +100,19 @@ export default function VocabularyWorldPage() {
           <div className="flex justify-center items-end gap-4 mb-8">
             {gameMode === 'world' && (
               <div className="flex gap-3 pointer-events-auto">
-                <button
-                  onClick={() => setGameMode('memory')}
-                  className="panel px-6 py-3 bg-accent text-[#0a0b2e] font-unbounded rounded-full hover:bg-accent/80 transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(0,240,181,0.4)]"
-                >
-                  Memory Game
-                </button>
-                <button
-                  onClick={() => setGameMode('runner')}
-                  className="panel px-6 py-3 bg-white/10 text-white font-unbounded rounded-full hover:bg-white/20 transition-all transform hover:scale-105 border border-white/20"
-                >
-                  Word Runner
-                </button>
-                <button
-                  onClick={() => setGameMode('word-lab')}
-                  className="panel px-6 py-3 bg-white/10 text-white font-unbounded rounded-full hover:bg-white/20 transition-all transform hover:scale-105 border border-white/20"
-                >
-                  Word Lab
-                </button>
+                {Object.entries(GAME_MODES).map(([id, config]) => (
+                  <button
+                    key={id}
+                    onClick={() => handleStartGame(id as any)}
+                    className={`panel px-6 py-3 font-unbounded rounded-full transition-all transform hover:scale-105 border ${
+                      userProgress.level >= config.minLevel
+                        ? 'bg-accent text-[#0a0b2e] shadow-[0_0_20px_rgba(0,240,181,0.4)]'
+                        : 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
+                    }`}
+                  >
+                    {config.title} {userProgress.level < config.minLevel && `(Lvl ${config.minLevel})`}
+                  </button>
+                ))}
               </div>
             )}
           </div>
