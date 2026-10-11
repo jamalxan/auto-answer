@@ -15,7 +15,7 @@ const GameCanvas = dynamic(() => import('@/components/game/GameCanvas'), {
 });
 
 export default function VocabularyWorldPage() {
-  const [gameMode, setGameMode] = useState<'world' | 'memory'>('world');
+  const [gameMode, setGameMode] = useState<'world' | 'memory' | 'runner' | 'word-lab' | 'boss-battle'>('world');
   const [prompts, setPrompts] = useState<any[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [score, setScore] = useState<any>(null);
@@ -85,12 +85,26 @@ export default function VocabularyWorldPage() {
 
           <div className="flex justify-center items-end gap-4 mb-8">
             {gameMode === 'world' && (
-              <button
-                onClick={() => setGameMode('memory')}
-                className="pointer-events-auto panel px-6 py-3 bg-accent text-[#0a0b2e] font-unbounded rounded-full hover:bg-accent/80 transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(0,240,181,0.4)]"
-              >
-                Start Memory Game
-              </button>
+              <div className="flex gap-3 pointer-events-auto">
+                <button
+                  onClick={() => setGameMode('memory')}
+                  className="panel px-6 py-3 bg-accent text-[#0a0b2e] font-unbounded rounded-full hover:bg-accent/80 transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(0,240,181,0.4)]"
+                >
+                  Memory Game
+                </button>
+                <button
+                  onClick={() => setGameMode('runner')}
+                  className="panel px-6 py-3 bg-white/10 text-white font-unbounded rounded-full hover:bg-white/20 transition-all transform hover:scale-105 border border-white/20"
+                >
+                  Word Runner
+                </button>
+                <button
+                  onClick={() => setGameMode('word-lab')}
+                  className="panel px-6 py-3 bg-white/10 text-white font-unbounded rounded-full hover:bg-white/20 transition-all transform hover:scale-105 border border-white/20"
+                >
+                  Word Lab
+                </button>
+              </div>
             )}
           </div>
         </div>

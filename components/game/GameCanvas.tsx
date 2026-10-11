@@ -3,7 +3,7 @@
 import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Sky, Stars, PerspectiveCamera, Float, Text } from '@react-three/drei';
-import MemoryGame from './MemoryGame';
+import GameEngine from './GameEngine';
 
 function Island({ onEnterGame }: { onEnterGame: () => void }) {
   return (
@@ -36,8 +36,8 @@ export default function GameCanvas({
   prompts,
   onGameEnd
 }: {
-  gameMode: 'world' | 'memory',
-  setGameMode: (mode: 'world' | 'memory') => void,
+  gameMode: 'world' | 'memory' | 'runner' | 'word-lab' | 'boss-battle',
+  setGameMode: (mode: any) => void,
   prompts: any[],
   onGameEnd: (results: any) => void
 }) {
@@ -62,7 +62,11 @@ export default function GameCanvas({
           {gameMode === 'world' ? (
             <Island onEnterGame={() => setGameMode('memory')} />
           ) : (
-            <MemoryGame prompts={prompts} onGameEnd={onGameEnd} />
+            <GameEngine
+              currentMode={gameMode}
+              prompts={prompts}
+              onGameEnd={onGameEnd}
+            />
           )}
         </Suspense>
       </Canvas>
