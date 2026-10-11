@@ -10,16 +10,22 @@ import { soundManager } from '@/lib/game/sound-manager';
 
 function Card({ position, value, isFlipped, onFlip, color }: any) {
   return (
-    <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1}>
+    <Float speed={3} rotationIntensity={0.2} floatIntensity={0.2}>
       <mesh position={position} onClick={() => {
         soundManager.playEffect('click');
         onFlip();
       }}>
         <RoundedBox args={[1, 1, 0.1]} radius={0.1} smoothness={4}>
-          <meshStandardMaterial color={isFlipped ? '#ffffff' : color} metalness={0.5} roughness={0.2} />
+          <meshStandardMaterial
+            color={isFlipped ? '#ffffff' : color}
+            emissive={isFlipped ? '#ffffff' : color}
+            emissiveIntensity={isFlipped ? 0.5 : 1.2}
+            metalness={0.8}
+            roughness={0.2}
+          />
         </RoundedBox>
         {isFlipped && (
-          <Text position={[0, 0, 0.06]} fontSize={0.3} color="#0a0b2e" anchorX="center" anchorY="middle">
+          <Text position={[0, 0, 0.06]} fontSize={0.3} color="#0a0b2e" anchorX="center" anchorY="middle" fontWeight="bold">
             {value}
           </Text>
         )}
@@ -30,20 +36,29 @@ function Card({ position, value, isFlipped, onFlip, color }: any) {
 
 function RunnerPlayer({ position }: { position: THREE.Vector3 }) {
   return (
-    <mesh position={position}>
-      <sphereGeometry args={[0.4, 32, 32]} />
-      <meshStandardMaterial color="#00f0b5" emissive="#00f0b5" emissiveIntensity={0.5} />
-    </mesh>
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[0.4, 32, 32]} />
+        <meshStandardMaterial color="#00f0b5" emissive="#00f0b5" emissiveIntensity={2} />
+      </mesh>
+      <pointLight color="#00f0b5" intensity={2} distance={5} />
+    </group>
   );
 }
 
-function WordGate({ position, value, isCorrect, onSelect }: any) {
+function WordGate({ position, value, isCorrect, onSelect, distance }: any) {
   return (
     <group position={position}>
       <RoundedBox args={[2, 3, 0.2]} radius={0.1} smoothness={4}>
-        <meshStandardMaterial color={isCorrect ? '#00f0b5' : '#11123c'} transparent opacity={0.8} />
+        <meshStandardMaterial
+          color={isCorrect ? '#00f0b5' : '#11123c'}
+          emissive={isCorrect ? '#00f0b5' : '#444'}
+          emissiveIntensity={isCorrect ? 1.5 : 0.2}
+          transparent
+          opacity={0.8}
+        />
       </RoundedBox>
-      <Text position={[0, 0, 0.11]} fontSize={0.4} color="white" anchorX="center" anchorY="middle">
+      <Text position={[0, 0, 0.11]} fontSize={0.4} color="white" anchorX="center" anchorY="middle" fontWeight="bold">
         {value}
       </Text>
     </group>
@@ -55,7 +70,7 @@ function LabStation({ position, letters, onSelectLetter }: any) {
     <group position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[3, 3, 0.2, 32]} />
-        <meshStandardMaterial color="#11123c" />
+        <meshStandardMaterial color="#11123c" metalness={0.8} roughness={0.2} />
       </mesh>
       {letters.map((l: string, i: number) => (
         <Text
@@ -63,6 +78,8 @@ function LabStation({ position, letters, onSelectLetter }: any) {
           position={[(i-2)*0.8, 0.2, 0]}
           fontSize={0.4}
           color="#00f0b5"
+          emissive="#00f0b5"
+          emissiveIntensity={1}
           onClick={() => {
             soundManager.playEffect('click');
             onSelectLetter(l);
@@ -75,15 +92,19 @@ function LabStation({ position, letters, onSelectLetter }: any) {
   );
 }
 
-function BossModel({ health }: { health: number }) {
+function BossModel({ health, onAttack }: { health: number, onAttack: (isCorrect: boolean) => void }) {
   return (
     <group position={[0, 2, -10]}>
-      <mesh>
-        <octahedronGeometry args={[2, 0]} />
-        <meshStandardMaterial color="#ffb01f" emissive="#ffb01f" emissiveIntensity={0.5} />
+      <mesh onClick={() => onAttack(true)}>
+        <torusKnotGeometry args={[1, 0.3, 128, 32]} />
+        <meshStandardMaterial color="#ffb01f" emissive="#ffb01f" emissiveIntensity={2} metalness={1} roughness={0} />
       </mesh>
-      <Text position={[0, 3, 0]} fontSize={0.5} color="white">
+      <pointLight color="#ffb01f" intensity={5} distance={10} />
+      <Text position={[0, 3, 0]} fontSize={0.5} color="white" fontWeight="bold">
         BOSS HEALTH: {health}%
+      </Text>
+      <Text position={[0, -1, 0]} fontSize={0.3} color="#00f0b5">
+        Click the Core to Attack!
       </Text>
     </group>
   );
@@ -91,7 +112,7 @@ function BossModel({ health }: { health: number }) {
 
 // --- Main Game Logic ---
 
-export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
+export default function GameEngine({ prompts, onGameEnd, currentMode, joystickInput }: any) {
   const [gameState, setGameState] = useState<'intro' | 'playing' | 'result'>('intro');
   const [sessionData, setSessionData] = useState({ correct: 0, wrong: 0, time: 0 });
   const [memoryCards, setMemoryCards] = useState<any[]>([]);
@@ -124,7 +145,26 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
     if (gameState === 'playing') {
       if (currentMode === 'runner') {
         setRunnerPos(prev => prev + 0.05);
-        setRunnerX(prev => prev + 0); // Logic for joystick integrated in page.tsx
+        // Implement actual joystick movement
+        setRunnerX(prev => {
+          const targetX = joystickInput.x * 5; // Scale joystick input to world space
+          const lerpFactor = 0.1;
+          return prev + (targetX - prev) * lerpFactor;
+        });
+
+        // Collision Detection for Word Runner
+        // In a real impl, we'd loop through active gates
+        const runnerPosVector = new THREE.Vector3(runnerX, 0, -runnerPos);
+        const gatePos = new THREE.Vector3(2, 0, -20); // Apple gate
+
+        if (runnerPosVector.distanceTo(gatePos) < 1.5) {
+          handleRunnerSelect('Apple', true);
+        }
+
+        const wrongGatePos = new THREE.Vector3(-2, 0, -20); // Banana gate
+        if (runnerPosVector.distanceTo(wrongGatePos) < 1.5) {
+          handleRunnerSelect('Banana', false);
+        }
       }
     }
   });
@@ -254,7 +294,7 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
 
           {currentMode === 'boss-battle' && (
             <group>
-              <BossModel health={bossHealth} />
+              <BossModel health={bossHealth} onAttack={handleBossAttack} />
             </group>
           )}
         </>

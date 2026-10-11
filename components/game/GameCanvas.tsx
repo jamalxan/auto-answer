@@ -34,12 +34,14 @@ export default function GameCanvas({
   gameMode,
   setGameMode,
   prompts,
-  onGameEnd
+  onGameEnd,
+  joystickInput
 }: {
   gameMode: 'world' | 'memory' | 'runner' | 'word-lab' | 'boss-battle',
   setGameMode: (mode: any) => void,
   prompts: any[],
-  onGameEnd: (results: any) => void
+  onGameEnd: (results: any) => void,
+  joystickInput: { x: number, y: number }
 }) {
   return (
     <div className="h-full w-full bg-[#0a0b2e]">
@@ -66,6 +68,7 @@ export default function GameCanvas({
               currentMode={gameMode}
               prompts={prompts}
               onGameEnd={onGameEnd}
+              joystickInput={joystickInput}
             />
           )}
         </Suspense>
