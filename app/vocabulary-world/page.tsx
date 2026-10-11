@@ -1,11 +1,10 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { DashboardShell } from '@/components/dashboard-shell';
 import { startGameSession, finishGameSession } from '@/app/api/game/actions';
 import { VocabularyAdapter } from '@/lib/game/vocabulary-adapter';
 import { GAME_MODES } from '@/lib/game/types';
+import Joystick from '@/components/game/Joystick';
 
 const GameCanvas = dynamic(() => import('@/components/game/GameCanvas'), {
   ssr: false,
@@ -22,11 +21,11 @@ export default function VocabularyWorldPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [score, setScore] = useState<any>(null);
   const [userProgress, setUserProgress] = useState({ xp: 0, level: 1 });
+  const [joystickState, setJoystickState] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     async function initUser() {
       const mockUserId = 'user_123';
-      // In real app, fetch actual progress from DB
       setUserProgress({ xp: 1250, level: 1 });
     }
     initUser();
@@ -34,16 +33,12 @@ export default function VocabularyWorldPage() {
 
   async function handleStartGame(mode: keyof typeof GAME_MODES) {
     const mockUserId = 'user_123';
-
-    // Check if mode is locked
     if (userProgress.level < GAME_MODES[mode].minLevel) {
       alert(`This mode requires level ${GAME_MODES[mode].minLevel}! Keep learning.`);
       return;
     }
-
     const session = await startGameSession(mockUserId, mode);
     setSessionId(session.id);
-
     const gamePrompts = await VocabularyAdapter.getPromptsForSession(mockUserId, 'beginner');
     setPrompts(gamePrompts);
     setGameMode(mode);
@@ -51,7 +46,6 @@ export default function VocabularyWorldPage() {
 
   async function handleGameEnd(results: any) {
     if (!sessionId) return;
-
     const finalResult = await finishGameSession(sessionId, results.correct, results.total, results.time, 'beginner');
     setScore(finalResult.result);
     setGameMode('world');
@@ -65,6 +59,7 @@ export default function VocabularyWorldPage() {
           setGameMode={setGameMode}
           prompts={prompts}
           onGameEnd={handleGameEnd}
+          joystickInput={joystickState}
         />
 
         <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-6">
@@ -73,7 +68,6 @@ export default function VocabularyWorldPage() {
               <h1 className="font-unbounded text-accent text-xl">Vocably World</h1>
               <p className="text-foreground/60 text-sm font-manrope">Level {userProgress.level} Explorer</p>
             </div>
-
             <div className="panel p-4 backdrop-blur-xl border border-white/10 rounded-2xl text-right">
               <p className="text-accent font-jetbrains-mono font-bold text-2xl">
                 {score ? `XP +${score.xpEarned}` : `XP: ${userProgress.xp}`}
@@ -117,6 +111,15 @@ export default function VocabularyWorldPage() {
             )}
           </div>
         </div>
+
+        {gameMode !== 'world' && (
+          <div className="absolute bottom-10 left-10 pointer-events-auto">
+            <Joystick
+              onMove={(x, y) => setJoystickState({ x, y })}
+              onStop={() => setJoystickState({ x: 0, y: 0 })}
+            />
+          </div>
+        )}
       </div>
     </DashboardShell>
   );

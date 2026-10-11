@@ -4,13 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Float, Text, RoundedBox, PerspectiveCamera, OrbitControls, Sky, Stars } from '@react-three/drei';
 import * as THREE from 'three';
+import { soundManager } from '@/lib/game/sound-manager';
 
 // --- Components ---
 
 function Card({ position, value, isFlipped, onFlip, color }: any) {
   return (
     <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1}>
-      <mesh position={position} onClick={onFlip}>
+      <mesh position={position} onClick={() => {
+        soundManager.playEffect('click');
+        onFlip();
+      }}>
         <RoundedBox args={[1, 1, 0.1]} radius={0.1} smoothness={4}>
           <meshStandardMaterial color={isFlipped ? '#ffffff' : color} metalness={0.5} roughness={0.2} />
         </RoundedBox>
@@ -24,7 +28,7 @@ function Card({ position, value, isFlipped, onFlip, color }: any) {
   );
 }
 
-function RunnerPlayer({ position, targetX }: { position: THREE.Vector3, targetX: number }) {
+function RunnerPlayer({ position }: { position: THREE.Vector3 }) {
   return (
     <mesh position={position}>
       <sphereGeometry args={[0.4, 32, 32]} />
@@ -59,11 +63,28 @@ function LabStation({ position, letters, onSelectLetter }: any) {
           position={[(i-2)*0.8, 0.2, 0]}
           fontSize={0.4}
           color="#00f0b5"
-          onClick={() => onSelectLetter(l)}
+          onClick={() => {
+            soundManager.playEffect('click');
+            onSelectLetter(l);
+          }}
         >
           {l}
         </Text>
       ))}
+    </group>
+  );
+}
+
+function BossModel({ health }: { health: number }) {
+  return (
+    <group position={[0, 2, -10]}>
+      <mesh>
+        <octahedronGeometry args={[2, 0]} />
+        <meshStandardMaterial color="#ffb01f" emissive="#ffb01f" emissiveIntensity={0.5} />
+      </mesh>
+      <Text position={[0, 3, 0]} fontSize={0.5} color="white">
+        BOSS HEALTH: {health}%
+      </Text>
     </group>
   );
 }
@@ -77,9 +98,13 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
   const [flipped, setFlipped] = useState<number[]>([]);
   const [matches, setMatches] = useState<number[]>([]);
   const [runnerPos, setRunnerPos] = useState(0);
-  const [runnerTarget, setRunnerTarget] = useState(0);
+  const [runnerX, setRunnerX] = useState(0);
   const [labWord, setLabWord] = useState('');
   const [labTarget, setLabTarget] = useState('');
+  const [bossHealth, setBossHealth] = useState(100);
+
+  // Joystick input
+  const [joystickInput, setJoystickInput] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (currentMode === 'memory') {
@@ -93,13 +118,19 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
       setLabTarget(prompts[0]?.translation || '');
     } else if (currentMode === 'word-lab') {
       setLabTarget(prompts[0]?.term || '');
+    } else if (currentMode === 'boss-battle') {
+      setBossHealth(100);
     }
   }, [currentMode, prompts]);
 
-  // Runner Movement
   useFrame((state) => {
-    if (currentMode === 'runner' && gameState === 'playing') {
-      setRunnerPos(prev => prev + 0.05);
+    if (gameState === 'playing') {
+      if (currentMode === 'runner') {
+        // Move forward constantly
+        setRunnerPos(prev => prev + 0.05);
+        // Side movement based on joystick
+        setRunnerX(prev => prev + joystickInput.x * 0.1);
+      }
     }
   });
 
@@ -117,8 +148,11 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
                       (memoryCards[f1].value === prompts[Math.floor(f1/2)]?.translation && memoryCards[f2].value === prompts[Math.floor(f2/2)]?.term);
 
       setTimeout(() => {
-        if (isMatch) setMatches([...matches, f1, f2]);
-        else {
+        if (isMatch) {
+          soundManager.playEffect('correct');
+          setMatches([...matches, f1, f2]);
+        } else {
+          soundManager.playEffect('wrong');
           const reset = [...memoryCards];
           reset[f1].isFlipped = false;
           reset[f2].isFlipped = false;
@@ -130,20 +164,38 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
   };
 
   const handleRunnerSelect = (val: string, isCorrect: boolean) => {
-    if (isCorrect) setSessionData(prev => ({ ...prev, correct: prev.correct + 1 }));
-    else setSessionData(prev => ({ ...prev, wrong: prev.wrong + 1 }));
-    setRunnerPos(0); // Reset run
+    if (isCorrect) {
+      soundManager.playEffect('correct');
+      setSessionData(prev => ({ ...prev, correct: prev.correct + 1 }));
+    } else {
+      soundManager.playEffect('wrong');
+      setSessionData(prev => ({ ...prev, wrong: prev.wrong + 1 }));
+    }
+    setRunnerPos(0);
   };
 
   const handleLabSelect = (l: string) => {
     const nextWord = labWord + l;
     setLabWord(nextWord);
     if (nextWord === labTarget) {
+      soundManager.playEffect('correct');
       setSessionData(prev => ({ ...prev, correct: prev.correct + 1 }));
       setLabWord('');
     } else if (nextWord.length >= labTarget.length) {
+      soundManager.playEffect('wrong');
       setSessionData(prev => ({ ...prev, wrong: prev.wrong + 1 }));
       setLabWord('');
+    }
+  };
+
+  const handleBossAttack = (isCorrect: boolean) => {
+    if (isCorrect) {
+      soundManager.playEffect('correct');
+      setBossHealth(prev => Math.max(0, prev - 10));
+      setSessionData(prev => ({ ...prev, correct: prev.correct + 1 }));
+    } else {
+      soundManager.playEffect('wrong');
+      setSessionData(prev => ({ ...prev, wrong: prev.wrong + 1 }));
     }
   };
 
@@ -151,12 +203,23 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
     if (currentMode === 'memory' && matches.length === memoryCards.length && memoryCards.length > 0) {
       onGameEnd({ correct: prompts.length, total: prompts.length, time: 0 });
     }
-  }, [matches, memoryCards]);
+    if (currentMode === 'boss-battle' && bossHealth <= 0) {
+      onGameEnd({ correct: 10, total: 10, time: 0 });
+    }
+  }, [matches, memoryCards, bossHealth, prompts]);
 
   return (
     <group>
       {gameState === 'intro' && (
-        <Text position={[0, 2, 0]} fontSize={0.5} color="#00f0b5" onClick={() => setGameState('playing')}>
+        <Text
+          position={[0, 2, 0]}
+          fontSize={0.5}
+          color="#00f0b5"
+          onClick={() => {
+            setGameState('playing');
+            soundManager.playBackgroundMusic();
+          }}
+        >
           CLICK TO START {currentMode.toUpperCase()}
         </Text>
       )}
@@ -180,7 +243,7 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
 
           {currentMode === 'runner' && (
             <group>
-              <RunnerPlayer position={new THREE.Vector3(0, 0, -runnerPos)} targetX={0} />
+              <RunnerPlayer position={new THREE.Vector3(runnerX, 0, -runnerPos)} />
               <WordGate position={[2, 0, -20]} value="Apple" isCorrect={true} onSelect={() => handleRunnerSelect('Apple', true)} />
               <WordGate position={[-2, 0, -20]} value="Banana" isCorrect={false} onSelect={() => handleRunnerSelect('Banana', false)} />
             </group>
@@ -192,6 +255,12 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
               letters={labTarget.split('')}
               onSelectLetter={handleLabSelect}
             />
+          )}
+
+          {currentMode === 'boss-battle' && (
+            <group>
+              <BossModel health={bossHealth} />
+            </group>
           )}
         </>
       )}
