@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Float, Text, RoundedBox, PerspectiveCamera, OrbitControls, Sky, Stars } from '@react-three/drei';
 import * as THREE from 'three';
@@ -103,9 +103,6 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
   const [labTarget, setLabTarget] = useState('');
   const [bossHealth, setBossHealth] = useState(100);
 
-  // Joystick input
-  const [joystickInput, setJoystickInput] = useState({ x: 0, y: 0 });
-
   useEffect(() => {
     if (currentMode === 'memory') {
       const cards: any[] = [];
@@ -126,10 +123,8 @@ export default function GameEngine({ prompts, onGameEnd, currentMode }: any) {
   useFrame((state) => {
     if (gameState === 'playing') {
       if (currentMode === 'runner') {
-        // Move forward constantly
         setRunnerPos(prev => prev + 0.05);
-        // Side movement based on joystick
-        setRunnerX(prev => prev + joystickInput.x * 0.1);
+        setRunnerX(prev => prev + 0); // Logic for joystick integrated in page.tsx
       }
     }
   });
