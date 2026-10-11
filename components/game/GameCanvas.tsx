@@ -3,11 +3,19 @@
 import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Sky, Stars, PerspectiveCamera, Float, Text } from '@react-three/drei';
+import MemoryGame from './MemoryGame';
 
-function Island() {
+function Island({ onEnterGame }: { onEnterGame: () => void }) {
   return (
     <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
-      <mesh position={[0, -1, 0]} castShadow receiveShadow>
+      <mesh
+        position={[0, -1, 0]}
+        castShadow
+        receiveShadow
+        onClick={onEnterGame}
+        onPointerOver={() => (document.body.style.cursor = 'pointer')}
+        onPointerOut={() => (document.body.style.cursor = 'auto')}
+      >
         <cylinderGeometry args={[3, 3.5, 1, 32]} />
         <meshStandardMaterial color="#11123c" roughness={0.3} metalness={0.8} />
       </mesh>
@@ -15,7 +23,6 @@ function Island() {
         position={[0, 1, 0]}
         fontSize={0.5}
         color="#00f0b5"
-        font="/fonts/unbounded.woff2" // Example path
       >
         Starting Island
       </Text>
@@ -23,7 +30,17 @@ function Island() {
   );
 }
 
-export default function GameCanvas() {
+export default function GameCanvas({
+  gameMode,
+  setGameMode,
+  prompts,
+  onGameEnd
+}: {
+  gameMode: 'world' | 'memory',
+  setGameMode: (mode: 'world' | 'memory') => void,
+  prompts: any[],
+  onGameEnd: (results: any) => void
+}) {
   return (
     <div className="h-full w-full bg-[#0a0b2e]">
       <Canvas shadows>
@@ -42,7 +59,11 @@ export default function GameCanvas() {
         <pointLight position={[10, 10, 10]} intensity={1.5} castShadow />
 
         <Suspense fallback={null}>
-          <Island />
+          {gameMode === 'world' ? (
+            <Island onEnterGame={() => setGameMode('memory')} />
+          ) : (
+            <MemoryGame prompts={prompts} onGameEnd={onGameEnd} />
+          )}
         </Suspense>
       </Canvas>
     </div>
