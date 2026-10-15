@@ -84,6 +84,7 @@ export const QUICK_REPLY_ACTION_TEXT: Record<QuickReplyAction, string> = {
   MESSAGE: "Xabar yuborish",
   LEAD_CAPTURE: "Telefon raqamini so'rash (lead)",
   HANDOFF: "Operatorga o'tkazish",
+  AI: "JavobAI'ga topshirish",
 };
 
 export const FOLLOW_UP_CONDITION_TEXT: Record<FollowUpCondition, string> = {

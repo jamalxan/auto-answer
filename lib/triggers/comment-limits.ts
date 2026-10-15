@@ -51,7 +51,9 @@ export function buttonTemplateTooLong(what: string): string {
 
 export const MATCHING_MODES = ["EVERY", "CONTAINS", "EXACT"] as const;
 export const REPLY_MODES = ["RANDOM", "SEQUENTIAL", "WEIGHTED"] as const;
-export const QUICK_REPLY_ACTIONS = ["MESSAGE", "LEAD_CAPTURE", "HANDOFF"] as const;
+// AI (ETAP 4) hands the thread to JavobAI; on an account that is not LIVE it
+// behaves exactly like HANDOFF.
+export const QUICK_REPLY_ACTIONS = ["MESSAGE", "LEAD_CAPTURE", "HANDOFF", "AI"] as const;
 export const FOLLOW_UP_CONDITIONS = ["ALWAYS", "NO_REPLY", "NO_CLICK"] as const;
 export const EXECUTION_STATUSES = ["PENDING", "SENDING", "SENT", "RETRYING", "FAILED", "SKIPPED"] as const;
 export const FOLLOW_UP_STATUSES = ["SCHEDULED", "SENDING", "SENT", "SKIPPED", "CANCELLED", "FAILED"] as const;

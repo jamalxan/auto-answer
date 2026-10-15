@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db/client";
 import { findProfile } from "@/lib/assistant/profile";
 import { newSandboxState } from "@/lib/assistant/sandbox";
 import { updateProfileFields } from "@/lib/assistant/profile-write";
+import { acceptHandoff, closeHandoff } from "@/lib/javobai/handoff";
 import { getRedisConnection } from "@/lib/queue/client";
 import { buildLeadKeyboard, buildLeadText } from "./lead-message";
 import {
@@ -353,6 +354,38 @@ async function handleAssistantCallback(io: BotIO, tgUserId: string, parts: strin
   await cmdAssistant(io, owner.link.workspaceId, tgUserId, lang);
 }
 
+/**
+ * "Qabul qildim" / "Yopish" under a JavobAI handoff alert. Like the lead
+ * "Bog'lanildi" button, it works in the delivery chat: the chat must be
+ * connected to the conversation's workspace, otherwise nothing changes.
+ */
+async function handleJavobAiCallback(io: BotIO, cb: NonNullable<TgUpdate["callback_query"]>, data: string) {
+  const chatId = cb.message ? String(cb.message.chat.id) : null;
+  if (!chatId || !cb.message) return;
+  const [, action, conversationId] = data.split(":");
+  if (!conversationId || (action !== "take" && action !== "close")) return;
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true, workspaceId: true, igUsername: true, igName: true, igUserId: true },
+  });
+  if (!conversation) return;
+  const chat = await prisma.telegramChat.findFirst({
+    where: { chatId, active: true, integration: { workspaceId: conversation.workspaceId } },
+  });
+  if (!chat) return void (await answerCallbackQuery(cb.id, tr("uz").notLinkedForLead));
+
+  const by = cb.from.username ? `tg:@${cb.from.username}` : `tg:${cb.from.id}`;
+  const who = conversation.igUsername ? `@${conversation.igUsername}` : (conversation.igName ?? conversation.igUserId);
+  if (action === "take") {
+    await acceptHandoff(conversation.id, by);
+    await io.send(chatId, `✅ ${esc(who)} suhbatini ${esc(by.slice(3))} qabul qildi. JavobAI jim turadi; Instagram'da javob bering.`);
+  } else {
+    await closeHandoff(conversation.id, by, true);
+    await io.send(chatId, `✖ ${esc(who)} suhbati yopildi. JavobAI keyingi xabardan davom etadi.`);
+  }
+}
+
 async function handleCallback(io: BotIO, update: TgUpdate) {
   const cb = update.callback_query!;
   const data = cb.data ?? "";
@@ -360,6 +393,8 @@ async function handleCallback(io: BotIO, update: TgUpdate) {
   await answerCallbackQuery(cb.id).catch(() => {});
 
   if (data.startsWith("contacted:")) return handleContacted(io, cb, data.slice("contacted:".length));
+  // JavobAI (ETAP 4) handoff buttons: "jai:take:<conversationId>" / "jai:close:<conversationId>".
+  if (data.startsWith("jai:")) return handleJavobAiCallback(io, cb, data);
   if (cb.message && cb.message.chat.type !== "private") return;
 
   // The welcome message's language buttons work before the account is linked.

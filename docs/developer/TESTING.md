@@ -66,6 +66,31 @@ yodda tuting: Comment 2.0 javob beradigan kommentni production o'tkazib yuboradi
 | T9 | Story'ga reaksiya bosing (❤️) | Loglarda "Reaksiya" qatori, **javob yo'q** — kuzatuv rejimi. Shu qatorni menga yuboring: story reaksiyasini yoqish shu ma'lumotga bog'liq |
 | T10 | Kommentdan boshlangan suhbat (C3) davom etayotganda Direct'da `narx` | Direct trigger jim turadi — ikki bot birdan gapirmaydi |
 
+## ETAP 4 — JavobAI (`/developer/javobai`)
+
+Avval "Akkauntlar" tabida test akkaunt uchun **SHADOW** rejimini yoqing: production
+javob beradi, JavobAI esa o'z javobini "Shadow" tabida yonma-yon ko'rsatadi.
+Bir necha kun kuzatib, keyin **LIVE**ga o'tkazing. `JAVOBAI_DISABLED=1` — hammasini
+production'ga qaytaradi.
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| J1 | "Test" tabida "Scenario B" tugmasi | narx → javob (KB'dan, used facts ko'rinadi) → saralash savoli → telefon → lead 🔥 → handoff |
+| J2 | "Test" tabida "Scenario C" | "menejer bilan gaplashmoqchiman" → handoff, sabab `wants_human` |
+| J3 | Sandbox'da KB'da yo'q narx so'rang ("Mercedes qancha?") | "Bu ma'lumot menda yo'q…", `blockedBy`/unknown ko'rinadi, bilim bo'shlig'i yoziladi; 2-marta → handoff |
+| J4 | SHADOW: mijoz Direct'ga `narxi qancha` yozadi | Production javob beradi; "Shadow" tabida ikkala javob, confidence va score |
+| J5 | LIVE: xuddi shu | JavobAI javob beradi, ostida mahsulot tavsiyasi/savol; production jim |
+| J6 | LIVE: mijoz telefon yozadi | Telegram/CRM'ga lead "🧪 TEST · 🔥 HOT 72" bilan; "Suhbatlar"da lead va score events |
+| J7 | LIVE: mijoz "olaman" deydi | Telefon so'raladi, olgach darhol handoff; Telegram'da "Qabul qildim / Yopish" tugmalari |
+| J8 | Telegram'da "Qabul qildim" | Suhbat OPERATOR_ACTIVE, AI jim; operator yozsa ham AI gapirmaydi |
+| J9 | Telegram'da "Yopish" → mijoz yana yozadi | AI qayta javob beradi, oldingi xulosani eslaydi (MIJOZ HAQIDA) |
+| J10 | "Bilim bazasi"da chegirma yozuvi qo'shing, tasdiqlamang → sandbox'da chegirma so'rang | AI chegirmani aytmaydi; tasdiqlagach aytadi |
+| J11 | Uch tilda: `Narxi qancha?` / `Нархи канча?` / `Сколько стоит?` | Bir xil intent, javob mijoz yozuvida (lotin/kirill/rus) |
+| J12 | Ovozli xabar (uz/ru) | Loglarda "🎤 …" transkript, javob matn bo'yicha; sifatsiz bo'lsa "yozib yuboring" |
+| J13 | Mahsulot rasmi | Katalogdan topsa narx siyosati bo'yicha javob, topmasa savol/handoff |
+| J14 | "Xarajat" tabida byudjet 1$ qo'ying, sandbox'ni ishlating | 50/80/100% Telegram ogohlantirish, 100%da LIVE "AI vaqtincha o'chirilgan" + handoff |
+| J15 | Kommentdan boshlangan suhbat (C7) davomida Direct'da savol | JavobAI jim turadi — trigger oqimi egalik qiladi |
+
 Meta qoidalari (testda shunday bo'lishi kerak, xato emas):
 - Bitta kommentga faqat **bitta** private reply.
 - Private reply komment yozilganidan 7 kun ichida.

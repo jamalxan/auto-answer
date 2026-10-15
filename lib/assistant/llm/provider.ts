@@ -61,12 +61,27 @@ export class LlmError extends Error {
 }
 
 // USD per 1M tokens (input, output). Unknown models use LLM_COST_* env or 0.
+// Gemini: Google's public list prices (standard tier, prompts up to 200k
+// tokens) as known at the time of writing — update when Google changes them.
+// Most specific patterns first: "flash-lite" must win over "flash".
 const PRICES: Array<[RegExp, number, number]> = [
   [/haiku-4-5|haiku/i, 1, 5],
   [/sonnet/i, 3, 15],
   [/opus/i, 5, 25],
   [/gpt-4o-mini|gpt-4\.1-mini|gpt-5-mini/i, 0.15, 0.6],
   [/gpt-4o|gpt-4\.1/i, 2.5, 10],
+  [/gemini-3(?:\.\d+)?-flash-lite/i, 0.25, 1.5],
+  [/gemini-3(?:\.\d+)?-flash/i, 0.5, 3],
+  [/gemini-3(?:\.\d+)?-pro/i, 2, 12],
+  [/gemini-2\.5-flash-lite/i, 0.1, 0.4],
+  [/gemini-2\.5-flash/i, 0.3, 2.5],
+  [/gemini-2\.5-pro/i, 1.25, 10],
+  [/gemini-2\.0-flash-lite/i, 0.075, 0.3],
+  [/gemini-2\.0-flash/i, 0.1, 0.4],
+  // Any other Gemini id: priced like the family it names.
+  [/gemini.*flash-lite/i, 0.1, 0.4],
+  [/gemini.*flash/i, 0.3, 2.5],
+  [/gemini.*pro/i, 1.25, 10],
 ];
 
 /** Per-request timeout. Local models (Ollama) need far more than a hosted API. */
@@ -321,9 +336,18 @@ export function setLlmProviderForTests(provider: LLMProvider | null | undefined)
 }
 
 export function getLlmProvider(): LLMProvider | null {
+  return getLlmProviderFor(process.env.LLM_MODEL);
+}
+
+/**
+ * The same provider (kind, key, base URL, fallback list) for a different
+ * model id — JavobAI routes its turns through JAVOBAI_MODEL / _SMART without
+ * touching production's `getLlmProvider()`. Undefined = the LLM_MODEL default.
+ */
+export function getLlmProviderFor(model?: string): LLMProvider | null {
   if (override !== undefined) return override;
   const kind = (process.env.LLM_PROVIDER ?? "").toLowerCase();
-  const model = process.env.LLM_MODEL;
+  model = model ?? process.env.LLM_MODEL;
 
   if (kind === "openai") {
     const key = process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY;

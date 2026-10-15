@@ -83,7 +83,7 @@ interface WebhookEntry {
       is_deleted?: boolean;
       is_unsupported?: boolean;
       app_id?: string | number;
-      attachments?: Array<{ type?: string }>;
+      attachments?: Array<{ type?: string; payload?: { url?: string } }>;
     };
   }>;
 }
@@ -272,12 +272,26 @@ export function parseReadEvents(payload: WebhookPayload): WebhookReadEvent[] {
   return events;
 }
 
+/** One Meta attachment the customer sent (type + CDN url). */
+export interface WebhookAttachment {
+  /** Meta type: "audio" | "image" | "video" | "file" | "share" | "story_mention" | "ig_reel" | ... */
+  type: string;
+  /** Short-lived CDN url (lookaside.fbsbx.com / scontent-*). Never persisted. */
+  url: string;
+}
+
 export interface WebhookAssistantInbound {
   instagramAccountId: string;
   senderId: string;
   messageId: string;
   text: string;
   hasAttachment: boolean;
+  /**
+   * ETAP 4.3: type + url of every attachment that carries a url. Only present
+   * when at least one exists; production ignores it (`hasAttachment` drives
+   * the "[rasm/fayl]" line exactly as before).
+   */
+  attachments?: WebhookAttachment[];
 }
 
 export interface WebhookEchoEvent {
@@ -286,6 +300,23 @@ export interface WebhookEchoEvent {
   messageId: string;
   text: string;
   appId: string | null;
+}
+
+/**
+ * `message.attachments[]` → `{type, url}` for the entries that have both a
+ * type and a `payload.url` (ETAP 4.3). Pure; never touches the url.
+ */
+export function extractAttachments(
+  raw: Array<{ type?: string; payload?: { url?: string } }> | undefined
+): WebhookAttachment[] {
+  const out: WebhookAttachment[] = [];
+  for (const item of raw ?? []) {
+    const type = typeof item?.type === "string" ? item.type.trim().toLowerCase() : "";
+    const url = typeof item?.payload?.url === "string" ? item.payload.url.trim() : "";
+    if (!type || !url) continue;
+    out.push({ type, url });
+  }
+  return out;
 }
 
 /**
@@ -311,7 +342,10 @@ export function parseAssistantInbound(payload: WebhookPayload): WebhookAssistant
       const hasAttachment = Boolean(message.attachments?.length) || Boolean(message.is_unsupported);
       if (!text && !hasAttachment) continue;
 
-      events.push({ instagramAccountId: accountId, senderId, messageId, text, hasAttachment });
+      const event: WebhookAssistantInbound = { instagramAccountId: accountId, senderId, messageId, text, hasAttachment };
+      const attachments = extractAttachments(message.attachments);
+      if (attachments.length) event.attachments = attachments;
+      events.push(event);
     }
   }
   return events;

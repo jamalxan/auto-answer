@@ -29,6 +29,9 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   conversationMessage: {
     conversation: { model: "conversation", fk: "conversationId", kind: "one" },
   },
+  workspace: {
+    owner: { model: "user", fk: "ownerId", kind: "one" },
+  },
   integration: {
     telegramChats: { model: "telegramChat", fk: "integrationId", kind: "many" },
   },
@@ -79,6 +82,12 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   instagramContact: [["instagramAccountId", "igUserId"]],
   triggerConversation: [["contactId"]],
   triggerMessage: [["conversationId", "mid"]],
+  // JavobAI (ETAP 4)
+  javobAiAccount: [["instagramAccountId"]],
+  aiConversationState: [["conversationId"]],
+  aiScoreEvent: [["stateId", "leadCycle", "signal"]],
+  aiContactMemory: [["instagramAccountId", "igUserId"]],
+  aiLeadInsight: [["leadId"]],
 };
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -124,6 +133,20 @@ const DEFAULTS: Record<string, () => Row> = {
   }),
   instagramContact: () => ({ username: null, name: null, interactionCount: 0 }),
   triggerBacktrackRun: () => ({ startedAt: new Date(), error: null, finishedAt: null }),
+  // JavobAI (ETAP 4)
+  javobAiAccount: () => ({ mode: "OFF", config: {}, enabledBy: null }),
+  aiConversationState: () => ({
+    handoffState: "AI_ACTIVE", score: 0, temperature: "COLD", summary: "", summaryUpToMessageId: null,
+    extracted: {}, context: {}, unknownStreak: 0, turns: 0, leadCycle: 0,
+  }),
+  aiScoreEvent: () => ({ messageId: null }),
+  aiHandoff: () => ({ status: "OPEN", openedAt: new Date(), acceptedAt: null, acceptedBy: null, closedAt: null, closedBy: null, resumeAi: true }),
+  aiHandoffRule: () => ({ active: true }),
+  aiContactMemory: () => ({ facts: {}, lastSummary: "", leadIds: [] }),
+  aiKnowledgeEntry: () => ({ verifiedAt: null, active: true, sort: 0 }),
+  aiLeadInsight: () => ({ email: null, budget: null, location: null, signals: [], isTest: false }),
+  aiShadowTurn: () => ({ conversationId: null, productionReply: null, aiReply: null, intent: null, confidence: null, score: null, handoff: null, costUsd: 0, error: null }),
+  llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
 };
 
 let seq = 0;

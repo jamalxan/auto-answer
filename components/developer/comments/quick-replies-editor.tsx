@@ -2,7 +2,9 @@
 
 /**
  * Quick-reply buttons on the main message (Meta: max 13, 20 characters).
- * FLOW and AI actions arrive with ETAP 6 / ETAP 4 and are listed, disabled.
+ * FLOW arrives with ETAP 6 and is listed, disabled. AI (ETAP 4) hands the
+ * thread to JavobAI — only on an account switched to LIVE in /developer/javobai;
+ * anywhere else it behaves like HANDOFF.
  */
 
 import { COMMENT_LIMITS as L, QUICK_REPLY_ACTIONS, type QuickReplyAction } from "@/lib/triggers/comment-limits";
@@ -22,6 +24,7 @@ const RESPONSE_HINT: Record<QuickReplyAction, string> = {
   MESSAGE: "Tugma bosilganda yuboriladigan matn (majburiy)",
   LEAD_CAPTURE: "Ixtiyoriy: raqam so'rash matni. Instagram “raqamni ulashish” tugmasini o'zi ko'rsatadi.",
   HANDOFF: "Ixtiyoriy: “Operator tez orada yozadi” kabi matn. Avtomatika shu suhbatda to'xtaydi.",
+  AI: "Ixtiyoriy: JavobAI javob berishdan oldin yuboriladigan matn. Faqat LIVE JavobAI akkauntida ishlaydi; aks holda “Operatorga o'tkazish” kabi.",
 };
 
 export default function QuickRepliesEditor({
@@ -62,7 +65,6 @@ export default function QuickRepliesEditor({
                 </option>
               ))}
               <option disabled>Flow ishga tushirish — ETAP 6</option>
-              <option disabled>AI javob — ETAP 4</option>
             </select>
             <button
               type="button"
@@ -81,6 +83,12 @@ export default function QuickRepliesEditor({
             placeholder={RESPONSE_HINT[item.action]}
             onChange={(e) => update(item.key, { responseText: e.target.value })}
           />
+          {item.action === "AI" && (
+            <p className="text-xs text-muted">
+              JavobAI faqat <b>LIVE</b> rejimdagi akkauntda javob beradi (Developer → JavobAI → Akkauntlar). OFF yoki
+              SHADOW akkauntda bu tugma “Operatorga o&apos;tkazish” kabi ishlaydi.
+            </p>
+          )}
         </div>
       ))}
       <div className="flex flex-wrap items-center gap-2">

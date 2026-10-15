@@ -4,6 +4,8 @@ import { recordWorkerHeartbeat } from "@/lib/ops/worker-health";
 import { reconcileComments } from "@/lib/polling/comment-reconciler";
 import { isTriggerEngineEnabled } from "@/lib/triggers/config";
 import { createTriggerWorker, runTriggerMaintenance } from "@/lib/triggers/worker";
+import { isJavobAiEnabled } from "@/lib/javobai/config";
+import { createJavobAiWorker, runJavobAiMaintenance } from "@/lib/javobai/worker";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -12,6 +14,8 @@ const worker = createDMWorker();
 const assistantWorker = createAssistantWorker();
 // Instagram Trigger Engine (dev): its own queue, off with TRIGGER_ENGINE_DISABLED.
 const triggerWorker = isTriggerEngineEnabled() ? createTriggerWorker() : null;
+// JavobAI (dev): its own queue, off with JAVOBAI_DISABLED.
+const javobAiWorker = isJavobAiEnabled() ? createJavobAiWorker() : null;
 const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because
@@ -55,6 +59,7 @@ const pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
 const maintenanceTimer = setInterval(() => {
   void runAssistantMaintenance();
   if (triggerWorker) void runTriggerMaintenance();
+  if (javobAiWorker) void runJavobAiMaintenance();
 }, 60_000);
 
 async function shutdown(signal: string) {
@@ -65,6 +70,7 @@ async function shutdown(signal: string) {
   await worker.close();
   await assistantWorker.close();
   await triggerWorker?.close();
+  await javobAiWorker?.close();
   process.exit(0);
 }
 

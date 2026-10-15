@@ -10,6 +10,8 @@ import {
   parseCommentEvents,
   parseMessageEvents,
   parseReadEvents,
+  parseAssistantInbound,
+  extractAttachments,
 } from "../lib/meta/webhook";
 import { createHmac } from "crypto";
 
@@ -513,5 +515,87 @@ describe("parseReadEvents", () => {
     };
 
     expect(parseReadEvents(payload)).toHaveLength(0);
+  });
+});
+
+describe("parseAssistantInbound attachments (ETAP 4.3)", () => {
+  const payload = (messaging: unknown[]) =>
+    ({ object: "instagram", entry: [{ id: "ig_456", time: 1, messaging }] }) as Parameters<typeof parseAssistantInbound>[0];
+
+  it("passes type + url through and leaves hasAttachment unchanged", () => {
+    const events = parseAssistantInbound(
+      payload([
+        {
+          sender: { id: "user_999" },
+          recipient: { id: "ig_456" },
+          message: {
+            mid: "mid_voice",
+            attachments: [{ type: "audio", payload: { url: "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1&signature=s" } }],
+          },
+        },
+        {
+          sender: { id: "user_999" },
+          recipient: { id: "ig_456" },
+          message: {
+            mid: "mid_photo",
+            text: "shunaqasi bormi?",
+            attachments: [
+              { type: "image", payload: { url: "https://scontent.cdninstagram.com/p.jpg" } },
+              { type: "share", payload: { url: "https://www.instagram.com/p/abc/" } },
+            ],
+          },
+        },
+      ])
+    );
+
+    expect(events).toEqual([
+      {
+        instagramAccountId: "ig_456",
+        senderId: "user_999",
+        messageId: "mid_voice",
+        text: "",
+        hasAttachment: true,
+        attachments: [{ type: "audio", url: "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1&signature=s" }],
+      },
+      {
+        instagramAccountId: "ig_456",
+        senderId: "user_999",
+        messageId: "mid_photo",
+        text: "shunaqasi bormi?",
+        hasAttachment: true,
+        attachments: [
+          { type: "image", url: "https://scontent.cdninstagram.com/p.jpg" },
+          { type: "share", url: "https://www.instagram.com/p/abc/" },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps the old shape when attachments carry no url (hasAttachment still true, no attachments key)", () => {
+    const events = parseAssistantInbound(
+      payload([
+        { sender: { id: "user_999" }, recipient: { id: "ig_456" }, message: { mid: "m1", attachments: [{ type: "image" }] } },
+        { sender: { id: "user_999" }, recipient: { id: "ig_456" }, message: { mid: "m2", is_unsupported: true } },
+        { sender: { id: "user_999" }, recipient: { id: "ig_456" }, message: { mid: "m3", text: "salom" } },
+      ])
+    );
+    expect(events).toEqual([
+      { instagramAccountId: "ig_456", senderId: "user_999", messageId: "m1", text: "", hasAttachment: true },
+      { instagramAccountId: "ig_456", senderId: "user_999", messageId: "m2", text: "", hasAttachment: true },
+      { instagramAccountId: "ig_456", senderId: "user_999", messageId: "m3", text: "salom", hasAttachment: false },
+    ]);
+    expect(events.every((e) => !("attachments" in e))).toBe(true);
+  });
+
+  it("extractAttachments lower-cases the type and drops entries without type or url", () => {
+    expect(
+      extractAttachments([
+        { type: "Audio", payload: { url: " https://cdn/a.ogg " } },
+        { type: "image" },
+        { payload: { url: "https://cdn/no-type" } },
+        { type: "", payload: { url: "https://cdn/x" } },
+      ])
+    ).toEqual([{ type: "audio", url: "https://cdn/a.ogg" }]);
+    expect(extractAttachments(undefined)).toEqual([]);
   });
 });

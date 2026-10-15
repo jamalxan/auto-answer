@@ -36,6 +36,12 @@ export interface InboundJob {
   messageId: string;
   text: string;
   hasAttachment: boolean;
+  /**
+   * ETAP 4.3 (JavobAI voice/image): `{type, url}` of each Meta attachment that
+   * carried a url. Optional and ignored by the production assistant; the
+   * JavobAI worker downloads from the url at job time (CDN links expire).
+   */
+  attachments?: Array<{ type: string; url: string }>;
 }
 
 /** An echo: a message the account itself sent (human operator or our app). */

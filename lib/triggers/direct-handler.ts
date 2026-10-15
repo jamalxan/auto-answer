@@ -43,7 +43,11 @@
 
 import { prisma } from "@/lib/db/client";
 import { sendDirectMessage, sendDirectMessageWithQuickReplies, type QuickReplyOption } from "@/lib/meta/client";
-import { parsePhone } from "@/lib/leads/phone";
+import { parsePhone, type ParsedPhone } from "@/lib/leads/phone";
+import { getJavobAiMode } from "@/lib/javobai/gate";
+import { captureTriggerLead } from "@/lib/javobai/leads";
+import { handJavobAiThread } from "@/lib/javobai/runtime";
+import { loadAccountConfig, loadScoringConfig } from "@/lib/javobai/state";
 import { alertWorkspace } from "@/lib/telegram/notify";
 import type { TriggerCampaign, TriggerExecution, TriggerQuickReply } from "@/app/generated/prisma/client";
 import { COMMENT_OWNS_THREAD_REASON, CONVERSATION_EVENT_TYPES, findActiveConversations } from "./claim";
@@ -56,6 +60,8 @@ import { C2_PAYLOAD_PREFIX } from "./normalize";
 
 export const DEFAULT_LEAD_THANKS = "Rahmat! Raqamingizni oldik, tez orada siz bilan bog'lanamiz.";
 export const DEFAULT_HANDOFF_REPLY = "Rahmat! Operatorimiz tez orada sizga javob beradi.";
+/** Follow-ups are cancelled with this reason when the thread goes to JavobAI (action AI). */
+export const AI_HANDOFF_REASON = "JavobAI'ga o'tkazildi";
 const INTERRUPTED_REASON =
   "Oldingi urinishda yuborish jarayoni uzildi — ikki marta yubormaslik uchun qayta yuborilmadi.";
 const PENDING_MID_PREFIX = "pending:";
@@ -267,9 +273,16 @@ async function runQuickReply(ctx: Ctx, quickReply: TriggerQuickReply): Promise<H
     if (!phone) return { status: "IGNORED", error: "Telefon raqami noto'g'ri yoki topilmadi." };
     await prisma.instagramContact.update({ where: { id: ctx.interaction.contact.id }, data: { phone: phone.e164 } });
     if (!execution.leadCapturedAt) await touchInbound(execution, event.timestamp, { leadCapturedAt: event.timestamp });
+    await createJavobAiLeadFromTrigger(ctx, phone);
     const done = await replyOnce(ctx, `qr:${quickReply.id}`, quickReply.responseText?.trim() || DEFAULT_LEAD_THANKS);
     if (campaign.stopOnLead) await cancelFollowUps(execution.workspaceId, execution.id, "Lead olindi (telefon raqami)");
     return done ?? { status: "PROCESSED" };
+  }
+
+  // AI (ETAP 4): only a LIVE JavobAI account takes the thread; otherwise HANDOFF.
+  if (quickReply.action === "AI") {
+    const mode = await getJavobAiMode(event.instagramAccountId).catch(() => "OFF" as const);
+    if (mode === "LIVE") return runAiQuickReply(ctx, quickReply);
   }
 
   // HANDOFF
@@ -287,6 +300,60 @@ async function runQuickReply(ctx: Ctx, quickReply: TriggerQuickReply): Promise<H
     ).catch(() => {});
   }
   return done ?? { status: "PROCESSED" };
+}
+
+/**
+ * Quick reply with action AI on a LIVE JavobAI account: the optional
+ * response text goes out at once, the follow-ups stop (JavobAI owns the
+ * thread now — also what frees it from the "trigger owns the thread" rule),
+ * and JavobAI answers the tap through its own queue.
+ */
+async function runAiQuickReply(ctx: Ctx, quickReply: TriggerQuickReply): Promise<HandlerResult> {
+  const { execution, event } = ctx;
+  const done = await replyOnce(ctx, `qr:${quickReply.id}`, quickReply.responseText?.trim() ?? "");
+  if (done) return done;
+  await cancelFollowUps(execution.workspaceId, execution.id, AI_HANDOFF_REASON);
+  await handJavobAiThread({
+    account: event.instagramAccount,
+    igUserId: event.senderId,
+    igUsername: ctx.interaction.contact.username,
+    messageId: event.messageId,
+    text: quickReply.label,
+    context: {
+      campaignName: execution.campaign.name,
+      executionId: execution.id,
+      quickReplyLabel: quickReply.label,
+      mainMessage: execution.campaign.mainMessage,
+    },
+  });
+  return { status: "PROCESSED" };
+}
+
+/**
+ * A LEAD_CAPTURE tap on a LIVE JavobAI account also creates a real Lead
+ * (design, technical decisions). Best effort: the thank-you still goes out.
+ */
+async function createJavobAiLeadFromTrigger(ctx: Ctx, phone: ParsedPhone): Promise<void> {
+  const { event, execution } = ctx;
+  try {
+    if ((await getJavobAiMode(event.instagramAccountId)) !== "LIVE") return;
+    const [config, scoring] = await Promise.all([
+      loadAccountConfig(event.instagramAccountId),
+      loadScoringConfig(event.workspaceId, event.instagramAccountId),
+    ]);
+    await captureTriggerLead({
+      account: event.instagramAccount,
+      igUserId: event.senderId,
+      igUsername: ctx.interaction.contact.username,
+      phoneE164: phone.e164,
+      phoneRaw: phone.raw,
+      campaignName: execution.campaign.name,
+      thresholds: scoring.thresholds,
+      isTest: config.isTest,
+    });
+  } catch (error) {
+    console.error("[Trigger Engine] JavobAI lead failed:", error instanceof Error ? error.message : error);
+  }
 }
 
 type BaseCtx = Omit<Ctx, "execution">;

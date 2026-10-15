@@ -12,7 +12,7 @@ import {
   verifyWebhookSignature,
 } from "@/lib/meta/webhook";
 import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
-import { enqueueEcho, enqueueInbound } from "@/lib/queue/assistant-queue";
+import { routeAssistantEcho, routeAssistantInbound } from "@/lib/javobai/gate";
 import {
   findClaimedC2Messages,
   findClaimedLeadPhoneMessages,
@@ -263,18 +263,20 @@ export async function POST(request: NextRequest) {
 
     // Lead assistant: customer DMs (incl. photos/voice) and echoes of what the
     // account itself sent (operator takeover). Independent queue, so a failure
-    // here can never affect the campaign DM path above.
+    // here can never affect the campaign DM path above. The JavobAI gate
+    // (ETAP 4, dev) decides per account which brain answers: OFF accounts go
+    // to the production queue exactly as before, and any gate error does too.
     try {
       for (const event of parseAssistantInbound(
         payload as Parameters<typeof parseAssistantInbound>[0]
       )) {
         if (claimedByTriggers(event.instagramAccountId, event.messageId)) continue;
-        await enqueueInbound(event);
+        await routeAssistantInbound(event);
       }
       for (const event of parseEchoEvents(
         payload as Parameters<typeof parseEchoEvents>[0]
       )) {
-        await enqueueEcho(event);
+        await routeAssistantEcho(event);
       }
     } catch (assistantError) {
       console.error(

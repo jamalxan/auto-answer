@@ -55,7 +55,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "JavobAI",
     summary:
       "Knowledge base, AI sales agent, ko'p tillilik, suhbat xotirasi, lead scoring, operatorga topshirish.",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/javobai",
   },
   {
     key: "crm",
