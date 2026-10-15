@@ -115,7 +115,7 @@ export interface PriceMention {
 }
 
 const MENTION = new RegExp(
-  String.raw`(\$\s?\d[\d\s.,]*|\d[\d\s.,]*\s*(?:mln|million\p{L}*|миллион\p{L}*|млн|mlrd|млрд|ming|минг|тыс\p{L}*|k|к|so['‘’` +
+  String.raw`(\$\s?\d[\d\s.,]*|\d[\d\s.,]*\s*(?:mln|million\p{L}*|миллион\p{L}*|млн|mlrd|млрд|ming|минг|тыс\p{L}*|k(?!\p{L})|к(?!\p{L})|so['‘’` +
     "`" +
     String.raw`ʻ]?m|сум|сўм|sum|som|uzs|usd|dollar|доллар|руб\p{L}*|₽|\$|y\.?e\.?))`,
   "giu"

@@ -13,7 +13,11 @@ import {
 } from "@/lib/meta/webhook";
 import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { enqueueEcho, enqueueInbound } from "@/lib/queue/assistant-queue";
-import { ingestWebhookPayload } from "@/lib/triggers/ingest";
+import {
+  findClaimedStoryReplies,
+  ingestWebhookPayload,
+  storyReplyKey,
+} from "@/lib/triggers/ingest";
 import { Prisma } from "@/app/generated/prisma/client";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
@@ -38,7 +42,29 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
-  if (!verifyWebhookSignature(rawBody, signature)) {
+  let signatureValid: boolean;
+  try {
+    signatureValid = verifyWebhookSignature(rawBody, signature);
+  } catch (error) {
+    // No app secret configured: a deployment problem, not a bad request.
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Webhook] Cannot verify signature:", message);
+    await prisma.operationalEvent
+      .create({
+        data: {
+          source: "SYSTEM",
+          level: "ERROR",
+          message: `Webhook signature cannot be verified: ${message}`.slice(0, 500),
+        },
+      })
+      .catch(() => {});
+    return NextResponse.json(
+      { success: false, error: "Webhook verification is not configured" },
+      { status: 500 }
+    );
+  }
+
+  if (!signatureValid) {
     // Record the attempt so a signature mismatch is visible rather than a
     // silent 401. This is the common symptom of FACEBOOK_APP_SECRET being
     // set to the wrong app's secret for the webhook's signing key.
@@ -83,12 +109,20 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // Any DM in or out changes the inbox list: drop its short-lived cache now.
-  for (const entry of (payload as { entry?: Array<{ id?: string; messaging?: unknown[] }> }).entry ?? []) {
-    if (entry.id && entry.messaging?.length) await invalidateConversationList(entry.id);
-  }
-
   try {
+    // Any DM in or out changes the inbox list: drop its short-lived cache now.
+    // Best effort — a Redis hiccup must not fail the webhook.
+    for (const entry of (payload as { entry?: Array<{ id?: string; messaging?: unknown[] }> }).entry ?? []) {
+      if (entry.id && entry.messaging?.length) {
+        await invalidateConversationList(entry.id).catch((cacheError) => {
+          console.error(
+            "[Webhook] Failed to invalidate conversation list cache:",
+            cacheError instanceof Error ? cacheError.message : cacheError
+          );
+        });
+      }
+    }
+
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
     );
@@ -149,10 +183,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Story replies a trigger-engine campaign will answer get exactly that one
+    // DM: keep them out of the keyword autoreply and the assistant below. On
+    // any failure here nothing is claimed and those paths run as before.
+    let claimedStoryReplies = new Set<string>();
+    try {
+      claimedStoryReplies = await findClaimedStoryReplies(payload);
+    } catch (claimError) {
+      console.error(
+        "[Webhook] Trigger engine story-reply check failed:",
+        claimError instanceof Error ? claimError.message : claimError
+      );
+    }
+    const claimedByTriggers = (instagramAccountId: string, messageId: string) =>
+      claimedStoryReplies.has(storyReplyKey(instagramAccountId, messageId));
+
     // Inbound DMs → keyword-triggered autoreply.
     const messageEvents = parseMessageEvents(
       payload as Parameters<typeof parseMessageEvents>[0]
-    );
+    ).filter((event) => !claimedByTriggers(event.instagramAccountId, event.messageId));
 
     for (const event of messageEvents) {
       const account = await prisma.instagramAccount.findUnique({
@@ -194,6 +243,7 @@ export async function POST(request: NextRequest) {
       for (const event of parseAssistantInbound(
         payload as Parameters<typeof parseAssistantInbound>[0]
       )) {
+        if (claimedByTriggers(event.instagramAccountId, event.messageId)) continue;
         await enqueueInbound(event);
       }
       for (const event of parseEchoEvents(

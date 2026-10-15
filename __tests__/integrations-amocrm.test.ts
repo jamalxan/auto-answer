@@ -153,6 +153,32 @@ describe("amoCRM follow-up task", () => {
   });
 });
 
+describe("amoCRM partial failure", () => {
+  it("a failed note after the lead exists still succeeds (no duplicate lead on retry)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    respond((call) => (call.url.endsWith("/leads/complex") ? { body: [{ id: 9001 }] } : { status: 500 }));
+    const result = await client().deliverLead(input, "DETAILS");
+    expect(result).toEqual({ leadId: 9001, url: "https://promtchi.amocrm.ru/leads/detail/9001", mode: "created" });
+    expect(calls.filter((c) => c.url.endsWith("/leads/complex"))).toHaveLength(1);
+  });
+});
+
+describe("amoCRM host safety", () => {
+  it("never sends the token to a host outside the amoCRM zones", async () => {
+    respond(() => ({ body: {} }));
+    for (const bad of [
+      { subdomain: "x", zone: "amocrm.ru" },
+      { subdomain: "169.254.169.254/", zone: "amocrm.ru" },
+      { subdomain: "promtchi", zone: "evil.example" },
+      { subdomain: "promtchi", zone: "amocrm.ru@127.0.0.1" },
+    ]) {
+      const c = new AmoClient({ ...config, ...bad } as AmoConfig, new LongLivedTokenStrategy("secret-token-1234567890"), "t");
+      await expect(c.checkConnection()).rejects.toBeInstanceOf(IntegrationRequestError);
+    }
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe("amoCRM errors", () => {
   it("401 and 403 are auth errors (integration becomes broken)", async () => {
     for (const status of [401, 403]) {

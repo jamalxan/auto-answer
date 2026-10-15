@@ -46,8 +46,8 @@ export interface LLMProvider {
   readonly name: string;
   readonly model: string;
   complete(request: LlmRequest): Promise<LlmResponse>;
-  /** USD for a call, used for the `llm_usage` table. */
-  costUsd(inputTokens: number, outputTokens: number): number;
+  /** USD for a call, used for the `llm_usage` table. `model` is the one that answered (a fallback may have). */
+  costUsd(inputTokens: number, outputTokens: number, model?: string): number;
 }
 
 export class LlmError extends Error {
@@ -136,8 +136,8 @@ export class AnthropicProvider implements LLMProvider {
     private baseUrl = "https://api.anthropic.com"
   ) {}
 
-  costUsd(i: number, o: number) {
-    return calcCostUsd(this.model, i, o);
+  costUsd(i: number, o: number, model = this.model) {
+    return calcCostUsd(model, i, o);
   }
 
   async complete(req: LlmRequest): Promise<LlmResponse> {
@@ -217,8 +217,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
     private fallbackModels: string[] = []
   ) {}
 
-  costUsd(i: number, o: number) {
-    return calcCostUsd(this.model, i, o);
+  costUsd(i: number, o: number, model = this.model) {
+    return calcCostUsd(model, i, o);
   }
 
   async complete(req: LlmRequest): Promise<LlmResponse> {
@@ -262,16 +262,30 @@ export class OpenAICompatibleProvider implements LLMProvider {
         req.timeoutMs ?? 12_000
       );
 
+    // A timeout or network error carries no status: as transient as a 503.
+    const attempt = async (model: string): Promise<Response | LlmError> => {
+      try {
+        return await send(model);
+      } catch (error) {
+        if (error instanceof LlmError && error.status === undefined) return error;
+        throw error;
+      }
+    };
+
     // A hosted model can stay "overloaded" for hours (Gemini 503 UNAVAILABLE);
     // move on to the next configured model instead of failing every reply.
     let usedModel = this.model;
-    let response = await send(usedModel);
+    let result = await attempt(usedModel);
     for (const fallback of this.fallbackModels) {
-      if (response.ok || !TRANSIENT_STATUSES.has(response.status)) break;
-      await response.body?.cancel().catch(() => {});
+      if (!(result instanceof LlmError)) {
+        if (result.ok || !TRANSIENT_STATUSES.has(result.status)) break;
+        await result.body?.cancel().catch(() => {});
+      }
       usedModel = fallback;
-      response = await send(usedModel);
+      result = await attempt(usedModel);
     }
+    if (result instanceof LlmError) throw result;
+    const response = result;
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");

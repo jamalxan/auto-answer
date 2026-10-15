@@ -334,6 +334,36 @@ describe("conversation flow", () => {
     await runAssistantReply(conv().id as string);
     expect(db.rows("workspace")[0].aiConversationsThisPeriod).toBe(1);
   });
+
+  it("does not count an AI conversation until the first reply is delivered", async () => {
+    seedWorld();
+    vi.mocked(sendDirectMessage).mockRejectedValueOnce(new Error("Meta down"));
+    await inbound("salom");
+    settle();
+    await runAssistantReply(conv().id as string);
+    expect(sent()).toHaveLength(1);
+    expect(db.rows("workspace")[0].aiConversationsThisPeriod).toBe(0);
+    expect(conv().botMessageCount).toBe(0);
+
+    await inbound("divan bormi");
+    settle();
+    await runAssistantReply(conv().id as string);
+    expect(db.rows("workspace")[0].aiConversationsThisPeriod).toBe(1);
+  });
+
+  it("keeps a captured lead even when the confirmation DM fails to send", async () => {
+    seedWorld();
+    setLlmProviderForTests(llm([{ name: "Aziz", intent: "gives_contact", summary: "Divan", product_interest: "divan" }]));
+    vi.mocked(sendDirectMessage).mockRejectedValueOnce(new Error("Meta down"));
+    await inbound("Aziz 901234567");
+    settle();
+    await runAssistantReply(conv().id as string);
+
+    expect(db.rows("lead")).toHaveLength(1);
+    expect(db.rows("lead")[0].phoneE164).toBe("+998901234567");
+    expect(conv().assistantState).toBe("HANDED_OFF");
+    expect(db.rows("assistantEvent").some((e) => e.type === "send_failed")).toBe(true);
+  });
 });
 
 describe("blocked output", () => {

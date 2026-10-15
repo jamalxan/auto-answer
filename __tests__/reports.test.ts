@@ -20,7 +20,7 @@ vi.mock("@/lib/db/client", () => ({
   prisma: mockPrisma,
 }));
 
-import { getCampaignReportBySlug } from "../lib/reports/data";
+import { getCampaignReportBySlug, getDayWindow } from "../lib/reports/data";
 import { buildReportUrl, isReportBranded } from "../lib/reports/share";
 
 const baseAutomation = {
@@ -116,5 +116,17 @@ describe("campaign reports", () => {
       "https://manychat-alternative.com/reports/abc123"
     );
     expect(isReportBranded()).toBe(true);
+  });
+});
+
+describe("report day windows", () => {
+  it("uses Tashkent (UTC+5) calendar days, not UTC or server midnight", () => {
+    // 21:00 UTC on Oct 14 is already 02:00 on Oct 15 in Tashkent.
+    const now = new Date("2026-10-14T21:00:00.000Z");
+    expect(getDayWindow(0, now)).toEqual({
+      start: new Date("2026-10-14T19:00:00.000Z"),
+      end: new Date("2026-10-15T19:00:00.000Z"),
+    });
+    expect(getDayWindow(1, now).start).toEqual(new Date("2026-10-13T19:00:00.000Z"));
   });
 });

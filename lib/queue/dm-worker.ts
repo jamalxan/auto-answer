@@ -28,7 +28,7 @@ import {
 import { decryptToken } from "@/lib/meta/oauth";
 import { markTokenBroken } from "@/lib/meta/token-health";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
-import { reserveDMSlot } from "@/lib/utils/rate-limiter";
+import { releaseDMSlot, reserveDMSlot } from "@/lib/utils/rate-limiter";
 import {
   releaseWorkspaceDMReservation,
   reserveWorkspaceDMSend,
@@ -275,6 +275,10 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     orderBy: { createdAt: "asc" },
   });
 
+  // A send failure on one campaign must not stop later matching campaigns;
+  // the first error is rethrown after the loop so BullMQ still retries.
+  let sendError: unknown = null;
+
   for (const automation of automations) {
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
@@ -416,7 +420,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         },
         data: {
           status: "PENDING",
-          attempts: job.attemptsMade + 1,
+          // Cumulative across jobs: the reconciler caps retries on this count.
+          attempts: { increment: 1 },
           matchedKeyword: matchResult.matchedKeyword,
           errorMessage: null,
         },
@@ -534,7 +539,6 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         },
         data: {
           status: "FAILED",
-          attempts: job.attemptsMade + 1,
           errorMessage: formatError(error),
         },
       });
@@ -727,6 +731,15 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         automation.workspaceId,
         usage.periodStart
       );
+      // The hourly slot was reserved for a send that never went out.
+      if (rateLimit.reserved) {
+        await releaseDMSlot(instagramAccountId).catch((releaseError) =>
+          console.error(
+            "[DM Worker] Failed to release DM rate slot:",
+            formatError(releaseError)
+          )
+        );
+      }
 
       await prisma.dmLog.update({
         where: {
@@ -737,13 +750,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         },
         data: {
           status: "FAILED",
-          attempts: job.attemptsMade + 1,
           errorMessage: formatError(error),
         },
       });
-      throw error;
+      sendError ??= error;
     }
   }
+
+  if (sendError) throw sendError;
 }
 
 /**
@@ -875,27 +889,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       commenterName,
       "postback"
     );
-    // Optional appreciation follow-up: once the link has been delivered, send a
-    // short thank-you. It is scheduled as its own delayed job so it can go out
-    // some minutes later (followUpDelayMinutes) rather than immediately. The
-    // deterministic job id dedupes repeat button taps to one follow-up per user.
-    if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
-      const delayMs =
-        Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
-      await getDMQueue().add(
-        FOLLOWUP_JOB_NAME,
-        {
-          instagramAccountId: automation.instagramAccount.instagramId,
-          userId,
-          automationId: automation.id,
-          commenterName,
-        },
-        {
-          delay: delayMs,
-          jobId: `followup_${automation.id}_${userId}`,
-        }
-      );
-    }
     await prisma.dmLog.upsert({
       where: {
         automationId_commentId: { automationId: automation.id, commentId: dedupeId },
@@ -949,6 +942,51 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       update: { status: "FAILED", errorMessage: formatError(error) },
     });
     throw error;
+  }
+
+  await scheduleFollowUp(automation, userId, commenterName);
+}
+
+/**
+ * Optional appreciation follow-up: once the link has been delivered, send a
+ * short thank-you. It is scheduled as its own delayed job so it can go out
+ * some minutes later (followUpDelayMinutes) rather than immediately. The
+ * deterministic job id dedupes repeat button taps to one follow-up per user.
+ *
+ * Runs only after the reveal is recorded as SENT, and never throws: a Redis
+ * error here must not fail the job, or BullMQ would re-send the reveal DM.
+ */
+async function scheduleFollowUp(
+  automation: {
+    id: string;
+    followUpEnabled: boolean;
+    followUpMessage: string | null;
+    followUpDelayMinutes: number | null;
+    instagramAccount: { instagramId: string };
+  },
+  userId: string,
+  commenterName: string | null
+): Promise<void> {
+  if (!automation.followUpEnabled || !automation.followUpMessage?.trim()) return;
+  try {
+    await getDMQueue().add(
+      FOLLOWUP_JOB_NAME,
+      {
+        instagramAccountId: automation.instagramAccount.instagramId,
+        userId,
+        automationId: automation.id,
+        commenterName,
+      },
+      {
+        delay: Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000,
+        jobId: `followup_${automation.id}_${userId}`,
+      }
+    );
+  } catch (error) {
+    console.error(
+      "[DM Worker] Failed to schedule follow-up:",
+      formatError(error)
+    );
   }
 }
 
@@ -1177,25 +1215,6 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           commenterName,
           "message trigger"
         );
-
-        // The link has been delivered, so the appreciation follow-up applies
-        // here exactly as it does after a button tap. Not scheduled behind the
-        // follow prompt — no link went out yet in that branch.
-        if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
-          await getDMQueue().add(
-            FOLLOWUP_JOB_NAME,
-            {
-              instagramAccountId: automation.instagramAccount.instagramId,
-              userId: senderId,
-              automationId: automation.id,
-              commenterName,
-            },
-            {
-              delay: Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000,
-              jobId: `followup_${automation.id}_${senderId}`,
-            }
-          );
-        }
       }
 
       await prisma.dmLog.upsert({
@@ -1243,6 +1262,13 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         },
       });
       throw error;
+    }
+
+    // The link has been delivered, so the appreciation follow-up applies
+    // here exactly as it does after a button tap. Not scheduled behind the
+    // follow prompt — no link went out yet in that branch.
+    if (!sendFollowPrompt) {
+      await scheduleFollowUp(automation, senderId, commenterName);
     }
   }
 }

@@ -237,6 +237,7 @@ export const uz = {
     dedup: "Dublikat",
     rateLimited: "Chegaralangan",
     skippedPlan: "O'tkazib yuborildi",
+    workspaceSuspended: "Ish maydoni to'xtatilgan",
     noMatch: "Mos kelmadi",
   },
   builder: {

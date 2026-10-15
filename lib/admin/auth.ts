@@ -6,11 +6,7 @@ import { requireEnv } from "@/lib/env";
 // Platform-admin login is deliberately separate from the customer NextAuth
 // system (see the AdminAccount model) — this file owns that entire
 // lifecycle: password hashing, the signed session cookie, and the
-// lazily-seeded default account.
-
-const DEFAULT_USERNAME = "jamolxon";
-const DEFAULT_PASSWORD = "jamolxon6706";
-const DEFAULT_EMAIL = "jamolxonyoldashaliyev3@gmail.com";
+// lazily-seeded first account.
 
 export const ADMIN_SESSION_COOKIE = "socialauto_admin_session";
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
@@ -38,15 +34,26 @@ function verifyPasswordHash(password: string, stored: string): boolean {
 
 // ─── Lazy seed ──────────────────────────────────────────────────────────────
 
+// The first account comes from ADMIN_INITIAL_* env vars, never from source:
+// a password checked into git is readable by anyone with the repo. With no
+// ADMIN_INITIAL_PASSWORD set nothing is seeded and admin login stays closed.
 async function ensureDefaultAdminAccount(): Promise<void> {
+  const password = process.env.ADMIN_INITIAL_PASSWORD;
+  const email = process.env.ADMIN_INITIAL_EMAIL;
+  if (!password || !email) return;
+  if (password.length < 12) {
+    console.error("[admin] ADMIN_INITIAL_PASSWORD must be at least 12 characters; not seeding");
+    return;
+  }
+
   const count = await prisma.adminAccount.count();
   if (count > 0) return;
 
   await prisma.adminAccount.create({
     data: {
-      username: DEFAULT_USERNAME,
-      passwordHash: hashPassword(DEFAULT_PASSWORD),
-      email: DEFAULT_EMAIL,
+      username: process.env.ADMIN_INITIAL_USERNAME?.trim() || "admin",
+      passwordHash: hashPassword(password),
+      email: email.trim(),
     },
   });
 }

@@ -46,6 +46,7 @@ import {
   runTurn,
   type ActiveState,
   type TurnEvent,
+  type TurnResult,
   type TurnUsage,
 } from "./turn";
 
@@ -511,16 +512,16 @@ async function replyInner(conversationId: string): Promise<void> {
   let templateOnly = Boolean(
     workspace.assistantTemplateOnlyUntil && workspace.assistantTemplateOnlyUntil > new Date()
   );
+  // Counted only once the first reply actually reaches the customer, so a
+  // dropped or failed turn never burns a second unit of the quota.
+  let countsAsAiConversation = false;
   if (!templateOnly && conversation.botMessageCount === 0) {
     const limit = aiConversationLimit(workspace);
     if (workspace.aiConversationsThisPeriod >= limit) {
       templateOnly = true;
       await logEvent(workspace.id, conversationId, "ai_limit_reached", { limit });
     } else {
-      await prisma.workspace.update({
-        where: { id: workspace.id },
-        data: { aiConversationsThisPeriod: { increment: 1 } },
-      });
+      countsAsAiConversation = true;
     }
   }
 
@@ -600,16 +601,31 @@ async function replyInner(conversationId: string): Promise<void> {
       intent: result.intent,
       usedTemplate: result.usedTemplate,
     });
-    if (!sent) return; // send failed: keep the state, retry on the next customer message
+    if (!sent) {
+      // Send failed: keep the state and retry on the next customer message —
+      // unless this turn captured a lead, which must never be lost.
+      if (result.lead) await persistTurn(conversationId, stateUpdate, result.lead);
+      return;
+    }
+    if (countsAsAiConversation) {
+      await prisma.workspace.update({
+        where: { id: workspace.id },
+        data: { aiConversationsThisPeriod: { increment: 1 } },
+      });
+    }
   }
 
-  await prisma.conversation.update({ where: { id: conversationId }, data: stateUpdate });
+  await persistTurn(conversationId, stateUpdate, result.lead);
+}
 
-  if (result.lead) {
-    await createLeadForConversation(conversationId, {
-      flag: result.lead.flag,
-      summary: result.lead.summary,
-    });
+async function persistTurn(
+  conversationId: string,
+  stateUpdate: Record<string, unknown>,
+  lead: TurnResult["lead"]
+): Promise<void> {
+  await prisma.conversation.update({ where: { id: conversationId }, data: stateUpdate });
+  if (lead) {
+    await createLeadForConversation(conversationId, { flag: lead.flag, summary: lead.summary });
   }
 }
 

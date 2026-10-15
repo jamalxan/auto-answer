@@ -59,6 +59,14 @@ end
 return {1, next_count, max - next_count}
 `;
 
+const RELEASE_DM_SLOT_SCRIPT = `
+local current = tonumber(redis.call("GET", KEYS[1]) or "0")
+if current <= 0 then
+  return 0
+end
+return redis.call("DECR", KEYS[1])
+`;
+
 function toScriptNumber(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") return Number.parseInt(value, 10);
@@ -186,6 +194,18 @@ export async function reserveDMSlot(
     shouldSkip: false,
     reserved: true,
   };
+}
+
+/**
+ * Give back a slot taken by reserveDMSlot when the send itself failed, so
+ * failed attempts (and their retries) don't eat into the hourly cap. Never
+ * drops the counter below zero.
+ */
+export async function releaseDMSlot(instagramAccountId: string): Promise<number> {
+  const client = getRedis();
+  const key = `rate:dm:${instagramAccountId}`;
+  const result = await client.eval(RELEASE_DM_SLOT_SCRIPT, 1, key);
+  return toScriptNumber(result);
 }
 
 /**

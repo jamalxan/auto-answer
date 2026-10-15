@@ -353,7 +353,9 @@ export async function learnForProfile(profileId: string): Promise<LearningOutcom
   if (!llm) return { status: "no_llm" };
 
   const account = profile.instagramAccountId
-    ? await prisma.instagramAccount.findUnique({ where: { id: profile.instagramAccountId } })
+    ? await prisma.instagramAccount.findFirst({
+        where: { id: profile.instagramAccountId, workspaceId: profile.workspaceId },
+      })
     : await prisma.instagramAccount.findFirst({
         where: { workspaceId: profile.workspaceId, tokenStatus: { not: "BROKEN" } },
         orderBy: { connectedAt: "asc" },

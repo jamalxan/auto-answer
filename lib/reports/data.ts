@@ -15,13 +15,21 @@ function getHostname(url: string) {
   }
 }
 
-function getDayWindow(daysAgo: number) {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  start.setDate(start.getDate() - daysAgo);
+// Report days are the users' calendar days: Asia/Tashkent, UTC+5, no DST.
+const TASHKENT_OFFSET_MIN = 300;
+const REPORT_TIME_ZONE = "Asia/Tashkent";
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+export function getDayWindow(daysAgo: number, now = new Date()) {
+  const offsetMs = TASHKENT_OFFSET_MIN * 60_000;
+  const local = new Date(now.getTime() + offsetMs);
+  const localMidnight = Date.UTC(
+    local.getUTCFullYear(),
+    local.getUTCMonth(),
+    local.getUTCDate() - daysAgo
+  );
+  const start = new Date(localMidnight - offsetMs);
+  const end = new Date(start.getTime() + DAY_MS);
 
   return { start, end };
 }
@@ -144,6 +152,7 @@ export async function getCampaignReportBySlug(
 
       return {
         date: start.toLocaleDateString(locale, {
+          timeZone: REPORT_TIME_ZONE,
           month: "short",
           day: "numeric",
         }),

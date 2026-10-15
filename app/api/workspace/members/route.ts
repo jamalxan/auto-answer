@@ -65,10 +65,13 @@ async function getMemberPayload(
   return {
     ...(currentUserRole ? { currentUserRole } : {}),
     members,
-    invitations: invitations.map((invitation) => ({
-      ...invitation,
-      inviteUrl: buildInvitationUrl(invitation.token),
-    })),
+    // The token is the invitation itself: only people who may invite get to
+    // see (and forward) it.
+    invitations: invitations.map(({ token, ...invitation }) =>
+      currentUserRole && canManageWorkspace(currentUserRole)
+        ? { ...invitation, token, inviteUrl: buildInvitationUrl(token) }
+        : invitation
+    ),
   };
 }
 
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsed = inviteSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -120,6 +123,24 @@ export async function POST(request: NextRequest) {
   });
 
   if (existingUser) {
+    // Re-inviting an existing member changes their role, which must never
+    // demote the owner (PATCH and DELETE guard this the same way).
+    const existingMember = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId: context.workspaceId,
+          userId: existingUser.id,
+        },
+      },
+      select: { role: true },
+    });
+    if (existingMember?.role === "OWNER") {
+      return NextResponse.json(
+        { success: false, error: "The workspace owner's role cannot be changed" },
+        { status: 400 }
+      );
+    }
+
     await prisma.workspaceMember.upsert({
       where: {
         workspaceId_userId: {
@@ -183,7 +204,7 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const parsed = updateMemberSchema.safeParse(await request.json());
+  const parsed = updateMemberSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { success: false, error: "Invalid member update" },

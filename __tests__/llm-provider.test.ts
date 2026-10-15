@@ -77,6 +77,32 @@ describe("LLM fallback models", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("moves to the next model after a timeout or network error", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const model = JSON.parse(init.body as string).model;
+      if (model === "main-model") throw new TypeError("fetch failed");
+      return new Response(JSON.stringify(ok), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const withFallback = new OpenAICompatibleProvider("key", "main-model", "https://x/v1", ["backup-model"]);
+    const result = await withFallback.complete(request);
+
+    expect(result.model).toBe("backup-model");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports the network error when every model is unreachable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
+    const withFallback = new OpenAICompatibleProvider("key", "main-model", "https://x/v1", ["backup-model"]);
+    await expect(withFallback.complete(request)).rejects.toMatchObject({ name: "LlmError", status: undefined });
+  });
+
+  it("prices a call by the model that actually answered", () => {
+    const p = new OpenAICompatibleProvider("key", "gpt-4o-mini", "https://x/v1", ["gpt-4o"]);
+    expect(p.costUsd(1_000_000, 0, "gpt-4o")).toBe(2.5);
+    expect(p.costUsd(1_000_000, 0)).toBe(0.15);
+  });
+
   it("reads the comma list from the environment", () => {
     expect(fallbackModelsFromEnv(" a , b,,")).toEqual(["a", "b"]);
     expect(fallbackModelsFromEnv(undefined)).toEqual([]);

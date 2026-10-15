@@ -196,7 +196,7 @@ async function callLlm(
         model: response.model,
         inputTokens: response.inputTokens,
         outputTokens: response.outputTokens,
-        costUsd: ctx.llm.costUsd(response.inputTokens, response.outputTokens),
+        costUsd: ctx.llm.costUsd(response.inputTokens, response.outputTokens, response.model),
         latencyMs: response.latencyMs,
         ok: true,
       });

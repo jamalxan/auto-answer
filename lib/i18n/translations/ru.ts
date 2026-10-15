@@ -237,6 +237,7 @@ export const ru = {
     dedup: "Дубликат",
     rateLimited: "Лимит скорости",
     skippedPlan: "Пропущено",
+    workspaceSuspended: "Пространство приостановлено",
     noMatch: "Нет совпадения",
   },
   builder: {

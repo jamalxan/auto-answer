@@ -1,6 +1,7 @@
 /** Bitrix24 client over an inbound webhook (https://{portal}/rest/{user}/{code}/). */
 
 import { IntegrationAuthError, IntegrationRequestError } from "./errors";
+import { isInternalHostname } from "./net";
 import { acquireSlot } from "./throttle";
 
 export interface BitrixConfig {
@@ -39,7 +40,21 @@ export function normalizeWebhookUrl(url: string): string {
 }
 
 export function isValidBitrixWebhookUrl(url: string): boolean {
-  return /^https:\/\/[^/\s]+\/rest\/\d+\/[A-Za-z0-9]+\/?$/.test(url.trim());
+  const trimmed = url.trim();
+  if (!/^https:\/\/[^/\s]+\/rest\/\d+\/[A-Za-z0-9]+\/?$/.test(trimmed)) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return false;
+  }
+  // The webhook is called server-side: never let it point at our own network.
+  return (
+    parsed.protocol === "https:" &&
+    !parsed.username &&
+    !parsed.password &&
+    !isInternalHostname(parsed.hostname)
+  );
 }
 
 export function bitrixLeadUrl(webhookUrl: string, leadId: number): string {
@@ -184,7 +199,12 @@ export class BitrixClient {
       }
     }
     const leadId = await this.addLead(input);
-    await this.addComment(leadId, transcript);
+    try {
+      await this.addComment(leadId, transcript);
+    } catch (error) {
+      // The lead exists now; failing here would retry and create a duplicate.
+      console.error(`[Bitrix24] lead ${leadId} created but the comment failed:`, error);
+    }
     return { leadId, url: bitrixLeadUrl(this.base, leadId), mode: "created" };
   }
 }

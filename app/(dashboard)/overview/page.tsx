@@ -46,9 +46,11 @@ export default function OverviewPage() {
     }
     params.set("count", count);
 
+    let cancelled = false;
     fetch(`/api/instagram/overview?${params}`)
       .then((r) => r.json())
       .then((res) => {
+        if (cancelled) return;
         if (res.success) {
           setData(res.data);
           setError(null);
@@ -59,8 +61,15 @@ export default function OverviewPage() {
           setError(t.overview.failedToLoad);
         }
       })
-      .catch(() => setError(t.overview.failedToLoad))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled) setError(t.overview.failedToLoad);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedAccountId, count, t]);
 
   function handleAccountChange(accountId: string) {

@@ -29,6 +29,14 @@ export async function POST(request: NextRequest) {
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("Invalid request", 400);
 
+  if (parsed.data.instagramAccountId) {
+    const owns = await prisma.instagramAccount.findFirst({
+      where: { id: parsed.data.instagramAccountId, workspaceId: auth.ctx.workspaceId },
+      select: { id: true },
+    });
+    if (!owns) return jsonError("Instagram account not found", 404);
+  }
+
   const profile = await ensureProfile(auth.ctx.workspaceId, parsed.data.instagramAccountId ?? null);
   const count = await prisma.assistantFaq.count({ where: { profileId: profile.id } });
   // Owner-written FAQs are capped at 5; answered knowledge gaps may exceed it.

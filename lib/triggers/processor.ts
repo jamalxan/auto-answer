@@ -53,6 +53,8 @@ interface HandlerResult {
   status: Extract<InstagramEventStatus, "PROCESSED" | "IGNORED" | "FAILED" | "RETRYING">;
   error?: string | null;
   errorDetail?: string | null;
+  /** Why a RETRYING result failed; picks the retry delay. */
+  kind?: ClassifiedFailure["kind"];
 }
 
 type EventHandler = (event: EventWithAccount) => Promise<HandlerResult>;
@@ -175,12 +177,12 @@ export async function handleStoryReply(event: EventWithAccount): Promise<Handler
         status: final ? "FAILED" : "RETRYING",
         error: failure.userMessage,
         errorDetail: failure.technical,
-        nextRetryAt: final ? null : new Date(Date.now() + backoffDelay(event.attempts)),
+        nextRetryAt: final ? null : new Date(Date.now() + backoffDelay(event.attempts, failure.kind)),
       },
     });
     await recordBackendFailure(event, failure, final);
     if (final) return { status: "FAILED", error: failure.userMessage, errorDetail: failure.technical };
-    return { status: "RETRYING", error: failure.userMessage, errorDetail: failure.technical };
+    return { status: "RETRYING", error: failure.userMessage, errorDetail: failure.technical, kind: failure.kind };
   };
 
   // Token
@@ -216,8 +218,19 @@ export async function handleStoryReply(event: EventWithAccount): Promise<Handler
     return { status: "PROCESSED", error };
   }
 
+  // From here until the send, anything that throws must hand the workspace
+  // reservation back, or the monthly counter keeps a DM that never went out.
+  const releasingOnError = async <T>(step: () => Promise<T>): Promise<T> => {
+    try {
+      return await step();
+    } catch (error) {
+      await releaseWorkspaceDMReservation(event.workspaceId, usage.periodStart).catch(() => {});
+      throw error;
+    }
+  };
+
   // Per-account hourly cap shared with the comment→DM campaigns.
-  const slot = await reserveDMSlot(account.instagramId);
+  const slot = await releasingOnError(() => reserveDMSlot(account.instagramId));
   if (!slot.allowed) {
     await releaseWorkspaceDMReservation(event.workspaceId, usage.periodStart);
     return failExecution({
@@ -228,10 +241,12 @@ export async function handleStoryReply(event: EventWithAccount): Promise<Handler
     });
   }
 
-  await prisma.triggerExecution.update({
-    where: { id: executionId },
-    data: { status: "SENDING", attempts: { increment: 1 }, nextRetryAt: null },
-  });
+  await releasingOnError(() =>
+    prisma.triggerExecution.update({
+      where: { id: executionId },
+      data: { status: "SENDING", attempts: { increment: 1 }, nextRetryAt: null },
+    })
+  );
 
   let sent: { recipient_id: string; message_id: string };
   try {
@@ -319,7 +334,7 @@ export async function processInstagramEvent(eventId: string): Promise<ProcessOut
   await finishEvent(eventId, result);
   if (result.status === "RETRYING") {
     throw new TriggerRetryableError({
-      kind: "temporary",
+      kind: result.kind ?? "temporary",
       retryable: true,
       userMessage: result.error ?? "",
       technical: result.errorDetail ?? result.error ?? "retry",

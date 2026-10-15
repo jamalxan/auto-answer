@@ -31,11 +31,12 @@ export const RETRY_DELAYS_MS = [
   6 * 60 * 60_000,
 ] as const;
 
-export const MAX_DELIVERY_ATTEMPTS = RETRY_DELAYS_MS.length;
+/** The first attempt plus one retry per delay above. */
+export const MAX_DELIVERY_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 
 /**
- * Delay before the next attempt after `attemptsMade` failures, or null when the
- * delivery is out of attempts and must be marked dead.
+ * Delay before the next attempt after `attemptsMade` failures (1 -> 30s,
+ * 5 -> 6h), or null when the delivery is out of attempts and must be marked dead.
  */
 export function nextRetryDelayMs(attemptsMade: number): number | null {
   if (attemptsMade >= MAX_DELIVERY_ATTEMPTS) return null;

@@ -110,24 +110,38 @@ function CampaignsTab({
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function mutate(campaign: Campaign, init: RequestInit, fallback: string) {
+    setBusy(campaign.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/dev/triggers/campaigns/${campaign.id}`, init);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) setError(data?.error ?? fallback);
+    } catch {
+      setError(fallback);
+    } finally {
+      setBusy(null);
+    }
+    onChanged();
+  }
 
   async function toggle(campaign: Campaign, active: boolean) {
-    setBusy(campaign.id);
-    await fetch(`/api/dev/triggers/campaigns/${campaign.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active }),
-    });
-    setBusy(null);
-    onChanged();
+    await mutate(
+      campaign,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active }),
+      },
+      "Holatni o'zgartirib bo'lmadi"
+    );
   }
 
   async function remove(campaign: Campaign) {
     if (!window.confirm(`"${campaign.name}" o'chirilsinmi? Loglari ham o'chadi.`)) return;
-    setBusy(campaign.id);
-    await fetch(`/api/dev/triggers/campaigns/${campaign.id}`, { method: "DELETE" });
-    setBusy(null);
-    onChanged();
+    await mutate(campaign, { method: "DELETE" }, "O'chirib bo'lmadi");
   }
 
   if (campaigns.length === 0) {
@@ -150,6 +164,7 @@ function CampaignsTab({
 
   return (
     <div className="space-y-3">
+      {error && <p className="text-sm text-error">{error}</p>}
       {campaigns.map((campaign) => (
         <div key={campaign.id} className="panel rounded-xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -230,22 +245,35 @@ function ContactsTab() {
   const [contacts, setContacts] = useState<ContactRow[] | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/dev/triggers/contacts?page=${page}`)
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled || !data.success) return;
+        if (cancelled) return;
+        if (!data.success) {
+          setError(data.error ?? "Yuklab bo'lmadi");
+          return;
+        }
+        setError(null);
         setContacts(data.data.contacts);
         setTotalPages(data.data.pagination.totalPages);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Yuklab bo'lmadi");
       });
     return () => {
       cancelled = true;
     };
   }, [page]);
 
-  if (!contacts) return <p className="py-10 text-center text-sm text-muted">Yuklanmoqda…</p>;
+  if (!contacts) {
+    return (
+      <p className={`py-10 text-center text-sm ${error ? "text-error" : "text-muted"}`}>{error ?? "Yuklanmoqda…"}</p>
+    );
+  }
   if (contacts.length === 0) {
     return (
       <div className="panel rounded-xl">
@@ -321,15 +349,20 @@ function SimulatorTab({ accounts }: { accounts: Account[] }) {
   async function run() {
     setRunning(true);
     setError(null);
-    const res = await fetch("/api/dev/triggers/simulate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instagramAccountId: accountId, text, storyId: storyId.trim() || null }),
-    });
-    const data = await res.json();
-    setRunning(false);
-    if (data.success) setResult(data.data);
-    else setError(data.error ?? "Xato");
+    try {
+      const res = await fetch("/api/dev/triggers/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instagramAccountId: accountId, text, storyId: storyId.trim() || null }),
+      });
+      const data = await res.json();
+      if (data.success) setResult(data.data);
+      else setError(data.error ?? "Xato");
+    } catch {
+      setError("Xato");
+    } finally {
+      setRunning(false);
+    }
   }
 
   return (

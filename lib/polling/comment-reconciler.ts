@@ -44,6 +44,12 @@ const LOOKBACK_HOURS = Number(process.env.COMMENT_POLL_LOOKBACK_HOURS ?? 72);
 const MAX_NEW_PER_SWEEP = Number(process.env.COMMENT_POLL_MAX_PER_SWEEP ?? 30);
 // For "any post" campaigns, how many recent posts to scan.
 const RECENT_MEDIA_LIMIT = 10;
+// A FAILED send is retried by the sweep only after this cool-down, and only
+// until the DmLog has been attempted this many times in total (every BullMQ
+// attempt counts) — otherwise a doomed comment is re-sent every sweep for days.
+const FAILED_RETRY_COOLDOWN_MS =
+  Number(process.env.COMMENT_POLL_FAILED_COOLDOWN_MINUTES ?? 30) * 60 * 1000;
+const MAX_FAILED_ATTEMPTS = Number(process.env.COMMENT_POLL_MAX_FAILED_ATTEMPTS ?? 9);
 
 interface SweepStat {
   campaign: string;
@@ -63,7 +69,12 @@ function errMessage(error: unknown): string {
 /** One reconciliation pass across every active campaign. */
 export async function reconcileComments(): Promise<void> {
   const automations = await prisma.automation.findMany({
-    where: { isActive: true },
+    // A broken or disconnected account can't be read or answered: sweeping it
+    // only produces errors (and, before, a failed DM per comment every sweep).
+    where: {
+      isActive: true,
+      instagramAccount: { tokenStatus: { not: "BROKEN" }, accessToken: { not: "" } },
+    },
     select: {
       id: true,
       name: true,
@@ -73,6 +84,8 @@ export async function reconcileComments(): Promise<void> {
       keywords: true,
       wholeWordMatch: true,
       publicReplyEnabled: true,
+      publicReplyMessage: true,
+      publicReplyMessages: true,
       workspaceId: true,
       instagramAccount: {
         select: {
@@ -113,6 +126,8 @@ async function sweepCampaign(
     keywords: string[];
     wholeWordMatch: boolean;
     publicReplyEnabled: boolean;
+    publicReplyMessage: string | null;
+    publicReplyMessages: string[];
     instagramAccount: {
       id: string;
       instagramId: string;
@@ -206,14 +221,29 @@ async function sweepCampaign(
     // reply, the completion signal is publicReplySentAt (a DM alone is not
     // enough — the reply still has to land); otherwise a SENT DM is enough. This
     // is what lets a comment whose DM sent but whose public reply failed come
-    // back and retry the reply.
+    // back and retry the reply. A campaign with public replies on but no reply
+    // text never posts one, so a SENT DM is enough there too.
+    //
+    // A FAILED comment is left alone while it cools down after its last attempt,
+    // and for good once it has used up MAX_FAILED_ATTEMPTS.
+    const needsPublicReply =
+      automation.publicReplyEnabled &&
+      (automation.publicReplyMessages.length > 0 ||
+        Boolean(automation.publicReplyMessage));
     const handled = await prisma.dmLog.findMany({
       where: {
         automationId: automation.id,
         commentId: { in: needsAction.map((c) => c.id) },
-        ...(automation.publicReplyEnabled
-          ? { publicReplySentAt: { not: null } }
-          : { status: "SENT" }),
+        OR: [
+          needsPublicReply
+            ? { publicReplySentAt: { not: null } }
+            : { status: "SENT" },
+          {
+            status: "FAILED",
+            updatedAt: { gt: new Date(Date.now() - FAILED_RETRY_COOLDOWN_MS) },
+          },
+          { status: "FAILED", attempts: { gte: MAX_FAILED_ATTEMPTS } },
+        ],
       },
       select: { commentId: true },
     });

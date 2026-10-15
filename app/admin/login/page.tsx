@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid: "Noto'g'ri login yoki parol.",
+  locked: "Juda ko'p urinish. 15 daqiqadan keyin qayta urinib ko'ring.",
 };
 
 export default async function AdminLoginPage({

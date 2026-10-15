@@ -228,6 +228,7 @@ export interface Dictionary {
     dedup: string;
     rateLimited: string;
     skippedPlan: string;
+    workspaceSuspended: string;
     noMatch: string;
   };
   builder: {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAllAccountTokens } from "@/lib/meta/token-health";
+import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,8 +8,7 @@ export const dynamic = "force-dynamic";
 // with a real Graph API call and flips broken ones so the UI stops claiming
 // "Connected" while Meta answers with error 190.
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET;
-  if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 

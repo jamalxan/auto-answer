@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getDMQueue, getRedisConnection } from "@/lib/queue/client";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
+import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 // Health must reflect live state (worker heartbeat, queue depth), never a
@@ -56,7 +57,7 @@ async function checkQueue(): Promise<HealthCheck & { counts?: unknown }> {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const [database, redis, queue, worker] = await Promise.all([
     checkDatabase(),
     checkRedis(),
@@ -75,16 +76,20 @@ export async function GET() {
     queue.status === "ok" &&
     worker.healthy;
 
+  // The endpoint is public (deploy smoke tests, uptime checks), so anonymous
+  // callers only get the statuses. Error text, queue depth and the worker's
+  // hostname/pid need the cron secret.
+  const checks = isAuthorizedCronRequest(request)
+    ? { database, redis, queue, worker }
+    : {
+        database: { status: database.status },
+        redis: { status: redis.status },
+        queue: { status: queue.status },
+        worker: { healthy: worker.healthy, ageMs: worker.ageMs },
+      };
+
   return NextResponse.json(
-    {
-      status: healthy ? "ok" : "degraded",
-      checks: {
-        database,
-        redis,
-        queue,
-        worker,
-      },
-    },
+    { status: healthy ? "ok" : "degraded", checks },
     { status: healthy ? 200 : 503 }
   );
 }

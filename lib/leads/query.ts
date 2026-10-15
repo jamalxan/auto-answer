@@ -12,10 +12,15 @@ export interface LeadFilters {
 const STATUSES = new Set(["NEW", "SENT", "PARTIAL", "FAILED"]);
 const SOURCES = new Set(["CAMPAIGN", "INBOUND_DM"]);
 
+// A bare YYYY-MM-DD is the user's calendar day: Asia/Tashkent, UTC+5, no DST.
+const TASHKENT_OFFSET_MIN = 300;
+
 function parseDate(value: string | null | undefined, endOfDay = false): Date | null {
   if (!value) return null;
-  const date = new Date(value.length === 10 ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00"}Z` : value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const dateOnly = value.length === 10;
+  const date = new Date(dateOnly ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00"}Z` : value);
+  if (Number.isNaN(date.getTime())) return null;
+  return dateOnly ? new Date(date.getTime() - TASHKENT_OFFSET_MIN * 60_000) : date;
 }
 
 /** Workspace-scoped lead filter shared by the list and CSV export. */

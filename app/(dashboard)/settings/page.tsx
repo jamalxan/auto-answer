@@ -45,7 +45,8 @@ interface WorkspaceMembersData {
     id: string;
     email: string;
     role: "OWNER" | "ADMIN" | "MEMBER";
-    inviteUrl: string;
+    // Only sent to owners and admins.
+    inviteUrl?: string;
     expiresAt: string;
   }>;
 }
@@ -366,20 +367,22 @@ export default function SettingsPage() {
                     <p className="truncate text-xs text-muted">
                       {invitation.role === "ADMIN"
                         ? t.settings.roleAdmin
-                        : t.settings.roleMember}{" "}
-                      · {invitation.inviteUrl}
+                        : t.settings.roleMember}
+                      {invitation.inviteUrl && <> · {invitation.inviteUrl}</>}
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void navigator.clipboard?.writeText(invitation.inviteUrl)
-                      }
-                      className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
-                    >
-                      {t.common.copy}
-                    </button>
+                    {invitation.inviteUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void navigator.clipboard?.writeText(invitation.inviteUrl!)
+                        }
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
+                      >
+                        {t.common.copy}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeInvitation(invitation.id)}

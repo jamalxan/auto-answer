@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/db/client";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { isTriggerEngineEnabled } from "./config";
+import { selectCampaign } from "./matching";
 import { normalizeWebhookPayload, type NormalizedInstagramEvent, type RawWebhookPayload } from "./normalize";
 import { enqueueEvent } from "./queue";
 
@@ -121,4 +122,47 @@ export async function ingestWebhookPayload(payload: unknown): Promise<IngestResu
     });
   }
   return result;
+}
+
+export function storyReplyKey(instagramAccountId: string, messageId: string): string {
+  return `${instagramAccountId}|${messageId}`;
+}
+
+async function loadStoryReplyCampaigns(instagramId: string) {
+  const gate = await loadAccountGate(instagramId);
+  if (!gate || !gate.engaged) return [];
+  return prisma.triggerCampaign.findMany({
+    where: { instagramAccountId: gate.id, triggerType: "STORY_REPLY", active: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * Story replies in this payload that an active STORY_REPLY campaign will
+ * answer, as storyReplyKey()s. The webhook route keeps these away from the DM
+ * keyword autoreply and the lead assistant, so one story reply gets one DM.
+ * Empty when the engine is off or no campaign matches: nothing changes then.
+ */
+export async function findClaimedStoryReplies(payload: unknown): Promise<Set<string>> {
+  const claimed = new Set<string>();
+  if (!isTriggerEngineEnabled()) return claimed;
+
+  const replies = normalizeWebhookPayload(payload as RawWebhookPayload).filter(
+    (event) => event.type === "STORY_REPLY"
+  );
+  const campaignsByAccount = new Map<string, Awaited<ReturnType<typeof loadStoryReplyCampaigns>>>();
+  for (const event of replies) {
+    let campaigns = campaignsByAccount.get(event.instagramAccountId);
+    if (!campaigns) {
+      campaigns = await loadStoryReplyCampaigns(event.instagramAccountId);
+      campaignsByAccount.set(event.instagramAccountId, campaigns);
+    }
+    const selection = selectCampaign(campaigns, {
+      type: "STORY_REPLY",
+      text: event.text,
+      storyId: event.storyId,
+    });
+    if (selection.campaign) claimed.add(storyReplyKey(event.instagramAccountId, event.messageId));
+  }
+  return claimed;
 }

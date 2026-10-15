@@ -89,6 +89,9 @@ describe("retry schedule", () => {
     expect(nextRetryDelayMs(1)).toBe(30_000);
     expect(nextRetryDelayMs(2)).toBe(120_000);
     expect(nextRetryDelayMs(5 - 1)).toBe(3_600_000);
+    // The 6h delay is actually used, after the fifth failure.
+    expect(nextRetryDelayMs(5)).toBe(21_600_000);
+    expect(MAX_DELIVERY_ATTEMPTS).toBe(6);
     expect(nextRetryDelayMs(MAX_DELIVERY_ATTEMPTS)).toBeNull();
   });
 });
@@ -172,7 +175,7 @@ describe("processDelivery — Telegram", () => {
       }
     }
     expect(d.status).toBe("DEAD");
-    expect(d.attempts).toBe(5);
+    expect(d.attempts).toBe(MAX_DELIVERY_ATTEMPTS);
     expect(alertWorkspace).toHaveBeenCalledTimes(1);
     expect(lead.status).toBe("FAILED");
     expect(d.lastError).toContain("chat not found");
@@ -349,6 +352,28 @@ describe("repeat inquiries (TZ 7.4)", () => {
     });
     const d = db.seed("leadDelivery", { leadId: repeat.id, integrationId: amo.id, kind: "repeat" });
     mockCrm(amoOk);
+
+    await processDelivery(d.id as string);
+
+    expect(d.status).toBe("FAILED");
+    expect(d.nextAttemptAt).toBeInstanceOf(Date);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("Bitrix24: waits for the original lead instead of creating a duplicate while it is still being delivered", async () => {
+    const { lead } = seedBase();
+    const bitrix = db.seed("integration", {
+      id: "int_bx", workspaceId: "w1", type: "BITRIX24", name: "Bitrix24",
+      credentialsEncrypted: encryptCredentials({ webhookUrl: "https://x.bitrix24.ru/rest/1/abc/" }),
+      config: {},
+    });
+    db.seed("leadDelivery", { leadId: lead.id, integrationId: bitrix.id, status: "PENDING", kind: "new" });
+    const repeat = db.seed("lead", {
+      id: "l2", workspaceId: "w1", instagramAccountId: "a1", idempotencyKey: "c2:0", igUserId: "u1", name: "Aziz",
+      phoneE164: "+998901234567", isRepeat: true, repeatOfId: lead.id,
+    });
+    const d = db.seed("leadDelivery", { leadId: repeat.id, integrationId: bitrix.id, kind: "repeat" });
+    mockCrm(() => ({ body: { result: 1 } }));
 
     await processDelivery(d.id as string);
 

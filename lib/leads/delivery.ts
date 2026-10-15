@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db/client";
 import { decryptCredentials } from "@/lib/integrations/crypto";
 import {
   IntegrationAuthError,
+  MAX_DELIVERY_ATTEMPTS,
   nextRetryDelayMs,
 } from "@/lib/integrations/errors";
 import {
@@ -185,14 +186,22 @@ async function transcriptOf(lead: Lead): Promise<string> {
   return lead.transcript ?? "";
 }
 
-/** The CRM lead that the original (non-repeat) delivery created. */
+/**
+ * The CRM lead that the original (non-repeat) delivery created. Throws (so the
+ * repeat is retried later) while that delivery is still on its way, rather
+ * than racing it with a second, duplicate lead.
+ */
 async function originalExternalId(lead: Lead, integrationId: string): Promise<string | null> {
   if (!lead.repeatOfId) return null;
   const original = await prisma.leadDelivery.findFirst({
-    where: { leadId: lead.repeatOfId, integrationId, status: "SENT", kind: "new" },
-    select: { externalId: true },
+    where: { leadId: lead.repeatOfId, integrationId, kind: "new" },
+    select: { status: true, externalId: true },
   });
-  return original?.externalId ?? null;
+  if (original?.status === "SENT") return original.externalId ?? null;
+  if (original && (original.status === "PENDING" || original.status === "FAILED")) {
+    throw new Error("Original lead is not in Bitrix24 yet; retrying the repeat later");
+  }
+  return null;
 }
 
 /**
@@ -242,11 +251,16 @@ async function sendToAmo(
     if (original?.status === "SENT" && original.externalId) {
       const leadId = Number(original.externalId);
       await client.addNote(leadId, `🔁 ${REPEAT_NOTE_HEADLINE}\n\n${note}`);
-      await client.addTask(
-        leadId,
-        `${REPEAT_NOTE_HEADLINE}: ${lead.name ?? "mijoz"}${lead.phoneE164 ? `, ${lead.phoneE164}` : ""}`,
-        new Date(Date.now() + REPEAT_FOLLOW_UP_DELAY_MS)
-      );
+      try {
+        await client.addTask(
+          leadId,
+          `${REPEAT_NOTE_HEADLINE}: ${lead.name ?? "mijoz"}${lead.phoneE164 ? `, ${lead.phoneE164}` : ""}`,
+          new Date(Date.now() + REPEAT_FOLLOW_UP_DELAY_MS)
+        );
+      } catch (error) {
+        // The note is already on the lead; a retry would only duplicate it.
+        console.error(`[amoCRM] note added to lead ${leadId} but the follow-up task failed:`, error);
+      }
       return { externalId: original.externalId, externalUrl: amoLeadUrl(config, leadId) };
     }
     if (original && (original.status === "PENDING" || original.status === "FAILED")) {
@@ -461,7 +475,7 @@ export async function processDelivery(deliveryId: string): Promise<void> {
         lead.workspaceId,
         "Lid yetkazilmadi",
         `❌ <b>Lid yetkazilmadi</b> (${integration.name})\n${lead.name ?? "—"} ${lead.phoneE164 ?? ""}\nLidlar sahifasida «Qayta yuborish» tugmasini bosing.`,
-        `Lid ${integration.name} ga 5 urinishdan keyin ham yetkazilmadi. Lidlar sahifasida qayta yuboring.`
+        `Lid ${integration.name} ga ${MAX_DELIVERY_ATTEMPTS} urinishdan keyin ham yetkazilmadi. Lidlar sahifasida qayta yuboring.`
       );
       return;
     }

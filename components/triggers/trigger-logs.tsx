@@ -6,7 +6,7 @@
  * reason for the admin and the technical detail behind it.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { displayStatus, EVENT_TYPE_LABELS, shortStoryId } from "@/lib/triggers/display";
 import { EmptyState, formatDateTime, inputClass, Pill, secondaryButton } from "./trigger-ui";
 
@@ -106,10 +106,16 @@ function DetailPanel({
   const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/dev/triggers/events/${id}`);
-    const data = await res.json();
-    if (data.success) setDetail(data.data);
-    else setError(data.error ?? "Yuklab bo'lmadi");
+    try {
+      const res = await fetch(`/api/dev/triggers/events/${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setDetail(data.data);
+        setError(null);
+      } else setError(data.error ?? "Yuklab bo'lmadi");
+    } catch {
+      setError("Yuklab bo'lmadi");
+    }
   }, [id]);
 
   useEffect(() => {
@@ -119,11 +125,17 @@ function DetailPanel({
 
   async function retry() {
     setRetrying(true);
-    const res = await fetch(`/api/dev/triggers/events/${id}/retry`, { method: "POST" });
-    const data = await res.json();
-    setRetrying(false);
-    if (!data.success) {
-      setError(data.error ?? "Qayta yuborib bo'lmadi");
+    let data: { success?: boolean; error?: string } | null = null;
+    try {
+      const res = await fetch(`/api/dev/triggers/events/${id}/retry`, { method: "POST" });
+      data = await res.json();
+    } catch {
+      data = null;
+    } finally {
+      setRetrying(false);
+    }
+    if (!data?.success) {
+      setError(data?.error ?? "Qayta yuborib bo'lmadi");
       return;
     }
     onRetried();
@@ -279,7 +291,11 @@ export default function TriggerLogs({
   const [totalPages, setTotalPages] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
 
+  // Filters change while a request is in flight (typing in search); only the
+  // newest request may update the list.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     const params = new URLSearchParams({ page: String(page) });
     if (status) params.set("status", status);
     if (type) params.set("type", type);
@@ -288,16 +304,20 @@ export default function TriggerLogs({
     try {
       const res = await fetch(`/api/dev/triggers/events?${params}`);
       const data = await res.json();
+      if (seq !== loadSeq.current) return;
       if (data.success) {
         setEvents(data.data.events);
         setTotalPages(data.data.pagination.totalPages);
       }
+    } catch {
+      // keep what is shown; the next poll tries again
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [page, status, type, campaignId, q]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- state is set after the fetch resolves
     void load();
     // Live-ish: events arrive from webhooks while the page is open.
     const timer = setInterval(() => void load(), 10_000);

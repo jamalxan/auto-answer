@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/client";
 import { isFeatureEnabled } from "@/lib/assistant/profile";
 import { AmoClient, LongLivedTokenStrategy, type AmoConfig } from "@/lib/integrations/amocrm";
 import { BitrixClient, isValidBitrixWebhookUrl, normalizeWebhookUrl } from "@/lib/integrations/bitrix24";
+import { parseConfigPatch } from "@/lib/integrations/config";
 import { encryptCredentials } from "@/lib/integrations/crypto";
 import { IntegrationAuthError } from "@/lib/integrations/errors";
 import {
@@ -168,7 +169,11 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   const data: Record<string, unknown> = {};
   if (d.name) data.name = d.name;
   if (d.igAccountFilter) data.igAccountFilter = d.igAccountFilter;
-  if (d.config) data.config = { ...(integration.config as object), ...d.config };
+  if (d.config) {
+    const config = parseConfigPatch(integration.type, d.config);
+    if (!config) return jsonError("invalid_config", 400, { code: "invalid_config" });
+    data.config = { ...(integration.config as object), ...config };
+  }
   if (d.tokenExpiresAt !== undefined) {
     data.tokenExpiresAt = d.tokenExpiresAt ? new Date(d.tokenExpiresAt) : null;
     data.tokenWarnedAt = null;

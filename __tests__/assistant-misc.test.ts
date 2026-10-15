@@ -234,8 +234,9 @@ describe("leads list filters and CSV", () => {
   it("always scopes by workspace and maps filters", () => {
     const where = buildLeadWhere("w1", { status: "sent", source: "campaign", account: "a1", from: "2026-10-01", to: "2026-10-06", q: "Aziz" });
     expect(where).toMatchObject({ workspaceId: "w1", status: "SENT", source: "CAMPAIGN", instagramAccountId: "a1" });
-    expect((where.createdAt as { gte: Date }).gte.toISOString()).toBe("2026-10-01T00:00:00.000Z");
-    expect((where.createdAt as { lte: Date }).lte.toISOString()).toBe("2026-10-06T23:59:59.999Z");
+    // Calendar days in Tashkent (UTC+5), not UTC.
+    expect((where.createdAt as { gte: Date }).gte.toISOString()).toBe("2026-09-30T19:00:00.000Z");
+    expect((where.createdAt as { lte: Date }).lte.toISOString()).toBe("2026-10-06T18:59:59.999Z");
     expect(where.OR).toBeTruthy();
   });
 
@@ -319,6 +320,23 @@ describe("website autofill safety (TZ 3.1)", () => {
     await expect(assertPublicUrl("javascript:alert(1)")).rejects.toMatchObject({ code: "bad_url" });
     await expect(assertPublicUrl("https://user:pass@example.com")).rejects.toMatchObject({ code: "bad_url" });
     await expect(assertPublicUrl("not a url")).rejects.toMatchObject({ code: "bad_url" });
+  });
+
+  it("rejects IPv4-mapped IPv6 spellings of private addresses", async () => {
+    for (const address of [
+      "::ffff:127.0.0.1", "::ffff:7f00:1", "0:0:0:0:0:ffff:7f00:1", "::ffff:172.16.0.1", "::ffff:ac10:1",
+      "::ffff:169.254.169.254", "::ffff:a9fe:a9fe", "::ffff:10.0.0.1", "64:ff9b::a9fe:a9fe", "::127.0.0.1",
+      "fec0::1", "ff02::1", "::",
+    ]) {
+      expect(isPrivateAddress(address), address).toBe(true);
+    }
+    for (const address of ["::ffff:8.8.8.8", "::ffff:808:808", "fd::1"]) {
+      expect(isPrivateAddress(address), address).toBe(false);
+    }
+    // WHATWG URL rewrites this to [::ffff:7f00:1]; it must still be caught.
+    await expect(assertPublicUrl("http://[::ffff:127.0.0.1]/")).rejects.toMatchObject({ code: "private_address" });
+    await expect(assertPublicUrl("http://[::ffff:169.254.169.254]/")).rejects.toMatchObject({ code: "private_address" });
+    await expect(assertPublicUrl("http://[::ffff:172.20.0.1]/")).rejects.toMatchObject({ code: "private_address" });
   });
 
   it("accepts a public address", async () => {

@@ -6,7 +6,7 @@
  * Shows all campaigns as cards with toggle and delete.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
@@ -87,7 +87,10 @@ export default function CampaignsPage() {
     "all"
   );
 
+  // Only the newest list request may apply (account switches mid-flight).
+  const fetchSeq = useRef(0);
   const fetchAutomations = useCallback(async () => {
+    const seq = ++fetchSeq.current;
     try {
       const params = new URLSearchParams();
       if (selectedAccountId !== "all") {
@@ -98,11 +101,12 @@ export default function CampaignsPage() {
         { cache: "no-store" }
       );
       const data = await res.json();
+      if (seq !== fetchSeq.current) return;
       if (data.success) setAutomations(data.data);
     } catch (err) {
       console.error("Failed to fetch campaigns:", err);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeq.current) setLoading(false);
     }
   }, [selectedAccountId]);
 
@@ -125,12 +129,17 @@ export default function CampaignsPage() {
   // Fetch fresh post thumbnails (and reel video URLs) for the accounts in view
   // and map them by postId. Cache-first so they show instantly on a return
   // visit. Instagram URLs expire, so they are never stored on the campaign.
+  // Keyed on the account ids only, so toggling or editing a campaign doesn't
+  // refetch every post library.
+  const mediaAccountKey = Array.from(
+    new Set(automations.map((a) => a.instagramAccountId))
+  )
+    .sort()
+    .join(",");
   useEffect(() => {
-    if (automations.length === 0) return;
+    if (!mediaAccountKey) return;
     let cancelled = false;
-    const accountIds = Array.from(
-      new Set(automations.map((a) => a.instagramAccountId))
-    ).sort();
+    const accountIds = mediaAccountKey.split(",");
     const cacheKey = `ig-media:${accountIds.join(",")}`;
 
     const cached = readCache<{
@@ -182,7 +191,7 @@ export default function CampaignsPage() {
     return () => {
       cancelled = true;
     };
-  }, [automations]);
+  }, [mediaAccountKey]);
 
   // Close the reel lightbox on Escape.
   useEffect(() => {

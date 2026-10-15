@@ -30,6 +30,7 @@ vi.stubEnv("REDIS_URL", "redis://localhost:6379");
 import {
   checkRateLimit,
   incrementDMCounter,
+  releaseDMSlot,
   reserveDMSlot,
   RATE_LIMIT_MAX,
 } from "../lib/utils/rate-limiter";
@@ -121,6 +122,18 @@ describe("reserveDMSlot", () => {
     expect(result.allowed).toBe(false);
     expect(result.shouldRequeue).toBe(false);
     expect(result.shouldSkip).toBe(true);
+  });
+});
+
+describe("releaseDMSlot", () => {
+  it("gives the slot back with a floor-at-zero script", async () => {
+    mockEval.mockResolvedValue(50);
+
+    const count = await releaseDMSlot("account_123");
+
+    expect(mockEval).toHaveBeenCalledWith(expect.stringContaining("DECR"), 1, "rate:dm:account_123");
+    expect(mockEval.mock.calls[0][0]).toContain("current <= 0");
+    expect(count).toBe(50);
   });
 });
 

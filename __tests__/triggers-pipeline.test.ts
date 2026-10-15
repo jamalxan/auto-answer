@@ -38,10 +38,15 @@ vi.mock("@/lib/triggers/queue", async (importOriginal) => ({
 }));
 
 import { MetaApiError, RateLimitError, TokenExpiredError } from "@/lib/meta/client";
-import { forgetAccountGate, ingestWebhookPayload } from "@/lib/triggers/ingest";
+import {
+  findClaimedStoryReplies,
+  forgetAccountGate,
+  ingestWebhookPayload,
+  storyReplyKey,
+} from "@/lib/triggers/ingest";
 import { processInstagramEvent } from "@/lib/triggers/processor";
 import { TriggerRetryableError } from "@/lib/triggers/errors";
-import { TRIGGER_MAX_ATTEMPTS } from "@/lib/triggers/queue";
+import { backoffDelay, TRIGGER_MAX_ATTEMPTS } from "@/lib/triggers/queue";
 import { retryEvent, simulateStoryReply } from "@/lib/triggers/service";
 import { sweepTriggerEvents } from "@/lib/triggers/worker";
 
@@ -351,6 +356,26 @@ describe("Errors, queue and retry (I)", () => {
     expect(rows("triggerExecution")[0].status).toBe("RETRYING");
   });
 
+  it("a rate-limit retry waits past the hourly window", async () => {
+    mocks.reserveDMSlot.mockResolvedValueOnce({ allowed: false, currentCount: 750 });
+    const { stored } = await ingestWebhookPayload(storyReply("mid.cap2", "narx"));
+    const error = await processInstagramEvent(stored[0]).catch((e) => e);
+    expect(error).toBeInstanceOf(TriggerRetryableError);
+    expect((error as TriggerRetryableError).failure.kind).toBe("rate_limit");
+    expect(backoffDelay(1, "rate_limit")).toBeGreaterThan(60 * 60_000);
+    expect(backoffDelay(1)).toBe(30_000);
+    const nextRetryAt = rows("triggerExecution")[0].nextRetryAt as Date;
+    expect(nextRetryAt.getTime() - Date.now()).toBeGreaterThan(60 * 60_000);
+  });
+
+  it("releases the workspace reservation when the slot check throws", async () => {
+    mocks.reserveDMSlot.mockRejectedValueOnce(new Error("redis down"));
+    const { stored } = await ingestWebhookPayload(storyReply("mid.redis", "narx"));
+    await expect(processInstagramEvent(stored[0])).rejects.toThrow("redis down");
+    expect(mocks.releaseWorkspaceDMReservation).toHaveBeenCalledTimes(1);
+    expect(mocks.sendDirectMessage).not.toHaveBeenCalled();
+  });
+
   it("a suspended workspace is skipped, not failed", async () => {
     mocks.reserveWorkspaceDMSend.mockResolvedValueOnce({ allowed: false, reason: "suspended", periodStart: null });
     const { stored } = await ingestWebhookPayload(storyReply("mid.susp", "narx"));
@@ -403,6 +428,31 @@ describe("Errors, queue and retry (I)", () => {
     const later = new Date(Date.now() + 5 * 60_000);
     expect(await sweepTriggerEvents(later)).toBe(1);
     expect(mocks.enqueueEvent).toHaveBeenLastCalledWith(stored[0], { suffix: `sweep${later.getTime()}` });
+  });
+});
+
+describe("Story replies claimed by the engine (no double DM)", () => {
+  it("claims a story reply an active campaign will answer", async () => {
+    const claimed = await findClaimedStoryReplies(storyReply("mid.claim", "Narxi qancha?"));
+    expect([...claimed]).toEqual([storyReplyKey(IG_ID, "mid.claim")]);
+  });
+
+  it("does not claim a reply no campaign matches", async () => {
+    expect((await findClaimedStoryReplies(storyReply("mid.nomatch", "salom"))).size).toBe(0);
+  });
+
+  it("does not claim for accounts without trigger campaigns", async () => {
+    expect((await findClaimedStoryReplies(storyReply("mid.other", "narx", { igId: OTHER_IG_ID }))).size).toBe(0);
+  });
+
+  it("does not claim when the campaign is paused", async () => {
+    campaign.active = false;
+    expect((await findClaimedStoryReplies(storyReply("mid.paused", "narx"))).size).toBe(0);
+  });
+
+  it("does not claim when the engine is disabled", async () => {
+    vi.stubEnv("TRIGGER_ENGINE_DISABLED", "1");
+    expect((await findClaimedStoryReplies(storyReply("mid.off", "narx"))).size).toBe(0);
   });
 });
 

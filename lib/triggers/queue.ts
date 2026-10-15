@@ -18,7 +18,15 @@ export const TRIGGER_MAX_ATTEMPTS = 5;
 /** Wait before retry n (1-based): 30s, 2m, 10m, 30m. */
 export const TRIGGER_BACKOFF_MS = [30_000, 120_000, 600_000, 1_800_000];
 
-export function backoffDelay(attemptsMade: number): number {
+/**
+ * Wait after a rate-limit denial. The per-account DM cap is a one-hour window
+ * (lib/utils/rate-limiter.ts), so the normal backoff (~42 min in total) would
+ * burn every attempt inside one window. Wait past the window instead.
+ */
+export const TRIGGER_RATE_LIMIT_BACKOFF_MS = 65 * 60_000;
+
+export function backoffDelay(attemptsMade: number, kind?: string): number {
+  if (kind === "rate_limit") return TRIGGER_RATE_LIMIT_BACKOFF_MS;
   return TRIGGER_BACKOFF_MS[Math.min(Math.max(attemptsMade, 1) - 1, TRIGGER_BACKOFF_MS.length - 1)];
 }
 

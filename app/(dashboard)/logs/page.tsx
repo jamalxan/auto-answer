@@ -6,7 +6,7 @@
  * Filterable, paginated table of DM logs.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatusBadge from "@/components/status-badge";
 import { useLanguage } from "@/components/language-provider";
@@ -54,7 +54,10 @@ export default function LogsPage() {
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [page, setPage] = useState(1);
 
+  // Only the newest request may apply (filters/page change mid-flight).
+  const fetchSeq = useRef(0);
   const fetchLogs = useCallback(async () => {
+    const seq = ++fetchSeq.current;
     try {
       const params = new URLSearchParams({ page: String(page), limit: "20" });
       if (statusFilter !== "ALL") params.set("status", statusFilter);
@@ -74,14 +77,15 @@ export default function LogsPage() {
       const res = await fetch(`/api/logs?${params}`);
       const data = await res.json();
       if (data.success) {
+        writeCache(cacheKey, data.data);
+        if (seq !== fetchSeq.current) return;
         setLogs(data.data.logs);
         setPagination(data.data.pagination);
-        writeCache(cacheKey, data.data);
       }
     } catch (err) {
       console.error("Failed to fetch logs:", err);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeq.current) setLoading(false);
     }
   }, [page, statusFilter, selectedAccountId]);
 

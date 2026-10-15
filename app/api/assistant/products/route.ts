@@ -39,6 +39,14 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return jsonError("Invalid request", 400);
 
   const { instagramAccountId, ...data } = parsed.data;
+  if (instagramAccountId) {
+    const owns = await prisma.instagramAccount.findFirst({
+      where: { id: instagramAccountId, workspaceId: auth.ctx.workspaceId },
+      select: { id: true },
+    });
+    if (!owns) return jsonError("Instagram account not found", 404);
+  }
+
   const profile = await ensureProfile(auth.ctx.workspaceId, instagramAccountId ?? null);
   const count = await prisma.assistantProduct.count({ where: { profileId: profile.id } });
   if (count >= 200) return jsonError("At most 200 products", 422, { code: "too_many_products" });

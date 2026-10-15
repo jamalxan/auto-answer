@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   verifyAdminCredentials,
@@ -12,13 +13,52 @@ import {
   resetPasswordWithToken,
 } from "@/lib/admin/auth";
 import { sendEmail } from "@/lib/email";
+import { getRedisConnection } from "@/lib/queue/client";
+
+// Failed admin logins per client IP. The account guards every tenant, so a
+// password guessing loop gets cut off after a handful of misses.
+const LOGIN_FAILURE_LIMIT = 10;
+const LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60;
+
+async function loginFailureKey(): Promise<string> {
+  const h = await headers();
+  const ip =
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || "unknown";
+  return `admin-login-failures:${ip}`;
+}
+
+// Redis being down must not lock the admin out, so the limiter fails open.
+async function loginFailureCount(key: string): Promise<number> {
+  try {
+    return Number(await getRedisConnection().get(key)) || 0;
+  } catch (err) {
+    console.error("[admin] login limiter unavailable:", err);
+    return 0;
+  }
+}
+
+async function recordLoginFailure(key: string): Promise<void> {
+  try {
+    const redis = getRedisConnection();
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, LOGIN_FAILURE_WINDOW_SECONDS);
+  } catch (err) {
+    console.error("[admin] login limiter unavailable:", err);
+  }
+}
 
 export async function adminLoginAction(formData: FormData): Promise<void> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
 
+  const failureKey = await loginFailureKey();
+  if ((await loginFailureCount(failureKey)) >= LOGIN_FAILURE_LIMIT) {
+    redirect("/admin/login?error=locked");
+  }
+
   const account = await verifyAdminCredentials(username, password);
   if (!account) {
+    await recordLoginFailure(failureKey);
     redirect("/admin/login?error=invalid");
   }
 

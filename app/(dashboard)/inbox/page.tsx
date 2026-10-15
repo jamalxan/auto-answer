@@ -68,6 +68,19 @@ export default function InboxPage() {
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
+  // What is on screen right now, for the fetch callbacks: a response for an
+  // account or thread that is no longer selected must not overwrite it. `t`
+  // goes through a ref too, so a language switch doesn't rebuild the loaders
+  // (which would reset the open thread).
+  const selectedAccountRef = useRef(selectedAccountId);
+  const activeIdRef = useRef(activeId);
+  const tRef = useRef(t);
+  useEffect(() => {
+    selectedAccountRef.current = selectedAccountId;
+    activeIdRef.current = activeId;
+    tRef.current = t;
+  }, [selectedAccountId, activeId, t]);
+
   // Accounts for the selector; default to the first connected account. Uses the
   // lightweight accounts endpoint (one query) rather than the heavy dashboard
   // stats aggregation, so the inbox isn't gated on analytics before it can load.
@@ -126,6 +139,7 @@ export default function InboxPage() {
   const loadConversations = useCallback(
     async (silent: boolean) => {
       if (!selectedAccountId) return;
+      const isCurrent = () => selectedAccountRef.current === selectedAccountId;
       if (!silent) setConvLoading(true);
       try {
         const res = await fetch(
@@ -134,19 +148,20 @@ export default function InboxPage() {
         );
         const data = await res.json();
         if (data.success) {
-          setConversations(data.data.conversations);
           writeCache(convCacheKey(selectedAccountId), data.data.conversations);
+          if (!isCurrent()) return;
+          setConversations(data.data.conversations);
           setConvError(null);
-        } else if (!silent) {
-          setConvError(data.error ?? t.inbox.failedToLoadConversations);
+        } else if (!silent && isCurrent()) {
+          setConvError(data.error ?? tRef.current.inbox.failedToLoadConversations);
         }
       } catch {
-        if (!silent) setConvError(t.inbox.failedToLoadConversations);
+        if (!silent && isCurrent()) setConvError(tRef.current.inbox.failedToLoadConversations);
       } finally {
-        if (!silent) setConvLoading(false);
+        if (!silent && isCurrent()) setConvLoading(false);
       }
     },
-    [selectedAccountId, t]
+    [selectedAccountId]
   );
 
   // Load + poll conversations for the selected account. A cached list is shown
@@ -177,6 +192,9 @@ export default function InboxPage() {
   const loadMessages = useCallback(
     async (conversationId: string, silent: boolean) => {
       if (!selectedAccountId) return;
+      const isCurrent = () =>
+        activeIdRef.current === conversationId &&
+        selectedAccountRef.current === selectedAccountId;
       if (!silent) setThreadLoading(true);
       try {
         const res = await fetch(
@@ -185,13 +203,13 @@ export default function InboxPage() {
         );
         const data = await res.json();
         if (data.success) {
-          setMessages(data.data.messages);
           writeCache(msgCacheKey(conversationId), data.data.messages);
+          if (isCurrent()) setMessages(data.data.messages);
         }
       } catch {
         // keep whatever is shown
       } finally {
-        if (!silent) setThreadLoading(false);
+        if (!silent && isCurrent()) setThreadLoading(false);
       }
     },
     [selectedAccountId]
@@ -229,6 +247,7 @@ export default function InboxPage() {
   }, [messages]);
 
   function openConversation(id: string) {
+    activeIdRef.current = id;
     setActiveId(id);
     setSendError(null);
     // Paint any cached thread synchronously so the pane never flashes empty

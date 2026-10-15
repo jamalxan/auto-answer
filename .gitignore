@@ -45,3 +45,8 @@ next-env.d.ts
 .gstack/
 
 .claude/settings.local.json
+
+# local tooling / logs / IDE
+*.log
+/.tools/*.exe
+/.idea/

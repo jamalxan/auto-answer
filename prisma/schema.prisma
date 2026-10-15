@@ -24,77 +24,7 @@ model User {
   workspaceMembers  WorkspaceMember[]
   sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
   telegramUsers     TelegramUser[]
-  wordProgress      UserWordProgress[]
-  gameSessions      GameSession[]
-  worldProgress     WorldProgress?
 }
-
-// ... (rest of the models)
-
-model Word {
-  id            String   @id @default(cuid())
-  term          String
-  translation   String
-  definition    String?
-  audioUrl      String?
-  imageRef      String?
-  difficulty    String   @default("beginner") // beginner, intermediate, advanced, ielts
-  category      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  userProgress  UserWordProgress[]
-
-  @@index([difficulty])
-  @@index([category])
-}
-
-model UserWordProgress {
-  id             String   @id @default(cuid())
-  userId         String
-  wordId         String
-  accuracy       Float    @default(0) // 0 to 1
-  lastReviewedAt DateTime?
-  masteryLevel   Int      @default(0) // 0: new, 1: learning, 2: mastered
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  word           Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, wordId])
-  @@index([userId])
-}
-
-model GameSession {
-  id             String   @id @default(cuid())
-  userId         String
-  mode           String   // memory, runner, word-lab, boss-battle
-  worldAreaId    String?
-  score          Int      @default(0)
-  xpEarned       Int      @default(0)
-  status         String   @default("in_progress") // ready, in_progress, completed, abandoned
-  startedAt      DateTime @default(now())
-  completedAt    DateTime?
-  summary        Json?    // Final results: { correct: 10, wrong: 2, time: 120 }
-
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([status])
-}
-
-model WorldProgress {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  unlockedAreas  String[] @default(["starting-island"])
-  totalXp        Int      @default(0)
-  currentLevel   Int      @default(1)
-  updatedAt      DateTime @updatedAt
-
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
 
 model Account {
   id                String  @id @default(cuid())

@@ -92,4 +92,13 @@ describe("extractPriceMentions", () => {
   it("finds nothing in plain text", () => {
     expect(extractPriceMentions("Assalomu alaykum!")).toEqual([]);
   });
+  it("does not read words starting with k/к as a thousand multiplier", () => {
+    expect(extractPriceMentions("Yetkazib berish 2-3 kun ichida")).toEqual([]);
+    expect(extractPriceMentions("3 кунда тайёр бўлади")).toEqual([]);
+    expect(extractPriceMentions("Stol 10 kishi uchun")).toEqual([]);
+  });
+  it("still reads a bare k/к multiplier", () => {
+    expect(extractPriceMentions("Narxi 300k")).toEqual([{ amount: 300_000, currency: "UZS" }]);
+    expect(extractPriceMentions("Narxi 300 к.")[0]?.amount).toBe(300_000);
+  });
 });

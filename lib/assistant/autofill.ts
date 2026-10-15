@@ -7,6 +7,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { getAccountProfileForAutofill, getUserMedia } from "@/lib/meta/client";
+import { isPrivateAddress } from "@/lib/integrations/net";
 import { getLlmProvider } from "./llm/provider";
 
 const SITE_MAX_BYTES = 50 * 1024;
@@ -19,33 +20,7 @@ export class AutofillError extends Error {
   }
 }
 
-/** True for loopback, private, link-local and other non-public addresses. */
-export function isPrivateAddress(address: string): boolean {
-  if (isIP(address) === 4) {
-    const [a, b] = address.split(".").map(Number);
-    return (
-      a === 10 ||
-      a === 127 ||
-      a === 0 ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 100 && b >= 64 && b <= 127) ||
-      a >= 224
-    );
-  }
-  const lower = address.toLowerCase();
-  return (
-    lower === "::1" ||
-    lower === "::" ||
-    lower.startsWith("fc") ||
-    lower.startsWith("fd") ||
-    lower.startsWith("fe80") ||
-    lower.startsWith("::ffff:127.") ||
-    lower.startsWith("::ffff:10.") ||
-    lower.startsWith("::ffff:192.168.")
-  );
-}
+export { isPrivateAddress };
 
 /** Reject anything that would let a user point us at our own network (SSRF). */
 export async function assertPublicUrl(raw: string): Promise<URL> {

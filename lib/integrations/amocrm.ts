@@ -20,6 +20,7 @@ export class LongLivedTokenStrategy implements AmoAuthStrategy {
 }
 
 export type AmoZone = "amocrm.ru" | "kommo.com" | "amocrm.com";
+const AMO_ZONE_LIST: readonly string[] = ["amocrm.ru", "kommo.com", "amocrm.com"];
 
 export interface AmoConfig {
   subdomain: string;
@@ -74,6 +75,13 @@ export class AmoClient {
   ) {}
 
   private get base() {
+    // The bearer token goes to this host: only ever a real amoCRM/Kommo account.
+    if (
+      !/^[a-z0-9-]{2,63}$/i.test(this.config.subdomain) ||
+      !AMO_ZONE_LIST.includes(this.config.zone)
+    ) {
+      throw new IntegrationRequestError("amocrm", null, "amoCRM config has an invalid subdomain or zone");
+    }
     return `https://${this.config.subdomain}.${this.config.zone}`;
   }
 
@@ -229,7 +237,12 @@ export class AmoClient {
       // account and folded the new contact into an existing one.
       console.log(`[amoCRM] complex lead ${leadId} was merged into an existing one`);
     }
-    await this.addNote(leadId, noteText);
+    try {
+      await this.addNote(leadId, noteText);
+    } catch (error) {
+      // The lead exists now; failing here would retry and create a duplicate.
+      console.error(`[amoCRM] lead ${leadId} created but the note failed:`, error);
+    }
     return { leadId, url: amoLeadUrl(this.config, leadId), mode: "created" };
   }
 }

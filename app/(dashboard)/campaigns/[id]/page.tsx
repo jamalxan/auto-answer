@@ -84,33 +84,43 @@ export default function CampaignDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Keyed on the account / post only: toggling the campaign must not refetch.
+  const acct = campaign?.instagramAccountId ?? null;
+  const postId = campaign?.postId ?? null;
   useEffect(() => {
-    if (!campaign) return;
-    const acct = campaign.instagramAccountId;
+    if (!acct) return;
+    let cancelled = false;
     fetch(`/api/instagram/profile?instagramAccountId=${acct}`)
       .then((r) => r.json())
-      .then((d) =>
-        setAvatarUrl(d.success ? d.data.profilePictureUrl ?? null : null)
-      )
-      .catch(() => setAvatarUrl(null));
+      .then((d) => {
+        if (!cancelled) setAvatarUrl(d.success ? d.data.profilePictureUrl ?? null : null);
+      })
+      .catch(() => {
+        if (!cancelled) setAvatarUrl(null);
+      });
 
-    if (campaign.postId) {
+    if (postId) {
       fetch(`/api/instagram/posts?instagramAccountId=${acct}&limit=50`)
         .then((r) => r.json())
         .then((payload) => {
-          if (!payload.success) return;
+          if (cancelled || !payload.success) return;
           const hit = (
             payload.data as {
               id: string;
               thumbnail_url?: string;
               media_url?: string;
             }[]
-          ).find((p) => p.id === campaign.postId);
+          ).find((p) => p.id === postId);
           setPostThumb(hit?.thumbnail_url ?? hit?.media_url ?? null);
         })
-        .catch(() => setPostThumb(null));
+        .catch(() => {
+          if (!cancelled) setPostThumb(null);
+        });
     }
-  }, [campaign]);
+    return () => {
+      cancelled = true;
+    };
+  }, [acct, postId]);
 
   async function toggleActive() {
     if (!campaign) return;

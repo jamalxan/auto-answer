@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { Badge, Button, Notice, inputClass } from "@/components/assistant-ui";
 import { useLanguage } from "@/components/language-provider";
@@ -135,7 +135,11 @@ export default function LeadsPage() {
     setLoading(false);
   }, []);
 
+  // Only the newest request may apply: a slow response for old filters must
+  // not overwrite the current view.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setError(null);
     const params = filterParams();
     params.set("page", String(page));
@@ -148,12 +152,12 @@ export default function LeadsPage() {
       const res = await fetch(`/api/leads?${params}`, { cache: "no-store" });
       const payload = await res.json();
       if (!payload.success) throw new Error(payload.error);
-      apply(payload.data);
       writeCache(cacheKey, payload.data);
+      if (seq === loadSeq.current) apply(payload.data);
     } catch {
-      setError(t.assistant.common.loadError);
+      if (seq === loadSeq.current) setError(t.assistant.common.loadError);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [filterParams, page, t, apply]);
 

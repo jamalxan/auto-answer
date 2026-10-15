@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
 
   const workspaceId = context.workspaceId;
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsed = createAutomationSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -474,7 +474,7 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsed = updateAutomationSchema.safeParse(body);
 
   if (!parsed.success) {

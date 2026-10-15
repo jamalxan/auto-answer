@@ -75,10 +75,15 @@ export default function PostPicker({
     const cacheKey = `ig-posts:${instagramAccountId ?? "default"}`;
     const cached = readCache<InstagramPost[]>(cacheKey, 15 * 60 * 1000);
     // Hydrating state from cache is a legitimate effect use here.
+    // On an account change, drop the previous account's posts and error too.
     /* eslint-disable react-hooks/set-state-in-effect */
+    setError(null);
     if (cached.data) {
       setPosts(cached.data);
       setLoading(false);
+    } else {
+      setPosts([]);
+      setLoading(true);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
 

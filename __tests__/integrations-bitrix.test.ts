@@ -56,6 +56,17 @@ describe("Bitrix24 webhook url", () => {
     expect(isValidBitrixWebhookUrl("https://x.bitrix24.ru/rest/abc/")).toBe(false);
     expect(isValidBitrixWebhookUrl("javascript:alert(1)")).toBe(false);
   });
+  it("rejects webhooks pointing at internal hosts (SSRF)", () => {
+    for (const host of [
+      "localhost", "127.0.0.1", "10.0.0.5", "192.168.1.10", "172.16.0.1", "169.254.169.254", "0.0.0.0",
+      "[::1]", "[::ffff:127.0.0.1]", "[::ffff:a9fe:a9fe]", "[fe80::1]", "[fd00::1]", "2130706433", "metadata",
+      "foo.localhost", "bitrix.internal",
+    ]) {
+      expect(isValidBitrixWebhookUrl(`https://${host}/rest/1/abc123/`), host).toBe(false);
+    }
+    expect(isValidBitrixWebhookUrl("https://user:pw@x.bitrix24.ru/rest/1/abc/")).toBe(false);
+    expect(isValidBitrixWebhookUrl("https://crm.example.uz:8443/rest/1/abc/")).toBe(true);
+  });
   it("normalizes a missing trailing slash", () => {
     expect(normalizeWebhookUrl("https://a.b/rest/1/c")).toBe("https://a.b/rest/1/c/");
   });
@@ -101,6 +112,18 @@ describe("Bitrix24 delivery flow", () => {
     expect(calls.map((c) => c.method)).toEqual(["crm.duplicate.findbycomm", "crm.lead.add", "crm.timeline.comment.add"]);
     expect(calls[0].body).toEqual({ type: "PHONE", values: ["+998901234567"], entity_type: "LEAD" });
     expect(calls[2].body).toEqual({ fields: { ENTITY_ID: 321, ENTITY_TYPE: "lead", COMMENT: "TRANSCRIPT" } });
+  });
+
+  it("a failed comment after the lead exists still succeeds (no duplicate lead on retry)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    respond((call) => {
+      if (call.method === "crm.duplicate.findbycomm") return { body: { result: [] } };
+      if (call.method === "crm.lead.add") return { body: { result: 321 } };
+      return { status: 500, body: { error: "INTERNAL" } };
+    });
+    const result = await client().deliverLead(input, "TRANSCRIPT");
+    expect(result).toMatchObject({ leadId: 321, mode: "created" });
+    expect(calls.filter((c) => c.method === "crm.lead.add")).toHaveLength(1);
   });
 
   it("comments on an open duplicate instead of creating a lead (acceptance #11)", async () => {

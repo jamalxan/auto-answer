@@ -8,6 +8,7 @@ import {
   enqueueEvent,
   TRIGGER_BACKOFF_MS,
   TRIGGER_QUEUE_NAME,
+  TRIGGER_RATE_LIMIT_BACKOFF_MS,
   type ProcessEventJob,
 } from "./queue";
 
@@ -21,7 +22,10 @@ export function createTriggerWorker(): Worker<ProcessEventJob> {
     {
       connection: getRedisConnection(),
       concurrency: 5,
-      settings: { backoffStrategy: (attemptsMade: number) => backoffDelay(attemptsMade) },
+      settings: {
+        backoffStrategy: (attemptsMade: number, _type?: string, err?: Error) =>
+          backoffDelay(attemptsMade, err instanceof TriggerRetryableError ? err.failure.kind : undefined),
+      },
     }
   );
 
@@ -37,7 +41,8 @@ export function createTriggerWorker(): Worker<ProcessEventJob> {
 
 const PENDING_GRACE_MS = 2 * 60_000;
 // Longest backoff plus slack: a RETRYING event older than this lost its job.
-const RETRY_GRACE_MS = TRIGGER_BACKOFF_MS[TRIGGER_BACKOFF_MS.length - 1] + 15 * 60_000;
+const RETRY_GRACE_MS =
+  Math.max(TRIGGER_BACKOFF_MS[TRIGGER_BACKOFF_MS.length - 1], TRIGGER_RATE_LIMIT_BACKOFF_MS) + 15 * 60_000;
 const SWEEP_LIMIT = 100;
 
 /**

@@ -215,14 +215,19 @@ export default function AssistantPage() {
 
   const instagramAccountId = scope === "all" ? null : scope;
 
+  // Only the latest load may apply: a slow response for the previous scope
+  // must not overwrite the one just selected.
+  const loadSeq = useRef(0);
   const load = useCallback(
     async (keepStep = true) => {
+      const seq = ++loadSeq.current;
       const query = instagramAccountId ? `?instagramAccountId=${instagramAccountId}` : "";
       const result = await api<{
         profile: ServerProfile | null;
         accounts: Array<{ id: string; username: string }>;
         canManage: boolean;
       }>("GET", `/api/assistant/profile${query}`);
+      if (seq !== loadSeq.current) return;
       if (!result.ok) {
         setLoadError(true);
         setLoading(false);
@@ -467,7 +472,7 @@ export default function AssistantPage() {
 
       {step === "learn" && (
         <LearningStep
-          key={`${profile?.id ?? "none"}:${profile?.updatedAt ?? ""}`}
+          key={`${instagramAccountId ?? "all"}:${profile?.id ?? "none"}`}
           accountId={instagramAccountId}
           profile={profile}
           disabled={disabled}
@@ -969,6 +974,14 @@ function LearningStep({
   const [examples, setExamples] = useState(profile?.learnedExamples ?? []);
   const [busy, setBusy] = useState<"toggle" | "learn" | "save" | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "error" | "warning"; text: string } | null>(null);
+  // A fresh profile (learnNow, saveLearned, a save elsewhere) refreshes the
+  // editable copies in place — no remount, so the success notice survives.
+  const [syncedAt, setSyncedAt] = useState(profile?.updatedAt ?? "");
+  if ((profile?.updatedAt ?? "") !== syncedAt) {
+    setSyncedAt(profile?.updatedAt ?? "");
+    setStyle(profile?.learnedStyle ?? "");
+    setExamples(profile?.learnedExamples ?? []);
+  }
   const dirty =
     style !== (profile?.learnedStyle ?? "") ||
     JSON.stringify(examples) !== JSON.stringify(profile?.learnedExamples ?? []);

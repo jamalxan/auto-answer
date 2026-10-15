@@ -20,6 +20,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     SKIPPED_DEDUP: { text: "text-muted", label: t.status.dedup },
     SKIPPED_RATE_LIMIT: { text: "text-warning", label: t.status.rateLimited },
     SKIPPED_PLAN_LIMIT: { text: "text-warning", label: t.status.skippedPlan },
+    SKIPPED_WORKSPACE_SUSPENDED: { text: "text-muted", label: t.status.workspaceSuspended },
     SKIPPED_NO_MATCH: { text: "text-muted", label: t.status.noMatch },
   };
 

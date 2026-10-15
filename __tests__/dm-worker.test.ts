@@ -12,6 +12,7 @@ const {
   mockDecryptToken,
   mockMatchKeywords,
   mockReserveDMSlot,
+  mockReleaseDMSlot,
   mockQueueAdd,
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
@@ -45,6 +46,7 @@ const {
   mockDecryptToken: vi.fn(),
   mockMatchKeywords: vi.fn(),
   mockReserveDMSlot: vi.fn(),
+  mockReleaseDMSlot: vi.fn(),
   mockQueueAdd: vi.fn(),
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
@@ -94,6 +96,7 @@ vi.mock("@/lib/utils/keyword-matcher", () => ({
 
 vi.mock("@/lib/utils/rate-limiter", () => ({
   reserveDMSlot: mockReserveDMSlot,
+  releaseDMSlot: mockReleaseDMSlot,
 }));
 
 vi.mock("@/lib/billing/usage", () => ({
@@ -248,6 +251,7 @@ beforeEach(() => {
     reserved: true,
   });
   mockReleaseWorkspaceDMReservation.mockResolvedValue({ count: 1 });
+  mockReleaseDMSlot.mockResolvedValue(10);
   mockSendPrivateReply.mockResolvedValue({
     recipient_id: "commenter_999",
     message_id: "msg_001",
@@ -580,6 +584,30 @@ describe("DM Worker — Full Pipeline", () => {
         errorMessage: "API Error",
       }),
     });
+    expect(mockReleaseDMSlot).toHaveBeenCalledWith("ig_456");
+  });
+
+  it("should still run later matching campaigns when one campaign's send fails, then rethrow", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      mockAutomation,
+      { ...mockAutomation, id: "auto_second" },
+    ]);
+    mockSendPrivateReply
+      .mockRejectedValueOnce(new Error("API Error"))
+      .mockResolvedValueOnce({ recipient_id: "commenter_999", message_id: "msg_x" });
+
+    const processor = getProcessor();
+
+    await expect(processor(createMockJob())).rejects.toThrow("API Error");
+    expect(mockSendPrivateReply).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          automationId_commentId: { automationId: "auto_second", commentId: "comment_555" },
+        },
+        data: expect.objectContaining({ status: "SENT" }),
+      })
+    );
   });
 
   it("should handle missing access token", async () => {
@@ -801,6 +829,34 @@ describe("DM Worker — Full Pipeline", () => {
       "ig_456",
       "commenter_999",
       "Hey commenter_user! Here is the link: https://example.com"
+    );
+  });
+
+  it("should record the reveal as SENT and not fail the job when scheduling the follow-up fails", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue({
+      ...mockAutomation,
+      trackedLinks: [],
+      followUpEnabled: true,
+      followUpMessage: "Rahmat!",
+      followUpDelayMinutes: 5,
+    });
+    mockQueueAdd.mockRejectedValueOnce(new Error("Redis down"));
+
+    const processor = getProcessor();
+    await expect(processor(createMockPostbackJob())).resolves.toBeUndefined();
+
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "process-followup",
+      expect.objectContaining({ userId: "commenter_999" }),
+      expect.objectContaining({ jobId: "followup_auto_789_commenter_999" })
+    );
+    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ status: "SENT" }) })
+    );
+    expect(mockPrisma.dmLog.upsert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ status: "FAILED" }) })
     );
   });
 

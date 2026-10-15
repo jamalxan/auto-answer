@@ -240,6 +240,7 @@ export const en = {
     dedup: "Dedup",
     rateLimited: "Rate limited",
     skippedPlan: "Skipped",
+    workspaceSuspended: "Workspace suspended",
     noMatch: "No match",
   },
   builder: {
