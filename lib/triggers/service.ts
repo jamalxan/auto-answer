@@ -62,9 +62,13 @@ async function accountInWorkspace(workspaceId: string, accountId: string) {
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
+// Comment 2.0 campaigns have their own builder and routes (comment-service.ts);
+// these Story routes never list, open, toggle or delete them.
+const NOT_COMMENT = { triggerType: { not: "COMMENT" as const } };
+
 export async function listCampaigns(workspaceId: string) {
   const campaigns = await prisma.triggerCampaign.findMany({
-    where: { workspaceId },
+    where: { workspaceId, ...NOT_COMMENT },
     orderBy: { createdAt: "desc" },
     include: { instagramAccount: { select: { username: true } } },
   });
@@ -93,7 +97,7 @@ export async function listCampaigns(workspaceId: string) {
 }
 
 export async function getCampaign(workspaceId: string, id: string) {
-  return prisma.triggerCampaign.findFirst({ where: { id, workspaceId } });
+  return prisma.triggerCampaign.findFirst({ where: { id, workspaceId, ...NOT_COMMENT } });
 }
 
 export async function createCampaign(workspaceId: string, input: CampaignInput) {
@@ -115,13 +119,13 @@ export async function updateCampaign(workspaceId: string, id: string, input: Cam
 }
 
 export async function setCampaignActive(workspaceId: string, id: string, active: boolean) {
-  const result = await prisma.triggerCampaign.updateMany({ where: { id, workspaceId }, data: { active } });
+  const result = await prisma.triggerCampaign.updateMany({ where: { id, workspaceId, ...NOT_COMMENT }, data: { active } });
   return result.count > 0;
 }
 
 export async function deleteCampaign(workspaceId: string, id: string) {
   const existing = await prisma.triggerCampaign.findFirst({
-    where: { id, workspaceId },
+    where: { id, workspaceId, ...NOT_COMMENT },
     select: { instagramAccount: { select: { instagramId: true } } },
   });
   if (!existing) return false;

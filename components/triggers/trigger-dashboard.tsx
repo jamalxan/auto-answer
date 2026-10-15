@@ -473,6 +473,13 @@ export default function TriggerDashboard() {
           <p className="mt-1 text-sm text-muted">
             Event engine · Story Reply → Contact → Conversation → Auto javob → Log → Retry
           </p>
+          <p className="mt-1 text-xs text-muted">
+            Komment kampaniyalari bu yerda ko&apos;rinmaydi — ular{" "}
+            <Link href="/developer/comments" className="text-accent hover:underline">
+              Comment Automation 2.0
+            </Link>{" "}
+            bo&apos;limida.
+          </p>
         </div>
         <Link href="/developer/triggers/new" className={primaryButton}>
           + Automation yaratish

@@ -12,6 +12,7 @@ const { mockPrisma, mockQueueAdd, mockGetComments } = vi.hoisted(() => ({
     $queryRaw: vi.fn(),
     automation: { findMany: vi.fn() },
     dmLog: { findMany: vi.fn() },
+    instagramEvent: { findMany: vi.fn() },
     operationalEvent: { create: vi.fn() },
   },
   mockQueueAdd: vi.fn(),
@@ -84,6 +85,7 @@ describe("reconcileComments", () => {
     mockPrisma.$queryRaw.mockResolvedValue([]);
     mockPrisma.automation.findMany.mockResolvedValue([automation]);
     mockPrisma.dmLog.findMany.mockResolvedValue([]);
+    mockPrisma.instagramEvent.findMany.mockResolvedValue([]);
     mockPrisma.operationalEvent.create.mockResolvedValue({});
     mockGetComments.mockResolvedValue([
       { id: "c1", text: "link", timestamp: new Date().toISOString(), from: { id: "fan", username: "fan" } },
@@ -127,5 +129,26 @@ describe("reconcileComments", () => {
     mockPrisma.dmLog.findMany.mockResolvedValue([]);
     await reconcileComments();
     expect(mockQueueAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops comments Comment 2.0 took over before applying the per-sweep cap", async () => {
+    const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+    // 40 old claimed comments would fill the cap (30) on their own.
+    const claimed = Array.from({ length: 40 }, (_, i) => ({
+      id: `claimed${i}`, text: "narx", timestamp: at(600 - i), from: { id: `u${i}` },
+    }));
+    mockGetComments.mockResolvedValue([
+      ...claimed,
+      { id: "real1", text: "link", timestamp: at(5), from: { id: "fan" } },
+    ]);
+    mockPrisma.instagramEvent.findMany.mockResolvedValue(claimed.map((c) => ({ messageId: c.id })));
+
+    await reconcileComments();
+
+    const where = mockPrisma.instagramEvent.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ instagramAccountId: "acc", eventType: "COMMENT", executions: { some: {} } });
+    expect(where.messageId.in).toHaveLength(41);
+    expect(mockQueueAdd).toHaveBeenCalledTimes(1);
+    expect(mockQueueAdd.mock.calls[0][1]).toMatchObject({ commentId: "real1" });
   });
 });

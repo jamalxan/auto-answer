@@ -249,9 +249,27 @@ async function sweepCampaign(
     });
     const handledSet = new Set(handled.map((h) => h.commentId));
 
+    // Comments Comment 2.0 (lib/triggers) took over never get a DmLog here, so
+    // without this they would be re-queued every sweep for the whole lookback
+    // and, being the oldest, crowd real production comments out of the cap.
+    // "Took over" = the engine has an execution for the comment's event; a
+    // stored event without one (the engine ignored it) stays with production.
+    const remaining = needsAction.filter((c) => !handledSet.has(c.id));
+    if (remaining.length === 0) continue;
+    const takenOver = await prisma.instagramEvent.findMany({
+      where: {
+        instagramAccountId: account.id,
+        eventType: "COMMENT",
+        messageId: { in: remaining.map((c) => c.id) },
+        executions: { some: {} },
+      },
+      select: { messageId: true },
+    });
+    const takenOverSet = new Set(takenOver.map((e) => e.messageId));
+
     // Oldest first, so whoever commented earliest gets answered first, capped.
-    const fresh = needsAction
-      .filter((c) => !handledSet.has(c.id))
+    const fresh = remaining
+      .filter((c) => !takenOverSet.has(c.id))
       .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
       .slice(0, MAX_NEW_PER_SWEEP);
 

@@ -8,8 +8,9 @@
  *
  * Text goes through the same cleanup as comment keywords (emoji/punctuation
  * stripped, Latin diacritics folded, Arabic-script variants unified), so
- * "Narxi?? 🔥" and "narxi" compare equal. Cross-script folding (нарх ↔ narx)
- * is a V2 item.
+ * "Narxi?? 🔥" and "narxi" compare equal. Story replies keep this V1
+ * behaviour; comments (bottom of the file) use the cross-script normaliser
+ * and intents from keywords.ts.
  *
  * Pure: no database — the processor loads campaigns and passes them in.
  */
@@ -19,6 +20,7 @@ import {
   normalizeArabicScript,
   stripSpecialCharacters,
 } from "@/lib/utils/keyword-matcher";
+import { findIntent, findKeyword, isBuiltInIntent } from "./keywords";
 import type { NormalizedEventType } from "./normalize";
 
 export type MatchMode = "EVERY" | "CONTAINS" | "EXACT";
@@ -163,4 +165,142 @@ export function selectCampaign<C extends MatchableCampaign>(
     ignoredReason: null,
     considered: candidates.length,
   };
+}
+
+// ─── COMMENT (Comment Automation 2.0) ─────────────────────────────────────────
+//
+// Comments use the normaliser in keywords.ts (cross-script, whole words) and
+// built-in intents. One comment gets at most one campaign (Meta allows one
+// private reply per comment), chosen by TZ 8.2:
+//
+//   1. how it matched: EXACT keyword > CONTAINS keyword > INTENT > EVERY
+//   2. a campaign for this specific post beats an "any post" campaign
+//   3. higher `priority`
+//   4. the oldest campaign (stable between deliveries)
+
+export type CommentMatchKind = "EXACT" | "CONTAINS" | "INTENT" | "EVERY";
+export type MediaScope = "ANY" | "SPECIFIC";
+
+export interface CommentMatchableCampaign {
+  id: string;
+  /** Optional so pure tests can skip it; anything but COMMENT never matches. */
+  triggerType?: NormalizedEventType;
+  active: boolean;
+  mediaScope: MediaScope;
+  mediaIds: string[];
+  keywords: string[];
+  matchingMode: MatchMode;
+  intents: string[];
+  priority: number;
+  createdAt: Date;
+}
+
+export interface CommentInput {
+  mediaId: string | null;
+  text: string;
+  /** A comment on an ad carries the ad's media id; this is the organic post it came from. */
+  altMediaId?: string | null;
+}
+
+export type CommentVerdict =
+  | { matched: true; kind: CommentMatchKind; matchedKeyword: string | null; intent: string | null }
+  | { matched: false; reason: "inactive" | "wrong_trigger" | "media_scope" | "no_condition" | "keyword" };
+
+const KIND_RANK: Record<CommentMatchKind, number> = { EXACT: 3, CONTAINS: 2, INTENT: 1, EVERY: 0 };
+
+export function evaluateCommentCampaign(campaign: CommentMatchableCampaign, input: CommentInput): CommentVerdict {
+  if (!campaign.active) return { matched: false, reason: "inactive" };
+  if (campaign.triggerType && campaign.triggerType !== "COMMENT") return { matched: false, reason: "wrong_trigger" };
+
+  if (campaign.mediaScope === "SPECIFIC") {
+    const ids = [input.mediaId, input.altMediaId].filter((id): id is string => Boolean(id));
+    if (!ids.some((id) => campaign.mediaIds.includes(id))) return { matched: false, reason: "media_scope" };
+  }
+
+  const keywords = cleanKeywords(campaign.keywords);
+  const intents = campaign.intents.filter(isBuiltInIntent);
+
+  if ((campaign.matchingMode === "EXACT" || campaign.matchingMode === "CONTAINS") && keywords.length > 0) {
+    const keyword = findKeyword(input.text, keywords, campaign.matchingMode);
+    if (keyword) return { matched: true, kind: campaign.matchingMode, matchedKeyword: keyword, intent: null };
+  }
+  if (intents.length > 0) {
+    const hit = findIntent(input.text, intents);
+    if (hit) return { matched: true, kind: "INTENT", matchedKeyword: hit.example, intent: hit.intent };
+  }
+  if (campaign.matchingMode === "EVERY") return { matched: true, kind: "EVERY", matchedKeyword: null, intent: null };
+
+  if (keywords.length === 0 && intents.length === 0) return { matched: false, reason: "no_condition" };
+  return { matched: false, reason: "keyword" };
+}
+
+export interface CommentSelection<C extends CommentMatchableCampaign> {
+  campaign: C | null;
+  matchKind: CommentMatchKind | null;
+  matchedKeyword: string | null;
+  intent: string | null;
+  /** Why nothing matched, for the log. Null when a campaign was picked. */
+  ignoredReason: string | null;
+  considered: number;
+}
+
+export function selectCommentCampaign<C extends CommentMatchableCampaign>(
+  campaigns: C[],
+  input: CommentInput
+): CommentSelection<C> {
+  const none = (ignoredReason: string, considered: number): CommentSelection<C> => ({
+    campaign: null,
+    matchKind: null,
+    matchedKeyword: null,
+    intent: null,
+    ignoredReason,
+    considered,
+  });
+
+  const candidates = campaigns.filter((c) => c.active && (!c.triggerType || c.triggerType === "COMMENT"));
+  if (candidates.length === 0) return none("Izohlar uchun faol kampaniya yo'q", 0);
+
+  const matches: Array<{ campaign: C; kind: CommentMatchKind; matchedKeyword: string | null; intent: string | null }> = [];
+  let mediaMisses = 0;
+  for (const campaign of candidates) {
+    const verdict = evaluateCommentCampaign(campaign, input);
+    if (verdict.matched) {
+      matches.push({ campaign, kind: verdict.kind, matchedKeyword: verdict.matchedKeyword, intent: verdict.intent });
+    } else if (verdict.reason === "media_scope") {
+      mediaMisses++;
+    }
+  }
+
+  if (matches.length === 0) {
+    return none(
+      mediaMisses === candidates.length ? "Bu post uchun kampaniya sozlanmagan" : "Kalit so'z yoki intent mos kelmadi",
+      candidates.length
+    );
+  }
+
+  matches.sort((a, b) => {
+    const kind = KIND_RANK[b.kind] - KIND_RANK[a.kind];
+    if (kind !== 0) return kind;
+    const scope = Number(b.campaign.mediaScope === "SPECIFIC") - Number(a.campaign.mediaScope === "SPECIFIC");
+    if (scope !== 0) return scope;
+    const priority = (b.campaign.priority ?? 0) - (a.campaign.priority ?? 0);
+    if (priority !== 0) return priority;
+    return a.campaign.createdAt.getTime() - b.campaign.createdAt.getTime();
+  });
+
+  const best = matches[0];
+  return {
+    campaign: best.campaign,
+    matchKind: best.kind,
+    matchedKeyword: best.matchedKeyword,
+    intent: best.intent,
+    ignoredReason: null,
+    considered: candidates.length,
+  };
+}
+
+/** What the log shows as "matched by": the keyword, or "PRICE: narxi" for an intent. */
+export function describeCommentMatch(selection: { matchedKeyword: string | null; intent: string | null }): string | null {
+  if (selection.intent) return `${selection.intent}: ${selection.matchedKeyword ?? ""}`.trim();
+  return selection.matchedKeyword;
 }

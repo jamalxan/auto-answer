@@ -108,6 +108,8 @@ model Workspace {
   triggerExecutions    TriggerExecution[]
   instagramContacts    InstagramContact[]
   triggerConversations TriggerConversation[]
+  triggerFollowUpRuns  TriggerFollowUpRun[]
+  triggerBacktrackRuns TriggerBacktrackRun[]
 
   // Monthly AI-conversation quota (TZ section 13). null = default from
   // lib/assistant/limits. The counter resets with usagePeriodStart.
@@ -302,6 +304,8 @@ model DmLog {
   @@index([automationId])
   @@index([instagramAccountId])
   @@index([status])
+  // Comment 2.0 / backtrack look up "already answered privately" by comment.
+  @@index([commentId])
 }
 
 // Legacy reconciliation model; currently unwired. Runtime code does not read
@@ -1009,6 +1013,61 @@ enum TriggerExecutionStatus {
   SKIPPED
 }
 
+enum TriggerMediaScope {
+  ANY
+  SPECIFIC
+}
+
+enum TriggerReplyMode {
+  RANDOM
+  SEQUENTIAL
+  WEIGHTED
+}
+
+enum TriggerVariantKind {
+  DM
+  PUBLIC
+}
+
+enum TriggerVariantSource {
+  MANUAL
+  AI
+}
+
+enum TriggerQuickReplyAction {
+  MESSAGE
+  LEAD_CAPTURE
+  HANDOFF
+}
+
+enum TriggerFollowUpCondition {
+  ALWAYS
+  // Only if the person has not written anything since the trigger.
+  NO_REPLY
+  // Only if the person has not tapped the opening button.
+  NO_CLICK
+}
+
+enum TriggerFollowUpStatus {
+  SCHEDULED
+  SENDING
+  SENT
+  SKIPPED
+  CANCELLED
+  FAILED
+}
+
+enum TriggerSideStatus {
+  SENT
+  FAILED
+}
+
+enum TriggerBacktrackStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
 enum TriggerMessageDirection {
   INBOUND
   OUTBOUND
@@ -1029,6 +1088,8 @@ model InstagramEvent {
   storyUrl            String?
   mediaId             String?
   text                String               @default("")
+  // Our own button / quick-reply payload ("c2:...") when the event is a tap.
+  payload             String?
   timestamp           DateTime
   rawPayload          Json
   processingStatus    InstagramEventStatus @default(PENDING)
@@ -1048,6 +1109,9 @@ model InstagramEvent {
   instagramAccount InstagramAccount   @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
   contact          InstagramContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
   executions       TriggerExecution[]
+  // Set when the event was queued by a backtrack scan, not a webhook.
+  backtrackRunId   String?
+  backtrackRun     TriggerBacktrackRun? @relation(fields: [backtrackRunId], references: [id], onDelete: SetNull)
 
   @@unique([instagramAccountId, messageId])
   @@index([workspaceId, createdAt])
@@ -1071,9 +1135,33 @@ model TriggerCampaign {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount   @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  // -- Comment Automation 2.0 (triggerType COMMENT) --------------------------
+  // Which posts: every post, or only mediaIds.
+  mediaScope         TriggerMediaScope   @default(ANY)
+  mediaIds           String[]            @default([])
+  // Built-in intents (lib/triggers/keywords.ts) matched next to keywords.
+  intents            String[]            @default([])
+  // Tie-breaker between equally specific matches; higher wins.
+  priority           Int                 @default(0)
+  replyMode          TriggerReplyMode    @default(RANDOM)
+  // Next index for SEQUENTIAL mode; advanced atomically per send.
+  sequenceCursor     Int                 @default(0)
+  publicReplyEnabled Boolean             @default(false)
+  // Set: the private reply carries this button, and tapping it opens the
+  // 24h window for mainMessage, quick replies and follow-ups.
+  openingButtonLabel String?
+  mainMessage        String?
+  stopOnReply        Boolean             @default(true)
+  stopOnLead         Boolean             @default(true)
+  stopOnHandoff      Boolean             @default(true)
+
+  workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
   executions       TriggerExecution[]
+  replyVariants    TriggerReplyVariant[]
+  quickReplies     TriggerQuickReply[]
+  followUpSteps    TriggerFollowUpStep[]
+  backtrackRuns    TriggerBacktrackRun[]
 
   @@index([workspaceId])
   @@index([instagramAccountId, triggerType, active])
@@ -1098,9 +1186,25 @@ model TriggerExecution {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
-  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  event     InstagramEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  campaign  TriggerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  // -- Comment Automation 2.0 ------------------------------------------------
+  variantId         String?
+  publicReplyStatus TriggerSideStatus?
+  publicReplyError  String?
+  // The person tapped the opening button: the 24h window is open.
+  openedAt          DateTime?
+  // Last message from the person in this thread; the 24h window runs from it.
+  lastInboundAt     DateTime?
+  leadCapturedAt    DateTime?
+  handedOffAt       DateTime?
+  // Why follow-ups stopped (reply, lead, handoff, manual cancel).
+  stoppedAt         DateTime?
+  stopReason        String?
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  event     InstagramEvent       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  campaign  TriggerCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  variant   TriggerReplyVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  followUps TriggerFollowUpRun[]
 
   @@unique([eventId, campaignId])
   @@index([workspaceId, createdAt])
@@ -1120,6 +1224,9 @@ model InstagramContact {
   firstInteractionAt DateTime
   lastInteractionAt  DateTime
   interactionCount   Int                @default(0)
+  // Shared by the person through a lead-capture quick reply.
+  phone              String?
+  email              String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -1166,4 +1273,109 @@ model TriggerMessage {
 
   @@unique([conversationId, mid])
   @@index([conversationId, createdAt])
+}
+
+// --- Comment Automation 2.0 (developer area, ETAP 2) -------------------------
+
+/// One reply text a campaign can send. AI drafts start unapproved and are
+/// never sent until someone approves them (TZ 10: generate -> approve).
+model TriggerReplyVariant {
+  id         String               @id @default(cuid())
+  campaignId String
+  kind       TriggerVariantKind
+  text       String
+  // WEIGHTED mode: relative chance; ignored by RANDOM / SEQUENTIAL.
+  weight     Int                  @default(1)
+  sort       Int                  @default(0)
+  source     TriggerVariantSource @default(MANUAL)
+  approvedAt DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  campaign   TriggerCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  executions TriggerExecution[]
+
+  @@index([campaignId, kind, sort])
+}
+
+/// A quick-reply button on the campaign's main message (max 13, 20 chars).
+model TriggerQuickReply {
+  id           String                  @id @default(cuid())
+  campaignId   String
+  label        String
+  action       TriggerQuickReplyAction
+  // MESSAGE: the text sent back. LEAD_CAPTURE / HANDOFF: optional reply.
+  responseText String?
+  sort         Int                     @default(0)
+  createdAt    DateTime                @default(now())
+
+  campaign TriggerCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, sort])
+}
+
+/// One follow-up message in a campaign's sequence.
+model TriggerFollowUpStep {
+  id           String                   @id @default(cuid())
+  campaignId   String
+  sort         Int                      @default(0)
+  // Counted from the moment the window opened (tap) or the DM went out.
+  delayMinutes Int
+  condition    TriggerFollowUpCondition @default(ALWAYS)
+  message      String
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  campaign TriggerCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  runs     TriggerFollowUpRun[]
+
+  @@index([campaignId, sort])
+}
+
+/// A scheduled follow-up for one execution. Unique per (execution, step) so a
+/// step is never scheduled - or sent - twice.
+model TriggerFollowUpRun {
+  id          String                @id @default(cuid())
+  workspaceId String
+  executionId String
+  stepId      String
+  status      TriggerFollowUpStatus @default(SCHEDULED)
+  scheduledAt DateTime
+  sentAt      DateTime?
+  // Why it was skipped / cancelled / failed, in Uzbek for the logs.
+  reason      String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  execution TriggerExecution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  step      TriggerFollowUpStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, stepId])
+  @@index([status, scheduledAt])
+  @@index([workspaceId, createdAt])
+}
+
+/// "Send to earlier comments too" (TZ 11): one scan of a campaign's posts.
+model TriggerBacktrackRun {
+  id               String                 @id @default(cuid())
+  workspaceId      String
+  campaignId       String
+  // Capped at 7: Meta only allows private replies within 7 days.
+  days             Int
+  status           TriggerBacktrackStatus @default(RUNNING)
+  scanned          Int                    @default(0)
+  queued           Int                    @default(0)
+  skippedDuplicate Int                    @default(0)
+  skippedNoMatch   Int                    @default(0)
+  skippedExpired   Int                    @default(0)
+  error            String?
+  startedAt        DateTime               @default(now())
+  finishedAt       DateTime?
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign  TriggerCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  events    InstagramEvent[]
+
+  @@index([campaignId, startedAt])
 }

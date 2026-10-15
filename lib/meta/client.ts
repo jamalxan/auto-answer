@@ -403,6 +403,56 @@ export async function sendDirectMessageWithLinkButton(
   return handleResponse(response);
 }
 
+/**
+ * A quick-reply chip under a DM. `text` chips come back as a message with
+ * `quick_reply.payload`; `user_phone_number` / `user_email` chips let the
+ * person share their contact with one tap (Instagram fills in the value and
+ * sends it as the message text).
+ */
+export interface QuickReplyOption {
+  title: string;
+  payload: string;
+  contentType?: "text" | "user_phone_number" | "user_email";
+}
+
+/** Meta: at most 13 quick replies, titles at most 20 characters. */
+export const MAX_QUICK_REPLIES = 13;
+export const MAX_QUICK_REPLY_TITLE = 20;
+
+/**
+ * Send a direct message with quick-reply chips. Only inside an open 24-hour
+ * window (the person wrote or tapped a button recently).
+ */
+export async function sendDirectMessageWithQuickReplies(
+  accessToken: string,
+  instagramAccountId: string,
+  userId: string,
+  text: string,
+  quickReplies: QuickReplyOption[]
+): Promise<{ recipient_id: string; message_id: string }> {
+  const chips = quickReplies.slice(0, MAX_QUICK_REPLIES).map((reply) =>
+    !reply.contentType || reply.contentType === "text"
+      ? { content_type: "text", title: reply.title.slice(0, MAX_QUICK_REPLY_TITLE), payload: reply.payload }
+      : { content_type: reply.contentType, payload: reply.payload }
+  );
+  const response = await fetch(
+    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: userId },
+        message: chips.length > 0 ? { text, quick_replies: chips } : { text },
+      }),
+    }
+  );
+
+  return handleResponse(response);
+}
+
 export async function sendCommentReply(
   accessToken: string,
   commentId: string,

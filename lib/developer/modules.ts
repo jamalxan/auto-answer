@@ -37,7 +37,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "Comment Automation 2.0",
     summary:
       "Kuchli keywordlar, bir nechta javob varianti, AI javoblar, eski kommentlar, quick reply, follow-up.",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/comments",
   },
   {
     key: "triggers",

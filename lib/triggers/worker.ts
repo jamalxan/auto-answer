@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { prisma } from "@/lib/db/client";
 import { getRedisConnection } from "@/lib/queue/client";
 import { TriggerRetryableError } from "./errors";
+import { runDueFollowUps } from "./followups";
 import { PROCESSING_LEASE_MS, processInstagramEvent } from "./processor";
 import {
   backoffDelay,
@@ -73,11 +74,24 @@ export async function sweepTriggerEvents(now = new Date()): Promise<number> {
   return stuck.length;
 }
 
+/**
+ * Runs every minute from the worker process (worker/dm-worker.ts), only when
+ * the engine is enabled; the interval is cleared on shutdown.
+ *   1. sweep: re-queue events whose job was lost;
+ *   2. Comment 2.0 follow-ups that are due (lib/triggers/followups.ts).
+ */
 export async function runTriggerMaintenance(): Promise<void> {
   try {
     const requeued = await sweepTriggerEvents();
     if (requeued > 0) console.log(`[Trigger Engine] sweep re-queued ${requeued} event(s)`);
   } catch (error) {
     console.error("[Trigger Engine] sweep failed:", error instanceof Error ? error.message : error);
+  }
+  try {
+    const followUps = await runDueFollowUps();
+    const handled = Object.values(followUps).reduce((sum, n) => sum + n, 0);
+    if (handled > 0) console.log("[Trigger Engine] follow-ups:", JSON.stringify(followUps));
+  } catch (error) {
+    console.error("[Trigger Engine] follow-up sweep failed:", error instanceof Error ? error.message : error);
   }
 }

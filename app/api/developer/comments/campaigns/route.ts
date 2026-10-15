@@ -1,0 +1,37 @@
+import { NextRequest } from "next/server";
+import { jsonError, jsonOk } from "@/lib/api-auth";
+import { requireDeveloper } from "@/lib/developer/access";
+import {
+  commentCampaignSchema,
+  createCommentCampaign,
+  firstIssue,
+  listCommentCampaigns,
+  listWorkspaceAccounts,
+} from "@/lib/triggers/comment-service";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const auth = await requireDeveloper();
+  if (!auth.ok) return auth.response;
+
+  const [campaigns, accounts] = await Promise.all([
+    listCommentCampaigns(auth.ctx.workspaceId),
+    listWorkspaceAccounts(auth.ctx.workspaceId),
+  ]);
+  return jsonOk({ campaigns, accounts });
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await requireDeveloper(true);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json().catch(() => null);
+  if (!body) return jsonError("So'rov JSON emas", 400);
+  const parsed = commentCampaignSchema.safeParse(body);
+  if (!parsed.success) return jsonError(firstIssue(parsed.error), 400);
+
+  const result = await createCommentCampaign(auth.ctx.workspaceId, parsed.data);
+  if (!result.ok) return jsonError(result.error, result.status);
+  return jsonOk({ campaign: result.data }, 201);
+}

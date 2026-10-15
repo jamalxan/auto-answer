@@ -53,6 +53,8 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   },
   triggerCampaign: {
     instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+    quickReplies: { model: "triggerQuickReply", fk: "campaignId", kind: "many" },
+    followUpSteps: { model: "triggerFollowUpStep", fk: "campaignId", kind: "many" },
   },
   triggerExecution: {
     campaign: { model: "triggerCampaign", fk: "campaignId", kind: "one" },
@@ -121,6 +123,7 @@ const DEFAULTS: Record<string, () => Row> = {
     nextRetryAt: null, sentAt: null,
   }),
   instagramContact: () => ({ username: null, name: null, interactionCount: 0 }),
+  triggerBacktrackRun: () => ({ startedAt: new Date(), error: null, finishedAt: null }),
 };
 
 let seq = 0;

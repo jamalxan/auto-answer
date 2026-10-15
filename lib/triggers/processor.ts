@@ -3,9 +3,11 @@
  *
  *   claim the event (lease) → handler for its type → finish with a status
  *
- * Handlers are registered per event type. V1 ships STORY_REPLY; every other
- * type is stored and marked IGNORED until its module lands, so adding Story
- * Mention or Direct later is a new handler, not a new pipeline.
+ * Handlers are registered per event type: STORY_REPLY, COMMENT and
+ * DIRECT_MESSAGE (Comment 2.0's button / quick-reply taps and replies).
+ * STORY_MENTION and LIVE_COMMENT are stored and marked IGNORED until their
+ * module lands — a new handler, not a new pipeline. The shared send path
+ * (token, quota, rate limit, execution lifecycle) is in delivery.ts.
  *
  * Duplicate protection, layer two (layer one is the unique event row):
  *   - the claim is an atomic status flip, so two jobs for one event cannot
@@ -21,19 +23,27 @@
 import { prisma } from "@/lib/db/client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { sendDirectMessage } from "@/lib/meta/client";
-import { markTokenBroken } from "@/lib/meta/token-health";
-import { releaseWorkspaceDMReservation, reserveWorkspaceDMSend } from "@/lib/billing/usage";
-import { reserveDMSlot } from "@/lib/utils/rate-limiter";
-import type {
-  InstagramAccount,
-  InstagramEvent,
-  InstagramEventStatus,
-  InstagramEventType,
-} from "@/app/generated/prisma/client";
+import type { InstagramEventType } from "@/app/generated/prisma/client";
+import { handleComment } from "./comment-handler";
 import { enrichContact, recordInteraction, storeMessage } from "./contacts";
-import { classifySendError, TriggerRetryableError, type ClassifiedFailure } from "./errors";
+import {
+  beginExecution,
+  failExecution,
+  markExecutionSending,
+  markExecutionSent,
+  readAccessToken,
+  sendGuarded,
+  skipExecution,
+  type EventHandler,
+  type EventWithAccount,
+  type HandlerResult,
+} from "./delivery";
+import { handleDirectMessage } from "./direct-handler";
+import { TriggerRetryableError } from "./errors";
 import { selectCampaign } from "./matching";
-import { backoffDelay, TRIGGER_MAX_ATTEMPTS } from "./queue";
+import { TRIGGER_MAX_ATTEMPTS } from "./queue";
+
+export type { EventWithAccount, HandlerResult } from "./delivery";
 
 /** A PROCESSING claim older than this is treated as abandoned (crashed worker). */
 export const PROCESSING_LEASE_MS = 5 * 60_000;
@@ -46,18 +56,6 @@ export type ProcessOutcome =
   | "already_done"
   | "busy"
   | "missing";
-
-type EventWithAccount = InstagramEvent & { instagramAccount: InstagramAccount };
-
-interface HandlerResult {
-  status: Extract<InstagramEventStatus, "PROCESSED" | "IGNORED" | "FAILED" | "RETRYING">;
-  error?: string | null;
-  errorDetail?: string | null;
-  /** Why a RETRYING result failed; picks the retry delay. */
-  kind?: ClassifiedFailure["kind"];
-}
-
-type EventHandler = (event: EventWithAccount) => Promise<HandlerResult>;
 
 // ─── Claim / finish ───────────────────────────────────────────────────────────
 
@@ -90,24 +88,6 @@ async function finishEvent(eventId: string, result: HandlerResult) {
   });
 }
 
-async function recordBackendFailure(event: EventWithAccount, failure: ClassifiedFailure, final: boolean) {
-  console.error(
-    `[Trigger Engine] ${event.eventType} ${event.id} send ${final ? "failed" : "will retry"}: ${failure.technical}`
-  );
-  if (!final) return;
-  await prisma.operationalEvent
-    .create({
-      data: {
-        workspaceId: event.workspaceId,
-        source: "WORKER",
-        level: "ERROR",
-        message: `Trigger engine: ${event.eventType} reply failed — ${failure.userMessage}`.slice(0, 500),
-        payload: { eventId: event.id, kind: failure.kind, technical: failure.technical },
-      },
-    })
-    .catch(() => {});
-}
-
 // ─── STORY_REPLY ──────────────────────────────────────────────────────────────
 
 export async function handleStoryReply(event: EventWithAccount): Promise<HandlerResult> {
@@ -138,144 +118,34 @@ export async function handleStoryReply(event: EventWithAccount): Promise<Handler
   }
   const campaign = selection.campaign;
 
-  const key = { eventId_campaignId: { eventId: event.id, campaignId: campaign.id } };
-  let execution = await prisma.triggerExecution.findUnique({ where: key });
+  const start = await beginExecution(event, campaign.id, () => ({
+    matchedKeyword: selection.matchedKeyword,
+    responseText: campaign.responseMessage,
+  }));
+  if ("done" in start) return start.done;
+  const executionId = start.execution.id;
 
-  if (execution?.status === "SENT" || execution?.status === "SKIPPED") {
-    return { status: "PROCESSED" };
-  }
-  if (execution?.status === "SENDING") {
-    // The previous run died between "about to send" and "sent". Instagram may
-    // or may not have delivered it; a second DM is worse than none.
-    const error = "Yuborish jarayoni uzildi — ikki marta yubormaslik uchun to'xtatildi. Kerak bo'lsa qo'lda qayta yuboring.";
-    await prisma.triggerExecution.update({
-      where: { id: execution.id },
-      data: { status: "FAILED", error, errorDetail: "Found in SENDING state on re-run (worker crash mid-send)" },
-    });
-    return { status: "FAILED", error };
-  }
+  const token = readAccessToken(account);
+  if (!token.ok) return failExecution(event, executionId, token.failure);
+  const accessToken = token.token;
 
-  if (!execution) {
-    execution = await prisma.triggerExecution.create({
-      data: {
-        workspaceId: event.workspaceId,
-        eventId: event.id,
-        campaignId: campaign.id,
-        status: "PENDING",
-        matchedKeyword: selection.matchedKeyword,
-        responseText: campaign.responseMessage,
-      },
-    });
-  }
-  const executionId = execution.id;
-
-  const failExecution = async (failure: ClassifiedFailure): Promise<HandlerResult> => {
-    const final = !failure.retryable || event.attempts >= TRIGGER_MAX_ATTEMPTS;
-    await prisma.triggerExecution.update({
-      where: { id: executionId },
-      data: {
-        status: final ? "FAILED" : "RETRYING",
-        error: failure.userMessage,
-        errorDetail: failure.technical,
-        nextRetryAt: final ? null : new Date(Date.now() + backoffDelay(event.attempts, failure.kind)),
-      },
-    });
-    await recordBackendFailure(event, failure, final);
-    if (final) return { status: "FAILED", error: failure.userMessage, errorDetail: failure.technical };
-    return { status: "RETRYING", error: failure.userMessage, errorDetail: failure.technical, kind: failure.kind };
-  };
-
-  // Token
-  if (!account.accessToken || account.tokenStatus === "BROKEN") {
-    return failExecution({
-      kind: "token",
-      retryable: false,
-      userMessage: "Instagram ulanishi uzilgan — akkauntni qayta ulang.",
-      technical: account.accessToken ? `tokenStatus=BROKEN: ${account.tokenLastError ?? "-"}` : "No access token",
-    });
-  }
-  let accessToken: string;
-  try {
-    accessToken = decryptToken(account.accessToken);
-  } catch (error) {
-    return failExecution({
-      kind: "token",
-      retryable: false,
-      userMessage: "Instagram tokenini o'qib bo'lmadi — akkauntni qayta ulang.",
-      technical: `decryptToken: ${error instanceof Error ? error.message : String(error)}`,
-    });
-  }
-
-  // Workspace (platform suspension + usage counter)
-  const usage = await reserveWorkspaceDMSend(event.workspaceId);
-  if (!usage.allowed) {
-    const error =
-      usage.reason === "suspended" ? "Workspace platforma admini tomonidan to'xtatilgan." : "Oylik DM limiti tugagan.";
-    await prisma.triggerExecution.update({
-      where: { id: executionId },
-      data: { status: "SKIPPED", error, errorDetail: `reserveWorkspaceDMSend: ${usage.reason ?? "denied"}` },
-    });
-    return { status: "PROCESSED", error };
-  }
-
-  // From here until the send, anything that throws must hand the workspace
-  // reservation back, or the monthly counter keeps a DM that never went out.
-  const releasingOnError = async <T>(step: () => Promise<T>): Promise<T> => {
-    try {
-      return await step();
-    } catch (error) {
-      await releaseWorkspaceDMReservation(event.workspaceId, usage.periodStart).catch(() => {});
-      throw error;
-    }
-  };
-
-  // Per-account hourly cap shared with the comment→DM campaigns.
-  const slot = await releasingOnError(() => reserveDMSlot(account.instagramId));
-  if (!slot.allowed) {
-    await releaseWorkspaceDMReservation(event.workspaceId, usage.periodStart);
-    return failExecution({
-      kind: "rate_limit",
-      retryable: true,
-      userMessage: "Soatlik DM limiti to'lgan — keyinroq qayta yuboriladi.",
-      technical: `reserveDMSlot: count=${slot.currentCount}`,
-    });
-  }
-
-  await releasingOnError(() =>
-    prisma.triggerExecution.update({
-      where: { id: executionId },
-      data: { status: "SENDING", attempts: { increment: 1 }, nextRetryAt: null },
-    })
+  const result = await sendGuarded(
+    event.workspaceId,
+    account,
+    () => sendDirectMessage(accessToken, account.instagramId, event.senderId, campaign.responseMessage),
+    { beforeSend: () => markExecutionSending(executionId) }
   );
-
-  let sent: { recipient_id: string; message_id: string };
-  try {
-    sent = await sendDirectMessage(accessToken, account.instagramId, event.senderId, campaign.responseMessage);
-  } catch (error) {
-    await releaseWorkspaceDMReservation(event.workspaceId, usage.periodStart).catch(() => {});
-    const failure = classifySendError(error);
-    if (failure.kind === "token") {
-      await markTokenBroken(account.id, failure.technical).catch(() => {});
-    }
-    return failExecution(failure);
+  if (!result.ok) {
+    if (result.skipped) return skipExecution(executionId, result.error, result.errorDetail);
+    return failExecution(event, executionId, result.failure);
   }
 
-  await prisma.triggerExecution.update({
-    where: { id: executionId },
-    data: {
-      status: "SENT",
-      sentAt: new Date(),
-      sentMessageId: sent.message_id ?? null,
-      error: null,
-      errorDetail: null,
-      nextRetryAt: null,
-    },
-  });
+  await markExecutionSent(executionId, result.sent);
   await storeMessage({
     conversationId: interaction.conversation.id,
     direction: "OUTBOUND",
     text: campaign.responseMessage,
-    mid: sent.message_id ?? null,
+    mid: result.sent.message_id ?? null,
     eventId: event.id,
     executionId,
   }).catch((error) => {
@@ -290,6 +160,9 @@ export async function handleStoryReply(event: EventWithAccount): Promise<Handler
 
 export const EVENT_HANDLERS: Partial<Record<InstagramEventType, EventHandler>> = {
   STORY_REPLY: handleStoryReply,
+  // Comment Automation 2.0 (lib/triggers/comment-handler.ts, direct-handler.ts)
+  COMMENT: handleComment,
+  DIRECT_MESSAGE: handleDirectMessage,
 };
 
 const NOT_YET_SUPPORTED = "Bu event turi hali ishga tushirilmagan (keyingi bosqich).";

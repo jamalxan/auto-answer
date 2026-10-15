@@ -35,6 +35,8 @@ import {
   type WorkspaceDMReservation,
 } from "@/lib/billing/usage";
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
+import { isCommentClaimedByCommentEngine } from "@/lib/triggers/claim";
+import { handOverClaimedComment } from "@/lib/triggers/ingest";
 import {
   buildTrackedUrl,
   renderMessageWithTracking,
@@ -243,6 +245,35 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     originalMediaId,
   } = job.data;
   const requeueAttempt = job.data.requeueAttempt ?? 0;
+
+  // Comment Automation 2.0 (developer area) answers this comment itself: step
+  // aside so the commenter gets one DM and Meta's single private reply is not
+  // spent here. `instagramAccountId` is the Instagram id (webhook entry.id).
+  if (
+    await isCommentClaimedByCommentEngine(
+      instagramAccountId,
+      mediaId,
+      commentText,
+      originalMediaId
+    )
+  ) {
+    console.log(
+      `[DM Worker] Comment ${commentId} is handled by Comment 2.0, skipped here`
+    );
+    // A webhook comment is already in the engine; one found by polling is not.
+    await handOverClaimedComment({
+      instagramId: instagramAccountId,
+      commentId,
+      text: commentText,
+      commenterId,
+      commenterName,
+      mediaId,
+      originalMediaId,
+    }).catch((error) =>
+      console.error(`[DM Worker] Comment 2.0 handover failed for ${commentId}:`, error)
+    );
+    return;
+  }
 
   const automations = await prisma.automation.findMany({
     where: {

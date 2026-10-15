@@ -14,6 +14,8 @@ import {
 import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { enqueueEcho, enqueueInbound } from "@/lib/queue/assistant-queue";
 import {
+  findClaimedC2Messages,
+  findClaimedLeadPhoneMessages,
   findClaimedStoryReplies,
   ingestWebhookPayload,
   storyReplyKey,
@@ -189,6 +191,12 @@ export async function POST(request: NextRequest) {
     let claimedStoryReplies = new Set<string>();
     try {
       claimedStoryReplies = await findClaimedStoryReplies(payload);
+      // Comment 2.0 quick-reply taps ("c2:" payload) belong to the campaign
+      // that sent the buttons, not to the keyword autoreply or the assistant.
+      for (const key of findClaimedC2Messages(payload)) claimedStoryReplies.add(key);
+      // A phone shared from a Comment 2.0 lead chip may come back without the
+      // "c2:" payload; it belongs to that campaign too. Never throws.
+      for (const key of await findClaimedLeadPhoneMessages(payload)) claimedStoryReplies.add(key);
     } catch (claimError) {
       console.error(
         "[Webhook] Trigger engine story-reply check failed:",

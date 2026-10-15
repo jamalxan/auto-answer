@@ -10,10 +10,15 @@
  *   changes[field=comments]                    → COMMENT
  *   changes[field=live_comments]               → LIVE_COMMENT
  *
+ *   messaging[].postback with payload "c2:…"  → DIRECT_MESSAGE (+ payload)
+ *   messaging[].message.quick_reply "c2:…"    → DIRECT_MESSAGE (+ payload)
+ *
  * STORY_REACTION is deliberately not produced: what a story reaction looks
  * like in the webhook has to be confirmed against real deliveries first, not
- * guessed. Echoes (the account's own sends), deletions, read receipts and
- * postbacks are not customer events and are dropped here.
+ * guessed. Echoes (the account's own sends), deletions and read receipts are
+ * not customer events and are dropped here. Postbacks are dropped too unless
+ * they carry Comment 2.0's own "c2:" payload — "reveal:" / "followcheck:"
+ * belong to the production comment campaigns (lib/queue/dm-worker.ts).
  *
  * Pure: no database, no network — so it is cheap to test against fixtures.
  */
@@ -38,6 +43,8 @@ export interface NormalizedInstagramEvent {
   storyUrl?: string;
   mediaId?: string;
   text: string;
+  /** Comment 2.0 button / quick-reply payload ("c2:…"); absent otherwise. */
+  payload?: string;
   hasAttachment: boolean;
   timestamp: Date;
   /** The single messaging item / change this event came from. */
@@ -53,9 +60,11 @@ interface RawMessaging {
   sender?: { id?: string };
   recipient?: { id?: string };
   timestamp?: number;
+  postback?: { mid?: string; title?: string; payload?: string };
   message?: {
     mid?: string;
     text?: string;
+    quick_reply?: { payload?: string };
     is_echo?: boolean;
     is_deleted?: boolean;
     is_unsupported?: boolean;
@@ -110,7 +119,7 @@ function normalizeMessaging(
   fallbackTime: Date
 ): NormalizedInstagramEvent | null {
   const message = item.message;
-  if (!message) return null; // read receipts, postbacks, reactions
+  if (!message) return normalizePostback(entryId, item, fallbackTime); // read receipts, reactions → null
   if (message.is_echo || message.is_deleted) return null;
 
   const messageId = message.mid;
@@ -143,8 +152,52 @@ function normalizeMessaging(
     return { ...base, type: "STORY_MENTION", storyUrl: mention.payload?.url, storyId: mention.payload?.id };
   }
 
+  const quickReplyPayload = message.quick_reply?.payload;
+  if (isC2Payload(quickReplyPayload)) {
+    return { ...base, type: "DIRECT_MESSAGE", payload: quickReplyPayload };
+  }
+
   if (!text && !hasAttachment) return null;
   return { ...base, type: "DIRECT_MESSAGE" };
+}
+
+/** Comment 2.0's own button / quick-reply payloads all start with "c2:". */
+export const C2_PAYLOAD_PREFIX = "c2:";
+
+export function isC2Payload(payload: string | null | undefined): payload is string {
+  return typeof payload === "string" && payload.startsWith(C2_PAYLOAD_PREFIX);
+}
+
+/**
+ * A tap on a Comment 2.0 button arrives as a postback. It becomes a
+ * DIRECT_MESSAGE with the button title as text; every other postback stays
+ * with production.
+ */
+function normalizePostback(
+  entryId: string,
+  item: RawMessaging,
+  fallbackTime: Date
+): NormalizedInstagramEvent | null {
+  const postback = item.postback;
+  if (!postback || !isC2Payload(postback.payload)) return null;
+  const senderId = item.sender?.id;
+  const accountId = entryId || item.recipient?.id;
+  if (!senderId || !accountId || senderId === accountId) return null;
+
+  const timestamp = toDate(item.timestamp, fallbackTime);
+  return {
+    type: "DIRECT_MESSAGE",
+    instagramAccountId: accountId,
+    senderId,
+    // Instagram gives every postback a mid; the fallback only keeps a malformed
+    // delivery deduplicated rather than dropped.
+    messageId: postback.mid ?? `postback:${senderId}:${timestamp.getTime()}:${postback.payload}`,
+    text: postback.title?.trim() ?? "",
+    payload: postback.payload,
+    hasAttachment: false,
+    timestamp,
+    raw: item as unknown as Record<string, unknown>,
+  };
 }
 
 function normalizeChange(
