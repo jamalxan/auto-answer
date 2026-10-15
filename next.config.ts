@@ -41,8 +41,12 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    // Old /admin/... links (and the app's own redirects) land on the clean URL.
-    return [{ source: "/admin/:path*", has: adminHost, destination: "/:path*", permanent: false }];
+    return [
+      // Old /admin/... links (and the app's own redirects) land on the clean URL.
+      { source: "/admin/:path*", has: adminHost, destination: "/:path*", permanent: false },
+      // The trigger engine moved from /dev/triggers into the developer area.
+      { source: "/dev/:path*", destination: "/developer/:path*", permanent: false },
+    ];
   },
   async rewrites() {
     return {

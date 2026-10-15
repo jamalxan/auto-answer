@@ -1,8 +1,9 @@
 # Instagram Trigger Engine (DEV)
 
 Phase A (shared event engine) + Phase B (Story Reply), built as a separate
-vertical slice. Not part of the product yet: only `TRIGGER_ENGINE_DEV_EMAILS`
-(or `ADMIN_EMAILS` when unset) can see it, at `/dev/triggers`.
+vertical slice. Not part of the product yet: it lives in the developer area at
+`/developer/triggers` (API `/api/developer/triggers`), behind the developer
+login — see `lib/developer/`.
 
 ```
 Instagram ─▶ /api/webhook ─▶ normalize.ts ─▶ InstagramEvent (row) ─▶ queue "instagram-triggers"

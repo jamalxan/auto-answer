@@ -22,7 +22,7 @@ import {
   primaryButton,
   secondaryButton,
   Toggle,
-} from "./trigger-ui";
+} from "@/components/developer/ui";
 
 interface Account {
   id: string;
@@ -116,7 +116,7 @@ function CampaignsTab({
     setBusy(campaign.id);
     setError(null);
     try {
-      const res = await fetch(`/api/dev/triggers/campaigns/${campaign.id}`, init);
+      const res = await fetch(`/api/developer/triggers/campaigns/${campaign.id}`, init);
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.success === false) setError(data?.error ?? fallback);
     } catch {
@@ -153,7 +153,7 @@ function CampaignsTab({
         />
         {accounts.length > 0 && (
           <div className="pb-8 text-center">
-            <Link href="/dev/triggers/new" className={primaryButton}>
+            <Link href="/developer/triggers/new" className={primaryButton}>
               + Automation yaratish
             </Link>
           </div>
@@ -170,7 +170,7 @@ function CampaignsTab({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/dev/triggers/${campaign.id}`} className="font-semibold text-foreground hover:text-accent">
+                <Link href={`/developer/triggers/${campaign.id}`} className="font-semibold text-foreground hover:text-accent">
                   {campaign.name}
                 </Link>
                 <Pill tone={campaign.active ? "success" : "muted"}>{campaign.active ? "Faol" : "O'chiq"}</Pill>
@@ -211,10 +211,10 @@ function CampaignsTab({
               <span>Yaratildi: {formatDateTime(campaign.createdAt)}</span>
             </div>
             <div className="flex gap-2">
-              <Link href={`/dev/triggers?tab=logs&campaign=${campaign.id}`} className={secondaryButton}>
+              <Link href={`/developer/triggers?tab=logs&campaign=${campaign.id}`} className={secondaryButton}>
                 Loglar
               </Link>
-              <Link href={`/dev/triggers/${campaign.id}`} className={secondaryButton}>
+              <Link href={`/developer/triggers/${campaign.id}`} className={secondaryButton}>
                 Tahrirlash
               </Link>
               <button type="button" className={secondaryButton} disabled={busy === campaign.id} onClick={() => void remove(campaign)}>
@@ -249,7 +249,7 @@ function ContactsTab() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/dev/triggers/contacts?page=${page}`)
+    fetch(`/api/developer/triggers/contacts?page=${page}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -350,7 +350,7 @@ function SimulatorTab({ accounts }: { accounts: Account[] }) {
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch("/api/dev/triggers/simulate", {
+      const res = await fetch("/api/developer/triggers/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instagramAccountId: accountId, text, storyId: storyId.trim() || null }),
@@ -444,8 +444,8 @@ export default function TriggerDashboard() {
 
   const load = useCallback(async () => {
     const [c, o] = await Promise.all([
-      fetch("/api/dev/triggers/campaigns").then((r) => r.json()).catch(() => null),
-      fetch("/api/dev/triggers/overview").then((r) => r.json()).catch(() => null),
+      fetch("/api/developer/triggers/campaigns").then((r) => r.json()).catch(() => null),
+      fetch("/api/developer/triggers/overview").then((r) => r.json()).catch(() => null),
     ]);
     if (c?.success) {
       setCampaigns(c.data.campaigns);
@@ -460,7 +460,7 @@ export default function TriggerDashboard() {
     void load();
   }, [load]);
 
-  const setTab = (next: Tab) => router.replace(`/dev/triggers?tab=${next}`, { scroll: false });
+  const setTab = (next: Tab) => router.replace(`/developer/triggers?tab=${next}`, { scroll: false });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -474,7 +474,7 @@ export default function TriggerDashboard() {
             Event engine · Story Reply → Contact → Conversation → Auto javob → Log → Retry
           </p>
         </div>
-        <Link href="/dev/triggers/new" className={primaryButton}>
+        <Link href="/developer/triggers/new" className={primaryButton}>
           + Automation yaratish
         </Link>
       </div>

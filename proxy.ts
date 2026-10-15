@@ -8,7 +8,9 @@ const PROTECTED_PREFIXES = [
   "/assistant",
   "/leads",
   "/integrations",
-  "/dev",
+  // Developer area: needs the app session too (its modules work on the
+  // signed-in workspace); its own login is checked by the pages.
+  "/developer",
 ];
 
 function hasSessionCookie(request: NextRequest): boolean {
@@ -50,7 +52,7 @@ export const config = {
     "/assistant/:path*",
     "/leads/:path*",
     "/integrations/:path*",
-    "/dev/:path*",
+    "/developer/:path*",
     "/login",
   ],
 };

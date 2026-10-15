@@ -82,9 +82,10 @@ export async function GET() {
             })
       ),
     prisma.operationalEvent.findMany({
-      where: {
-        OR: [{ workspaceId }, { workspaceId: null }],
-      },
+      // Only this workspace's own events. Platform-wide rows (workspaceId
+      // null: worker crashes, signature failures) carry other customers'
+      // job and account ids, same reason worker alerts are dropped below.
+      where: { workspaceId },
       orderBy: { createdAt: "desc" },
       take: 20,
       select: {

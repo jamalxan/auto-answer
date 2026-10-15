@@ -22,6 +22,17 @@ const STATE_MAX_AGE_MS = 10 * 60 * 1000;
 interface OAuthStatePayload {
   workspaceId: string;
   ts: number;
+  /** Where the callback sends the user back; see safeOAuthReturnPath. */
+  returnTo?: string;
+}
+
+/**
+ * The only places a connect flow may return to besides the default. Kept to
+ * the developer area so the parameter can never become an open redirect.
+ */
+export function safeOAuthReturnPath(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  return /^\/developer(\/[a-z0-9-]+)*$/.test(value) ? value : undefined;
 }
 
 function base64UrlEncode(value: string): string {
@@ -38,9 +49,14 @@ function signState(payload: string): string {
     .digest("base64url");
 }
 
-export function createOAuthState(workspaceId: string): string {
+export function createOAuthState(workspaceId: string, returnTo?: string): string {
+  const safeReturn = safeOAuthReturnPath(returnTo);
   const payload = base64UrlEncode(
-    JSON.stringify({ workspaceId, ts: Date.now() } satisfies OAuthStatePayload)
+    JSON.stringify({
+      workspaceId,
+      ts: Date.now(),
+      ...(safeReturn ? { returnTo: safeReturn } : {}),
+    } satisfies OAuthStatePayload)
   );
   return `${payload}.${signState(payload)}`;
 }

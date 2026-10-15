@@ -3,6 +3,7 @@ import {
   createOAuthState,
   decryptToken,
   encryptToken,
+  safeOAuthReturnPath,
   verifyOAuthState,
 } from "../lib/meta/oauth";
 
@@ -29,5 +30,26 @@ describe("OAuth state and token encryption", () => {
   it("rejects tampered OAuth state", () => {
     const state = createOAuthState("workspace_123");
     expect(verifyOAuthState(`${state}tampered`)).toBeNull();
+  });
+
+  it("carries a developer-area return path through the state", () => {
+    const state = createOAuthState("workspace_123", "/developer/foundation");
+    expect(verifyOAuthState(state)?.returnTo).toBe("/developer/foundation");
+  });
+
+  it("drops return paths outside the developer area (no open redirect)", () => {
+    for (const bad of [
+      "https://evil.example",
+      "//evil.example",
+      "/developer/../settings",
+      "/developerx",
+      "/dashboard",
+      "/developer/foundation?x=1",
+      "/developer\evil",
+    ]) {
+      expect(safeOAuthReturnPath(bad)).toBeUndefined();
+      expect(verifyOAuthState(createOAuthState("w", bad))?.returnTo).toBeUndefined();
+    }
+    expect(safeOAuthReturnPath("/developer")).toBe("/developer");
   });
 });

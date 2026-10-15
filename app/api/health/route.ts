@@ -16,9 +16,22 @@ interface HealthCheck {
   detail?: string;
 }
 
+// The Redis client retries forever (BullMQ needs maxRetriesPerRequest: null),
+// so a dead Redis would hang the whole request — and the deploy smoke test
+// with it. Every check gets a deadline instead.
+const CHECK_TIMEOUT_MS = 3000;
+
+function withDeadline<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} check timed out`)), CHECK_TIMEOUT_MS);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 async function checkDatabase(): Promise<HealthCheck> {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await withDeadline(prisma.$queryRaw`SELECT 1`, "Database");
     return { status: "ok" };
   } catch (error) {
     return {
@@ -30,7 +43,7 @@ async function checkDatabase(): Promise<HealthCheck> {
 
 async function checkRedis(): Promise<HealthCheck> {
   try {
-    const pong = await getRedisConnection().ping();
+    const pong = await withDeadline(getRedisConnection().ping(), "Redis");
     return { status: pong === "PONG" ? "ok" : "error", detail: pong };
   } catch (error) {
     return {
@@ -42,11 +55,9 @@ async function checkRedis(): Promise<HealthCheck> {
 
 async function checkQueue(): Promise<HealthCheck & { counts?: unknown }> {
   try {
-    const counts = await getDMQueue().getJobCounts(
-      "waiting",
-      "active",
-      "delayed",
-      "failed"
+    const counts = await withDeadline(
+      getDMQueue().getJobCounts("waiting", "active", "delayed", "failed"),
+      "Queue"
     );
     return { status: "ok", counts };
   } catch (error) {
@@ -62,7 +73,7 @@ export async function GET(request: Request) {
     checkDatabase(),
     checkRedis(),
     checkQueue(),
-    getWorkerHealth().catch((error) => ({
+    withDeadline(getWorkerHealth(), "Worker").catch((error) => ({
       healthy: false,
       heartbeat: null,
       ageMs: null,

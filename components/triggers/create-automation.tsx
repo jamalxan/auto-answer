@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import StoryReplyBuilder, { type BuilderAccount } from "./story-reply-builder";
-import { Choice, DevBadge } from "./trigger-ui";
+import { Choice, DevBadge } from "@/components/developer/ui";
 
 const TRIGGERS: Array<{ key: string; title: string; description: string; ready: boolean }> = [
   { key: "STORY_REPLY", title: "Story Reply", description: "Kimdir story'ga javob yozganda", ready: true },
@@ -27,7 +27,7 @@ export default function CreateAutomation({ accounts }: { accounts: BuilderAccoun
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <Link href="/dev/triggers" className="text-sm text-muted hover:text-foreground">
+        <Link href="/developer/triggers" className="text-sm text-muted hover:text-foreground">
           ← Instagram Triggers
         </Link>
         <div className="mt-2 flex items-center gap-2">

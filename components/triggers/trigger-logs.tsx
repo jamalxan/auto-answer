@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { displayStatus, EVENT_TYPE_LABELS, shortStoryId } from "@/lib/triggers/display";
-import { EmptyState, formatDateTime, inputClass, Pill, secondaryButton } from "./trigger-ui";
+import { EmptyState, formatDateTime, inputClass, Pill, secondaryButton } from "@/components/developer/ui";
 
 interface Execution {
   id: string;
@@ -107,7 +107,7 @@ function DetailPanel({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/dev/triggers/events/${id}`);
+      const res = await fetch(`/api/developer/triggers/events/${id}`);
       const data = await res.json();
       if (data.success) {
         setDetail(data.data);
@@ -127,7 +127,7 @@ function DetailPanel({
     setRetrying(true);
     let data: { success?: boolean; error?: string } | null = null;
     try {
-      const res = await fetch(`/api/dev/triggers/events/${id}/retry`, { method: "POST" });
+      const res = await fetch(`/api/developer/triggers/events/${id}/retry`, { method: "POST" });
       data = await res.json();
     } catch {
       data = null;
@@ -302,7 +302,7 @@ export default function TriggerLogs({
     if (campaignId) params.set("campaignId", campaignId);
     if (q.trim()) params.set("q", q.trim());
     try {
-      const res = await fetch(`/api/dev/triggers/events?${params}`);
+      const res = await fetch(`/api/developer/triggers/events?${params}`);
       const data = await res.json();
       if (seq !== loadSeq.current) return;
       if (data.success) {

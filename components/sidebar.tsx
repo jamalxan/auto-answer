@@ -17,7 +17,6 @@ interface SidebarProps {
   onClose: () => void;
   workspaceName: string;
   isAdmin?: boolean;
-  isTriggerDev?: boolean;
 }
 
 interface NavItem {
@@ -31,7 +30,6 @@ export default function Sidebar({
   onClose,
   workspaceName,
   isAdmin = false,
-  isTriggerDev = false,
 }: SidebarProps) {
   const pathname = usePathname();
   const { t } = useLanguage();
@@ -55,10 +53,6 @@ export default function Sidebar({
       { label: t.nav.diagnostics, href: "/diagnostics", icon: "activity" },
       ...(isAdmin
         ? [{ label: t.admin.navLabel, href: "/admin", icon: "shield" as const }]
-        : []),
-      // Dev-only, not translated: hidden from everyone but the engine's developers.
-      ...(isTriggerDev
-        ? [{ label: "Triggers · DEV", href: "/dev/triggers", icon: "instagram" as const }]
         : []),
     ],
   ];

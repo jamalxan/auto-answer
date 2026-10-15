@@ -7,6 +7,7 @@ import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } f
 import {
   encryptToken,
   exchangeCodeForToken,
+  safeOAuthReturnPath,
   verifyOAuthState,
 } from "@/lib/meta/oauth";
 import { canManageWorkspace } from "@/lib/workspace-access";
@@ -111,7 +112,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`);
+    const returnTo = safeOAuthReturnPath(state.returnTo);
+    return NextResponse.redirect(`${baseUrl}${returnTo ?? "/dashboard"}?connected=true`);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[Instagram Callback] Error:", err);

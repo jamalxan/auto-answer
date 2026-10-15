@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { canManageWorkspace, getCurrentWorkspaceContext } from "@/lib/workspace-access";
 import { getBaseUrl, getMissingInstagramOAuthEnv } from "@/lib/env";
 import { createOAuthState, getAuthorizationUrl } from "@/lib/meta/oauth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const context = await getCurrentWorkspaceContext();
   if (!context) {
     return NextResponse.redirect(`${getBaseUrl()}/login`);
@@ -25,7 +25,12 @@ export async function GET() {
   }
 
   const redirectUri = `${getBaseUrl()}/api/instagram/callback`;
-  const state = createOAuthState(context.workspaceId);
+  // ?return=/developer/... brings the developer area back to itself after a
+  // reconnect; anything else is ignored (see safeOAuthReturnPath).
+  const state = createOAuthState(
+    context.workspaceId,
+    request.nextUrl.searchParams.get("return") ?? undefined
+  );
 
   return NextResponse.redirect(getAuthorizationUrl(redirectUri, state));
 }
