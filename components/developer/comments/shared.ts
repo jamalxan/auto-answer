@@ -46,6 +46,8 @@ export interface CommentCampaignView {
   id: string;
   name: string;
   instagramAccountId: string;
+  /** Post comments, or comments under a live broadcast (ETAP 3). */
+  triggerType: "COMMENT" | "LIVE_COMMENT";
   mediaScope: "ANY" | "SPECIFIC";
   mediaIds: string[];
   matchingMode: MatchingMode;

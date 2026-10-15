@@ -3,9 +3,19 @@
  * queue stats, reply variants, quick replies, follow-up steps, logs,
  * backtrack and the dry-run simulator.
  *
- * Every query is scoped to one workspace and to `triggerType: COMMENT`, so a
- * Story Reply campaign can never be read or changed through these routes (and
- * the Story routes skip COMMENT campaigns the same way, see service.ts).
+ * Every query is scoped to one workspace and to the comment trigger types
+ * (`COMMENT`, and since ETAP 3 `LIVE_COMMENT`), so a Story Reply or Direct
+ * campaign can never be read or changed through these routes (and the other
+ * services skip comment campaigns the same way, see service.ts and
+ * dm-trigger-service.ts).
+ *
+ * Live comments (TZ 17) are configured like post comments, minus what Meta
+ * does not allow under a live broadcast: no public reply, no post picker and
+ * no backtrack — the private reply is only possible while the live runs.
+ *
+ * Validation and the child-list writers are shared with the DM triggers in
+ * campaign-editing.ts; they are re-exported here so existing imports keep
+ * working.
  */
 
 import { z } from "zod";
@@ -14,60 +24,68 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { getUserMedia } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { expireStaleBacktrackRuns, startBacktrack } from "./backtrack";
+import {
+  ACCOUNT_NOT_FOUND,
+  accountInWorkspace,
+  approveVariantIn,
+  cancelExecutionFollowUpsIn,
+  cleanCommentKeywords,
+  done,
+  executionStats,
+  fail,
+  intentKeys,
+  listExecutionLogs,
+  NOT_FOUND,
+  optionalText,
+  typeWhere,
+  writeFollowUpSteps,
+  writeQuickReplies,
+  writeVariants,
+  type FollowUpStepsInput,
+  type LogQuery,
+  type QuickRepliesInput,
+  type ServiceResult,
+  type VariantInput,
+} from "./campaign-editing";
 import { simulateComment } from "./comment-handler";
 import {
   buttonTemplateTooLong,
   COMMENT_LIMITS as L,
-  EXECUTION_STATUSES,
-  FOLLOW_UP_CONDITIONS,
   MATCHING_MODES,
   privateReplyLimit,
-  QUICK_REPLY_ACTIONS,
   REPLY_MODES,
 } from "./comment-limits";
-import { cancelFollowUps } from "./followups";
 import { forgetAccountGate } from "./ingest";
-import { BUILT_IN_INTENTS, normalizeForMatch } from "./keywords";
 
-export type ServiceResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
-
-const fail = (status: number, error: string) => ({ ok: false as const, status, error });
-const done = <T>(data: T) => ({ ok: true as const, data });
-
-export const NOT_FOUND = "Kampaniya topilmadi";
-
-export function firstIssue(error: z.ZodError): string {
-  return error.issues[0]?.message ?? "Noto'g'ri ma'lumot";
-}
+export {
+  cleanCommentKeywords,
+  firstIssue,
+  followUpsInputSchema,
+  intentKeys,
+  NOT_FOUND,
+  planVariantSave,
+  quickRepliesInputSchema,
+  variantsInputSchema,
+  type ExistingVariant,
+  type ServiceResult,
+  type VariantInput,
+  type VariantRow,
+} from "./campaign-editing";
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
-/** Trimmed text, or null when empty. */
-const optionalText = (max: number, message: string) =>
-  z
-    .string()
-    .trim()
-    .max(max, message)
-    .nullish()
-    .transform((value) => (value ? value : null));
+/** Post comments, or comments under a live broadcast (ETAP 3, TZ 17). */
+export const COMMENT_TRIGGER_TYPES = ["COMMENT", "LIVE_COMMENT"] as const;
+export type CommentTriggerType = (typeof COMMENT_TRIGGER_TYPES)[number];
 
-/** Keeps the keyword as typed; drops empties and normalised duplicates (narx / NARX / нарх). */
-export function cleanCommentKeywords(raw: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const keyword of raw) {
-    const trimmed = keyword.trim();
-    const key = normalizeForMatch(trimmed);
-    if (!trimmed || !key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(trimmed);
-  }
-  return out;
-}
-
-export function intentKeys(): string[] {
-  return BUILT_IN_INTENTS.map((intent) => intent.key);
-}
+export const LIVE_NO_PUBLIC_REPLY =
+  "Live efir kommentiga ochiq javob yozib bo'lmaydi — Meta live uchun faqat shaxsiy (Direct) javobga ruxsat beradi. Ochiq javobni o'chiring.";
+export const LIVE_NO_SPECIFIC_MEDIA =
+  "Live efir uchun post tanlanmaydi — kampaniya akkauntning har qanday efiridagi kommentlarga javob beradi. \"Har qanday post\" ni belgilang.";
+export const LIVE_NO_BACKTRACK =
+  "Live efir kommentlari uchun eski kommentlarni skanerlash yo'q: efir tugagach Meta shaxsiy javob yuborishga ruxsat bermaydi.";
+export const LIVE_NO_PUBLIC_VARIANTS =
+  "Live efir kampaniyasida ochiq javob varianti bo'lmaydi — faqat DM variantlarini saqlang.";
 
 export const commentCampaignSchema = z
   .object({
@@ -77,6 +95,7 @@ export const commentCampaignSchema = z
       .min(1, "Kampaniya nomini kiriting")
       .max(L.nameLength, `Nom ${L.nameLength} belgidan oshmasin`),
     instagramAccountId: z.string().min(1, "Instagram akkauntni tanlang"),
+    triggerType: z.enum(COMMENT_TRIGGER_TYPES).default("COMMENT"),
     mediaScope: z.enum(["ANY", "SPECIFIC"]).default("ANY"),
     mediaIds: z
       .array(z.string().trim().min(1).max(64))
@@ -130,7 +149,16 @@ export const commentCampaignSchema = z
     if (unknown) {
       ctx.addIssue({ code: "custom", path: ["intents"], message: `Noma'lum intent: ${unknown}` });
     }
-    if (input.mediaScope === "SPECIFIC" && input.mediaIds.length === 0) {
+    if (input.triggerType === "LIVE_COMMENT") {
+      // Meta: a live comment gets one private reply, only while the broadcast
+      // runs. No public reply, and live videos are not picked like posts.
+      if (input.publicReplyEnabled) {
+        ctx.addIssue({ code: "custom", path: ["publicReplyEnabled"], message: LIVE_NO_PUBLIC_REPLY });
+      }
+      if (input.mediaScope === "SPECIFIC") {
+        ctx.addIssue({ code: "custom", path: ["mediaScope"], message: LIVE_NO_SPECIFIC_MEDIA });
+      }
+    } else if (input.mediaScope === "SPECIFIC" && input.mediaIds.length === 0) {
       ctx.addIssue({
         code: "custom",
         path: ["mediaIds"],
@@ -162,123 +190,6 @@ export type CommentCampaignInput = z.infer<typeof commentCampaignSchema>;
 
 export const toggleSchema = z.object({ active: z.boolean() }).strict();
 
-const variantSchema = z
-  .object({
-    id: z.string().min(1).max(64).optional(),
-    kind: z.enum(["DM", "PUBLIC"]),
-    text: z.string().trim().min(1, "Bo'sh variant qoldirmang"),
-    weight: z
-      .number()
-      .int()
-      .min(L.weightMin, `Vazn ${L.weightMin}…${L.weightMax} oralig'ida bo'lsin`)
-      .max(L.weightMax, `Vazn ${L.weightMin}…${L.weightMax} oralig'ida bo'lsin`)
-      .default(1),
-    source: z.enum(["MANUAL", "AI"]).default("MANUAL"),
-    approved: z.boolean().optional(),
-  })
-  .superRefine((variant, ctx) => {
-    const max = variant.kind === "DM" ? L.messageLength : L.publicReplyLength;
-    if (variant.text.length > max) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["text"],
-        message:
-          variant.kind === "DM"
-            ? `DM varianti ${max} belgidan oshmasin (Meta cheklovi)`
-            : `Ochiq javob varianti ${max} belgidan oshmasin`,
-      });
-    }
-  });
-
-export const variantsInputSchema = z
-  .object({ variants: z.array(variantSchema).max(L.variantsPerKind * 2) })
-  .superRefine((input, ctx) => {
-    for (const kind of ["DM", "PUBLIC"] as const) {
-      const texts = input.variants.filter((v) => v.kind === kind).map((v) => v.text.toLowerCase());
-      if (texts.length > L.variantsPerKind) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["variants"],
-          message: `${kind === "DM" ? "DM" : "Ochiq javob"} variantlari ko'pi bilan ${L.variantsPerKind} ta`,
-        });
-      }
-      if (new Set(texts).size !== texts.length) {
-        ctx.addIssue({ code: "custom", path: ["variants"], message: "Bir xil variant ikki marta yozilgan" });
-      }
-    }
-  });
-
-export type VariantInput = z.infer<typeof variantsInputSchema>["variants"][number];
-
-export const quickRepliesInputSchema = z
-  .object({
-    quickReplies: z
-      .array(
-        z.object({
-          id: z.string().min(1).max(64).optional(),
-          label: z
-            .string()
-            .trim()
-            .min(1, "Tugma nomini kiriting")
-            .max(L.quickReplyLabelLength, `Tugma nomi ${L.quickReplyLabelLength} belgidan oshmasin (Meta cheklovi)`),
-          action: z.enum(QUICK_REPLY_ACTIONS),
-          responseText: optionalText(L.messageLength, `Javob ${L.messageLength} belgidan oshmasin`),
-        })
-      )
-      .max(L.quickReplies, `Ko'pi bilan ${L.quickReplies} ta quick reply (Meta cheklovi)`),
-  })
-  .superRefine((input, ctx) => {
-    input.quickReplies.forEach((reply, index) => {
-      if (reply.action === "MESSAGE" && !reply.responseText) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["quickReplies", index, "responseText"],
-          message: `"${reply.label}" tugmasi bosilganda yuboriladigan matnni kiriting`,
-        });
-      }
-    });
-    const labels = input.quickReplies.map((r) => r.label.toLowerCase());
-    if (new Set(labels).size !== labels.length) {
-      ctx.addIssue({ code: "custom", path: ["quickReplies"], message: "Tugma nomlari takrorlanmasin" });
-    }
-  });
-
-export const followUpsInputSchema = z
-  .object({
-    steps: z
-      .array(
-        z.object({
-          id: z.string().min(1).max(64).optional(),
-          delayMinutes: z
-            .number()
-            .int("Kechikish butun daqiqa bo'lsin")
-            .min(1, "Kechikish kamida 1 daqiqa")
-            .max(
-              L.followUpMaxDelayMinutes,
-              `Kechikish ko'pi bilan ${L.followUpMaxDelayMinutes} daqiqa (23 soat) — Meta'ning 24 soatlik oynasi yopilmasdan yuborilishi kerak`
-            ),
-          condition: z.enum(FOLLOW_UP_CONDITIONS).default("ALWAYS"),
-          message: z
-            .string()
-            .trim()
-            .min(1, "Follow-up matnini kiriting")
-            .max(L.messageLength, `Follow-up ${L.messageLength} belgidan oshmasin`),
-        })
-      )
-      .max(L.followUpSteps, `Ko'pi bilan ${L.followUpSteps} ta follow-up`),
-  })
-  .superRefine((input, ctx) => {
-    for (let i = 1; i < input.steps.length; i++) {
-      if (input.steps[i].delayMinutes <= input.steps[i - 1].delayMinutes) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["steps", i, "delayMinutes"],
-          message: `${i + 1}-follow-up ${i}-sidan keyinroq bo'lsin (kechikishlar o'sib borsin)`,
-        });
-      }
-    }
-  });
-
 export const backtrackInputSchema = z.object({
   days: z
     .number()
@@ -291,79 +202,15 @@ export const simulateInputSchema = z.object({
   instagramAccountId: z.string().min(1, "Akkauntni tanlang"),
   mediaId: z.string().trim().max(64).nullish().transform((v) => v || null),
   text: z.string().trim().min(1, "Komment matnini kiriting").max(2000),
+  eventType: z.enum(COMMENT_TRIGGER_TYPES).default("COMMENT"),
 });
-
-// ─── Variant save plan (pure) ─────────────────────────────────────────────────
-
-export interface ExistingVariant {
-  id: string;
-  kind: "DM" | "PUBLIC";
-  text: string;
-  source: "MANUAL" | "AI";
-  approvedAt: Date | null;
-}
-
-export interface VariantRow {
-  kind: "DM" | "PUBLIC";
-  text: string;
-  weight: number;
-  sort: number;
-  source: "MANUAL" | "AI";
-  approvedAt: Date | null;
-}
-
-/**
- * Replace-all save, worked out without touching the database:
- *  - a variant keeps its id (and so its log history) when the id is sent back;
- *  - MANUAL text is approved on save — the person just typed it;
- *  - AI text is approved only when `approved` is sent, or it was approved
- *    before and its text has not changed. Edited AI text needs a new approval.
- */
-export function planVariantSave(existing: ExistingVariant[], input: VariantInput[], now = new Date()) {
-  const byId = new Map(existing.map((v) => [v.id, v]));
-  const sorts = { DM: 0, PUBLIC: 0 };
-  const updates: Array<{ id: string; data: VariantRow }> = [];
-  const creates: VariantRow[] = [];
-
-  for (const variant of input) {
-    const before = variant.id ? byId.get(variant.id) : undefined;
-    const source = before?.source ?? variant.source;
-    const unchanged = Boolean(before && before.text === variant.text && before.kind === variant.kind);
-    let approvedAt: Date | null;
-    if (variant.approved === false) approvedAt = null;
-    else if (source === "MANUAL") approvedAt = unchanged ? (before!.approvedAt ?? now) : now;
-    else if (variant.approved === true) approvedAt = unchanged ? (before!.approvedAt ?? now) : now;
-    else approvedAt = unchanged ? before!.approvedAt : null;
-
-    const row: VariantRow = {
-      kind: variant.kind,
-      text: variant.text,
-      weight: variant.weight,
-      sort: sorts[variant.kind]++,
-      source,
-      approvedAt,
-    };
-    if (before) {
-      updates.push({ id: before.id, data: row });
-      byId.delete(before.id);
-    } else {
-      creates.push(row);
-    }
-  }
-  return { updates, creates, deleteIds: [...byId.keys()] };
-}
 
 // ─── Scoping helpers ──────────────────────────────────────────────────────────
 
-async function accountInWorkspace(workspaceId: string, accountId: string) {
-  return prisma.instagramAccount.findFirst({
-    where: { id: accountId, workspaceId },
-    select: { id: true, instagramId: true, username: true, accessToken: true },
-  });
-}
+const COMMENT_TYPES = typeWhere(COMMENT_TRIGGER_TYPES);
 
 function campaignWhere(workspaceId: string, id: string): Prisma.TriggerCampaignWhereInput {
-  return { id, workspaceId, triggerType: "COMMENT" };
+  return { id, workspaceId, triggerType: COMMENT_TYPES };
 }
 
 async function findCampaign(workspaceId: string, id: string) {
@@ -371,6 +218,7 @@ async function findCampaign(workspaceId: string, id: string) {
     where: campaignWhere(workspaceId, id),
     select: {
       id: true,
+      triggerType: true,
       openingButtonLabel: true,
       instagramAccount: { select: { instagramId: true } },
       _count: { select: { quickReplies: true, followUpSteps: true } },
@@ -380,18 +228,10 @@ async function findCampaign(workspaceId: string, id: string) {
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
-type Counts = Record<string, number>;
-
-function bump(map: Map<string, Counts>, campaignId: string, key: string, count: number) {
-  const entry = map.get(campaignId) ?? {};
-  entry[key] = (entry[key] ?? 0) + count;
-  map.set(campaignId, entry);
-}
-
-/** COMMENT campaigns with what the TZ calls "queue visibility": where every comment is right now. */
+/** Comment campaigns (post and live) with what the TZ calls "queue visibility": where every comment is right now. */
 export async function listCommentCampaigns(workspaceId: string) {
   const campaigns = await prisma.triggerCampaign.findMany({
-    where: { workspaceId, triggerType: "COMMENT" },
+    where: { workspaceId, triggerType: COMMENT_TYPES },
     orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "desc" }],
     include: {
       instagramAccount: { select: { username: true, tokenStatus: true } },
@@ -402,36 +242,11 @@ export async function listCommentCampaigns(workspaceId: string) {
   if (campaigns.length === 0) return [];
   const ids = campaigns.map((c) => c.id);
 
-  const [byStatus, byPublic, opened, leads, handoffs, steps, followUps, lastRuns] = await Promise.all([
-    prisma.triggerExecution.groupBy({
-      by: ["campaignId", "status"],
-      where: { workspaceId, campaignId: { in: ids } },
-      _count: { _all: true },
-    }),
+  const [stats, byPublic, lastRuns] = await Promise.all([
+    executionStats(workspaceId, ids),
     prisma.triggerExecution.groupBy({
       by: ["campaignId", "publicReplyStatus"],
       where: { workspaceId, campaignId: { in: ids }, publicReplyStatus: { not: null } },
-      _count: { _all: true },
-    }),
-    prisma.triggerExecution.groupBy({
-      by: ["campaignId"],
-      where: { workspaceId, campaignId: { in: ids }, openedAt: { not: null } },
-      _count: { _all: true },
-    }),
-    prisma.triggerExecution.groupBy({
-      by: ["campaignId"],
-      where: { workspaceId, campaignId: { in: ids }, leadCapturedAt: { not: null } },
-      _count: { _all: true },
-    }),
-    prisma.triggerExecution.groupBy({
-      by: ["campaignId"],
-      where: { workspaceId, campaignId: { in: ids }, handedOffAt: { not: null } },
-      _count: { _all: true },
-    }),
-    prisma.triggerFollowUpStep.findMany({ where: { campaignId: { in: ids } }, select: { id: true, campaignId: true } }),
-    prisma.triggerFollowUpRun.groupBy({
-      by: ["stepId", "status"],
-      where: { workspaceId, step: { campaignId: { in: ids } } },
       _count: { _all: true },
     }),
     prisma.triggerBacktrackRun.findMany({
@@ -441,26 +256,18 @@ export async function listCommentCampaigns(workspaceId: string) {
     }),
   ]);
 
-  const executions = new Map<string, Counts>();
-  for (const row of byStatus) bump(executions, row.campaignId, row.status, row._count._all);
-  const publicReplies = new Map<string, Counts>();
-  for (const row of byPublic) bump(publicReplies, row.campaignId, row.publicReplyStatus ?? "", row._count._all);
-  const flags = new Map<string, Counts>();
-  for (const row of opened) bump(flags, row.campaignId, "opened", row._count._all);
-  for (const row of leads) bump(flags, row.campaignId, "leads", row._count._all);
-  for (const row of handoffs) bump(flags, row.campaignId, "handoffs", row._count._all);
-  const stepCampaign = new Map(steps.map((s) => [s.id, s.campaignId]));
-  const followUpCounts = new Map<string, Counts>();
-  for (const row of followUps) {
-    const campaignId = stepCampaign.get(row.stepId);
-    if (campaignId) bump(followUpCounts, campaignId, row.status, row._count._all);
+  const publicReplies = new Map<string, Record<string, number>>();
+  for (const row of byPublic) {
+    const entry = publicReplies.get(row.campaignId) ?? {};
+    const key = row.publicReplyStatus ?? "";
+    entry[key] = (entry[key] ?? 0) + row._count._all;
+    publicReplies.set(row.campaignId, entry);
   }
   const lastRun = new Map(lastRuns.map((run) => [run.campaignId, run]));
 
   return campaigns.map(({ replyVariants, ...campaign }) => {
-    const e = executions.get(campaign.id) ?? {};
+    const s = stats.get(campaign.id)!;
     const p = publicReplies.get(campaign.id) ?? {};
-    const f = flags.get(campaign.id) ?? {};
     return {
       ...campaign,
       variants: {
@@ -469,16 +276,13 @@ export async function listCommentCampaigns(workspaceId: string) {
         unapproved: replyVariants.filter((v) => !v.approvedAt).length,
       },
       stats: {
-        executions: Object.fromEntries(EXECUTION_STATUSES.map((s) => [s, e[s] ?? 0])) as Record<
-          (typeof EXECUTION_STATUSES)[number],
-          number
-        >,
+        executions: s.executions,
         publicSent: p.SENT ?? 0,
         publicFailed: p.FAILED ?? 0,
-        opened: f.opened ?? 0,
-        leads: f.leads ?? 0,
-        handoffs: f.handoffs ?? 0,
-        followUps: followUpCounts.get(campaign.id) ?? {},
+        opened: s.opened,
+        leads: s.leads,
+        handoffs: s.handoffs,
+        followUps: s.followUps,
       },
       lastBacktrack: lastRun.get(campaign.id) ?? null,
     };
@@ -503,9 +307,9 @@ export async function createCommentCampaign(
   input: CommentCampaignInput
 ): Promise<ServiceResult<{ id: string }>> {
   const account = await accountInWorkspace(workspaceId, input.instagramAccountId);
-  if (!account) return fail(400, "Instagram akkaunt topilmadi — u boshqa workspace'ga tegishli yoki uzilgan");
+  if (!account) return fail(400, ACCOUNT_NOT_FOUND);
   const campaign = await prisma.triggerCampaign.create({
-    data: { ...input, workspaceId, triggerType: "COMMENT", responseType: "SEND_MESSAGE" },
+    data: { ...input, workspaceId, responseType: "SEND_MESSAGE" },
     select: { id: true },
   });
   forgetAccountGate(account.instagramId);
@@ -520,7 +324,13 @@ export async function updateCommentCampaign(
   const existing = await findCampaign(workspaceId, id);
   if (!existing) return fail(404, NOT_FOUND);
   const account = await accountInWorkspace(workspaceId, input.instagramAccountId);
-  if (!account) return fail(400, "Instagram akkaunt topilmadi — u boshqa workspace'ga tegishli yoki uzilgan");
+  if (!account) return fail(400, ACCOUNT_NOT_FOUND);
+  if (input.triggerType === "LIVE_COMMENT") {
+    // Switching a post campaign to live: the builder drops the public
+    // variants first; anything left would be a public reply under a live.
+    const publicVariants = await prisma.triggerReplyVariant.count({ where: { campaignId: id, kind: "PUBLIC" } });
+    if (publicVariants > 0) return fail(422, LIVE_NO_PUBLIC_VARIANTS);
+  }
   if (input.openingButtonLabel) {
     // DM variants are saved through their own endpoint; the builder saves them
     // before this call whenever the button is on, so these are the new ones.
@@ -577,174 +387,49 @@ export async function deleteCommentCampaign(workspaceId: string, id: string) {
 export async function saveVariants(workspaceId: string, campaignId: string, input: VariantInput[]) {
   const campaign = await findCampaign(workspaceId, campaignId);
   if (!campaign) return fail(404, NOT_FOUND);
+  if (campaign.triggerType === "LIVE_COMMENT" && input.some((v) => v.kind === "PUBLIC")) {
+    return fail(422, LIVE_NO_PUBLIC_VARIANTS);
+  }
   if (
     campaign.openingButtonLabel &&
     input.some((v) => v.kind === "DM" && v.text.length > privateReplyLimit(true))
   ) {
     return fail(422, buttonTemplateTooLong("Tugmali kampaniyada har bir DM varianti"));
   }
-  const existing = await prisma.triggerReplyVariant.findMany({
-    where: { campaignId },
-    select: { id: true, kind: true, text: true, source: true, approvedAt: true },
-  });
-  const plan = planVariantSave(existing, input);
-  await prisma.$transaction([
-    prisma.triggerReplyVariant.deleteMany({ where: { campaignId, id: { in: plan.deleteIds } } }),
-    ...plan.updates.map((u) => prisma.triggerReplyVariant.update({ where: { id: u.id }, data: u.data })),
-    ...plan.creates.map((data) => prisma.triggerReplyVariant.create({ data: { ...data, campaignId } })),
-  ]);
-  return done(
-    await prisma.triggerReplyVariant.findMany({ where: { campaignId }, orderBy: [{ kind: "asc" }, { sort: "asc" }] })
-  );
+  return done(await writeVariants(campaignId, input));
 }
 
 export async function setVariantApproved(workspaceId: string, variantId: string, approved: boolean) {
-  const variant = await prisma.triggerReplyVariant.findFirst({
-    where: { id: variantId, campaign: { workspaceId, triggerType: "COMMENT" } },
-    select: { id: true },
-  });
-  if (!variant) return fail(404, "Variant topilmadi");
-  return done(
-    await prisma.triggerReplyVariant.update({
-      where: { id: variantId },
-      data: { approvedAt: approved ? new Date() : null },
-    })
-  );
+  return approveVariantIn(workspaceId, variantId, approved, COMMENT_TRIGGER_TYPES);
 }
 
 const NEEDS_BUTTON =
   "Avval \"Tugma & asosiy xabar\" bo'limida tugma nomini saqlang: Meta odam javob bermaguncha (tugmani bosmaguncha) ikkinchi xabar yuborishga ruxsat bermaydi.";
 
-export async function saveQuickReplies(
-  workspaceId: string,
-  campaignId: string,
-  input: z.infer<typeof quickRepliesInputSchema>["quickReplies"]
-) {
+export async function saveQuickReplies(workspaceId: string, campaignId: string, input: QuickRepliesInput) {
   const campaign = await findCampaign(workspaceId, campaignId);
   if (!campaign) return fail(404, NOT_FOUND);
   if (input.length > 0 && !campaign.openingButtonLabel) return fail(422, NEEDS_BUTTON);
-
-  // Ids are kept: a tap on a message sent earlier carries the old id.
-  const existing = await prisma.triggerQuickReply.findMany({ where: { campaignId }, select: { id: true } });
-  const known = new Set(existing.map((r) => r.id));
-  const kept = input.filter((r) => r.id && known.has(r.id)).map((r) => r.id!);
-  await prisma.$transaction([
-    prisma.triggerQuickReply.deleteMany({ where: { campaignId, id: { notIn: kept } } }),
-    ...input.map((reply, sort) => {
-      const data = { label: reply.label, action: reply.action, responseText: reply.responseText, sort };
-      return reply.id && known.has(reply.id)
-        ? prisma.triggerQuickReply.update({ where: { id: reply.id }, data })
-        : prisma.triggerQuickReply.create({ data: { ...data, campaignId } });
-    }),
-  ]);
-  return done(await prisma.triggerQuickReply.findMany({ where: { campaignId }, orderBy: { sort: "asc" } }));
+  return done(await writeQuickReplies(campaignId, input));
 }
 
-export async function saveFollowUpSteps(
-  workspaceId: string,
-  campaignId: string,
-  input: z.infer<typeof followUpsInputSchema>["steps"]
-) {
+export async function saveFollowUpSteps(workspaceId: string, campaignId: string, input: FollowUpStepsInput) {
   const campaign = await findCampaign(workspaceId, campaignId);
   if (!campaign) return fail(404, NOT_FOUND);
   if (input.length > 0 && !campaign.openingButtonLabel) return fail(422, NEEDS_BUTTON);
-
-  // Ids are kept so runs already scheduled for an unchanged step stay valid;
-  // a removed step takes its scheduled runs with it (cascade).
-  const existing = await prisma.triggerFollowUpStep.findMany({ where: { campaignId }, select: { id: true } });
-  const known = new Set(existing.map((s) => s.id));
-  const kept = input.filter((s) => s.id && known.has(s.id)).map((s) => s.id!);
-  await prisma.$transaction([
-    prisma.triggerFollowUpStep.deleteMany({ where: { campaignId, id: { notIn: kept } } }),
-    ...input.map((step, sort) => {
-      const data = { delayMinutes: step.delayMinutes, condition: step.condition, message: step.message, sort };
-      return step.id && known.has(step.id)
-        ? prisma.triggerFollowUpStep.update({ where: { id: step.id }, data })
-        : prisma.triggerFollowUpStep.create({ data: { ...data, campaignId } });
-    }),
-  ]);
-  return done(await prisma.triggerFollowUpStep.findMany({ where: { campaignId }, orderBy: { sort: "asc" } }));
+  return done(await writeFollowUpSteps(campaignId, input));
 }
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
 
-export async function listCampaignLogs(
-  workspaceId: string,
-  campaignId: string,
-  query: { page?: number; limit?: number; status?: string | null }
-) {
+export async function listCampaignLogs(workspaceId: string, campaignId: string, query: LogQuery) {
   const campaign = await findCampaign(workspaceId, campaignId);
   if (!campaign) return null;
-  const page = Math.max(1, Math.floor(query.page ?? 1) || 1);
-  const limit = Math.min(50, Math.max(1, Math.floor(query.limit ?? 20) || 20));
-  const where: Prisma.TriggerExecutionWhereInput = { workspaceId, campaignId };
-  if (query.status && (EXECUTION_STATUSES as readonly string[]).includes(query.status)) {
-    where.status = query.status as (typeof EXECUTION_STATUSES)[number];
-  }
-
-  const [total, executions] = await Promise.all([
-    prisma.triggerExecution.count({ where }),
-    prisma.triggerExecution.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-      select: {
-        id: true,
-        status: true,
-        matchedKeyword: true,
-        responseText: true,
-        error: true,
-        attempts: true,
-        nextRetryAt: true,
-        sentAt: true,
-        createdAt: true,
-        publicReplyStatus: true,
-        publicReplyError: true,
-        openedAt: true,
-        lastInboundAt: true,
-        leadCapturedAt: true,
-        handedOffAt: true,
-        stoppedAt: true,
-        stopReason: true,
-        variant: { select: { id: true, kind: true, text: true, source: true } },
-        event: {
-          select: {
-            id: true,
-            text: true,
-            senderId: true,
-            senderUsername: true,
-            mediaId: true,
-            timestamp: true,
-            backtrackRunId: true,
-            contact: { select: { username: true, name: true, phone: true, email: true } },
-          },
-        },
-        followUps: {
-          orderBy: { scheduledAt: "asc" },
-          select: {
-            id: true,
-            status: true,
-            scheduledAt: true,
-            sentAt: true,
-            reason: true,
-            step: { select: { sort: true, delayMinutes: true, condition: true } },
-          },
-        },
-      },
-    }),
-  ]);
-  return { executions, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+  return listExecutionLogs(workspaceId, campaignId, query);
 }
 
 export async function cancelExecutionFollowUps(workspaceId: string, executionId: string) {
-  const execution = await prisma.triggerExecution.findFirst({
-    where: { id: executionId, workspaceId, campaign: { triggerType: "COMMENT" } },
-    select: { id: true },
-  });
-  if (!execution) return fail(404, "Bajarilish topilmadi");
-  const cancelled = await cancelFollowUps(workspaceId, executionId, "Qo'lda bekor qilindi");
-  return done({ cancelled });
+  return cancelExecutionFollowUpsIn(workspaceId, executionId, COMMENT_TRIGGER_TYPES);
 }
 
 // ─── Backtrack ────────────────────────────────────────────────────────────────
@@ -752,6 +437,7 @@ export async function cancelExecutionFollowUps(workspaceId: string, executionId:
 export async function startCampaignBacktrack(workspaceId: string, campaignId: string, days: number) {
   const campaign = await findCampaign(workspaceId, campaignId);
   if (!campaign) return fail(404, NOT_FOUND);
+  if (campaign.triggerType === "LIVE_COMMENT") return fail(422, LIVE_NO_BACKTRACK);
   try {
     return done(await startBacktrack(workspaceId, campaignId, days));
   } catch (error) {
@@ -782,8 +468,10 @@ export async function simulateCommentDryRun(workspaceId: string, input: z.infer<
   return done(
     await simulateComment(workspaceId, {
       instagramAccountId: account.id,
-      mediaId: input.mediaId,
+      // A live comment carries the live video's id, never a picked post.
+      mediaId: input.eventType === "LIVE_COMMENT" ? null : input.mediaId,
       text: input.text,
+      eventType: input.eventType,
     })
   );
 }

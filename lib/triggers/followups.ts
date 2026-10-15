@@ -12,6 +12,10 @@
  *     taps it (anchor = tap); NO_CLICK steps when the private reply goes out
  *     (anchor = send) — they are about *not* tapping.
  *   - campaign without a button: every step when the private reply goes out.
+ *   - DM-side trigger (Direct, Story Mention, ad, link — ETAP 3): the person
+ *     wrote first, so the window is open from the start and there is no
+ *     button. Every step is scheduled when the reply goes out, except NO_CLICK
+ *     ones: there is nothing to not-tap, so they are never scheduled.
  *
  * Meta lets the conversation continue only inside the 24-hour window that the
  * person's last message (or button tap) opened. A step whose window is closed
@@ -107,7 +111,7 @@ export function followUpAttempt(reason: string | null | undefined): number {
 
 // ─── Scheduling ───────────────────────────────────────────────────────────────
 
-export type ScheduleMoment = "sent" | "opened";
+export type ScheduleMoment = "sent" | "opened" | "direct";
 
 /** Steps that belong to this moment (see the header). */
 export function stepsForMoment<S extends { condition: TriggerFollowUpCondition }>(
@@ -115,6 +119,7 @@ export function stepsForMoment<S extends { condition: TriggerFollowUpCondition }
   hasOpeningButton: boolean,
   moment: ScheduleMoment
 ): S[] {
+  if (moment === "direct") return steps.filter((step) => step.condition !== "NO_CLICK");
   if (!hasOpeningButton) return moment === "sent" ? steps : [];
   return steps.filter((step) => (moment === "sent") === (step.condition === "NO_CLICK"));
 }

@@ -3,11 +3,11 @@
  *
  *   claim the event (lease) → handler for its type → finish with a status
  *
- * Handlers are registered per event type: STORY_REPLY, COMMENT and
- * DIRECT_MESSAGE (Comment 2.0's button / quick-reply taps and replies).
- * STORY_MENTION and LIVE_COMMENT are stored and marked IGNORED until their
- * module lands — a new handler, not a new pipeline. The shared send path
- * (token, quota, rate limit, execution lifecycle) is in delivery.ts.
+ * Handlers are registered per event type: STORY_REPLY, COMMENT,
+ * DIRECT_MESSAGE (Comment 2.0's taps and replies, then the Direct triggers),
+ * STORY_MENTION, LIVE_COMMENT and MESSAGE_REACTION (observation only). A new
+ * trigger is a new handler, not a new pipeline. The shared send path (token,
+ * quota, rate limit, execution lifecycle) is in delivery.ts.
  *
  * Duplicate protection, layer two (layer one is the unique event row):
  *   - the claim is an atomic status flip, so two jobs for one event cannot
@@ -38,7 +38,8 @@ import {
   type EventWithAccount,
   type HandlerResult,
 } from "./delivery";
-import { handleDirectMessage } from "./direct-handler";
+import { handleDirectEvent, handleStoryMention } from "./dm-trigger-handler";
+import { handleLiveComment } from "./live-handler";
 import { TriggerRetryableError } from "./errors";
 import { selectCampaign } from "./matching";
 import { TRIGGER_MAX_ATTEMPTS } from "./queue";
@@ -156,13 +157,30 @@ export async function handleStoryReply(event: EventWithAccount): Promise<Handler
   return { status: "PROCESSED" };
 }
 
+// ─── MESSAGE_REACTION ─────────────────────────────────────────────────────────
+
+export const REACTION_OBSERVATION_REASON = "Kuzatuv rejimi: reaksiya saqlandi, javob yuborilmaydi.";
+
+/**
+ * Observation mode (ETAP 3): Meta does not document whether a story reaction
+ * arrives as a message reaction, so reactions are only stored for inspection.
+ * Never sends, never touches the contact or its counters.
+ */
+export async function handleMessageReaction(): Promise<HandlerResult> {
+  return { status: "IGNORED", error: REACTION_OBSERVATION_REASON };
+}
+
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
 export const EVENT_HANDLERS: Partial<Record<InstagramEventType, EventHandler>> = {
   STORY_REPLY: handleStoryReply,
   // Comment Automation 2.0 (lib/triggers/comment-handler.ts, direct-handler.ts)
   COMMENT: handleComment,
-  DIRECT_MESSAGE: handleDirectMessage,
+  // ETAP 3: taps / comment bookkeeping first, then Direct triggers (dm-trigger-handler.ts)
+  DIRECT_MESSAGE: handleDirectEvent,
+  STORY_MENTION: handleStoryMention,
+  LIVE_COMMENT: handleLiveComment,
+  MESSAGE_REACTION: handleMessageReaction,
 };
 
 const NOT_YET_SUPPORTED = "Bu event turi hali ishga tushirilmagan (keyingi bosqich).";

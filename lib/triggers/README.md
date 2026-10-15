@@ -17,10 +17,10 @@ Instagram ─▶ /api/webhook ─▶ normalize.ts ─▶ InstagramEvent (row) �
 
 | File | Role |
 |---|---|
-| `normalize.ts` | Webhook payload → `STORY_REPLY` / `STORY_MENTION` / `DIRECT_MESSAGE` / `COMMENT` / `LIVE_COMMENT`; `c2:` postbacks and quick replies → `DIRECT_MESSAGE` with `payload`. Pure. |
-| `ingest.ts` | Stores events (unique per account + message id) and queues them. Called from the webhook route in its own try/catch. |
+| `normalize.ts` | Webhook payload → `STORY_REPLY` / `STORY_MENTION` / `DIRECT_MESSAGE` / `COMMENT` / `LIVE_COMMENT` / `MESSAGE_REACTION`; `c2:` postbacks and quick replies → `DIRECT_MESSAGE` with `payload`; referrals → `referralSource` / `adId` / `ref`. Pure. |
+| `ingest.ts` | Stores events (unique per account + message id) and queues them; for DM-side events also makes and stores the ETAP 3 claim (`claimedCampaignId`). Called from the webhook route first, in its own try/catch. |
 | `matching.ts` | EVERY / CONTAINS / EXACT, case-insensitive; picks the most specific campaign. Pure. |
-| `processor.ts` | Claim → handler → status. Handler registry (STORY_REPLY, COMMENT, DIRECT_MESSAGE): add the next trigger here. |
+| `processor.ts` | Claim → handler → status. Handler registry (STORY_REPLY, COMMENT, DIRECT_MESSAGE, STORY_MENTION, LIVE_COMMENT, MESSAGE_REACTION): add the next trigger here. |
 | `delivery.ts` | Shared send path: token → workspace DM quota → hourly slot → send; execution lifecycle (SENT/SKIPPED end, leftover SENDING fails). |
 | `contacts.ts` | Find-or-create contact and conversation; store messages idempotently. |
 | `errors.ts` | Instagram error → admin-readable reason + technical detail + retryable or not. |
@@ -61,6 +61,86 @@ with a `c2:` payload are kept away from the DM keyword path and the assistant
 (`findClaimedC2Messages`, used by the webhook route), and so are phone
 numbers from someone with a pending lead whose chip payload did not come back
 (`findClaimedLeadPhoneMessages`, rule in `lead-capture.ts`).
+
+## Full Instagram Automation (ETAP 3)
+
+Design and Meta rules: `docs/developer/etap-3-instagram-automation.md`.
+
+```
+webhook ─▶ ingest.ts claimAndStoreDmEvent (DM / mention / referral message,
+     per-person advisory lock): claim.ts decideDmTrigger (comment thread owner?
+     keywords / intents, audience, source ADS / LINK, cooldown, priority)
+     ─▶ InstagramEvent.claimedCampaignId (+ rawPayload.dmClaim: keyword, reason)
+     ─▶ route: claimed events skip the DM-keyword path and the assistant
+DM ─▶ DIRECT_MESSAGE ─▶ direct-handler.ts: c2 taps │ lead phone │ bookkeeping on
+     ACTIVE executions (comment, live, DM trigger; findActiveConversations:
+     lastInboundAt, stop on reply) ─▶ dm-trigger-handler.ts runDmTrigger
+story mention ─▶ STORY_MENTION ─▶ runDmTrigger
+runDmTrigger: claimed campaign only (still active, same account) ─▶
+     TriggerExecution (opened at the person's message) ─▶ variant + quick
+     replies ─▶ follow-ups ("direct")
+live comment ─▶ LIVE_COMMENT ─▶ live-handler.ts: private reply [+ button], no
+     public reply, ≤ 4h old, a refused reply is final (live has ended)
+reaction ─▶ MESSAGE_REACTION ─▶ stored, IGNORED (observation mode), never sent
+```
+
+| File | Role |
+|---|---|
+| `dm-trigger-handler.ts` | `DM_TRIGGER_TYPES`, `runDmTrigger` (answers with the claimed campaign only), `handleDirectEvent` / `handleStoryMention`, `simulateDmTrigger` (dry run, same `selectDmCampaign` rule). |
+| `live-handler.ts` | `handleLiveComment`; Meta errors are final (`classifyLiveReplyError`). |
+| `matching.ts` | `selectDmCampaign`: EXACT > CONTAINS > INTENT > EVERY, then source filter (2) / audience (1) beat ANY, then `priority`, then oldest; a campaign in its cooldown is skipped. Pure. |
+| `claim.ts` | `decideDmTrigger` (the one decision, webhook only), `findActiveConversations` (shared by that decision and the direct handler's bookkeeping), `isActiveCommentConversation`, `readDmClaimNote`. |
+
+Rules worth knowing:
+- **One decision per DM.** "Does a DM trigger answer this?" is decided once,
+  in the webhook, before the DM-keyword path and the assistant run
+  (`ingest.ts claimAndStoreDmEvent` → `claim.ts decideDmTrigger`). The answer
+  is stored on the event: `claimedCampaignId` (FK, SET NULL on delete) plus
+  `rawPayload.dmClaim` (matched keyword, or the reason nothing was claimed,
+  shown in the logs). The route keeps exactly the events stored with a
+  `claimedCampaignId` away from production; the worker answers exactly those,
+  with exactly that campaign, and never decides again (no audience / cooldown
+  / thread re-check). Unclaimed events never fire a DM trigger.
+- Worker hard checks only: the claimed campaign is still active on the same
+  account (else IGNORED, "kampaniya o'chirilgan…", plus a WARNING operational
+  event — production skipped that message too, so it is left unanswered:
+  rare, but visible), the 24h window, quota / rate limit. A retry uses the
+  same campaign.
+- Per-person serialisation: the decision and the insert run in one
+  transaction holding `pg_advisory_xact_lock(hashtext('trigger-dm-claim'),
+  hashtext('<account>:<sender>'))` (lock_timeout 3s), so two webhooks for one
+  person cannot both claim inside one cooldown. Postgres rather than Redis:
+  the lock ends with the commit that makes the claimed row visible (no gap, no
+  TTL to outlive). Any error there (lock timeout, database) claims nothing:
+  the event is stored unclaimed and production answers it.
+- A redelivered webhook keeps the stored decision (production still skips a
+  claimed message; an unclaimed one stays unclaimed).
+- Not claimed: quick-reply taps (payload), and DMs while a comment / live
+  campaign owns the thread (an ACTIVE COMMENT / LIVE_COMMENT execution:
+  sent / opened / last message under 24h, not stopped by an earlier message).
+- Audience: from the person's stored `InstagramEvent` rows on the account up
+  to this message (and earlier messages of the same payload); none =
+  NEW_CONTACT. REOPENED = previous DM-side event (DM, story reply, mention)
+  older than `reopenAfterHours`.
+- Cooldown = this campaign's executions to this sender on this account in
+  PENDING / SENDING / RETRYING / SENT (by createdAt) or events already claimed
+  for it from this sender, within `cooldownHours` (0 = off).
+- Bookkeeping (lastInboundAt, stop on reply) touches only ACTIVE executions
+  (same `findActiveConversations` query): a stale execution's window is never
+  reopened by a later DM.
+- The reply is a normal DM inside the window the person opened, with the
+  quick replies attached; NO_CLICK follow-up steps are never scheduled (no
+  button). Taps come back as `c2:<execution>:qr:<id>` like any execution's.
+- Live comments: production does not read `live_comments`, so no claim.
+
+Limits (L3):
+- Audience history only exists since the account's first trigger campaign:
+  events are not stored before that, so someone who talked to the account
+  earlier counts as NEW_CONTACT on their first message after it.
+- REOPENED needs a previous DM-side event; a person whose only history is a
+  comment is RETURNING, never REOPENED.
+- Message timestamps come from Meta; two messages with the same timestamp are
+  ordered by the lock (whichever webhook decided first is the earlier one).
 
 ## Isolation
 
@@ -104,6 +184,6 @@ same thread.
 
 ## Next phases
 
-Story Mention and Live Comment are already normalised and stored (status
-`IGNORED`, "keyingi bosqich"); each needs only a handler in `EVENT_HANDLERS`. `STORY_REACTION` is reserved and never produced until its
-payload is confirmed against real webhooks.
+`STORY_REACTION` is reserved and never produced until its payload is
+confirmed against real webhooks; meanwhile every reaction is stored as
+`MESSAGE_REACTION` for inspection.

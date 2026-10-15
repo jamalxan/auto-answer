@@ -9,24 +9,31 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Yangi komment kampaniyasi (dev)", robots: { index: false } };
 
-export default async function NewCommentCampaignPage() {
+type Props = { searchParams: Promise<{ source?: string | string[] }> };
+
+/** `?source=live` opens the builder on "Live efir kommentlari" (linked from the triggers home). */
+export default async function NewCommentCampaignPage({ searchParams }: Props) {
   const ctx = await requireDeveloperPage();
-  const accounts = await listWorkspaceAccounts(ctx.workspaceId);
+  const [accounts, { source }] = await Promise.all([listWorkspaceAccounts(ctx.workspaceId), searchParams]);
+  const live = source === "live";
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <Link href="/developer/comments" className="text-sm text-muted hover:text-foreground">
-          ← Comment Automation 2.0
+        <Link href={live ? "/developer/triggers" : "/developer/comments"} className="text-sm text-muted hover:text-foreground">
+          {live ? "← Instagram Triggers" : "← Comment Automation 2.0"}
         </Link>
         <div className="mt-2 flex items-center gap-2">
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">Yangi kampaniya</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
+            {live ? "Yangi Live komment kampaniyasi" : "Yangi kampaniya"}
+          </h1>
           <DevBadge />
         </div>
       </div>
       <CommentBuilder
         accounts={accounts}
         intents={BUILT_IN_INTENTS.map(({ key, label, examples }) => ({ key, label, examples }))}
+        initialSource={live ? "LIVE_COMMENT" : "COMMENT"}
       />
     </div>
   );

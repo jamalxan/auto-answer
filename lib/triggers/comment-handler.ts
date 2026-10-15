@@ -250,21 +250,24 @@ export interface CommentSimulation {
 /**
  * Dry run: which campaign would answer this comment, and with what. Sends
  * nothing, writes nothing (the SEQUENTIAL cursor is read, not moved).
+ * `eventType: "LIVE_COMMENT"` checks the live-comment campaigns instead (they
+ * never post a public reply).
  */
 export async function simulateComment(
   workspaceId: string,
-  input: { instagramAccountId: string; mediaId: string | null; text: string }
+  input: { instagramAccountId: string; mediaId: string | null; text: string; eventType?: "COMMENT" | "LIVE_COMMENT" }
 ): Promise<CommentSimulation> {
+  const eventType = input.eventType ?? "COMMENT";
   const campaigns = await prisma.triggerCampaign.findMany({
     where: {
       workspaceId,
-      triggerType: "COMMENT",
+      triggerType: eventType,
       active: true,
       OR: [{ instagramAccountId: input.instagramAccountId }, { instagramAccount: { instagramId: input.instagramAccountId } }],
     },
     orderBy: { createdAt: "asc" },
   });
-  const selection = selectCommentCampaign(campaigns, { mediaId: input.mediaId || null, text: input.text });
+  const selection = selectCommentCampaign(campaigns, { mediaId: input.mediaId || null, text: input.text, eventType });
   if (!selection.campaign || !selection.matchKind) {
     return { matched: false, reason: selection.ignoredReason ?? "Mos kampaniya topilmadi" };
   }
@@ -278,6 +281,7 @@ export async function simulateComment(
     matchKind: selection.matchKind,
     matchedKeyword: describeCommentMatch(selection) ?? undefined,
     dmPreview: chosen.dm.text,
-    publicPreview: campaign.publicReplyEnabled && chosen.publicText ? chosen.publicText : undefined,
+    publicPreview:
+      eventType === "COMMENT" && campaign.publicReplyEnabled && chosen.publicText ? chosen.publicText : undefined,
   };
 }

@@ -1,16 +1,18 @@
 "use client";
 
 /**
- * Instagram Trigger Engine — dev console.
+ * Instagram Triggers — the ETAP 3 home of the dev console.
  *
- * Tabs: Campaigns · Logs · Contacts · Simulator, under an engine status strip
- * (enabled, worker, queue, last 24 hours).
+ * Tabs: Automations · Logs · Contacts · Simulator, under an engine status
+ * strip (enabled, worker, queue, last 24 hours). The automations tab lists
+ * every ETAP 3 trigger in one place — Direct, ad message, ig.me link, Story
+ * Mention, Story Reply (V1) and Live comment — each opening its own builder.
  */
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { EVENT_TYPE_LABELS, MATCH_MODE_LABELS, shortStoryId } from "@/lib/triggers/display";
+import { AUDIENCE_LABELS, AUTOMATION_KIND_LABELS, EVENT_TYPE_LABELS, shortStoryId } from "@/lib/triggers/display";
 import TriggerLogs from "./trigger-logs";
 import {
   DevBadge,
@@ -23,6 +25,8 @@ import {
   secondaryButton,
   Toggle,
 } from "@/components/developer/ui";
+import { ConfirmButton, Notice } from "@/components/developer/comments/parts";
+import { jsonInit, requestJson } from "@/components/developer/comments/shared";
 
 interface Account {
   id: string;
@@ -30,19 +34,28 @@ interface Account {
   tokenStatus: string;
 }
 
-interface Campaign {
+type Kind = "DIRECT" | "AD_MESSAGE" | "LINK" | "STORY_MENTION" | "STORY_REPLY" | "LIVE_COMMENT";
+
+interface Automation {
   id: string;
   name: string;
+  kind: Kind;
+  href: string;
   triggerType: string;
-  storyScope: string;
-  storyIds: string[];
-  keywords: string[];
-  matchingMode: string;
-  responseMessage: string;
   active: boolean;
   createdAt: string;
-  instagramAccount: { username: string };
-  stats: { sent: number; failed: number; retrying: number };
+  matchingMode: string;
+  keywords: string[];
+  intents: string[];
+  storyScope: string;
+  storyIds: string[];
+  audience: string;
+  adIds: string[];
+  refs: string[];
+  responseMessage: string;
+  unapprovedVariants: number;
+  instagramAccount: { username: string; tokenStatus: string };
+  stats: { sent: number; queued: number; failed: number; skipped: number; leads: number; followUpsScheduled: number };
 }
 
 interface Overview {
@@ -55,7 +68,7 @@ interface Overview {
 }
 
 const TABS = [
-  ["campaigns", "Campaignlar"],
+  ["campaigns", "Automationlar"],
   ["logs", "Loglar"],
   ["contacts", "Kontaktlar"],
   ["simulator", "Simulyator"],
@@ -100,61 +113,198 @@ function OverviewStrip({ overview }: { overview: Overview | null }) {
   );
 }
 
+/** Which route family toggles / deletes a campaign of this kind. */
+function campaignApi(automation: Automation): string {
+  if (automation.kind === "STORY_REPLY") return `/api/developer/triggers/campaigns/${automation.id}`;
+  if (automation.kind === "LIVE_COMMENT") return `/api/developer/comments/campaigns/${automation.id}`;
+  return `/api/developer/triggers/dm/campaigns/${automation.id}`;
+}
+
+function logsHref(automation: Automation): string {
+  return automation.kind === "STORY_REPLY"
+    ? `/developer/triggers?tab=logs&campaign=${automation.id}`
+    : `${automation.href}?tab=logs`;
+}
+
+/** The condition in one line: what the person must do to get this answer. */
+function conditionText(a: Automation): string {
+  const parts: string[] = [];
+  if (a.kind === "STORY_REPLY") {
+    parts.push(a.storyScope === "ALL" ? "Barcha story" : `${a.storyIds.length} story (${a.storyIds.map(shortStoryId).join(", ")})`);
+  }
+  if (a.kind === "AD_MESSAGE") parts.push(a.adIds.length ? `${a.adIds.length} ta reklama` : "Istalgan reklama");
+  if (a.kind === "LINK") parts.push(a.refs.length ? `ref: ${a.refs.slice(0, 3).join(", ")}${a.refs.length > 3 ? "…" : ""}` : "Istalgan ref");
+  if (a.kind === "STORY_MENTION") parts.push("Har bir mention");
+  else if (a.matchingMode === "EVERY") parts.push("Har bir xabar");
+  else parts.push(a.matchingMode === "EXACT" ? "Aniq kalit so'z" : "Kalit so'z bor");
+  if (a.audience && a.audience !== "ANY") parts.push(AUDIENCE_LABELS[a.audience]?.title ?? a.audience);
+  return parts.join(" · ");
+}
+
+const KIND_FILTERS: Array<["" | Kind, string]> = [
+  ["", "Barchasi"],
+  ["DIRECT", AUTOMATION_KIND_LABELS.DIRECT.title],
+  ["AD_MESSAGE", AUTOMATION_KIND_LABELS.AD_MESSAGE.title],
+  ["LINK", AUTOMATION_KIND_LABELS.LINK.title],
+  ["STORY_MENTION", AUTOMATION_KIND_LABELS.STORY_MENTION.title],
+  ["STORY_REPLY", AUTOMATION_KIND_LABELS.STORY_REPLY.title],
+  ["LIVE_COMMENT", AUTOMATION_KIND_LABELS.LIVE_COMMENT.title],
+];
+
+function AutomationCard({ automation, onChanged }: { automation: Automation; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const s = automation.stats;
+
+  async function mutate(init: RequestInit, fallback: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await requestJson(campaignApi(automation), init);
+      if (!res.ok) setError(res.error || fallback);
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  }
+
+  const warnings: string[] = [];
+  if (automation.instagramAccount.tokenStatus === "BROKEN") {
+    warnings.push("Akkaunt ulanishi uzilgan — javoblar ketmaydi. Foundation → Ulanishlar bo'limida qayta ulang.");
+  }
+  if (automation.unapprovedVariants > 0) {
+    warnings.push(`${automation.unapprovedVariants} ta variant tasdiqlanmagan — ular yuborilmaydi.`);
+  }
+
+  return (
+    <li className="panel rounded-xl p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`label-mono rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                automation.kind === "LIVE_COMMENT" ? "bg-error/10 text-error" : "bg-accent/10 text-accent"
+              }`}
+            >
+              {AUTOMATION_KIND_LABELS[automation.kind]?.title ?? automation.kind}
+            </span>
+            <Link href={automation.href} className="break-words font-semibold text-foreground hover:text-accent">
+              {automation.name}
+            </Link>
+            <Pill tone={automation.active ? "success" : "muted"}>{automation.active ? "Faol" : "O'chiq"}</Pill>
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            @{automation.instagramAccount.username} · {conditionText(automation)}
+          </p>
+          {(automation.keywords.length > 0 || automation.intents.length > 0) && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {automation.keywords.slice(0, 10).map((k) => (
+                <span key={k} className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs text-foreground">
+                  {k}
+                </span>
+              ))}
+              {automation.intents.map((k) => (
+                <span key={k} className="label-mono rounded-md bg-gold/10 px-1.5 py-0.5 text-[10px] text-gold">
+                  {k}
+                </span>
+              ))}
+              {automation.keywords.length > 10 && <span className="text-xs text-muted">+{automation.keywords.length - 10}</span>}
+            </div>
+          )}
+        </div>
+        <Toggle
+          on={automation.active}
+          onChange={(on) => void mutate(jsonInit("PATCH", { active: on }), "Holatni o'zgartirib bo'lmadi")}
+          label={`${automation.name} faol`}
+        />
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          {warnings.map((w) => (
+            <Notice key={w} tone="warning">
+              {w}
+            </Notice>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted">
+          <span>
+            Yuborildi: <b className="text-success">{s.sent}</b>
+          </span>
+          <span>
+            Navbatda: <b className={s.queued ? "text-warning" : ""}>{s.queued}</b>
+          </span>
+          <span>
+            Xato: <b className={s.failed ? "text-error" : ""}>{s.failed}</b>
+          </span>
+          {s.leads > 0 && (
+            <span>
+              Lead: <b className="text-success">{s.leads}</b>
+            </span>
+          )}
+          {s.followUpsScheduled > 0 && (
+            <span>
+              Follow-up rejada: <b>{s.followUpsScheduled}</b>
+            </span>
+          )}
+          <span>Yaratildi: {formatDateTime(automation.createdAt)}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href={logsHref(automation)} className={secondaryButton}>
+            Loglar
+          </Link>
+          <Link href={automation.href} className={secondaryButton}>
+            Tahrirlash
+          </Link>
+          <ConfirmButton
+            label="O'chirish"
+            question="Automation va uning loglari o'chirilsinmi?"
+            confirmLabel="O'chirish"
+            danger
+            busy={busy}
+            onConfirm={() => void mutate({ method: "DELETE" }, "O'chirib bo'lmadi")}
+          />
+        </div>
+      </div>
+      {error && <p className="mt-2 text-sm text-error">{error}</p>}
+    </li>
+  );
+}
+
 function CampaignsTab({
-  campaigns,
+  automations,
   accounts,
   onChanged,
 }: {
-  campaigns: Campaign[];
+  automations: Automation[];
   accounts: Account[];
   onChanged: () => void;
 }) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [kind, setKind] = useState<"" | Kind>("");
+  const counts = automations.reduce<Record<string, number>>((acc, a) => {
+    acc[a.kind] = (acc[a.kind] ?? 0) + 1;
+    return acc;
+  }, {});
+  const shown = kind ? automations.filter((a) => a.kind === kind) : automations;
 
-  async function mutate(campaign: Campaign, init: RequestInit, fallback: string) {
-    setBusy(campaign.id);
-    setError(null);
-    try {
-      const res = await fetch(`/api/developer/triggers/campaigns/${campaign.id}`, init);
-      const data = await res.json().catch(() => null);
-      if (!res.ok || data?.success === false) setError(data?.error ?? fallback);
-    } catch {
-      setError(fallback);
-    } finally {
-      setBusy(null);
-    }
-    onChanged();
-  }
-
-  async function toggle(campaign: Campaign, active: boolean) {
-    await mutate(
-      campaign,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active }),
-      },
-      "Holatni o'zgartirib bo'lmadi"
-    );
-  }
-
-  async function remove(campaign: Campaign) {
-    if (!window.confirm(`"${campaign.name}" o'chirilsinmi? Loglari ham o'chadi.`)) return;
-    await mutate(campaign, { method: "DELETE" }, "O'chirib bo'lmadi");
-  }
-
-  if (campaigns.length === 0) {
+  if (automations.length === 0) {
     return (
       <div className="panel rounded-xl">
         <EmptyState
-          title="Hali campaign yo'q"
-          body={accounts.length ? "Story reply campaign yarating — reply kelganda avtomatik DM ketadi." : "Avval Instagram akkaunt ulang."}
+          title="Hali automation yo'q"
+          body={
+            accounts.length
+              ? "Direct, reklama, ig.me havola, story mention/reply yoki live komment uchun avtomatik javob yarating."
+              : "Avval Instagram akkaunt ulang (Foundation → Ulanishlar)."
+          }
         />
         {accounts.length > 0 && (
           <div className="pb-8 text-center">
             <Link href="/developer/triggers/new" className={primaryButton}>
-              + Automation yaratish
+              + Yangi automation
             </Link>
           </div>
         )}
@@ -164,66 +314,26 @@ function CampaignsTab({
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-sm text-error">{error}</p>}
-      {campaigns.map((campaign) => (
-        <div key={campaign.id} className="panel rounded-xl p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/developer/triggers/${campaign.id}`} className="font-semibold text-foreground hover:text-accent">
-                  {campaign.name}
-                </Link>
-                <Pill tone={campaign.active ? "success" : "muted"}>{campaign.active ? "Faol" : "O'chiq"}</Pill>
-              </div>
-              <p className="mt-1 text-xs text-muted">
-                @{campaign.instagramAccount.username} · {EVENT_TYPE_LABELS[campaign.triggerType]} ·{" "}
-                {campaign.storyScope === "ALL"
-                  ? "All stories"
-                  : `${campaign.storyIds.length} story (${campaign.storyIds.map(shortStoryId).join(", ")})`}{" "}
-                · {MATCH_MODE_LABELS[campaign.matchingMode]}
-              </p>
-              {campaign.keywords.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {campaign.keywords.map((k) => (
-                    <span key={k} className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs text-foreground">
-                      {k}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <p className="mt-2 line-clamp-2 break-words text-sm text-muted">{campaign.responseMessage}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Toggle on={campaign.active} onChange={(on) => void toggle(campaign, on)} label="Faol" />
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs">
-            <div className="flex flex-wrap gap-3 text-muted">
-              <span>
-                Yuborildi: <b className="text-success">{campaign.stats.sent}</b>
-              </span>
-              <span>
-                Xato: <b className={campaign.stats.failed ? "text-error" : ""}>{campaign.stats.failed}</b>
-              </span>
-              <span>
-                Retry: <b>{campaign.stats.retrying}</b>
-              </span>
-              <span>Yaratildi: {formatDateTime(campaign.createdAt)}</span>
-            </div>
-            <div className="flex gap-2">
-              <Link href={`/developer/triggers?tab=logs&campaign=${campaign.id}`} className={secondaryButton}>
-                Loglar
-              </Link>
-              <Link href={`/developer/triggers/${campaign.id}`} className={secondaryButton}>
-                Tahrirlash
-              </Link>
-              <button type="button" className={secondaryButton} disabled={busy === campaign.id} onClick={() => void remove(campaign)}>
-                O&apos;chirish
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Trigger turi bo'yicha filtr">
+        {KIND_FILTERS.filter(([key]) => !key || counts[key]).map(([key, label]) => (
+          <button
+            key={key || "all"}
+            type="button"
+            aria-pressed={kind === key}
+            onClick={() => setKind(key)}
+            className={`rounded-full border px-2.5 py-1 text-xs ${
+              kind === key ? "border-accent bg-accent/10 text-foreground" : "border-border text-muted hover:text-foreground"
+            }`}
+          >
+            {label} <span className="text-muted">{key ? counts[key] : automations.length}</span>
+          </button>
+        ))}
+      </div>
+      <ul className="space-y-3">
+        {shown.map((automation) => (
+          <AutomationCard key={automation.id} automation={automation} onChanged={onChanged} />
+        ))}
+      </ul>
     </div>
   );
 }
@@ -277,7 +387,7 @@ function ContactsTab() {
   if (contacts.length === 0) {
     return (
       <div className="panel rounded-xl">
-        <EmptyState title="Hali kontakt yo'q" body="Birinchi story reply kelganda kontakt avtomatik yaratiladi." />
+        <EmptyState title="Hali kontakt yo'q" body="Birinchi xabar (Direct, story, mention) kelganda kontakt avtomatik yaratiladi." />
       </div>
     );
   }
@@ -370,6 +480,7 @@ function SimulatorTab({ accounts }: { accounts: Account[] }) {
       <div className="panel space-y-4 rounded-xl p-4">
         <p className="text-sm text-muted">
           Story reply kelganda engine qaysi campaign&apos;ni tanlashini tekshiradi. Hech narsa yuborilmaydi va saqlanmaydi.
+          Direct, reklama, havola va mention&apos;ni har bir automation ichidagi &quot;Test&quot; bo&apos;limida tekshiring.
         </p>
         <Field label="Akkaunt">
           <select className={inputClass} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
@@ -437,18 +548,18 @@ export default function TriggerDashboard() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const tab: Tab = TABS.some(([key]) => key === tabParam) ? (tabParam as Tab) : "campaigns";
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [automations, setAutomations] = useState<Automation[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     const [c, o] = await Promise.all([
-      fetch("/api/developer/triggers/campaigns").then((r) => r.json()).catch(() => null),
+      fetch("/api/developer/triggers/automations").then((r) => r.json()).catch(() => null),
       fetch("/api/developer/triggers/overview").then((r) => r.json()).catch(() => null),
     ]);
     if (c?.success) {
-      setCampaigns(c.data.campaigns);
+      setAutomations(c.data.automations);
       setAccounts(c.data.accounts);
     }
     if (o?.success) setOverview(o.data);
@@ -471,18 +582,18 @@ export default function TriggerDashboard() {
             <DevBadge />
           </div>
           <p className="mt-1 text-sm text-muted">
-            Event engine · Story Reply → Contact → Conversation → Auto javob → Log → Retry
+            Direct · Reklama · ig.me havola · Story mention / reply · Live komment → avtomatik javob → log
           </p>
           <p className="mt-1 text-xs text-muted">
-            Komment kampaniyalari bu yerda ko&apos;rinmaydi — ular{" "}
+            Post kommentlari{" "}
             <Link href="/developer/comments" className="text-accent hover:underline">
               Comment Automation 2.0
             </Link>{" "}
-            bo&apos;limida.
+            bo&apos;limida (Live kampaniyalar shu ro&apos;yxatda ham ko&apos;rinadi).
           </p>
         </div>
         <Link href="/developer/triggers/new" className={primaryButton}>
-          + Automation yaratish
+          + Yangi automation
         </Link>
       </div>
 
@@ -506,9 +617,14 @@ export default function TriggerDashboard() {
       {!loaded ? (
         <p className="py-10 text-center text-sm text-muted">Yuklanmoqda…</p>
       ) : tab === "campaigns" ? (
-        <CampaignsTab campaigns={campaigns} accounts={accounts} onChanged={() => void load()} />
+        <CampaignsTab automations={automations} accounts={accounts} onChanged={() => void load()} />
       ) : tab === "logs" ? (
-        <TriggerLogs key={searchParams.get("campaign") ?? ""} campaigns={campaigns} initialCampaignId={searchParams.get("campaign") ?? ""} />
+        <TriggerLogs
+          key={`${searchParams.get("campaign") ?? ""}:${searchParams.get("type") ?? ""}`}
+          campaigns={automations}
+          initialCampaignId={searchParams.get("campaign") ?? ""}
+          initialType={searchParams.get("type")}
+        />
       ) : tab === "contacts" ? (
         <ContactsTab />
       ) : (

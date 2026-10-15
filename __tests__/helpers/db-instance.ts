@@ -6,4 +6,6 @@ export const db = new MemoryDb();
 export function resetDb() {
   for (const key of Object.keys(db.tables)) db.tables[key] = [];
   db.log = [];
+  db.raw = [];
+  db.transactionError = null;
 }

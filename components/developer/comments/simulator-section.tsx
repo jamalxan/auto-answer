@@ -27,6 +27,7 @@ export default function SimulatorSection({
   mediaIds,
   dirty,
   active,
+  eventType = "COMMENT",
 }: {
   accountId: string;
   /** The campaign being edited, to say "this one" vs "another campaign". */
@@ -36,6 +37,8 @@ export default function SimulatorSection({
   dirty: boolean;
   /** The engine only matches active campaigns. */
   active: boolean;
+  /** Live campaigns are tested as a live comment: no post to pick. */
+  eventType?: "COMMENT" | "LIVE_COMMENT";
 }) {
   const [text, setText] = useState("Narxi qancha?");
   const [mediaId, setMediaId] = useState("");
@@ -51,7 +54,12 @@ export default function SimulatorSection({
     try {
       const res = await requestJson<SimulationResult>(
         "/api/developer/comments/simulate",
-        jsonInit("POST", { instagramAccountId: accountId, text, mediaId: mediaId.trim() || null })
+        jsonInit("POST", {
+          instagramAccountId: accountId,
+          text,
+          mediaId: eventType === "LIVE_COMMENT" ? null : mediaId.trim() || null,
+          eventType,
+        })
       );
       if (mine !== seq.current) return;
       if (res.ok) setResult(res.data);
@@ -74,20 +82,22 @@ export default function SimulatorSection({
       {dirty && (
         <Notice tone="warning">Saqlanmagan o&apos;zgarishlar bor — test saqlangan sozlamalar bo&apos;yicha ishlaydi.</Notice>
       )}
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
-        <Field label="Komment matni">
+      <div className={`grid gap-3 ${eventType === "LIVE_COMMENT" ? "" : "sm:grid-cols-[minmax(0,1fr)_200px]"}`}>
+        <Field label={eventType === "LIVE_COMMENT" ? "Live efirdagi komment" : "Komment matni"}>
           <input className={inputClass} value={text} maxLength={2000} onChange={(e) => setText(e.target.value)} />
         </Field>
-        <Field label="Post">
-          <select className={inputClass} value={mediaId} onChange={(e) => setMediaId(e.target.value)}>
-            <option value="">Istalgan post</option>
-            {mediaIds.map((id) => (
-              <option key={id} value={id}>
-                Post #{id.slice(-6)}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {eventType !== "LIVE_COMMENT" && (
+          <Field label="Post">
+            <select className={inputClass} value={mediaId} onChange={(e) => setMediaId(e.target.value)}>
+              <option value="">Istalgan post</option>
+              {mediaIds.map((id) => (
+                <option key={id} value={id}>
+                  Post #{id.slice(-6)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
       </div>
       <button type="button" className={primaryButton} disabled={running || !accountId || !text.trim()} onClick={() => void run()}>
         {running ? "Tekshirilmoqda…" : "Tekshirish"}

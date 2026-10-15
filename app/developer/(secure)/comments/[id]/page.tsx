@@ -33,6 +33,7 @@ export default async function CommentCampaignPage({ params, searchParams }: Prop
         id: campaign.id,
         name: campaign.name,
         instagramAccountId: campaign.instagramAccountId,
+        triggerType: campaign.triggerType === "LIVE_COMMENT" ? "LIVE_COMMENT" : "COMMENT",
         mediaScope: campaign.mediaScope,
         mediaIds: campaign.mediaIds,
         matchingMode: campaign.matchingMode,

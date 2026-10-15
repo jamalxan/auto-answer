@@ -45,7 +45,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 3,
     title: "Instagram Triggers",
     summary:
-      "Direct, Story Reply / Mention / Reaction, Live va Ads triggerlari. Story Reply V1 tayyor.",
+      "Direct, reklama xabari, ig.me havola, Story Mention / Reply va Live kommentlar — bitta ro'yxatda. Story Reaction kuzatuv rejimida.",
     status: "TESTING",
     href: "/developer/triggers",
   },

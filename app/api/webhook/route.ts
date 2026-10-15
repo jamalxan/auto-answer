@@ -125,6 +125,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Instagram Trigger Engine (dev) first: it stores the events (only for
+    // accounts that have a trigger campaign) and decides, once, which DMs /
+    // story mentions / ad and link messages an ETAP 3 Direct or Story Mention
+    // campaign answers — that decision is stored with the event. Those claimed
+    // messages are kept away from the keyword autoreply and the assistant
+    // below. Its own queue and its own try/catch: on any failure nothing is
+    // claimed and the production paths run as before.
+    let dmTriggerClaims = new Map<string, string>();
+    try {
+      dmTriggerClaims = (await ingestWebhookPayload(payload)).claimed;
+    } catch (triggerError) {
+      console.error(
+        "[Webhook] Trigger engine ingest failed:",
+        triggerError instanceof Error ? triggerError.message : triggerError
+      );
+    }
+
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
     );
@@ -188,9 +205,9 @@ export async function POST(request: NextRequest) {
     // Story replies a trigger-engine campaign will answer get exactly that one
     // DM: keep them out of the keyword autoreply and the assistant below. On
     // any failure here nothing is claimed and those paths run as before.
-    let claimedStoryReplies = new Set<string>();
+    const claimedStoryReplies = new Set<string>(dmTriggerClaims.keys());
     try {
-      claimedStoryReplies = await findClaimedStoryReplies(payload);
+      for (const key of await findClaimedStoryReplies(payload)) claimedStoryReplies.add(key);
       // Comment 2.0 quick-reply taps ("c2:" payload) belong to the campaign
       // that sent the buttons, not to the keyword autoreply or the assistant.
       for (const key of findClaimedC2Messages(payload)) claimedStoryReplies.add(key);
@@ -263,17 +280,6 @@ export async function POST(request: NextRequest) {
       console.error(
         "[Webhook] Failed to queue assistant events:",
         assistantError instanceof Error ? assistantError.message : assistantError
-      );
-    }
-
-    // Instagram Trigger Engine (dev). Its own queue and its own try/catch, and
-    // it only records events for accounts that have a trigger campaign.
-    try {
-      await ingestWebhookPayload(payload);
-    } catch (triggerError) {
-      console.error(
-        "[Webhook] Trigger engine ingest failed:",
-        triggerError instanceof Error ? triggerError.message : triggerError
       );
     }
 

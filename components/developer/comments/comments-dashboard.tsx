@@ -15,6 +15,7 @@ import { BACKTRACK_STATUS, jsonInit, MATCH_MODE_TEXT, requestJson, type Account 
 interface CampaignRow {
   id: string;
   name: string;
+  triggerType: "COMMENT" | "LIVE_COMMENT";
   active: boolean;
   mediaScope: "ANY" | "SPECIFIC";
   mediaIds: string[];
@@ -96,11 +97,23 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
               {campaign.name}
             </Link>
             <Pill tone={campaign.active ? "success" : "muted"}>{campaign.active ? "Faol" : "O'chiq"}</Pill>
+            <span
+              className={`label-mono rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                campaign.triggerType === "LIVE_COMMENT" ? "bg-error/10 text-error" : "bg-surface-hover text-muted"
+              }`}
+            >
+              {campaign.triggerType === "LIVE_COMMENT" ? "LIVE" : "POST"}
+            </span>
             {campaign.priority !== 0 && <span className="label-mono text-[10px] text-muted">prioritet {campaign.priority}</span>}
           </div>
           <p className="mt-1 text-xs text-muted">
             @{campaign.instagramAccount.username} ·{" "}
-            {campaign.mediaScope === "ANY" ? "Har qanday post" : `${campaign.mediaIds.length} ta post`} ·{" "}
+            {campaign.triggerType === "LIVE_COMMENT"
+              ? "Live efir kommentlari"
+              : campaign.mediaScope === "ANY"
+                ? "Har qanday post"
+                : `${campaign.mediaIds.length} ta post`}{" "}
+            ·{" "}
             {MATCH_MODE_TEXT[campaign.matchingMode]?.title ?? campaign.matchingMode}
             {campaign.openingButtonLabel ? ` · tugma “${campaign.openingButtonLabel}”` : ""}
           </p>
@@ -244,11 +257,17 @@ export default function CommentsDashboard() {
           <p className="mt-1 text-sm text-muted">
             Komment → kalit so&apos;z / intent → DM variant (+ ochiq javob) → tugma → asosiy xabar → follow-up
           </p>
+          <p className="mt-1 text-xs text-muted">Post va Live efir kommentlari shu yerda; Live kampaniyalar LIVE belgisi bilan.</p>
         </div>
         {accounts.length > 0 && (
-          <Link href="/developer/comments/new" className={primaryButton}>
-            + Yangi kampaniya
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/developer/comments/new?source=live" className={secondaryButton}>
+              + Live kampaniya
+            </Link>
+            <Link href="/developer/comments/new" className={primaryButton}>
+              + Yangi kampaniya
+            </Link>
+          </div>
         )}
       </div>
 

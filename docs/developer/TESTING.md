@@ -51,8 +51,26 @@ yodda tuting: Comment 2.0 javob beradigan kommentni production o'tkazib yuboradi
 | C13 | Kampaniyani o'chirib qo'yish (Faol = off) va komment | Comment 2.0 javob bermaydi; production kampaniya bo'lsa, u javob beradi |
 | C14 | `TRIGGER_ENGINE_DISABLED=1` bilan C3 | Production avvalgidek ishlaydi |
 
+## ETAP 3 — Instagram Automation (`/developer/triggers`)
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| T1 | Direct: keyword "narx", 2 ta variant + quick reply. Mijoz Direct'ga `narxi qancha` yozadi | Bitta javob, ostida quick reply'lar. Assistent yoki eski DM-kampaniya **javob bermaydi** |
+| T2 | O'sha mijoz 1 soatdan keyin yana yozadi (cooldown 24 soat) | Bu kampaniya qayta javob bermaydi |
+| T3 | Audience "Yangi mijoz" — avval yozgan va hech yozmagan ikki akkaunt | Faqat yangisiga javob |
+| T4 | Audience "Qayta ochildi", 1 soat qilib qo'ying; 1 soatdan keyin yozing | Javob keladi |
+| T5 | Story Mention kampaniyasi; mijoz story'da akkauntni belgilaydi (public akkaunt) | Direct'ga javob |
+| T6 | Click-to-Direct reklama (ad id bilan) | Reklamadan kelgan xabarga javob, loglarda "Reklama: <ad id>" |
+| T7 | ig.me havola (ref=bio), akkauntda Icebreakers yoqilgan, telefondan oching | Javob, loglarda "Havola: bio" |
+| T8 | Live kampaniya; efirda `narx` deb komment | Bitta private reply. Efirdan keyingi komment — FAILED "Efir tugagan…" |
+| T9 | Story'ga reaksiya bosing (❤️) | Loglarda "Reaksiya" qatori, **javob yo'q** — kuzatuv rejimi. Shu qatorni menga yuboring: story reaksiyasini yoqish shu ma'lumotga bog'liq |
+| T10 | Kommentdan boshlangan suhbat (C3) davom etayotganda Direct'da `narx` | Direct trigger jim turadi — ikki bot birdan gapirmaydi |
+
 Meta qoidalari (testda shunday bo'lishi kerak, xato emas):
 - Bitta kommentga faqat **bitta** private reply.
 - Private reply komment yozilganidan 7 kun ichida.
 - Tugma bosilmaguncha yoki mijoz yozmaguncha follow-up yuborilmaydi; oxirgi
   xabaridan 24 soat o'tsa — SKIPPED "24 soatlik oyna yopilgan".
+- Live kommentga private reply faqat efir davomida.
+- Story mention faqat public akkauntdan (yoki sizga obuna bo'lgan yopiq akkauntdan) keladi.
+- ig.me ref yangi suhbatda faqat Icebreakers sozlangan bo'lsa keladi; Instagram Web'da ishlamaydi.

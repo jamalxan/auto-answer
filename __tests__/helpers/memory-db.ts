@@ -115,7 +115,7 @@ const DEFAULTS: Record<string, () => Row> = {
   instagramEvent: () => ({
     processingStatus: "PENDING", attempts: 0, error: null, errorDetail: null, processingStartedAt: null,
     processedAt: null, contactId: null, conversationId: null, storyId: null, storyUrl: null, mediaId: null,
-    senderUsername: null, text: "",
+    senderUsername: null, text: "", claimedCampaignId: null,
   }),
   triggerCampaign: () => ({ storyScope: "ALL", storyIds: [], keywords: [], matchingMode: "EVERY", responseType: "SEND_MESSAGE", active: true }),
   triggerExecution: () => ({
@@ -138,6 +138,16 @@ export class MemoryDb {
   tables: Record<string, Row[]> = {};
   /** Every row-level write, for assertions. */
   log: Array<{ model: string; op: string }> = [];
+  /** Raw SQL run through $executeRaw / $executeRawUnsafe (text with "?" for parameters, and the values). */
+  raw: Array<{ sql: string; values: unknown[] }> = [];
+  /**
+   * Interactive transactions ($transaction(fn)) run one at a time, like
+   * callers serialised by a Postgres lock. Not isolated: writes are visible at
+   * once and are not rolled back on error.
+   */
+  private txChain: Promise<unknown> = Promise.resolve();
+  /** When set, every interactive transaction fails with it (a lost connection, a lock timeout). */
+  transactionError: Error | null = null;
 
   rows(model: string): Row[] {
     return (this.tables[model] ??= []);
@@ -364,7 +374,29 @@ export class MemoryDb {
       {},
       {
         get(_target, prop: string) {
-          if (prop === "$transaction") return async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]);
+          if (prop === "$transaction") {
+            return async (ops: unknown[] | ((tx: unknown) => Promise<unknown>)) => {
+              if (!Array.isArray(ops)) {
+                if (db.transactionError) throw db.transactionError;
+                const run = db.txChain.then(() => ops(db.client()));
+                db.txChain = run.catch(() => {});
+                return run;
+              }
+              return Promise.all(ops as Promise<unknown>[]);
+            };
+          }
+          if (prop === "$executeRaw") {
+            return async (strings: TemplateStringsArray, ...values: unknown[]) => {
+              db.raw.push({ sql: strings.join("?"), values });
+              return 0;
+            };
+          }
+          if (prop === "$executeRawUnsafe") {
+            return async (sql: string, ...values: unknown[]) => {
+              db.raw.push({ sql, values });
+              return 0;
+            };
+          }
           return db.model(prop);
         },
       }

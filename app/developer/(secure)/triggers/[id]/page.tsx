@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import StoryReplyBuilder from "@/components/triggers/story-reply-builder";
 import { DevBadge } from "@/components/developer/ui";
 import { prisma } from "@/lib/db/client";
+import { automationHref, automationKind } from "@/lib/triggers/dm-trigger-service";
 import { getCampaign } from "@/lib/triggers/service";
 import { requireDeveloperPage } from "@/lib/developer/access";
 
@@ -24,7 +25,17 @@ export default async function EditTriggerCampaignPage({ params }: Props) {
       select: { id: true, username: true, tokenStatus: true },
     }),
   ]);
-  if (!campaign) notFound();
+  if (!campaign) {
+    // Not a Story Reply: an older link to a Direct / mention / live campaign
+    // opens its own builder instead of a 404.
+    const other = await prisma.triggerCampaign.findFirst({
+      where: { id, workspaceId: ctx.workspaceId },
+      select: { triggerType: true, sourceFilter: true },
+    });
+    const kind = other && automationKind(other);
+    if (kind && kind !== "STORY_REPLY") redirect(automationHref(kind, id));
+    notFound();
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

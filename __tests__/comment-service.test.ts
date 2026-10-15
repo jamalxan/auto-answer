@@ -9,7 +9,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   prisma: {
     triggerCampaign: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn(), delete: vi.fn() },
-    triggerReplyVariant: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
+    triggerReplyVariant: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+      deleteMany: vi.fn(),
+      count: vi.fn(),
+    },
     triggerQuickReply: { findMany: vi.fn(), deleteMany: vi.fn() },
     triggerFollowUpStep: { findMany: vi.fn(), deleteMany: vi.fn() },
     triggerFollowUpRun: { updateMany: vi.fn() },
@@ -48,6 +55,12 @@ import {
   commentCampaignSchema,
   firstIssue,
   followUpsInputSchema,
+  LIVE_NO_BACKTRACK,
+  LIVE_NO_PUBLIC_REPLY,
+  LIVE_NO_PUBLIC_VARIANTS,
+  LIVE_NO_SPECIFIC_MEDIA,
+  simulateCommentDryRun,
+  simulateInputSchema,
   planVariantSave,
   quickRepliesInputSchema,
   saveQuickReplies,
@@ -273,14 +286,14 @@ describe("quick replies and follow-ups", () => {
 });
 
 describe("workspace scoping", () => {
-  it("looks campaigns up by workspace and COMMENT type", async () => {
+  it("looks campaigns up by workspace and the comment types (post and live)", async () => {
     mocks.prisma.triggerCampaign.findFirst.mockResolvedValue(null);
     const result = await updateCommentCampaign("ws1", "c-other", commentCampaignSchema.parse(base));
     expect(result).toEqual({ ok: false, status: 404, error: "Kampaniya topilmadi" });
     expect(mocks.prisma.triggerCampaign.findFirst.mock.calls[0][0].where).toEqual({
       id: "c-other",
       workspaceId: "ws1",
-      triggerType: "COMMENT",
+      triggerType: { in: ["COMMENT", "LIVE_COMMENT"] },
     });
     expect(mocks.prisma.triggerCampaign.update).not.toHaveBeenCalled();
   });
@@ -393,7 +406,7 @@ describe("workspace scoping", () => {
     expect(await setVariantApproved("ws1", "v-other", true)).toMatchObject({ ok: false, status: 404 });
     expect(mocks.prisma.triggerReplyVariant.findFirst.mock.calls[0][0].where).toEqual({
       id: "v-other",
-      campaign: { workspaceId: "ws1", triggerType: "COMMENT" },
+      campaign: { workspaceId: "ws1", triggerType: { in: ["COMMENT", "LIVE_COMMENT"] } },
     });
 
     mocks.prisma.triggerExecution.findFirst.mockResolvedValue(null);
@@ -419,5 +432,68 @@ describe("workspace scoping", () => {
     expect(await startCampaignBacktrack("ws1", "c1", 3)).toEqual({ ok: false, status: 409, error: "allaqachon ishlayapti" });
     mocks.startBacktrack.mockResolvedValue({ runId: "r1" });
     expect(await startCampaignBacktrack("ws1", "c1", 3)).toEqual({ ok: true, data: { runId: "r1" } });
+  });
+});
+
+describe("live comments (ETAP 3)", () => {
+  const live = { ...base, triggerType: "LIVE_COMMENT" };
+  const liveCampaign = {
+    id: "c1",
+    triggerType: "LIVE_COMMENT",
+    openingButtonLabel: null,
+    instagramAccount: { instagramId: "ig" },
+    _count: { quickReplies: 0, followUpSteps: 0 },
+  };
+
+  it("keeps post campaigns as COMMENT by default", () => {
+    expect(commentCampaignSchema.parse(base).triggerType).toBe("COMMENT");
+    expect(commentCampaignSchema.parse(live).triggerType).toBe("LIVE_COMMENT");
+  });
+
+  it("refuses a public reply and a post picker for live, with the Meta reason", () => {
+    expect(issue(commentCampaignSchema, { ...live, publicReplyEnabled: true })).toBe(LIVE_NO_PUBLIC_REPLY);
+    expect(issue(commentCampaignSchema, { ...live, mediaScope: "SPECIFIC", mediaIds: ["m1"] })).toBe(LIVE_NO_SPECIFIC_MEDIA);
+    // the opening button stays allowed: one private reply, like a post comment
+    expect(commentCampaignSchema.safeParse({ ...live, openingButtonLabel: "Narx", mainMessage: "Katalog" }).success).toBe(true);
+  });
+
+  it("refuses an unknown trigger type", () => {
+    expect(commentCampaignSchema.safeParse({ ...base, triggerType: "STORY_REPLY" }).success).toBe(false);
+  });
+
+  it("refuses backtrack on a live campaign without calling the engine", async () => {
+    mocks.prisma.triggerCampaign.findFirst.mockResolvedValue(liveCampaign);
+    expect(await startCampaignBacktrack("ws1", "c1", 3)).toEqual({ ok: false, status: 422, error: LIVE_NO_BACKTRACK });
+    expect(mocks.startBacktrack).not.toHaveBeenCalled();
+  });
+
+  it("refuses public variants on a live campaign", async () => {
+    mocks.prisma.triggerCampaign.findFirst.mockResolvedValue(liveCampaign);
+    const variants = variantsInputSchema.parse({ variants: [{ kind: "PUBLIC", text: "Direct'ga yubordik" }] }).variants;
+    expect(await saveVariants("ws1", "c1", variants)).toEqual({ ok: false, status: 422, error: LIVE_NO_PUBLIC_VARIANTS });
+    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses switching to live while public variants are stored", async () => {
+    mocks.prisma.triggerCampaign.findFirst.mockResolvedValue({ ...liveCampaign, triggerType: "COMMENT" });
+    mocks.prisma.instagramAccount.findFirst.mockResolvedValue({ id: "acc1", instagramId: "ig" });
+    mocks.prisma.triggerReplyVariant.count.mockResolvedValue(2);
+    const result = await updateCommentCampaign("ws1", "c1", commentCampaignSchema.parse(live));
+    expect(result).toEqual({ ok: false, status: 422, error: LIVE_NO_PUBLIC_VARIANTS });
+    expect(mocks.prisma.triggerCampaign.update).not.toHaveBeenCalled();
+  });
+
+  it("simulates a live comment without a post", async () => {
+    mocks.prisma.instagramAccount.findFirst.mockResolvedValue({ id: "acc1", instagramId: "ig" });
+    mocks.simulateComment.mockResolvedValue({ matched: false });
+    const input = simulateInputSchema.parse({ instagramAccountId: "acc1", text: "narx", mediaId: "m1", eventType: "LIVE_COMMENT" });
+    await simulateCommentDryRun("ws1", input);
+    expect(mocks.simulateComment).toHaveBeenCalledWith("ws1", {
+      instagramAccountId: "acc1",
+      mediaId: null,
+      text: "narx",
+      eventType: "LIVE_COMMENT",
+    });
+    expect(simulateInputSchema.parse({ instagramAccountId: "acc1", text: "narx" }).eventType).toBe("COMMENT");
   });
 });

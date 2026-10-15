@@ -44,6 +44,9 @@ export default function CampaignDetail({
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <h1 className="break-words font-display text-2xl font-extrabold tracking-tight text-foreground">{campaign.name}</h1>
           <Pill tone={campaign.active ? "success" : "muted"}>{campaign.active ? "Faol" : "O'chiq"}</Pill>
+          {campaign.triggerType === "LIVE_COMMENT" && (
+            <span className="label-mono rounded-md bg-error/10 px-1.5 py-0.5 text-[10px] font-bold text-error">LIVE</span>
+          )}
           <DevBadge />
         </div>
       </div>

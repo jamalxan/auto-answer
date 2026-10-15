@@ -1,13 +1,25 @@
 "use client";
 
 /**
- * Story Reply logs: who replied, to which story, what they wrote, what the
- * engine did and how it ended. A row opens the full detail — the readable
- * reason for the admin and the technical detail behind it.
+ * Trigger engine logs: who wrote, where it came from (story, mention, ad,
+ * ig.me link, reaction), what they wrote, what the engine did and how it
+ * ended. A row opens the full detail — the readable reason for the admin and
+ * the technical detail behind it.
+ *
+ * Reactions (MESSAGE_REACTION) are stored in observation mode: nothing is
+ * answered, the row exists so a real story reaction can be inspected before
+ * any automation is built on it.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { displayStatus, EVENT_TYPE_LABELS, shortStoryId } from "@/lib/triggers/display";
+import {
+  displayStatus,
+  EVENT_FILTER_LABELS,
+  EVENT_TYPE_LABELS,
+  reactionAction,
+  referralLabel,
+  shortStoryId,
+} from "@/lib/triggers/display";
 import { EmptyState, formatDateTime, inputClass, Pill, secondaryButton } from "@/components/developer/ui";
 
 interface Execution {
@@ -29,6 +41,11 @@ interface EventRow {
   storyId: string | null;
   storyUrl: string | null;
   text: string;
+  referralSource: string | null;
+  adId: string | null;
+  ref: string | null;
+  reaction: string | null;
+  reactedMid: string | null;
   timestamp: string;
   processingStatus: string;
   error: string | null;
@@ -68,6 +85,33 @@ const STATUS_FILTERS: Array<[string, string]> = [
 function who(event: EventRow): string {
   const username = event.contact?.username ?? event.senderUsername;
   return username ? `@${username}` : `id ${event.senderId.slice(-6)}`;
+}
+
+/** Where the event came from, in a few words: the "Manba" column. */
+function sourceText(event: EventRow): string {
+  switch (event.eventType) {
+    case "STORY_REPLY":
+      return `Story ${shortStoryId(event.storyId)}`;
+    case "STORY_MENTION":
+      return "Story mention";
+    case "MESSAGE_REACTION":
+      return "Reaksiya · kuzatuv";
+    case "DIRECT_MESSAGE":
+      return referralLabel(event) ?? "Direct";
+    default:
+      return EVENT_TYPE_LABELS[event.eventType] ?? event.eventType;
+  }
+}
+
+/** Reactions carry no text: the emoji and what happened to it. */
+function eventText(event: EventRow, rawPayload?: unknown): string {
+  if (event.eventType === "MESSAGE_REACTION") {
+    // The engine stores the action (react / unreact) as the event text.
+    const action = event.text || (rawPayload ? reactionAction(rawPayload) : null);
+    return `${event.reaction ?? "?"}${action === "unreact" ? " (olib tashlandi)" : ""}`;
+  }
+  if (event.eventType === "STORY_MENTION" && !event.text) return "Story'da belgiladi";
+  return event.text || "—";
 }
 
 function ErrorCard({ event }: { event: EventRow }) {
@@ -172,6 +216,12 @@ function DetailPanel({
             </div>
 
             <ErrorCard event={event} />
+            {event.eventType === "MESSAGE_REACTION" && (
+              <p className="rounded-lg border border-border px-3 py-2 text-muted">
+                Kuzatuv rejimi: reaksiyalarga javob yuborilmaydi. Meta story reaksiyasi shu ko&apos;rinishda kelishini hali
+                tasdiqlamagan — pastdagi raw payload&apos;ni tekshirib ko&apos;ring.
+              </p>
+            )}
             {event.processingStatus === "IGNORED" && event.error && (
               <p className="rounded-lg border border-border px-3 py-2 text-muted">Sabab: {event.error}</p>
             )}
@@ -183,17 +233,43 @@ function DetailPanel({
               </dd>
               <dt className="text-muted">Sender ID</dt>
               <dd className="break-all font-mono text-xs text-foreground">{event.senderId}</dd>
-              <dt className="text-muted">Story</dt>
-              <dd className="break-all text-foreground">
-                {event.storyId ?? "—"}
-                {event.storyUrl && (
-                  <a href={event.storyUrl} target="_blank" rel="noreferrer" className="ml-2 text-accent">
-                    ochish
-                  </a>
-                )}
-              </dd>
-              <dt className="text-muted">Reply</dt>
-              <dd className="whitespace-pre-wrap break-words text-foreground">{event.text || "— (matnsiz)"}</dd>
+              {(event.storyId || event.storyUrl) && (
+                <>
+                  <dt className="text-muted">Story</dt>
+                  <dd className="break-all text-foreground">
+                    {event.storyId ?? (event.eventType === "STORY_MENTION" ? "mention" : "—")}
+                    {event.storyUrl && (
+                      <a href={event.storyUrl} target="_blank" rel="noreferrer" className="ml-2 text-accent">
+                        ochish
+                      </a>
+                    )}
+                  </dd>
+                </>
+              )}
+              {referralLabel(event) && (
+                <>
+                  <dt className="text-muted">Manba</dt>
+                  <dd className="break-all text-foreground">
+                    {referralLabel(event)}
+                    {event.referralSource && <span className="ml-2 text-xs text-muted">source: {event.referralSource}</span>}
+                  </dd>
+                </>
+              )}
+              {event.eventType === "MESSAGE_REACTION" ? (
+                <>
+                  <dt className="text-muted">Reaksiya</dt>
+                  <dd className="text-foreground">
+                    {event.reaction ?? "—"} · {event.text || reactionAction(event.rawPayload) || "react"}
+                  </dd>
+                  <dt className="text-muted">Qaysi xabarga</dt>
+                  <dd className="break-all font-mono text-xs text-foreground">{event.reactedMid ?? "—"}</dd>
+                </>
+              ) : (
+                <>
+                  <dt className="text-muted">Matn</dt>
+                  <dd className="whitespace-pre-wrap break-words text-foreground">{event.text || "— (matnsiz)"}</dd>
+                </>
+              )}
               <dt className="text-muted">Message ID</dt>
               <dd className="break-all font-mono text-xs text-foreground">{event.messageId}</dd>
               <dt className="text-muted">Vaqt</dt>
@@ -277,14 +353,17 @@ function DetailPanel({
 export default function TriggerLogs({
   campaigns,
   initialCampaignId = "",
+  initialType,
 }: {
   campaigns: Array<{ id: string; name: string }>;
   initialCampaignId?: string;
+  /** Event type (or REFERRAL_ADS / REFERRAL_LINK) to filter by from the start. */
+  initialType?: string | null;
 }) {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
-  const [type, setType] = useState("STORY_REPLY");
+  const [type, setType] = useState(initialType && initialType in EVENT_FILTER_LABELS ? initialType : "");
   const [campaignId, setCampaignId] = useState(initialCampaignId);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -329,7 +408,7 @@ export default function TriggerLogs({
       <div className="grid gap-2 sm:grid-cols-4">
         <select className={inputClass} value={type} onChange={(e) => { setType(e.target.value); setPage(1); }}>
           <option value="">Barcha eventlar</option>
-          {Object.entries(EVENT_TYPE_LABELS).map(([key, label]) => (
+          {Object.entries(EVENT_FILTER_LABELS).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>
@@ -354,7 +433,7 @@ export default function TriggerLogs({
           className={inputClass}
           value={q}
           onChange={(e) => { setQ(e.target.value); setPage(1); }}
-          placeholder="@username, matn, story ID"
+          placeholder="@username, matn, story / reklama ID, ref"
         />
       </div>
 
@@ -362,15 +441,22 @@ export default function TriggerLogs({
         {loading ? (
           <p className="px-4 py-10 text-center text-sm text-muted">Yuklanmoqda…</p>
         ) : events.length === 0 ? (
-          <EmptyState title="Hali event yo'q" body="Story'ga reply kelganda shu yerda ko'rinadi." />
+          <EmptyState
+            title="Hali event yo'q"
+            body={
+              type === "MESSAGE_REACTION"
+                ? "Kimdir xabaringizga (yoki story'ga) reaksiya bildirsa, shu yerda kuzatuv uchun ko'rinadi."
+                : "Direct, story, mention yoki reklama xabari kelganda shu yerda ko'rinadi."
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-border text-xs text-muted">
                 <tr>
                   <th className="px-4 py-2.5 font-medium">User</th>
-                  <th className="px-4 py-2.5 font-medium">Story</th>
-                  <th className="px-4 py-2.5 font-medium">Reply</th>
+                  <th className="px-4 py-2.5 font-medium">Manba</th>
+                  <th className="px-4 py-2.5 font-medium">Matn</th>
                   <th className="px-4 py-2.5 font-medium">Action</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
                   <th className="px-4 py-2.5 font-medium">Vaqt</th>
@@ -387,17 +473,17 @@ export default function TriggerLogs({
                       className="cursor-pointer border-b border-border last:border-0 hover:bg-surface-hover"
                     >
                       <td className="px-4 py-2.5 font-medium text-foreground">{who(event)}</td>
-                      <td className="px-4 py-2.5 text-muted">
-                        {event.eventType === "STORY_REPLY" ? `Story ${shortStoryId(event.storyId)}` : EVENT_TYPE_LABELS[event.eventType]}
-                      </td>
+                      <td className="px-4 py-2.5 text-muted">{sourceText(event)}</td>
                       <td className="max-w-[16rem] truncate px-4 py-2.5 text-foreground" title={event.text}>
-                        {event.text || "—"}
+                        {eventText(event)}
                       </td>
                       <td className="px-4 py-2.5 text-muted">
                         {execution ? (
                           <span title={execution.campaign.name}>DM · {execution.campaign.name}</span>
+                        ) : event.eventType === "MESSAGE_REACTION" ? (
+                          "Kuzatuv (javobsiz)"
                         ) : (
-                          "None"
+                          "—"
                         )}
                       </td>
                       <td className="px-4 py-2.5">

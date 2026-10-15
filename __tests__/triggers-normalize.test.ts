@@ -104,17 +104,19 @@ describe("normalizeWebhookPayload", () => {
     ).toEqual([]);
   });
 
-  it("never produces STORY_REACTION (not confirmed against real payloads yet)", () => {
+  it("never produces STORY_REACTION: every reaction is kept as MESSAGE_REACTION (observation)", () => {
     const payload = {
       object: "instagram",
       entry: [
         {
           id: ACCOUNT,
-          messaging: [{ sender: { id: USER }, reaction: { mid: "m", action: "react", reaction: "love" } }],
+          messaging: [{ sender: { id: USER }, timestamp: 1760000000000, reaction: { mid: "m", action: "react", reaction: "love" } }],
         },
       ],
     };
-    expect(normalizeWebhookPayload(payload as never)).toEqual([]);
+    const events = normalizeWebhookPayload(payload as never);
+    expect(events.map((e) => e.type)).toEqual(["MESSAGE_REACTION"]);
+    expect(events[0]).toMatchObject({ reaction: "love", reactedMid: "m", text: "react" });
   });
 
   it("normalises comments and live comments", () => {

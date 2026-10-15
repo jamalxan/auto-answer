@@ -56,6 +56,37 @@ export const FOLLOW_UP_CONDITIONS = ["ALWAYS", "NO_REPLY", "NO_CLICK"] as const;
 export const EXECUTION_STATUSES = ["PENDING", "SENDING", "SENT", "RETRYING", "FAILED", "SKIPPED"] as const;
 export const FOLLOW_UP_STATUSES = ["SCHEDULED", "SENDING", "SENT", "SKIPPED", "CANCELLED", "FAILED"] as const;
 
+// ─── ETAP 3: DM-side triggers (Direct, Story Mention, Ad message, ig.me link) ─
+
+export const DM_TRIGGER_LIMITS = {
+  // Anti-spam: one answer per person per campaign within this many hours.
+  cooldownMinHours: 1,
+  cooldownMaxHours: 720,
+  cooldownDefaultHours: 24,
+  // REOPENED audience: "the person's previous message is older than N hours".
+  reopenMinHours: 1,
+  reopenMaxHours: 720,
+  reopenDefaultHours: 72,
+  adIds: 50,
+  refs: 50,
+  refLength: 64,
+} as const;
+
+export const DM_TRIGGER_KINDS = ["DIRECT_MESSAGE", "STORY_MENTION"] as const;
+export const AUDIENCES = ["ANY", "NEW_CONTACT", "RETURNING_CONTACT", "REOPENED"] as const;
+export const SOURCE_FILTERS = ["ANY", "ADS", "LINK"] as const;
+// No opening button is sent by a DM trigger, so "did not tap it" means nothing.
+export const DM_FOLLOW_UP_CONDITIONS = ["ALWAYS", "NO_REPLY"] as const;
+
+/** Meta ad ids are numeric. */
+export const AD_ID_PATTERN = /^\d{5,30}$/;
+/** ig.me ref: letters, digits, "_" and "-" — survives a link without encoding. */
+export const REF_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+export type DmTriggerKind = (typeof DM_TRIGGER_KINDS)[number];
+export type Audience = (typeof AUDIENCES)[number];
+export type SourceFilter = (typeof SOURCE_FILTERS)[number];
+
 export type MatchingMode = (typeof MATCHING_MODES)[number];
 export type ReplyMode = (typeof REPLY_MODES)[number];
 export type QuickReplyAction = (typeof QUICK_REPLY_ACTIONS)[number];

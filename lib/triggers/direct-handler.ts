@@ -4,10 +4,20 @@
  *   c2:<execution>:open        button tap  → window opened, main message with
  *                                            quick replies, follow-ups scheduled
  *   c2:<execution>:qr:<id>     quick reply → MESSAGE / LEAD_CAPTURE / HANDOFF
- *   plain DM from someone with a recent comment execution
- *                                          → lastInboundAt (keeps the 24h window
- *                                            open); stop-on-reply cancels follow-ups
+ *   plain DM from someone with an ACTIVE execution (comment, live comment or
+ *   DM trigger; claim.ts findActiveConversations: < 24h since its last
+ *   activity, not stopped)                 → lastInboundAt (keeps the 24h window
+ *                                            open); stop-on-reply cancels follow-ups.
+ *                                            A stale execution is never revived.
+ *   then, for a plain DM, the DM-side triggers (ETAP 3, dm-trigger-handler.ts
+ *   passes them in as `onPlainMessage`): they answer only with the campaign
+ *   the webhook claimed the event for. While a comment / live campaign owns
+ *   the thread the webhook claims nothing (two bots must not talk to the
+ *   person at once), so the message only counts as the reply to that flow
  *   anything else                          → IGNORED
+ *
+ * Taps work the same for every execution, whatever started it: a DM-trigger
+ * reply carries the same "c2:<execution>:qr:<id>" chips as a main message.
  *
  * Every send checks Meta's 24-hour window first (the tap or message that
  * opened it, minus a safety margin) and is skipped with a reason when closed.
@@ -36,6 +46,7 @@ import { sendDirectMessage, sendDirectMessageWithQuickReplies, type QuickReplyOp
 import { parsePhone } from "@/lib/leads/phone";
 import { alertWorkspace } from "@/lib/telegram/notify";
 import type { TriggerCampaign, TriggerExecution, TriggerQuickReply } from "@/app/generated/prisma/client";
+import { COMMENT_OWNS_THREAD_REASON, CONVERSATION_EVENT_TYPES, findActiveConversations } from "./claim";
 import { recordInteraction, type RecordedInteraction } from "./contacts";
 import { eventFailure, readAccessToken, sendGuarded, type EventWithAccount, type HandlerResult } from "./delivery";
 import { cancelFollowUps, isWindowOpen, scheduleFollowUps, WINDOW_CLOSED_REASON } from "./followups";
@@ -48,8 +59,7 @@ export const DEFAULT_HANDOFF_REPLY = "Rahmat! Operatorimiz tez orada sizga javob
 const INTERRUPTED_REASON =
   "Oldingi urinishda yuborish jarayoni uzildi — ikki marta yubormaslik uchun qayta yuborilmadi.";
 const PENDING_MID_PREFIX = "pending:";
-/** A plain DM counts as a reply to a comment execution this recent. */
-const RECENT_EXECUTION_MS = 8 * 24 * 3600_000;
+export { COMMENT_OWNS_THREAD_REASON };
 
 // ─── Payload ──────────────────────────────────────────────────────────────────
 
@@ -279,24 +289,12 @@ async function runQuickReply(ctx: Ctx, quickReply: TriggerQuickReply): Promise<H
   return done ?? { status: "PROCESSED" };
 }
 
-/** Executions of this person's recent comments (newest first). */
-async function recentCommentExecutions(event: EventWithAccount, now: Date) {
-  return prisma.triggerExecution.findMany({
-    where: {
-      workspaceId: event.workspaceId,
-      status: "SENT",
-      createdAt: { gte: new Date(now.getTime() - RECENT_EXECUTION_MS) },
-      event: { instagramAccountId: event.instagramAccountId, senderId: event.senderId, eventType: "COMMENT" },
-    },
-    include: { campaign: true },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  });
-}
-
 type BaseCtx = Omit<Ctx, "execution">;
 
-async function handlePlainMessage(base: BaseCtx): Promise<HandlerResult> {
+/** What runs for a plain DM after the bookkeeping (the DM-side triggers). */
+export type PlainMessageHook = (interaction: RecordedInteraction) => Promise<HandlerResult>;
+
+async function handlePlainMessage(base: BaseCtx, onPlainMessage?: PlainMessageHook): Promise<HandlerResult> {
   const { event, now } = base;
   // A phone shared from a LEAD_CAPTURE chip whose payload did not come back.
   // Same rule as the webhook route's claim, so the message is answered here
@@ -324,8 +322,17 @@ async function handlePlainMessage(base: BaseCtx): Promise<HandlerResult> {
     }
   }
 
-  const executions = await recentCommentExecutions(event, now);
-  if (executions.length === 0) return { status: "IGNORED", error: "Bu odam uchun faol comment kampaniyasi yo'q" };
+  // Only the threads still active at this message (same query as the webhook
+  // claim's comment-thread check): a stale execution's window is never
+  // reopened by a later DM. The event's own execution (a DM trigger answering
+  // this very message) is not a previous conversation.
+  const executions = await findActiveConversations({
+    accountId: event.instagramAccountId,
+    senderId: event.senderId,
+    at: event.timestamp,
+    eventTypes: CONVERSATION_EVENT_TYPES,
+    excludeEventId: event.id,
+  });
 
   for (const execution of executions) {
     await touchInbound(execution, event.timestamp);
@@ -333,23 +340,39 @@ async function handlePlainMessage(base: BaseCtx): Promise<HandlerResult> {
       await cancelFollowUps(execution.workspaceId, execution.id, STOP_ON_REPLY_REASON);
     }
   }
-  return { status: "PROCESSED" };
+
+  if (!onPlainMessage) {
+    if (executions.length === 0) return { status: "IGNORED", error: "Bu odam uchun faol comment kampaniyasi yo'q" };
+    return { status: "PROCESSED" };
+  }
+
+  const result = await onPlainMessage(base.interaction);
+  // Nothing to answer, but the message was booked on earlier executions. The
+  // comment-thread reason stays visible: it explains why Direct was quiet.
+  if (result.status === "IGNORED" && executions.length > 0) {
+    return { status: "PROCESSED", error: result.error === COMMENT_OWNS_THREAD_REASON ? result.error : undefined };
+  }
+  return result;
 }
 
 // ─── Entry ────────────────────────────────────────────────────────────────────
 
-export async function handleDirectMessage(event: EventWithAccount): Promise<HandlerResult> {
+export async function handleDirectMessage(
+  event: EventWithAccount,
+  options: { onPlainMessage?: PlainMessageHook } = {}
+): Promise<HandlerResult> {
   const base: BaseCtx = { event, interaction: await recordInteraction(event), now: new Date() };
-  const result = await routeDirectMessage(base);
+  const result = await routeDirectMessage(base, options.onPlainMessage);
   // A reply not re-sent after an interrupted run is no error of this run, but it must be visible.
   if (base.warning && result.status === "PROCESSED" && !result.error) return { ...result, error: base.warning };
   return result;
 }
 
-async function routeDirectMessage(base: BaseCtx): Promise<HandlerResult> {
+async function routeDirectMessage(base: BaseCtx, onPlainMessage?: PlainMessageHook): Promise<HandlerResult> {
   const { event } = base;
   const c2 = parseC2Payload(event.payload);
-  if (!c2) return handlePlainMessage(base);
+  // A malformed "c2:" payload is still one of our taps, never a new DM.
+  if (!c2) return handlePlainMessage(base, event.payload ? undefined : onPlainMessage);
 
   const execution = await prisma.triggerExecution.findFirst({
     where: { id: c2.executionId, workspaceId: event.workspaceId },

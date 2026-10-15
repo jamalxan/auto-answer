@@ -23,6 +23,8 @@ import { parsePhone } from "@/lib/leads/phone";
 export const STOP_ON_REPLY_REASON = "Mijoz javob yozdi";
 /** Meta's messaging window: the tap must still be inside it. */
 const LEAD_WINDOW_MS = 24 * 3600_000;
+/** Executions that can send a LEAD_CAPTURE chip (a DM trigger opens the window at once). */
+const LEAD_EVENT_TYPES = ["COMMENT", "LIVE_COMMENT", "DIRECT_MESSAGE", "STORY_MENTION"] as const;
 
 /** The message text, when the whole of it is a phone number. */
 export function phoneFromText(text: string | null | undefined): string | null {
@@ -65,7 +67,8 @@ export async function findPendingLeadExecution(
           ],
         },
       ],
-      event: { instagramAccountId: instagramAccount.id, senderId, eventType: "COMMENT" },
+      // Comment, live comment and DM-trigger executions all offer the chips.
+      event: { instagramAccountId: instagramAccount.id, senderId, eventType: { in: [...LEAD_EVENT_TYPES] } },
       campaign: { active: true, quickReplies: { some: { action: "LEAD_CAPTURE" } } },
     },
     include: { campaign: true },

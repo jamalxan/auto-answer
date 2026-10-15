@@ -5,10 +5,15 @@
  * which variant), the public reply, whether the window opened, lead /
  * handoff, and every follow-up with its state. Scheduled follow-ups can be
  * cancelled from here.
+ *
+ * Also used by the ETAP 3 DM triggers (`apiBase` points at their routes):
+ * the row then shows the message, and where it came from (ad, ig.me link,
+ * story mention).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EXECUTION_STATUSES } from "@/lib/triggers/comment-limits";
+import { EVENT_TYPE_LABELS, referralLabel } from "@/lib/triggers/display";
 import { EmptyState, formatDateTime, Pill, secondaryButton } from "@/components/developer/ui";
 import { ConfirmButton, Notice } from "./parts";
 import { EXECUTION_STATUS, FOLLOW_UP_CONDITION_TEXT, FOLLOW_UP_STATUS, formatDelay, requestJson } from "./shared";
@@ -43,7 +48,12 @@ interface ExecutionRow {
   variant: { id: string; kind: string; text: string; source: string } | null;
   event: {
     id: string;
+    eventType?: string;
     text: string;
+    storyUrl?: string | null;
+    referralSource?: string | null;
+    adId?: string | null;
+    ref?: string | null;
     senderId: string;
     senderUsername: string | null;
     mediaId: string | null;
@@ -59,7 +69,7 @@ interface LogsResponse {
   pagination: { page: number; totalPages: number; total: number };
 }
 
-function ExecutionCard({ row, onChanged }: { row: ExecutionRow; onChanged: () => void }) {
+function ExecutionCard({ row, apiBase, onChanged }: { row: ExecutionRow; apiBase: string; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "info"; text: string } | null>(null);
   const status = EXECUTION_STATUS[row.status] ?? { label: row.status, tone: "muted" as const };
@@ -70,7 +80,7 @@ function ExecutionCard({ row, onChanged }: { row: ExecutionRow; onChanged: () =>
     setBusy(true);
     setMessage(null);
     try {
-      const res = await requestJson<{ cancelled: number }>(`/api/developer/comments/executions/${row.id}/cancel-follow-ups`, {
+      const res = await requestJson<{ cancelled: number }>(`${apiBase}/executions/${row.id}/cancel-follow-ups`, {
         method: "POST",
       });
       if (!res.ok) setMessage({ tone: "error", text: res.error });
@@ -91,12 +101,27 @@ function ExecutionCard({ row, onChanged }: { row: ExecutionRow; onChanged: () =>
             {who ? `@${who}` : `id …${row.event.senderId.slice(-6)}`}
             <span className="ml-2 text-xs font-normal text-muted">{formatDateTime(row.event.timestamp)}</span>
           </p>
-          <p className="mt-0.5 break-words text-muted">“{row.event.text || "—"}”</p>
+          <p className="mt-0.5 break-words text-muted">
+            {row.event.text ? `“${row.event.text}”` : row.event.eventType === "STORY_MENTION" ? "Story'da belgiladi" : "—"}
+          </p>
         </div>
         <Pill tone={status.tone}>{status.label}</Pill>
       </div>
 
       <div className="flex flex-wrap gap-1.5 text-[11px]">
+        {row.event.eventType && row.event.eventType !== "COMMENT" && (
+          <span className="rounded bg-surface-hover px-1.5 py-0.5 text-muted">
+            {EVENT_TYPE_LABELS[row.event.eventType] ?? row.event.eventType}
+          </span>
+        )}
+        {referralLabel(row.event) && (
+          <span className="rounded bg-gold/10 px-1.5 py-0.5 text-gold">{referralLabel(row.event)}</span>
+        )}
+        {row.event.storyUrl && row.event.eventType === "STORY_MENTION" && (
+          <a href={row.event.storyUrl} target="_blank" rel="noreferrer" className="rounded bg-surface-hover px-1.5 py-0.5 text-accent">
+            Story&apos;ni ochish
+          </a>
+        )}
         {row.matchedKeyword && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-foreground">🔑 {row.matchedKeyword}</span>}
         {row.event.mediaId && <span className="rounded bg-surface-hover px-1.5 py-0.5 text-muted">Post #{row.event.mediaId.slice(-6)}</span>}
         {row.event.backtrackRunId && <span className="rounded bg-surface-hover px-1.5 py-0.5 text-muted">Eski komment</span>}
@@ -168,7 +193,16 @@ function ExecutionCard({ row, onChanged }: { row: ExecutionRow; onChanged: () =>
   );
 }
 
-export default function CommentLogs({ campaignId }: { campaignId: string }) {
+export default function CommentLogs({
+  campaignId,
+  apiBase = "/api/developer/comments",
+  emptyBody = "Mos komment kelganda yoki eski kommentlar skanerlanganda shu yerda paydo bo'ladi.",
+}: {
+  campaignId: string;
+  /** Route family: Comment 2.0 (default) or the DM triggers. */
+  apiBase?: string;
+  emptyBody?: string;
+}) {
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<LogsResponse | null>(null);
@@ -182,7 +216,7 @@ export default function CommentLogs({ campaignId }: { campaignId: string }) {
     try {
       const query = new URLSearchParams({ page: String(page) });
       if (status) query.set("status", status);
-      const res = await requestJson<LogsResponse>(`/api/developer/comments/campaigns/${campaignId}/logs?${query}`);
+      const res = await requestJson<LogsResponse>(`${apiBase}/campaigns/${campaignId}/logs?${query}`);
       if (mine !== seq.current) return;
       if (res.ok) {
         setData(res.data);
@@ -191,7 +225,7 @@ export default function CommentLogs({ campaignId }: { campaignId: string }) {
     } finally {
       if (mine === seq.current) setLoading(false);
     }
-  }, [campaignId, page, status]);
+  }, [apiBase, campaignId, page, status]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter / page change
@@ -230,13 +264,13 @@ export default function CommentLogs({ campaignId }: { campaignId: string }) {
         <div className="panel rounded-xl">
           <EmptyState
             title="Hali log yo'q"
-            body="Mos komment kelganda yoki eski kommentlar skanerlanganda shu yerda paydo bo'ladi."
+            body={emptyBody}
           />
         </div>
       ) : (
         <ul className="space-y-2">
           {data.executions.map((row) => (
-            <ExecutionCard key={row.id} row={row} onChanged={() => void load()} />
+            <ExecutionCard key={row.id} row={row} apiBase={apiBase} onChanged={() => void load()} />
           ))}
         </ul>
       )}

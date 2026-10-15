@@ -62,9 +62,11 @@ async function accountInWorkspace(workspaceId: string, accountId: string) {
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
-// Comment 2.0 campaigns have their own builder and routes (comment-service.ts);
-// these Story routes never list, open, toggle or delete them.
-const NOT_COMMENT = { triggerType: { not: "COMMENT" as const } };
+// These routes serve Story Reply V1 only. Comment / Live campaigns have their
+// own builder and routes (comment-service.ts), and so do the ETAP 3 Direct /
+// Story Mention campaigns (dm-trigger-service.ts); the Story routes never
+// list, open, toggle or delete them.
+const NOT_COMMENT = { triggerType: "STORY_REPLY" as const };
 
 export async function listCampaigns(workspaceId: string) {
   const campaigns = await prisma.triggerCampaign.findMany({
@@ -143,6 +145,7 @@ const EVENT_TYPES: InstagramEventType[] = [
   "LIVE_COMMENT",
   "STORY_REACTION",
   "COMMENT",
+  "MESSAGE_REACTION",
 ];
 const EVENT_STATUSES: InstagramEventStatus[] = ["PENDING", "PROCESSING", "PROCESSED", "IGNORED", "RETRYING", "FAILED"];
 
@@ -163,6 +166,12 @@ export async function listEvents(workspaceId: string, query: EventQuery) {
 
   if (query.type && EVENT_TYPES.includes(query.type as InstagramEventType)) {
     where.eventType = query.type as InstagramEventType;
+  } else if (query.type === "REFERRAL_ADS") {
+    // Not an event type of its own: Direct messages from a click-to-Direct ad.
+    where.OR = [{ referralSource: "ADS" }, { adId: { not: null } }];
+  } else if (query.type === "REFERRAL_LINK") {
+    // …and from an ig.me link with a ref.
+    where.ref = { not: null };
   }
   if (query.status && EVENT_STATUSES.includes(query.status as InstagramEventStatus)) {
     where.processingStatus = query.status as InstagramEventStatus;
@@ -171,13 +180,17 @@ export async function listEvents(workspaceId: string, query: EventQuery) {
   if (query.campaignId) where.executions = { some: { campaignId: query.campaignId } };
   if (query.q?.trim()) {
     const q = query.q.trim().replace(/^@/, "");
-    where.OR = [
-      { text: { contains: q, mode: "insensitive" } },
-      { senderUsername: { contains: q, mode: "insensitive" } },
-      { contact: { username: { contains: q, mode: "insensitive" } } },
-      { senderId: q },
-      { storyId: q },
-    ];
+    where.AND = {
+      OR: [
+        { text: { contains: q, mode: "insensitive" } },
+        { senderUsername: { contains: q, mode: "insensitive" } },
+        { contact: { username: { contains: q, mode: "insensitive" } } },
+        { senderId: q },
+        { storyId: q },
+        { adId: q },
+        { ref: q },
+      ],
+    };
   }
 
   const [total, events] = await Promise.all([
@@ -196,6 +209,11 @@ export async function listEvents(workspaceId: string, query: EventQuery) {
         storyId: true,
         storyUrl: true,
         text: true,
+        referralSource: true,
+        adId: true,
+        ref: true,
+        reaction: true,
+        reactedMid: true,
         timestamp: true,
         processingStatus: true,
         error: true,

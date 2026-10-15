@@ -5,8 +5,12 @@
  * choices most campaigns need; matching priority, the fallback text and
  * similar knobs sit folded under "Kengaytirilgan".
  *
- *   1 Akkaunt & postlar   2 Trigger   3 Javoblar   4 Tugma & asosiy xabar
- *   5 Follow-up           6 Test      7 Eski kommentlar
+ *   1 Manba, akkaunt & postlar   2 Trigger   3 Javoblar   4 Tugma & asosiy xabar
+ *   5 Follow-up                  6 Test      7 Eski kommentlar
+ *
+ * Source "Live efir kommentlari" (ETAP 3, TZ 17) uses the same builder minus
+ * what Meta does not allow under a live: no post picker, no public reply and
+ * no old-comment scan. Those parts are hidden and the reason is shown.
  *
  * One "Saqlash" writes the campaign and then its child lists (variants,
  * quick replies, follow-ups) through their own endpoints. The form remembers
@@ -45,8 +49,11 @@ import {
 import SimulatorSection from "./simulator-section";
 import VariantsEditor, { type VariantItem } from "./variants-editor";
 
+type Source = CommentCampaignView["triggerType"];
+
 interface FormState {
   name: string;
+  source: Source;
   accountId: string;
   mediaScope: "ANY" | "SPECIFIC";
   mediaIds: string[];
@@ -95,9 +102,15 @@ const toFollowUpItem = (s: SavedFollowUpStep): FollowUpItem => ({
   message: s.message,
 });
 
-function initialForm(campaign: CommentCampaignView | undefined, accounts: Account[]): FormState {
+function initialForm(
+  campaign: CommentCampaignView | undefined,
+  accounts: Account[],
+  initialSource: Source = "COMMENT"
+): FormState {
+  const source = campaign?.triggerType ?? initialSource;
   return {
-    name: campaign?.name ?? "Komment → DM",
+    name: campaign?.name ?? (source === "LIVE_COMMENT" ? "Live komment → DM" : "Komment → DM"),
+    source,
     accountId: campaign?.instagramAccountId ?? accounts[0]?.id ?? "",
     mediaScope: campaign?.mediaScope ?? "ANY",
     mediaIds: campaign?.mediaIds ?? [],
@@ -136,18 +149,23 @@ function overButtonLimit(form: FormState): string | null {
   return null;
 }
 
+const isLive = (form: FormState) => form.source === "LIVE_COMMENT";
+
 function campaignBody(form: FormState) {
+  const live = isLive(form);
   return {
     name: form.name,
     instagramAccountId: form.accountId,
-    mediaScope: form.mediaScope,
-    mediaIds: form.mediaScope === "SPECIFIC" ? form.mediaIds : [],
+    triggerType: form.source,
+    // A live campaign answers every broadcast of the account: no post picker.
+    mediaScope: live ? ("ANY" as const) : form.mediaScope,
+    mediaIds: !live && form.mediaScope === "SPECIFIC" ? form.mediaIds : [],
     matchingMode: form.matchingMode,
     keywords: form.keywords,
     intents: form.intents,
     priority: form.priority,
     replyMode: form.replyMode,
-    publicReplyEnabled: form.publicReplyEnabled,
+    publicReplyEnabled: live ? false : form.publicReplyEnabled,
     openingButtonLabel: form.buttonOn ? form.buttonLabel : null,
     mainMessage: form.buttonOn ? form.mainMessage : null,
     stopOnReply: form.stopOnReply,
@@ -159,7 +177,8 @@ function campaignBody(form: FormState) {
 }
 
 function variantsBody(form: FormState) {
-  return [...form.dmVariants, ...form.publicVariants].map((v) => ({
+  // Live: no public reply, so its variants are not kept either.
+  return [...form.dmVariants, ...(isLive(form) ? [] : form.publicVariants)].map((v) => ({
     ...(v.id ? { id: v.id } : {}),
     kind: v.kind,
     text: v.text,
@@ -215,15 +234,16 @@ function Preview({ form }: { form: FormState }) {
     form.matchingMode === "EVERY" ? "Zo'r! 🔥" : form.keywords[0] ? `${form.keywords[0]}?` : "Narxi qancha?";
   const dm = form.dmVariants.find((v) => v.approved && v.text.trim())?.text ?? fallbackText(form);
   const publicReply = form.publicVariants.find((v) => v.approved && v.text.trim())?.text;
+  const live = isLive(form);
   return (
     <div className="panel rounded-xl p-4">
       <p className="label-mono mb-3 text-[11px] font-semibold text-muted">Ko&apos;rinishi</p>
       <div className="space-y-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Post ostida</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{live ? "Live efirda" : "Post ostida"}</p>
         <Bubble side="left" label="Komment">
           {sample}
         </Bubble>
-        {form.publicReplyEnabled && (
+        {!live && form.publicReplyEnabled && (
           <Bubble side="right" label="Ochiq javob">
             {publicReply || <span className="text-muted">Tasdiqlangan ochiq javob varianti yo&apos;q</span>}
           </Bubble>
@@ -266,13 +286,16 @@ export default function CommentBuilder({
   accounts,
   intents,
   campaign,
+  initialSource,
 }: {
   accounts: Account[];
   intents: IntentOption[];
   campaign?: CommentCampaignView;
+  /** New campaign only: preselects the source (the triggers home links here with Live). */
+  initialSource?: Source;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(() => initialForm(campaign, accounts));
+  const [form, setForm] = useState<FormState>(() => initialForm(campaign, accounts, initialSource));
   // What is stored right now; null until the campaign exists.
   const [savedForm, setSavedForm] = useState<FormState | null>(() =>
     campaign ? initialForm(campaign, accounts) : null
@@ -340,7 +363,12 @@ export default function CommentBuilder({
         id = res.data.campaign.id;
         setCampaignId(id);
       } else {
-        if (current.buttonOn) {
+        // Live refuses public variants on both sides: going to Live the
+        // variants (now DM only) go first; leaving Live with new public
+        // variants the campaign goes first, so it is a post campaign by then.
+        const leavingLiveWithPublic =
+          savedForm?.source === "LIVE_COMMENT" && !isLive(current) && current.publicVariants.length > 0;
+        if (isLive(current) || (current.buttonOn && !leavingLiveWithPublic)) {
           variants = await putVariants(id);
           if (!variants.ok) {
             setError(`Saqlanmadi: ${variants.error}`);
@@ -415,11 +443,49 @@ export default function CommentBuilder({
   const dmLimit = privateReplyLimit(form.buttonOn);
   const tooLongForButton = overButtonLimit(form);
   const noApprovedPublic = !form.publicVariants.some((v) => v.approved && v.text.trim());
+  const live = isLive(form);
+  const savedPublic = savedForm ? savedForm.publicVariants.length : 0;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
-        <Section index={1} title="Akkaunt & postlar" description="Qaysi akkauntning qaysi postlaridagi kommentlarga javob beriladi.">
+        <Section
+          index={1}
+          title={live ? "Manba & akkaunt" : "Manba, akkaunt & postlar"}
+          description={
+            live
+              ? "Qaysi akkauntning live efirlaridagi kommentlarga javob beriladi."
+              : "Qaysi akkauntning qaysi postlaridagi kommentlarga javob beriladi."
+          }
+        >
+          <Field label="Manba">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Choice
+                checked={!live}
+                onSelect={() => set({ source: "COMMENT" })}
+                title="Post kommentlari"
+                description="Post va reelslar ostidagi kommentlar"
+              />
+              <Choice
+                checked={live}
+                onSelect={() => set({ source: "LIVE_COMMENT", publicReplyEnabled: false, mediaScope: "ANY" })}
+                title="Live efir kommentlari"
+                description="Jonli efir paytida yozilgan kommentlar"
+              />
+            </div>
+          </Field>
+          {live && (
+            <Notice tone="info">
+              Meta qoidasi: live kommentga shaxsiy javob <b>faqat efir davom etayotganda</b> va har bir odamga{" "}
+              <b>bitta</b> yuboriladi. Efir tugagach javob ketmaydi (logda sababi bilan ko&apos;rinadi). Live&apos;da ochiq
+              javob va eski kommentlarni skanerlash yo&apos;q.
+            </Notice>
+          )}
+          {live && savedPublic > 0 && (
+            <Notice tone="warning">
+              Saqlangan {savedPublic} ta ochiq javob varianti Live&apos;ga o&apos;tganda o&apos;chiriladi.
+            </Notice>
+          )}
           <Field label="Kampaniya nomi">
             <input
               className={inputClass}
@@ -445,21 +511,23 @@ export default function CommentBuilder({
               ))}
             </select>
           </Field>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Choice
-              checked={form.mediaScope === "ANY"}
-              onSelect={() => set({ mediaScope: "ANY" })}
-              title="Har qanday post"
-              description="Barcha post va reelslardagi kommentlar"
-            />
-            <Choice
-              checked={form.mediaScope === "SPECIFIC"}
-              onSelect={() => set({ mediaScope: "SPECIFIC" })}
-              title="Faqat tanlangan postlar"
-              description="Bir yoki bir nechta post"
-            />
-          </div>
-          {form.mediaScope === "SPECIFIC" && (
+          {!live && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Choice
+                checked={form.mediaScope === "ANY"}
+                onSelect={() => set({ mediaScope: "ANY" })}
+                title="Har qanday post"
+                description="Barcha post va reelslardagi kommentlar"
+              />
+              <Choice
+                checked={form.mediaScope === "SPECIFIC"}
+                onSelect={() => set({ mediaScope: "SPECIFIC" })}
+                title="Faqat tanlangan postlar"
+                description="Bir yoki bir nechta post"
+              />
+            </div>
+          )}
+          {!live && form.mediaScope === "SPECIFIC" && (
             <MediaPicker accountId={form.accountId} selected={form.mediaIds} onChange={(mediaIds) => set({ mediaIds })} />
           )}
         </Section>
@@ -578,14 +646,16 @@ export default function CommentBuilder({
             </Field>
           )}
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-            <div>
-              <p className="text-sm font-medium text-foreground">Kommentga ochiq javob ham yozish</p>
-              <p className="text-xs text-muted">Masalan: “Direct&apos;ga yubordik 📩”. Narx yozilmaydi.</p>
+          {!live && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+              <div>
+                <p className="text-sm font-medium text-foreground">Kommentga ochiq javob ham yozish</p>
+                <p className="text-xs text-muted">Masalan: “Direct&apos;ga yubordik 📩”. Narx yozilmaydi.</p>
+              </div>
+              <Toggle on={form.publicReplyEnabled} onChange={(on) => set({ publicReplyEnabled: on })} label="Ochiq javob" />
             </div>
-            <Toggle on={form.publicReplyEnabled} onChange={(on) => set({ publicReplyEnabled: on })} label="Ochiq javob" />
-          </div>
-          {form.publicReplyEnabled && (
+          )}
+          {!live && form.publicReplyEnabled && (
             <>
               {noApprovedPublic && (
                 <Notice tone="warning">Ochiq javob yoqilgan, lekin tasdiqlangan variant yo&apos;q — ochiq javob yozilmaydi.</Notice>
@@ -705,15 +775,18 @@ export default function CommentBuilder({
           <SimulatorSection
             accountId={form.accountId}
             campaignId={campaignId}
-            mediaIds={form.mediaScope === "SPECIFIC" ? form.mediaIds : []}
+            mediaIds={!live && form.mediaScope === "SPECIFIC" ? form.mediaIds : []}
             dirty={dirty}
             active={savedForm?.active ?? true}
+            eventType={form.source}
           />
         </Section>
 
-        <Section index={7} title="Eski kommentlar" description="Kampaniya yaratilishidan oldin yozilgan kommentlarga ham javob yuborish.">
-          <BacktrackSection campaignId={campaignId} active={savedForm?.active ?? false} dirty={dirty} />
-        </Section>
+        {!live && (
+          <Section index={7} title="Eski kommentlar" description="Kampaniya yaratilishidan oldin yozilgan kommentlarga ham javob yuborish.">
+            <BacktrackSection campaignId={campaignId} active={savedForm?.active ?? false} dirty={dirty} />
+          </Section>
+        )}
 
         <div className="sticky bottom-0 z-10 -mx-1 space-y-2 border-t border-border bg-background/95 px-1 py-3 backdrop-blur">
           {error && <Notice tone="error">{error}</Notice>}

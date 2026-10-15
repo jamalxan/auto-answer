@@ -976,6 +976,9 @@ enum InstagramEventType {
   // reaction is confirmed against real webhooks.
   STORY_REACTION
   COMMENT
+  // Any reaction to a message (message_reactions). Stored in observation mode
+  // only: whether story reactions arrive this way is not documented.
+  MESSAGE_REACTION
 }
 
 enum InstagramEventStatus {
@@ -1068,6 +1071,21 @@ enum TriggerBacktrackStatus {
   FAILED
 }
 
+enum TriggerAudience {
+  ANY
+  NEW_CONTACT
+  RETURNING_CONTACT
+  REOPENED
+}
+
+enum TriggerSourceFilter {
+  ANY
+  // Click-to-Direct ad (message.referral.source = ADS).
+  ADS
+  // ig.me link with a ref parameter.
+  LINK
+}
+
 enum TriggerMessageDirection {
   INBOUND
   OUTBOUND
@@ -1090,6 +1108,14 @@ model InstagramEvent {
   text                String               @default("")
   // Our own button / quick-reply payload ("c2:...") when the event is a tap.
   payload             String?
+  // message.referral: "ADS" for click-to-Direct ads, or the ig.me link source.
+  referralSource      String?
+  adId                String?
+  // ig.me link ref parameter.
+  ref                 String?
+  // MESSAGE_REACTION: the emoji / reaction name and the message reacted to.
+  reaction            String?
+  reactedMid          String?
   timestamp           DateTime
   rawPayload          Json
   processingStatus    InstagramEventStatus @default(PENDING)
@@ -1102,12 +1128,18 @@ model InstagramEvent {
   processedAt         DateTime?
   contactId           String?
   conversationId      String?
+  // ETAP 3: the DIRECT_MESSAGE / STORY_MENTION campaign the webhook decided
+  // will answer this event (lib/triggers/claim.ts decideDmTrigger). Decided
+  // once, stored with the event; the worker only answers with this campaign,
+  // and production (DM keywords, assistant) skips the event when it is set.
+  claimedCampaignId   String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
   workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount   @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
   contact          InstagramContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  claimedCampaign  TriggerCampaign?   @relation(fields: [claimedCampaignId], references: [id], onDelete: SetNull)
   executions       TriggerExecution[]
   // Set when the event was queued by a backtrack scan, not a webhook.
   backtrackRunId   String?
@@ -1117,6 +1149,10 @@ model InstagramEvent {
   @@index([workspaceId, createdAt])
   @@index([workspaceId, eventType, createdAt])
   @@index([processingStatus, updatedAt])
+  // The person's history on the account (audience, reopened, cooldown claims).
+  @@index([instagramAccountId, senderId, timestamp])
+  // ON DELETE SET NULL when a campaign is deleted.
+  @@index([claimedCampaignId])
 }
 
 model TriggerCampaign {
@@ -1155,9 +1191,22 @@ model TriggerCampaign {
   stopOnLead         Boolean             @default(true)
   stopOnHandoff      Boolean             @default(true)
 
+  // -- ETAP 3: DM-side triggers (Direct, Story Mention, Ad message) ----------
+  audience           TriggerAudience     @default(ANY)
+  // REOPENED audience: the person's previous message is older than this.
+  reopenAfterHours   Int                 @default(72)
+  // One answer per person per campaign within this many hours (anti-spam).
+  cooldownHours      Int                 @default(24)
+  sourceFilter       TriggerSourceFilter @default(ANY)
+  // sourceFilter ADS: only these ads (empty = any ad).
+  adIds              String[]            @default([])
+  // sourceFilter LINK: only these ig.me ref values (empty = any link).
+  refs               String[]            @default([])
+
   workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
   executions       TriggerExecution[]
+  claimedEvents    InstagramEvent[]
   replyVariants    TriggerReplyVariant[]
   quickReplies     TriggerQuickReply[]
   followUpSteps    TriggerFollowUpStep[]

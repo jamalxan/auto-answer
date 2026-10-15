@@ -1,20 +1,35 @@
 /**
  * Webhook → InstagramEvent rows → queue.
  *
- * Called from the webhook route after its existing work, inside its own
- * try/catch: nothing here can change what the comment / DM / assistant paths
- * do with the same payload.
+ * Called from the webhook route BEFORE the DM keyword path and the assistant,
+ * inside its own try/catch. For DMs, story mentions and referral messages it
+ * also makes the one ETAP 3 decision "which DIRECT_MESSAGE / STORY_MENTION
+ * campaign answers this?" (claim.ts decideDmTrigger) and stores it with the
+ * event (claimedCampaignId); the route keeps exactly the claimed events away
+ * from those production paths. Per person (account + sender) the decision and
+ * the insert run under a Postgres advisory transaction lock, so two webhooks
+ * for one person cannot both claim inside one cooldown. Any failure there
+ * claims nothing (the event is still stored, unclaimed): production answers.
  *
  * Duplicate protection, layer one: InstagramEvent is unique per
  * (account, messageId), so a redelivered webhook hits the constraint and is
- * dropped before it reaches the queue.
+ * dropped before it reaches the queue. A redelivered DM keeps the decision
+ * stored the first time.
  */
 
 import { prisma } from "@/lib/db/client";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { isTriggerEngineEnabled } from "./config";
 import { selectCampaign } from "./matching";
-import { forgetCommentClaims } from "./claim";
+import {
+  decideDmTrigger,
+  dmClaimNote,
+  forgetCommentClaims,
+  loadDmTriggerCampaigns,
+  type DmClaimNote,
+  type TriggerDb,
+} from "./claim";
+import type { DmTriggerEventType } from "./matching";
 import {
   isC2Payload,
   normalizeWebhookPayload,
@@ -28,6 +43,14 @@ export interface IngestResult {
   stored: string[];
   duplicates: number;
   skipped: number;
+  /** Events that could not be stored (logged); production handles them as before. */
+  failed: number;
+  /**
+   * DMs / story mentions / referral messages a DIRECT_MESSAGE / STORY_MENTION
+   * campaign answers: storyReplyKey() → campaign id. Only events whose row
+   * exists with claimedCampaignId (stored now, or earlier for a redelivery).
+   */
+  claimed: Map<string, string>;
 }
 
 interface AccountGate {
@@ -74,10 +97,17 @@ export function isUniqueViolation(error: unknown): boolean {
 export async function storeEvent(
   account: { id: string; workspaceId: string },
   event: NormalizedInstagramEvent,
-  options: { backtrackRunId?: string } = {}
+  options: {
+    backtrackRunId?: string;
+    /** ETAP 3: the DM-trigger campaign the webhook decided will answer it. */
+    claimedCampaignId?: string | null;
+    dmClaim?: DmClaimNote;
+    db?: TriggerDb;
+  } = {}
 ): Promise<string | null> {
+  const db = options.db ?? prisma;
   try {
-    const row = await prisma.instagramEvent.create({
+    const row = await db.instagramEvent.create({
       data: {
         workspaceId: account.workspaceId,
         instagramAccountId: account.id,
@@ -90,12 +120,19 @@ export async function storeEvent(
         mediaId: event.mediaId ?? null,
         text: event.text,
         payload: event.payload ?? null,
+        referralSource: event.referralSource ?? null,
+        adId: event.adId ?? null,
+        ref: event.ref ?? null,
+        reaction: event.reaction ?? null,
+        reactedMid: event.reactedMid ?? null,
         backtrackRunId: options.backtrackRunId ?? null,
+        claimedCampaignId: options.claimedCampaignId ?? null,
         timestamp: event.timestamp,
         rawPayload: {
           entryId: event.instagramAccountId,
           hasAttachment: event.hasAttachment,
           item: event.raw,
+          ...(options.dmClaim ? { dmClaim: options.dmClaim } : {}),
         } as Prisma.InputJsonValue,
         processingStatus: "PENDING",
       },
@@ -156,33 +193,154 @@ export async function handOverClaimedComment(comment: {
   return true;
 }
 
+/** Shown in the logs when the webhook could not decide (the event is stored unclaimed). */
+export const DM_CLAIM_FAILED_REASON =
+  "Webhook qarori olinmadi (xatolik) — Direct trigger javob bermaydi, javobni asosiy tizim beradi.";
+
+const CLAIM_TX_OPTIONS = { maxWait: 5_000, timeout: 10_000 };
+
+/** A DM-side event a DIRECT_MESSAGE / STORY_MENTION campaign may answer (taps and other payloads never). */
+function dmTriggerType(event: NormalizedInstagramEvent): DmTriggerEventType | null {
+  if (event.type === "STORY_MENTION") return "STORY_MENTION";
+  if (event.type === "DIRECT_MESSAGE" && !event.payload) return "DIRECT_MESSAGE";
+  return null;
+}
+
+async function storedClaim(accountId: string, messageId: string): Promise<string | null> {
+  const row = await prisma.instagramEvent.findUnique({
+    where: { instagramAccountId_messageId: { instagramAccountId: accountId, messageId } },
+    select: { claimedCampaignId: true },
+  });
+  return row?.claimedCampaignId ?? null;
+}
+
+/**
+ * Decide and store one DM-side event (see the file comment). Returns the new
+ * event id (null when it was stored before) and the campaign that answers it
+ * (for a redelivery: the decision stored the first time).
+ *
+ * The lock is a Postgres advisory transaction lock keyed by account + sender.
+ * It is taken and released by the same transaction that reads the person's
+ * history and inserts the event, so the next webhook for this person waits
+ * until the claimed row is committed and visible: no gap between "lock
+ * released" and "row visible", no TTL that can run out mid-claim (a Redis
+ * lock could), nothing to clean up after a crash. A lock wait over 3s
+ * (lock_timeout) fails the claim like any other error.
+ */
+export async function claimAndStoreDmEvent(
+  account: { id: string; workspaceId: string },
+  event: NormalizedInstagramEvent,
+  type: DmTriggerEventType,
+  earlierEventIds: string[] = []
+): Promise<{ eventId: string | null; claimedCampaignId: string | null }> {
+  const query = {
+    accountId: account.id,
+    senderId: event.senderId,
+    type,
+    text: event.text,
+    referralSource: event.referralSource ?? null,
+    adId: event.adId ?? null,
+    ref: event.ref ?? null,
+    at: event.timestamp,
+    earlierEventIds,
+  };
+  const withStoredClaim = async (eventId: string | null) => ({
+    eventId,
+    claimedCampaignId: eventId ? null : await storedClaim(account.id, event.messageId),
+  });
+
+  try {
+    const campaigns = await loadDmTriggerCampaigns(account.id, type);
+    if (campaigns.length === 0) {
+      // Nothing can be claimed: no lock, only the reason for the logs.
+      const decision = await decideDmTrigger(query, campaigns);
+      return await withStoredClaim(await storeEvent(account, event, { dmClaim: dmClaimNote(decision) }));
+    }
+
+    const lockKey = `${account.id}:${event.senderId}`;
+    return await prisma.$transaction(async (tx) => {
+      // Lock wait limit: past it the claim fails (nothing claimed).
+      await tx.$executeRaw`SET LOCAL lock_timeout = '3s'`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('trigger-dm-claim'), hashtext(${lockKey}))`;
+      // A redelivery keeps the decision made the first time.
+      const stored = await tx.instagramEvent.findUnique({
+        where: { instagramAccountId_messageId: { instagramAccountId: account.id, messageId: event.messageId } },
+        select: { claimedCampaignId: true },
+      });
+      if (stored) return { eventId: null, claimedCampaignId: stored.claimedCampaignId };
+
+      const decision = await decideDmTrigger(query, campaigns, tx);
+      const claimedCampaignId = decision.campaign?.id ?? null;
+      const eventId = await storeEvent(account, event, { claimedCampaignId, dmClaim: dmClaimNote(decision), db: tx });
+      // Only an unlocked fallback insert can get here first; let it stand.
+      if (!eventId) throw new Error(`event ${event.messageId} was stored concurrently`);
+      return { eventId, claimedCampaignId };
+    }, CLAIM_TX_OPTIONS);
+  } catch (error) {
+    console.error(
+      "[Trigger Engine] DM trigger claim failed, nothing claimed:",
+      error instanceof Error ? error.message : error
+    );
+  }
+
+  // Stored unclaimed (taps, bookkeeping and the logs still see it); the DM
+  // keyword path and the assistant answer it. If the row exists already, its
+  // own stored decision stands.
+  return withStoredClaim(
+    await storeEvent(account, event, {
+      dmClaim: { campaignId: null, matchedKeyword: null, reason: DM_CLAIM_FAILED_REASON },
+    })
+  );
+}
+
 export async function ingestWebhookPayload(payload: unknown): Promise<IngestResult> {
-  const result: IngestResult = { stored: [], duplicates: 0, skipped: 0 };
+  const result: IngestResult = { stored: [], duplicates: 0, skipped: 0, failed: 0, claimed: new Map() };
   if (!isTriggerEngineEnabled()) return result;
 
   const events = normalizeWebhookPayload(payload as RawWebhookPayload);
+  // Events of a person stored earlier in this payload: history for the next one.
+  const earlierByPerson = new Map<string, string[]>();
   for (const event of events) {
-    const gate = await loadAccountGate(event.instagramAccountId);
-    if (!gate || !gate.engaged) {
-      result.skipped++;
-      continue;
-    }
+    try {
+      const gate = await loadAccountGate(event.instagramAccountId);
+      if (!gate || !gate.engaged) {
+        result.skipped++;
+        continue;
+      }
 
-    const eventId = await storeEvent(gate, event);
-    if (!eventId) {
-      result.duplicates++;
-      continue;
-    }
-    result.stored.push(eventId);
+      const person = `${gate.id}|${event.senderId}`;
+      const earlier = earlierByPerson.get(person) ?? [];
+      const type = dmTriggerType(event);
+      let eventId: string | null;
+      if (type) {
+        const outcome = await claimAndStoreDmEvent(gate, event, type, earlier);
+        eventId = outcome.eventId;
+        if (outcome.claimedCampaignId) {
+          result.claimed.set(storyReplyKey(event.instagramAccountId, event.messageId), outcome.claimedCampaignId);
+        }
+      } else {
+        eventId = await storeEvent(gate, event);
+      }
+      if (!eventId) {
+        result.duplicates++;
+        continue;
+      }
+      result.stored.push(eventId);
+      earlierByPerson.set(person, [...earlier, eventId]);
 
-    // A failed enqueue (Redis down) is not lost: the row stays PENDING and the
-    // worker's sweep picks it up.
-    await enqueueEvent(eventId).catch((error) => {
-      console.error(
-        "[Trigger Engine] enqueue failed, left for the sweep:",
-        error instanceof Error ? error.message : error
-      );
-    });
+      // A failed enqueue (Redis down) is not lost: the row stays PENDING and the
+      // worker's sweep picks it up.
+      await enqueueEvent(eventId).catch((error) => {
+        console.error(
+          "[Trigger Engine] enqueue failed, left for the sweep:",
+          error instanceof Error ? error.message : error
+        );
+      });
+    } catch (error) {
+      // One event failing must not cost the others, nor the claims made so far.
+      result.failed++;
+      console.error("[Trigger Engine] event not stored:", error instanceof Error ? error.message : error);
+    }
   }
   return result;
 }

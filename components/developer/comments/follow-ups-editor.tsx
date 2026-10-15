@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * Follow-up steps (max 5). Delays count from the button tap and must stay
- * inside Meta's 24-hour window, so the editor caps them at 23 hours.
+ * Follow-up steps (max 5). Delays count from the button tap (comments) or
+ * from the reply (DM triggers) and must stay inside Meta's 24-hour window,
+ * so the editor caps them at 23 hours. DM triggers send no button, so they
+ * pass a narrower list of conditions.
  */
 
 import {
@@ -25,9 +27,15 @@ export interface FollowUpItem {
 export default function FollowUpsEditor({
   items,
   onChange,
+  conditions = FOLLOW_UP_CONDITIONS,
+  delayLabel = "Tugma bosilgandan keyin (daqiqa)",
 }: {
   items: FollowUpItem[];
   onChange: (items: FollowUpItem[]) => void;
+  /** Conditions offered in the picker. */
+  conditions?: readonly FollowUpCondition[];
+  /** What the delay counts from. */
+  delayLabel?: string;
 }) {
   const update = (key: string, patch: Partial<FollowUpItem>) =>
     onChange(items.map((item) => (item.key === key ? { ...item, ...patch } : item)));
@@ -66,7 +74,7 @@ export default function FollowUpsEditor({
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="space-y-1 text-xs text-muted">
-                <span>Tugma bosilgandan keyin (daqiqa)</span>
+                <span>{delayLabel}</span>
                 <input
                   type="number"
                   min={1}
@@ -90,7 +98,7 @@ export default function FollowUpsEditor({
                   value={item.condition}
                   onChange={(e) => update(item.key, { condition: e.target.value as FollowUpCondition })}
                 >
-                  {FOLLOW_UP_CONDITIONS.map((condition) => (
+                  {conditions.map((condition) => (
                     <option key={condition} value={condition}>
                       {FOLLOW_UP_CONDITION_TEXT[condition]}
                     </option>
