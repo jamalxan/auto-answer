@@ -71,7 +71,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 6,
     title: "Flow Builder",
     summary: "Vizual builder: shartlar, harakatlar, delay, tarmoqlar, Simple va Advanced Mode.",
-    status: "PLANNED",
+    status: "BUILDING",
+    href: "/developer/flows",
   },
   {
     key: "ai-flow-builder",

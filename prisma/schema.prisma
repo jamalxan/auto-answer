@@ -111,8 +111,13 @@ model Workspace {
   triggerFollowUpRuns  TriggerFollowUpRun[]
   triggerBacktrackRuns TriggerBacktrackRun[]
 
+    // Flow Builder (developer area, ETAP 6/7)
+  flows               Flow[]
+  flowRuns            FlowRun[]
+  flowTemplates       FlowTemplate[]
+
   // CRM (developer area, ETAP 5)
-  crmContacts        CrmContact[]
+  crmContacts         CrmContact[]
   crmTags            CrmTag[]
   crmSegments        CrmSegment[]
   crmPipelines       CrmPipeline[]
@@ -210,7 +215,9 @@ model InstagramAccount {
   triggerCampaigns     TriggerCampaign[]
   instagramContacts    InstagramContact[]
   triggerConversations TriggerConversation[]
-  javobAiAccount       JavobAiAccount?
+    javobAiAccount       JavobAiAccount?
+  flows                Flow[]
+
 
   @@index([workspaceId])
 }
@@ -1109,6 +1116,11 @@ enum TriggerBacktrackStatus {
   FAILED
 }
 
+enum TriggerCampaignKind {
+  CAMPAIGN
+  FLOW
+}
+
 enum TriggerAudience {
   ANY
   NEW_CONTACT
@@ -1226,9 +1238,15 @@ model TriggerCampaign {
   // 24h window for mainMessage, quick replies and follow-ups.
   openingButtonLabel String?
   mainMessage        String?
-  stopOnReply        Boolean           @default(true)
-  stopOnLead         Boolean           @default(true)
-  stopOnHandoff      Boolean           @default(true)
+    stopOnReply        Boolean             @default(true)
+  stopOnLead         Boolean             @default(true)
+  stopOnHandoff      Boolean             @default(true)
+
+  // -- ETAP 6: a published Flow owns a hidden proxy row so the webhook's single
+  // claim / matching / gate logic stays the only one. CAMPAIGN = normal rows.
+  kind               TriggerCampaignKind @default(CAMPAIGN)
+  flow               Flow?
+
 
   // -- ETAP 3: DM-side triggers (Direct, Story Mention, Ad message) ----------
   audience         TriggerAudience     @default(ANY)
@@ -2142,4 +2160,183 @@ model CrmBroadcastRecipient {
   @@unique([broadcastId, contactId])
   @@index([broadcastId, status])
   @@index([contactId, sentAt])
+}
+
+// --- Flow Builder (developer area, ETAP 6/7) ---------------------------------
+// New tables only. The graph is immutable JSON on FlowVersion, validated by
+// lib/flows/schema.ts. See docs/developer/etap-6-7-flow-builder.md.
+
+enum FlowStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FlowMode {
+  SIMPLE
+  ADVANCED
+}
+
+enum FlowVersionSource {
+  MANUAL
+  AI
+  TEMPLATE
+  IMPORT
+}
+
+enum FlowRunStatus {
+  ACTIVE
+  WAITING_TAP
+  WAITING_INBOUND
+  WAITING_DELAY
+  DONE
+  FAILED
+  CANCELLED
+}
+
+enum FlowStepStatus {
+  DONE
+  SKIPPED
+  FAILED
+  WAITING
+}
+
+model Flow {
+  id                 String             @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  name               String
+  mode               FlowMode           @default(SIMPLE)
+  status             FlowStatus         @default(DRAFT)
+  // Mirrored from the version's trigger node, for lists and claims.
+  triggerType        InstagramEventType
+  draftVersionId     String?            @unique
+  publishedVersionId String?            @unique
+  // Hidden TriggerCampaign (kind FLOW) giving this flow a seat in claim logic.
+  proxyCampaignId    String?            @unique
+  createdByUserId    String?
+  archivedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount  @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  proxyCampaign    TriggerCampaign?  @relation(fields: [proxyCampaignId], references: [id], onDelete: SetNull)
+  versions         FlowVersion[]
+  runs             FlowRun[]
+
+  @@index([workspaceId, status])
+  @@index([instagramAccountId, status, triggerType])
+}
+
+model FlowVersion {
+  id               String            @id @default(cuid())
+  flowId           String
+  version          Int
+  schemaVersion    Int               @default(1)
+  graph            Json
+  // sha256 of the canonical graph JSON.
+  hash             String
+  source           FlowVersionSource @default(MANUAL)
+  // AI builder input, so the Generate step is reproducible.
+  prompt           String?
+  changeNote       String?
+  auditResult      Json?
+  policyResult     Json?
+  // Last successful sandbox run of this exact hash.
+  testedAt         DateTime?
+  approvedAt       DateTime?
+  approvedByUserId String?
+  publishedAt      DateTime?
+  publishedByUserId String?
+  // Superseded or unpublished.
+  retiredAt        DateTime?
+  createdAt        DateTime          @default(now())
+
+  flow Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  runs FlowRun[]
+
+  @@unique([flowId, version])
+}
+
+/// One person going through one flow version. Pinned to its version so a new
+/// publish never changes a running conversation.
+model FlowRun {
+  id                 String        @id @default(cuid())
+  workspaceId        String
+  flowId             String
+  versionId          String
+  instagramAccountId String
+  igUserId           String
+  contactId          String?
+  conversationId     String?
+  // The InstagramEvent that started it.
+  eventId            String
+  // TriggerExecution of the proxy campaign: window anchor + thread ownership.
+  executionId        String?       @unique
+  status             FlowRunStatus @default(ACTIVE)
+  currentNodeId      String?
+  // Monotonic step counter, also the optimistic-concurrency token.
+  seq                Int           @default(0)
+  variables          Json          @default("{}")
+  waitNodeId         String?
+  waitUntil          DateTime?
+  // "tap" | "inbound" | "phone" | "delay"
+  waitKind           String?
+  sendsSinceInbound  Int           @default(0)
+  isTest             Boolean       @default(false)
+  endReason          String?
+  lastError          String?
+  startedAt          DateTime      @default(now())
+  finishedAt         DateTime?
+  updatedAt          DateTime      @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  flow      Flow          @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  version   FlowVersion   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  steps     FlowRunStep[]
+
+  @@index([instagramAccountId, igUserId, status])
+  @@index([status, waitUntil])
+  @@index([flowId, startedAt])
+  @@index([workspaceId, startedAt])
+}
+
+model FlowRunStep {
+  id         String         @id @default(cuid())
+  runId      String
+  seq        Int
+  nodeId     String
+  nodeType   String
+  status     FlowStepStatus
+  // Rendered text, evaluated condition inputs, payload sent.
+  input      Json?
+  // Branch taken, mid, variable written, http status.
+  output     Json?
+  reason     String?
+  startedAt  DateTime       @default(now())
+  finishedAt DateTime?
+
+  run FlowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, seq])
+  @@index([runId, startedAt])
+}
+
+/// User-saved templates; the five starters live in code (lib/flows/templates).
+model FlowTemplate {
+  id            String   @id @default(cuid())
+  workspaceId   String?
+  key           String   @unique
+  name          String
+  description   String?
+  category      String
+  locale        String   @default("uz")
+  graph         Json
+  schemaVersion Int      @default(1)
+  sort          Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
