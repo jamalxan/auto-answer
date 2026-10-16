@@ -234,10 +234,11 @@ async function findCampaign(workspaceId: string, id: string) {
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 /** Comment campaigns (post and live) with what the TZ calls "queue visibility": where every comment is right now. */
-export async function listCommentCampaigns(workspaceId: string) {
+export async function listCommentCampaigns(workspaceId: string, options: { active?: boolean; take?: number } = {}) {
   const found = await prisma.triggerCampaign.findMany({
-    where: { workspaceId, triggerType: COMMENT_TYPES },
+    where: { workspaceId, triggerType: COMMENT_TYPES, kind: { not: "FLOW" }, ...(options.active === undefined ? {} : { active: options.active }) },
     orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "desc" }],
+    ...(options.take ? { take: options.take } : {}),
     include: {
       instagramAccount: { select: { username: true, tokenStatus: true } },
       replyVariants: { select: { kind: true, approvedAt: true } },
@@ -292,6 +293,13 @@ export async function listCommentCampaigns(workspaceId: string) {
       },
       lastBacktrack: lastRun.get(campaign.id) ?? null,
     };
+  });
+}
+
+/** How many comment campaigns match (same filter as listCommentCampaigns), for a total next to a limited list. */
+export async function countCommentCampaigns(workspaceId: string, options: { active?: boolean } = {}) {
+  return prisma.triggerCampaign.count({
+    where: { workspaceId, triggerType: COMMENT_TYPES, kind: { not: "FLOW" }, ...(options.active === undefined ? {} : { active: options.active }) },
   });
 }
 

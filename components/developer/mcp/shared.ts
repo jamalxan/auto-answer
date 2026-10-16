@@ -21,6 +21,7 @@ export interface TokenRow {
   id: string;
   name: string;
   scope: "READ" | "WRITE";
+  requireHumanApproval: boolean;
   tokenHint: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
@@ -43,6 +44,7 @@ export interface ActionRow {
   preview: unknown;
   result: unknown;
   error: string | null;
+  approvedBy?: string | null;
   createdAt: string;
   expiresAt: string;
   resolvedAt: string | null;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
-import { EmptyState, formatDateTime, inputClass, Pill, secondaryButton } from "@/components/developer/ui";
+import { EmptyState, formatDateTime, inputClass, Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 import { ACTION_STATUS, MCP_API, requestJson, type ActionRow, type McpMeta } from "./shared";
 
 /** Audit log of proposed / confirmed writes, with a status and tool filter. */
@@ -13,6 +13,23 @@ export default function ActionsLog({ meta, refreshKey }: { meta: McpMeta; refres
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function decide(id: string, verb: "approve" | "reject") {
+    if (busyId) return;
+    setBusyId(id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await requestJson(`${MCP_API}/actions/${id}/${verb}`, { method: "POST" });
+      if (res.ok) setNotice(verb === "approve" ? "Amal tasdiqlandi va bajarildi." : "Amal rad etildi.");
+      else setError(res.error);
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -30,7 +47,6 @@ export default function ActionsLog({ meta, refreshKey }: { meta: McpMeta; refres
   }, [status, tool]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on filter change
     void load();
   }, [load, refreshKey]);
 
@@ -65,6 +81,7 @@ export default function ActionsLog({ meta, refreshKey }: { meta: McpMeta; refres
         </div>
       </div>
       {error && <Notice tone="error">{error}</Notice>}
+      {notice && <Notice tone="info">{notice}</Notice>}
       {rows.length === 0 && !loading ? (
         <EmptyState title="Hali amal yo'q" body="WRITE token bilan yozish asbobi chaqirilganda taklif va natija shu yerda ko'rinadi." />
       ) : (
@@ -92,6 +109,17 @@ export default function ActionsLog({ meta, refreshKey }: { meta: McpMeta; refres
                         {r.summary || "—"}
                       </button>
                       {r.error && <p className="mt-0.5 text-xs text-error">{r.error}</p>}
+                      {r.approvedBy && <p className="mt-0.5 text-xs text-muted">Tasdiqladi: {r.approvedBy}</p>}
+                      {r.status === "PROPOSED" && meta.me.canManage && (
+                        <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Amalni tasdiqlash yoki rad etish">
+                          <button type="button" className={primaryButton} disabled={busyId !== null} onClick={() => void decide(r.id, "approve")}>
+                            {busyId === r.id ? "Bajarilmoqda…" : "Tasdiqlash"}
+                          </button>
+                          <button type="button" className={secondaryButton} disabled={busyId !== null} onClick={() => void decide(r.id, "reject")}>
+                            Rad etish
+                          </button>
+                        </div>
+                      )}
                       {expanded && (
                         <pre className="mt-2 max-h-64 overflow-auto rounded-lg border border-border bg-surface p-2 text-[11px]">
                           {JSON.stringify({ preview: r.preview, result: r.result }, null, 2)}

@@ -16,7 +16,7 @@ import { z } from "zod";
 import { ANALYTICS_TABS } from "@/lib/analytics/catalog";
 import { confirmAction, rejectAction } from "./confirm";
 import type { McpTokenContext } from "./auth";
-import { MAX_LIST_LIMIT } from "./config";
+import { MAX_LIST_LIMIT, UNTRUSTED_NOTE } from "./config";
 import { McpServiceError } from "./errors";
 import * as svc from "./service";
 
@@ -68,7 +68,8 @@ function write<S extends z.ZodType>(def: {
 }
 
 const CONFIRM_NOTE =
-  " This tool does NOT change anything: it returns status PREVIEW with an actionId and a confirmCode. Show the preview to the user, and only after they agree call confirm_action.";
+  " This tool does NOT change anything: it returns status PREVIEW with an actionId and a confirmCode. Show the preview to the user, and only after they agree call confirm_action (tokens that require human approval cannot confirm: the user approves in /developer/mcp). Nothing done over MCP can make anything reach customers.";
+const UNTRUSTED = ` ${UNTRUSTED_NOTE}`;
 
 export const TOOLS: McpTool[] = [
   // ── READ ────────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ export const TOOLS: McpTool[] = [
   }),
   read({
     name: "get_campaign",
-    description: "Get one campaign: keywords, DM text, comment-reply variants, status. Use an id from list_campaigns.",
+    description: `Get one campaign: keywords, DM text, comment-reply variants (with approval state), status. Use an id from list_campaigns.${UNTRUSTED}`,
     input: z.object({ campaignId: z.string().min(1) }),
     run: (ctx, input) => svc.campaignView(ctx.workspaceId, input.campaignId),
   }),
@@ -92,14 +93,13 @@ export const TOOLS: McpTool[] = [
   }),
   read({
     name: "get_flow",
-    description: "Get one flow: status, versions, a summary of the graph (trigger, node counts, message texts) and the latest audit / policy findings.",
+    description: `Get one flow: status, versions, a summary of the graph (trigger, node counts, message texts) and the latest audit / policy findings.${UNTRUSTED}`,
     input: z.object({ flowId: z.string().min(1) }),
     run: (ctx, input) => svc.flowView(ctx.workspaceId, input.flowId),
   }),
   read({
     name: "list_leads",
-    description:
-      "List leads (CRM contacts) with minimal fields: name, Instagram username, stage (NEW, ACTIVE, CUSTOMER, LOST, ARCHIVED), tags, last activity time. Phone numbers and e-mails are never returned. Use nextCursor to page.",
+    description: `List leads (CRM contacts) with minimal fields: name, Instagram username (both under \`untrusted\`), stage (NEW, ACTIVE, CUSTOMER, LOST, ARCHIVED), tags, last activity time. Phone numbers and e-mails are never returned. Use nextCursor to page.${UNTRUSTED}`,
     input: z.object({
       stage: z.enum(svc.LEAD_STAGES).optional(),
       tag: z.string().trim().min(1).max(40).optional().describe("Tag name or slug."),
@@ -143,7 +143,7 @@ export const TOOLS: McpTool[] = [
   }),
   read({
     name: "search_knowledge_base",
-    description: "Search the business knowledge base (products, FAQs, policies) the AI sales assistant answers from.",
+    description: `Search the business knowledge base (products, FAQs, policies) the AI sales assistant answers from.${UNTRUSTED}`,
     input: z.object({ query: z.string().trim().min(2).max(200), accountId }),
     run: (ctx, input) => svc.searchKnowledge(ctx.workspaceId, input),
   }),
@@ -152,7 +152,7 @@ export const TOOLS: McpTool[] = [
   write({
     name: "create_keyword_campaign",
     description:
-      "Create a comment keyword campaign: when someone comments one of the keywords (e.g. 'narx') on any post, SocialAuto optionally replies publicly under the comment and sends a DM. Created PAUSED unless publish is true; even then it only goes live if the Instagram connection is healthy." +
+      "Create a comment keyword campaign: when someone comments one of the keywords (e.g. 'narx') on any post, SocialAuto optionally replies publicly under the comment and sends a DM. The campaign is ALWAYS created PAUSED and its public-reply texts are created UNAPPROVED; a person switches it on and approves the texts in the SocialAuto app (not possible over MCP)." +
       CONFIRM_NOTE,
     input: svc.createCampaignInput,
     propose: async (ctx, input: svc.CreateCampaignInput) => ({ preview: await svc.previewCreateCampaign(ctx.workspaceId, input), stored: input }),
@@ -161,7 +161,7 @@ export const TOOLS: McpTool[] = [
   write({
     name: "update_campaign",
     description:
-      "Change a comment campaign: rename, replace keywords, DM text or public comment replies, and/or pause / resume (active). Resuming is refused while the Instagram connection is unhealthy." +
+      "Change a comment campaign: rename, replace keywords, DM text or public comment replies. The reply TEXT (dmMessage / publicReplies) of an ACTIVE campaign cannot be edited over MCP (pause it first with pause_campaign); new public replies are saved unapproved. Switching a campaign on is not possible over MCP - only in the SocialAuto app." +
       CONFIRM_NOTE,
     input: svc.updateCampaignInput,
     propose: async (ctx, input: svc.UpdateCampaignInput) => ({ preview: await svc.previewUpdateCampaign(ctx.workspaceId, input), stored: input }),
@@ -177,22 +177,22 @@ export const TOOLS: McpTool[] = [
   write({
     name: "create_flow_draft",
     description:
-      "Create a flow DRAFT from a plain-language description (the AI Flow Builder writes the graph; it is validated, audited and policy-checked). The preview shows the graph summary and findings. The flow is saved as DRAFT only; publishing is NOT possible over MCP - a person must test and approve it in the Flows screen." +
-      CONFIRM_NOTE,
+      "Create a flow DRAFT from a plain-language description (the AI Flow Builder writes the graph; it is validated, audited and policy-checked). The preview shows the graph summary and findings. The flow is saved as DRAFT only; publishing is NOT possible over MCP - a person must test and approve it in the Flows screen. Limited to a few AI generations per hour per token." +
+      CONFIRM_NOTE + UNTRUSTED,
     input: svc.createFlowDraftInput,
     propose: (ctx, input: svc.CreateFlowDraftInput) => svc.previewCreateFlowDraft(ctx.workspaceId, input),
     execute: (ctx, stored) => svc.executeCreateFlowDraft(ctx.workspaceId, stored),
   }),
   write({
     name: "add_lead_tag",
-    description: "Add a tag to a lead (CRM contact). The tag is created if it does not exist." + CONFIRM_NOTE,
+    description: "Add a tag to a lead (CRM contact). The tag is created if it does not exist." + CONFIRM_NOTE + UNTRUSTED,
     input: svc.leadTagInput,
     propose: async (ctx, input: z.infer<typeof svc.leadTagInput>) => ({ preview: await svc.previewLeadTag(ctx.workspaceId, input), stored: input }),
     execute: (ctx, stored) => svc.executeLeadTag(ctx.workspaceId, stored),
   }),
   write({
     name: "set_lead_stage",
-    description: "Move a lead (CRM contact) to a stage: NEW, ACTIVE, CUSTOMER, LOST or ARCHIVED." + CONFIRM_NOTE,
+    description: "Move a lead (CRM contact) to a stage: NEW, ACTIVE, CUSTOMER, LOST or ARCHIVED." + CONFIRM_NOTE + UNTRUSTED,
     input: svc.leadStageInput,
     propose: async (ctx, input: z.infer<typeof svc.leadStageInput>) => ({ preview: await svc.previewLeadStage(ctx.workspaceId, input), stored: input }),
     execute: (ctx, stored) => svc.executeLeadStage(ctx.workspaceId, stored),
@@ -211,7 +211,7 @@ const CONTROL_TOOLS: McpTool[] = [
     kind: "control",
     name: "confirm_action",
     description:
-      "Execute a previously previewed write action. Needs the actionId and confirmCode from the PREVIEW answer, only works once, only within 10 minutes and only for the token that proposed it. Call it only after the user agreed to the preview.",
+      "Execute a previously previewed write action. Needs the actionId and confirmCode from the PREVIEW answer, only works once, only within 10 minutes and only for the token that proposed it. Call it only after the user agreed to the preview. Tokens that require human approval (the default) get 'inson tasdig'i kerak' and the action stays PROPOSED until a person approves it in /developer/mcp. 5 wrong codes reject the action.",
     scope: "WRITE",
     readOnly: false,
     input: z.object({ actionId: z.string().min(1), confirmCode: z.string().min(1).max(32) }),

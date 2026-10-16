@@ -126,8 +126,9 @@ describe("what leaves is minimal", () => {
 
   it("the lead card has exactly the minimal fields", async () => {
     const [lead] = (await callTool(a, "list_leads")).data.leads;
-    expect(Object.keys(lead).sort()).toEqual(["id", "lastMessageAt", "name", "stage", "tags", "temperature", "username"]);
-    expect(lead.name).toBe("Ali Valiyev");
+    expect(Object.keys(lead).sort()).toEqual(["id", "lastMessageAt", "stage", "tags", "temperature", "untrusted"]);
+    expect(Object.keys(lead.untrusted).sort()).toEqual(["name", "username"]);
+    expect(lead.untrusted.name).toBe("Ali Valiyev");
   });
 
   it("a search by phone number does not find the lead", async () => {

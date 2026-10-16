@@ -14,9 +14,10 @@ export { NOT_JSON } from "./crm-guard";
  *
  *   read    tokens, action log, meta: every role (the hash and codes are never selected)
  *   create  new token: workspace OWNER / ADMIN only (a token is a credential), 503 while MCP_DISABLED
- *   revoke  OWNER / ADMIN only; also allowed while the kill switch is on (a leaked token must always be killable)
+ *   approve OWNER / ADMIN only; runs a proposed action, so it is blocked (503) while MCP_DISABLED
+ *   revoke  OWNER / ADMIN only (also reject of a proposal); also allowed while the kill switch is on (a leaked token must always be killable)
  */
-export type McpAccess = "read" | "create" | "revoke";
+export type McpAccess = "read" | "create" | "approve" | "revoke";
 
 export async function requireMcp(access: McpAccess): Promise<DeveloperAuth> {
   const auth = await requireDeveloper();
@@ -24,7 +25,7 @@ export async function requireMcp(access: McpAccess): Promise<DeveloperAuth> {
   if (access !== "read" && !canManageWorkspace(auth.ctx.role)) {
     return { ok: false, response: jsonError("Tokenlarni faqat egasi yoki administrator boshqaradi", 403) };
   }
-  if (access === "create" && !isMcpEnabled()) {
+  if ((access === "create" || access === "approve") && !isMcpEnabled()) {
     return { ok: false, response: jsonError(MCP_OFF_MESSAGE, 503) };
   }
   return auth;

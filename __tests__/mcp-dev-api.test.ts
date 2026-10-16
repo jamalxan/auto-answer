@@ -145,7 +145,7 @@ describe("tokens", () => {
 describe("actions log and meta", () => {
   it("lists this workspace's proposals with a status / tool filter and no secrets", async () => {
     as("OWNER", WS_A);
-    const created = await (await tokensPost(req("POST", { name: "w", scope: "WRITE" }))).json();
+    const created = await (await tokensPost(req("POST", { name: "w", scope: "WRITE", requireHumanApproval: false }))).json();
     const raw = created.data.token as string;
     const p1 = await callTool(raw, "pause_campaign", { campaignId: "cmpA" });
     await callTool(raw, "confirm_action", { actionId: p1.data.actionId, confirmCode: p1.data.confirmCode });

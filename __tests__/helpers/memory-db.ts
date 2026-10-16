@@ -428,8 +428,8 @@ const DEFAULTS: Record<string, () => Row> = {
   }),
   migrationItem: () => ({ sourceId: null, folder: null, status: "PENDING", mapping: {}, sourceText: null, warnings: [], flowId: null, note: null, importClaimedAt: null }),
   // MCP (ETAP 12)
-  mcpToken: () => ({ scope: "READ", createdByUserId: null, lastUsedAt: null, revokedAt: null, expiresAt: null }),
-  mcpAction: () => ({ status: "PROPOSED", confirmCodeHash: null, result: null, error: null, resolvedAt: null }),
+  mcpToken: () => ({ scope: "READ", requireHumanApproval: true, createdByUserId: null, lastUsedAt: null, revokedAt: null, expiresAt: null }),
+  mcpAction: () => ({ status: "PROPOSED", failedAttempts: 0, approvedBy: null, confirmCodeHash: null, result: null, error: null, resolvedAt: null }),
   crmBroadcastRecipient: () => ({
     ineligibleReason: null, status: "PENDING", attempts: 0, sentMessageId: null, sentAt: null, error: null,
     repliedAt: null, replyMessageId: null, convertedAt: null, conversionDealId: null,

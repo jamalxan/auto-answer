@@ -15,6 +15,7 @@ CREATE TABLE "McpToken" (
     "tokenHash" TEXT NOT NULL,
     "tokenHint" TEXT NOT NULL,
     "scope" "McpScope" NOT NULL DEFAULT 'READ',
+    "requireHumanApproval" BOOLEAN NOT NULL DEFAULT true,
     "createdByUserId" TEXT,
     "lastUsedAt" TIMESTAMP(3),
     "revokedAt" TIMESTAMP(3),
@@ -37,6 +38,8 @@ CREATE TABLE "McpAction" (
     "expiresAt" TIMESTAMP(3) NOT NULL,
     "result" JSONB,
     "error" TEXT,
+    "failedAttempts" INTEGER NOT NULL DEFAULT 0,
+    "approvedBy" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "resolvedAt" TIMESTAMP(3),
 

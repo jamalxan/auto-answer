@@ -35,7 +35,8 @@ beforeEach(async () => {
 describe("campaigns and flows", () => {
   it("get_campaign shows the DM text, keywords and status", async () => {
     const { data } = await callTool(read, "get_campaign", { campaignId: "cmpA" });
-    expect(data).toMatchObject({ id: "cmpA", name: "Narx A", status: "ACTIVE", keywords: ["narx"], dmMessage: "Narx 100 000 so'm", account: "mebel_a" });
+    expect(data).toMatchObject({ id: "cmpA", name: "Narx A", status: "ACTIVE", keywords: ["narx"], untrusted: { dmMessage: "Narx 100 000 so'm" }, account: "mebel_a" });
+    expect(data.dmMessage).toBeUndefined(); // user-facing text lives only under `untrusted`
   });
 
   it("list_campaigns filters by status and respects the limit", async () => {
@@ -59,7 +60,8 @@ describe("campaigns and flows", () => {
     expect(data).toMatchObject({ id: flows.a, name: "Flow A", status: "DRAFT" });
     expect(data.draft.graph.nodeCount).toBeGreaterThan(2);
     expect(data.draft.graph.trigger.type).toBe("COMMENT");
-    expect(data.draft.graph.messages.length).toBeGreaterThan(0);
+    expect(data.draft.graph.untrusted.messages.length).toBeGreaterThan(0);
+    expect(data.draft.graph.messages).toBeUndefined();
     expect(text).not.toContain('"edges"');
   });
 
@@ -124,7 +126,8 @@ describe("analytics, report, knowledge, health", () => {
     const hit = await callTool(read, "search_knowledge_base", { query: "divan" });
     expect(hit.isError, hit.text).toBe(false);
     expect(hit.data.found).toBe(true);
-    expect(JSON.stringify(hit.data.lines)).toMatch(/Divan/);
+    expect(JSON.stringify(hit.data.untrusted.lines)).toMatch(/Divan/);
+    expect(hit.data.lines).toBeUndefined();
   });
 
   it("search_knowledge_base without a profile says the base is empty", async () => {

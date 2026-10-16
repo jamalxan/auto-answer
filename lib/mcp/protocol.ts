@@ -13,8 +13,8 @@
  */
 
 import type { McpTokenContext } from "./auth";
-import { LATEST_PROTOCOL_VERSION, MAX_RESULT_CHARS, SERVER_INFO, SUPPORTED_PROTOCOL_VERSIONS } from "./config";
-import { proposeAction } from "./confirm";
+import { LATEST_PROTOCOL_VERSION, MAX_RESULT_CHARS, SERVER_INFO, SUPPORTED_PROTOCOL_VERSIONS, UNTRUSTED_NOTE } from "./config";
+import { assertCanPropose, assertFlowGenerationBudget, proposeAction } from "./confirm";
 import { describeError, McpServiceError, safeMessage } from "./errors";
 import { describeTool, findTool, parseArguments, toolsForScope, type McpTool, type WriteTool } from "./tools";
 
@@ -48,7 +48,8 @@ const rpcError = (id: Id, code: number, message: string, status = 200): RpcOutco
 const rpcResult = (id: Id, result: unknown): RpcOutcome => ({ status: 200, body: { jsonrpc: "2.0", id, result } });
 
 export const INSTRUCTIONS =
-  "SocialAuto control layer. Read tools answer immediately. Every write tool only returns a PREVIEW with an actionId and confirmCode; show the preview to the user and call confirm_action only after they agree. Flows can be saved as drafts but never published from here.";
+  "SocialAuto control layer. Read tools answer immediately. Every write tool only returns a PREVIEW with an actionId and confirmCode; show the preview to the user and call confirm_action only after they agree (tokens that require human approval cannot confirm: a person approves in /developer/mcp). Nothing done over MCP can make anything reach customers: campaigns are created paused, reply texts are created unapproved, flows are saved as drafts, and going live happens only in the SocialAuto app by a person. " +
+  UNTRUSTED_NOTE;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -73,6 +74,9 @@ async function callTool(ctx: McpTokenContext, tool: McpTool, args: unknown) {
   if (!parsed.ok) return toolError(parsed.error);
   try {
     if (tool.kind === "write") {
+      // Cheap checks first: a flooded token must not reach the (paid) AI Flow Builder.
+      await assertCanPropose(ctx);
+      if (tool.name === "create_flow_draft" && (parsed.data as { graph?: unknown }).graph === undefined) await assertFlowGenerationBudget(ctx);
       const { preview, stored } = await (tool as WriteTool).propose(ctx, parsed.data as never);
       return toolResult(await proposeAction(ctx, tool.name, stored, preview));
     }
@@ -88,12 +92,16 @@ export async function handleRpc(ctx: McpTokenContext, message: unknown): Promise
   if (Array.isArray(message)) {
     return rpcError(null, RPC.invalidRequest, "Batch so'rovlar qo'llab-quvvatlanmaydi: har bir xabarni alohida yuboring", 400);
   }
+  // A response to a request (we never send any): acknowledge with an empty 202.
+  if (isRecord(message) && message.jsonrpc === "2.0" && !("method" in message) && ("result" in message || "error" in message)) {
+    return { status: 202, body: null };
+  }
   if (!isRecord(message) || message.jsonrpc !== "2.0" || typeof message.method !== "string") {
     return rpcError(null, RPC.invalidRequest, "Noto'g'ri JSON-RPC so'rovi: jsonrpc '2.0' va method kerak", 400);
   }
   const hasId = "id" in message && message.id !== undefined;
   const id: Id = hasId && (typeof message.id === "string" || typeof message.id === "number") ? message.id : null;
-  if (hasId && message.id !== null && id === null) return rpcError(null, RPC.invalidRequest, "id matn yoki son bo'lishi kerak", 400);
+  if (hasId && id === null) return rpcError(null, RPC.invalidRequest, "id matn yoki son bo'lishi kerak (null mumkin emas)", 400);
   const method = message.method;
   const params = message.params;
 

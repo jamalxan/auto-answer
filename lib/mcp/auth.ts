@@ -10,7 +10,7 @@
 
 import { timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/db/client";
-import { LAST_USED_WRITE_MS, MAX_TOKEN_LENGTH, RATE_LIMIT_PER_MIN, TOKEN_PREFIX } from "./config";
+import { INVALID_TOKEN_PER_IP_PER_MIN, LAST_USED_WRITE_MS, MAX_TOKEN_LENGTH, RATE_LIMIT_PER_MIN, TOKEN_PREFIX } from "./config";
 import { describeError } from "./errors";
 import { hashToken } from "./tokens";
 
@@ -19,6 +19,8 @@ export interface McpTokenContext {
   workspaceId: string;
   scope: "READ" | "WRITE";
   name: string;
+  /** true: confirm_action over MCP is refused and a person approves in /developer/mcp. */
+  requireHumanApproval: boolean;
 }
 
 export type McpAuthResult =
@@ -34,8 +36,33 @@ export const RATE_LIMITED = `So'rovlar juda ko'p: daqiqada ${RATE_LIMIT_PER_MIN}
 const WINDOW_MS = 60_000;
 const hits = new Map<string, number[]>();
 
+/** Failed token lookups per client IP (bounded; in memory, per process). */
+const MAX_TRACKED_IPS = 5000;
+const badLookups = new Map<string, number[]>();
+
 export function resetMcpRateLimitsForTests() {
   hits.clear();
+  badLookups.clear();
+}
+
+function ipBlocked(ip: string | null, nowMs: number): boolean {
+  if (!ip) return false;
+  const recent = (badLookups.get(ip) ?? []).filter((t) => t > nowMs - WINDOW_MS);
+  return recent.length >= INVALID_TOKEN_PER_IP_PER_MIN;
+}
+
+function noteBadLookup(ip: string | null, nowMs: number) {
+  if (!ip) return;
+  const recent = (badLookups.get(ip) ?? []).filter((t) => t > nowMs - WINDOW_MS);
+  recent.push(nowMs);
+  badLookups.delete(ip); // re-insert so Map order stays oldest-first
+  badLookups.set(ip, recent);
+  if (badLookups.size > MAX_TRACKED_IPS) {
+    for (const key of badLookups.keys()) {
+      if (badLookups.size <= MAX_TRACKED_IPS) break;
+      badLookups.delete(key);
+    }
+  }
 }
 
 /** Counts this request; not allowed when the token already used its minute. */
@@ -62,14 +89,21 @@ function sameHash(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export async function authenticateMcp(authorization: string | null, now: Date = new Date()): Promise<McpAuthResult> {
+export async function authenticateMcp(authorization: string | null, now: Date = new Date(), clientIp: string | null = null): Promise<McpAuthResult> {
   const raw = bearerOf(authorization);
   if (!raw) return { ok: false, status: 401, error: MISSING_TOKEN };
-  if (!raw.startsWith(TOKEN_PREFIX) || raw.length > MAX_TOKEN_LENGTH) return { ok: false, status: 401, error: INVALID_TOKEN };
+  if (ipBlocked(clientIp, now.getTime())) return { ok: false, status: 429, error: RATE_LIMITED, retryAfterSec: 60 };
+  if (!raw.startsWith(TOKEN_PREFIX) || raw.length > MAX_TOKEN_LENGTH) {
+    noteBadLookup(clientIp, now.getTime());
+    return { ok: false, status: 401, error: INVALID_TOKEN };
+  }
 
   const hash = hashToken(raw);
   const row = await prisma.mcpToken.findUnique({ where: { tokenHash: hash } });
-  if (!row || !sameHash(row.tokenHash, hash)) return { ok: false, status: 401, error: INVALID_TOKEN };
+  if (!row || !sameHash(row.tokenHash, hash)) {
+    noteBadLookup(clientIp, now.getTime());
+    return { ok: false, status: 401, error: INVALID_TOKEN };
+  }
   if (row.revokedAt) return { ok: false, status: 401, error: REVOKED_TOKEN };
   if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return { ok: false, status: 401, error: EXPIRED_TOKEN };
 
@@ -83,5 +117,5 @@ export async function authenticateMcp(authorization: string | null, now: Date = 
       console.error("[MCP] lastUsedAt write failed:", describeError(error));
     }
   }
-  return { ok: true, ctx: { tokenId: row.id, workspaceId: row.workspaceId, scope: row.scope, name: row.name } };
+  return { ok: true, ctx: { tokenId: row.id, workspaceId: row.workspaceId, scope: row.scope, name: row.name, requireHumanApproval: row.requireHumanApproval !== false } };
 }

@@ -97,8 +97,9 @@ export async function seedFlows(): Promise<{ a: string; b: string }> {
   return { a: a.flow.id, b: b.flow.id };
 }
 
-export async function makeToken(workspaceId: string, scope: "READ" | "WRITE" = "READ", name = "test") {
-  const created = await createToken(workspaceId, { name, scope }, "dev");
+/** Test tokens opt OUT of human approval by default (the product default is true); the approval tests pass `true`. */
+export async function makeToken(workspaceId: string, scope: "READ" | "WRITE" = "READ", name = "test", requireHumanApproval = false) {
+  const created = await createToken(workspaceId, { name, scope, requireHumanApproval }, "dev");
   return { raw: created.token, id: created.view.id };
 }
 

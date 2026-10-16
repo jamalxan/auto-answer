@@ -13,6 +13,11 @@ vi.mock("@/lib/queue/client", () => ({ getRedisConnection: () => ({}) }));
 vi.mock("@/lib/triggers/ingest", () => ({ forgetAccountGate: vi.fn() }));
 const publishMocks = vi.hoisted(() => ({ publishFlowVersion: vi.fn(), unpublishFlow: vi.fn(), archiveFlow: vi.fn() }));
 vi.mock("@/lib/flows/publish", () => publishMocks);
+const variantFailure = vi.hoisted(() => ({ on: false }));
+vi.mock("@/lib/triggers/campaign-editing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/triggers/campaign-editing")>();
+  return { ...actual, writeVariants: (...args: Parameters<typeof actual.writeVariants>) => (variantFailure.on ? Promise.reject(new Error("boom")) : actual.writeVariants(...args)) };
+});
 
 import { type LLMProvider, type LlmRequest, setLlmProviderForTests } from "../lib/assistant/llm/provider";
 import { hashGraph } from "../lib/flows/canonical";
@@ -36,6 +41,7 @@ beforeEach(async () => {
   resetDb();
   resetMcpRateLimitsForTests();
   setLlmProviderForTests(undefined);
+  variantFailure.on = false;
   for (const fn of Object.values(publishMocks)) fn.mockReset();
   seedWorld();
   write = (await makeToken(WS_A, "WRITE")).raw;
@@ -52,23 +58,37 @@ describe("create_keyword_campaign", () => {
     expect(campaign.keywords).toEqual(["narx", "цена"]); // normalised and de-duplicated by the campaign service
     const variants = db.rows("triggerReplyVariant").filter((v) => v.campaignId === campaign.id);
     expect(variants.map((v) => [v.kind, v.text]).sort()).toEqual([["PUBLIC", "Direct'ga yubordik!"], ["PUBLIC", "Tekshiring, DM'da narx bor"]]);
-    expect(variants.every((v) => v.approvedAt)).toBe(true);
+    // M1: reply texts are NOT auto-approved - a person approves them in the app.
+    expect(variants.every((v) => v.approvedAt === null || v.approvedAt === undefined)).toBe(true);
   });
 
-  it("publish: true goes live when the Instagram connection is healthy", async () => {
-    const { proposal, done } = await run("create_keyword_campaign", { ...input, publish: true });
-    expect(proposal.preview.details.willPublish).toBe(true);
-    expect(done.data.result).toMatchObject({ status: "ACTIVE", published: true });
-    expect(row("triggerCampaign", done.data.result.campaignId).active).toBe(true);
+  it("M1: `publish` is not an option any more - the call is refused and nothing is proposed", async () => {
+    const result = await callTool(write, "create_keyword_campaign", { ...input, publish: true });
+    expect(result.isError).toBe(true);
+    expect(result.text).toMatch(/publish/);
+    expect(db.rows("mcpAction")).toHaveLength(0);
+    const list = await rpc(write, "tools/list");
+    const tool = list.json.result.tools.find((t: { name: string }) => t.name === "create_keyword_campaign");
+    expect(JSON.stringify(tool.inputSchema)).not.toMatch(/publish/);
   });
 
-  it("publish: true on a broken connection stays a draft and says why (preview warns, result notes)", async () => {
-    row("instagramAccount", "acA").tokenStatus = "EXPIRED";
-    const { proposal, done } = await run("create_keyword_campaign", { ...input, publish: true });
-    expect(proposal.preview.warnings.join(" ")).toMatch(/Nashr qilinmaydi/);
+  it("M1: always created paused, even on a healthy connection; the preview says a person must switch it on", async () => {
+    const { proposal, done } = await run("create_keyword_campaign", input);
+    expect(proposal.preview.details).toMatchObject({ willPublish: false, repliesApproved: false });
     expect(done.data.result).toMatchObject({ status: "PAUSED", published: false });
-    expect(done.data.result.notes.join(" ")).toMatch(/ulanishi faol emas/);
     expect(row("triggerCampaign", done.data.result.campaignId).active).toBe(false);
+  });
+
+  it("L4: when saving the reply variants fails, the half-made campaign is deleted again", async () => {
+    const before = db.rows("triggerCampaign").length;
+    const proposal = await callTool(write, "create_keyword_campaign", input);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    variantFailure.on = true;
+    const done = await callTool(write, "confirm_action", { actionId: proposal.data.actionId, confirmCode: proposal.data.confirmCode });
+    variantFailure.on = false;
+    expect(done.isError).toBe(true);
+    expect(db.rows("triggerCampaign")).toHaveLength(before);
+    expect(row("mcpAction", proposal.data.actionId).status).toBe("FAILED");
   });
 
   it("warns when an active campaign already uses the keyword", async () => {
@@ -84,33 +104,58 @@ describe("create_keyword_campaign", () => {
 });
 
 describe("update_campaign / pause_campaign", () => {
-  it("renames and replaces keywords and DM text, keeping the rest", async () => {
-    const { proposal, done } = await run("update_campaign", { campaignId: "cmpA", name: "Narx (yangi)", keywords: ["narx", "qancha"], dmMessage: "Yangi narx 90 000" });
+  const pausedCampaign = () =>
+    db.seed("triggerCampaign", { id: "cmpP", workspaceId: WS_A, instagramAccountId: "acA", name: "Pauza", triggerType: "COMMENT", keywords: ["x"], matchingMode: "CONTAINS", responseMessage: "y", active: false, mediaScope: "ANY", mediaIds: [], intents: [], priority: 0, replyMode: "RANDOM", publicReplyEnabled: false, openingButtonLabel: null, mainMessage: null, stopOnReply: true, stopOnLead: true, stopOnHandoff: true, kind: "CAMPAIGN" });
+
+  it("renames and replaces keywords of an ACTIVE campaign (no reply text), keeping the rest and the status", async () => {
+    const { proposal, done } = await run("update_campaign", { campaignId: "cmpA", name: "Narx (yangi)", keywords: ["narx", "qancha"] });
     expect(proposal.preview.details.changes.name).toEqual({ from: "Narx A", to: "Narx (yangi)" });
     expect(done.data.result).toMatchObject({ campaignId: "cmpA", status: "ACTIVE" });
-    expect(row("triggerCampaign", "cmpA")).toMatchObject({ name: "Narx (yangi)", responseMessage: "Yangi narx 90 000", active: true, mediaScope: "ANY" });
+    expect(row("triggerCampaign", "cmpA")).toMatchObject({ name: "Narx (yangi)", responseMessage: "Narx 100 000 so'm", active: true, mediaScope: "ANY" });
     expect(row("triggerCampaign", "cmpA").keywords).toEqual(["narx", "qancha"]);
   });
 
-  it("replaces the public replies", async () => {
-    const { done } = await run("update_campaign", { campaignId: "cmpA", publicReplies: ["Rahmat!"] });
-    expect(done.isError).toBe(false);
-    expect(row("triggerCampaign", "cmpA").publicReplyEnabled).toBe(true);
-    expect(db.rows("triggerReplyVariant").filter((v) => v.campaignId === "cmpA").map((v) => v.text)).toEqual(["Rahmat!"]);
+  it("M1: the reply TEXT of an ACTIVE campaign cannot be edited (refused at the preview and nothing is proposed)", async () => {
+    const dm = await callTool(write, "update_campaign", { campaignId: "cmpA", dmMessage: "Yangi narx 90 000" });
+    expect(dm.isError).toBe(true);
+    expect(dm.text).toMatch(/Faol kampaniya/);
+    const pub = await callTool(write, "update_campaign", { campaignId: "cmpA", publicReplies: ["Rahmat!"] });
+    expect(pub.isError).toBe(true);
+    expect(db.rows("mcpAction")).toHaveLength(0);
+    expect(row("triggerCampaign", "cmpA").responseMessage).toBe("Narx 100 000 so'm");
   });
 
-  it("pauses and resumes; resuming needs a healthy connection", async () => {
-    await run("update_campaign", { campaignId: "cmpA", active: false });
-    expect(row("triggerCampaign", "cmpA").active).toBe(false);
-    row("instagramAccount", "acA").tokenStatus = "REVOKED";
-    const blocked = await run("update_campaign", { campaignId: "cmpA", active: true });
-    expect(blocked.proposal.preview.warnings.join(" ")).toMatch(/Yoqilmaydi/);
-    expect(blocked.done.data.result.status).toBe("PAUSED");
-    expect(row("triggerCampaign", "cmpA").active).toBe(false);
-    row("instagramAccount", "acA").tokenStatus = "ACTIVE";
-    const resumed = await run("update_campaign", { campaignId: "cmpA", active: true });
-    expect(resumed.done.data.result.status).toBe("ACTIVE");
-    expect(row("triggerCampaign", "cmpA").active).toBe(true);
+  it("M1: a campaign switched on in the app between preview and confirm still cannot get new reply text", async () => {
+    pausedCampaign();
+    const proposal = await callTool(write, "update_campaign", { campaignId: "cmpP", dmMessage: "Yangi matn" });
+    expect(proposal.isError).toBe(false);
+    row("triggerCampaign", "cmpP").active = true;
+    const done = await callTool(write, "confirm_action", { actionId: proposal.data.actionId, confirmCode: proposal.data.confirmCode });
+    expect(done.isError).toBe(true);
+    expect(row("triggerCampaign", "cmpP").responseMessage).toBe("y");
+  });
+
+  it("M1: a PAUSED campaign's texts can change; new public replies are saved UNAPPROVED and the campaign stays paused", async () => {
+    pausedCampaign();
+    const { proposal, done } = await run("update_campaign", { campaignId: "cmpP", dmMessage: "Yangi matn", publicReplies: ["Rahmat!"] });
+    expect(proposal.preview.warnings.join(" ")).toMatch(/tasdiqlanmagan/);
+    expect(done.isError).toBe(false);
+    expect(done.data.result.status).toBe("PAUSED");
+    expect(row("triggerCampaign", "cmpP")).toMatchObject({ active: false, responseMessage: "Yangi matn", publicReplyEnabled: true });
+    const variants = db.rows("triggerReplyVariant").filter((v) => v.campaignId === "cmpP");
+    expect(variants.map((v) => v.text)).toEqual(["Rahmat!"]);
+    expect(variants.every((v) => !v.approvedAt)).toBe(true);
+  });
+
+  it("M1: `active` is not accepted by update_campaign (no resume / go-live over MCP)", async () => {
+    pausedCampaign();
+    const result = await callTool(write, "update_campaign", { campaignId: "cmpP", active: true });
+    expect(result.isError).toBe(true);
+    expect(db.rows("mcpAction")).toHaveLength(0);
+    expect(row("triggerCampaign", "cmpP").active).toBe(false);
+    const list = await rpc(write, "tools/list");
+    const tool = list.json.result.tools.find((t: { name: string }) => t.name === "update_campaign");
+    expect(JSON.stringify(tool.inputSchema)).not.toMatch(/"active"/);
   });
 
   it("update_campaign needs at least one change", async () => {

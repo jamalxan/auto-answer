@@ -73,7 +73,8 @@ const rows = (model: string) => db.rows(model) as Row[];
 const WS = "ws1";
 const ACCOUNT = "acc1";
 const IG_ID = "17841400000000001";
-const NOW = new Date("2026-10-16T12:00:00Z");
+// Anchored to the current hour: attribution windows are measured from the real send time.
+const NOW = new Date(Math.floor(Date.now() / 3600_000) * 3600_000);
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3600_000);
 const daysAgo = (d: number) => hoursAgo(d * 24);
 

@@ -1048,7 +1048,7 @@ export async function runBroadcastBatch(broadcastId: string, now = new Date(), t
       );
 
       if (send.ok) {
-        await markSent(broadcast, recipient, contact, text, send.sent.message_id ?? null, new Date());
+        await markSent(broadcast, recipient, contact, text, send.sent.message_id ?? null, now);
         result.sent++;
         continue;
       }

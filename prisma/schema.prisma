@@ -111,32 +111,32 @@ model Workspace {
   triggerFollowUpRuns  TriggerFollowUpRun[]
   triggerBacktrackRuns TriggerBacktrackRun[]
 
-      // Migration (ETAP 11), developer area
-  migrationProjects   MigrationProject[]
+  // Migration (ETAP 11), developer area
+  migrationProjects MigrationProject[]
 
   // MCP / AI control layer (ETAP 12), developer area
-  mcpTokens           McpToken[]
-  mcpActions          McpAction[]
+  mcpTokens  McpToken[]
+  mcpActions McpAction[]
 
   // Engagement (ETAP 9), developer area
-  giveaways           Giveaway[]
-  referralPrograms    ReferralProgram[]
-  engagementSettings  EngagementSettings?
-  engagementPoints    EngagementPoint[]
-  engagementBadges    EngagementBadge[]
+  giveaways          Giveaway[]
+  referralPrograms   ReferralProgram[]
+  engagementSettings EngagementSettings?
+  engagementPoints   EngagementPoint[]
+  engagementBadges   EngagementBadge[]
 
   // Integrations 2.0 (ETAP 8) and Analytics (ETAP 10), developer area
-  outboundEvents      OutboundEvent[]
-  analyticsDaily      AnalyticsDaily[]
+  outboundEvents       OutboundEvent[]
+  analyticsDaily       AnalyticsDaily[]
   analyticsAlertStates AnalyticsAlertState[]
 
   // Flow Builder (developer area, ETAP 6/7)
-  flows               Flow[]
-  flowRuns            FlowRun[]
-  flowTemplates       FlowTemplate[]
+  flows         Flow[]
+  flowRuns      FlowRun[]
+  flowTemplates FlowTemplate[]
 
   // CRM (developer area, ETAP 5)
-  crmContacts         CrmContact[]
+  crmContacts        CrmContact[]
   crmTags            CrmTag[]
   crmSegments        CrmSegment[]
   crmPipelines       CrmPipeline[]
@@ -234,11 +234,10 @@ model InstagramAccount {
   triggerCampaigns     TriggerCampaign[]
   instagramContacts    InstagramContact[]
   triggerConversations TriggerConversation[]
-    javobAiAccount       JavobAiAccount?
+  javobAiAccount       JavobAiAccount?
   giveaways            Giveaway[]
   referralProgram      ReferralProgram?
   flows                Flow[]
-
 
   @@index([workspaceId])
 }
@@ -1268,15 +1267,14 @@ model TriggerCampaign {
   // 24h window for mainMessage, quick replies and follow-ups.
   openingButtonLabel String?
   mainMessage        String?
-    stopOnReply        Boolean             @default(true)
-  stopOnLead         Boolean             @default(true)
-  stopOnHandoff      Boolean             @default(true)
+  stopOnReply        Boolean           @default(true)
+  stopOnLead         Boolean           @default(true)
+  stopOnHandoff      Boolean           @default(true)
 
   // -- ETAP 6: a published Flow owns a hidden proxy row so the webhook's single
   // claim / matching / gate logic stays the only one. CAMPAIGN = normal rows.
-  kind               TriggerCampaignKind @default(CAMPAIGN)
-  flow               Flow?
-
+  kind TriggerCampaignKind @default(CAMPAIGN)
+  flow Flow?
 
   // -- ETAP 3: DM-side triggers (Direct, Story Mention, Ad message) ----------
   audience         TriggerAudience     @default(ANY)
@@ -1330,7 +1328,7 @@ model TriggerExecution {
   openedAt          DateTime?
   // Last message from the person in this thread; the 24h window runs from it.
   lastInboundAt     DateTime?
-    leadCapturedAt    DateTime?
+  leadCapturedAt    DateTime?
   // First message from the person after the trigger (analytics: replies).
   firstInboundAt    DateTime?
   handedOffAt       DateTime?
@@ -2252,9 +2250,9 @@ model Flow {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount  @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
-  proxyCampaign    TriggerCampaign?  @relation(fields: [proxyCampaignId], references: [id], onDelete: SetNull)
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  proxyCampaign    TriggerCampaign? @relation(fields: [proxyCampaignId], references: [id], onDelete: SetNull)
   versions         FlowVersion[]
   runs             FlowRun[]
 
@@ -2263,28 +2261,28 @@ model Flow {
 }
 
 model FlowVersion {
-  id               String            @id @default(cuid())
-  flowId           String
-  version          Int
-  schemaVersion    Int               @default(1)
-  graph            Json
+  id                String            @id @default(cuid())
+  flowId            String
+  version           Int
+  schemaVersion     Int               @default(1)
+  graph             Json
   // sha256 of the canonical graph JSON.
-  hash             String
-  source           FlowVersionSource @default(MANUAL)
+  hash              String
+  source            FlowVersionSource @default(MANUAL)
   // AI builder input, so the Generate step is reproducible.
-  prompt           String?
-  changeNote       String?
-  auditResult      Json?
-  policyResult     Json?
+  prompt            String?
+  changeNote        String?
+  auditResult       Json?
+  policyResult      Json?
   // Last successful sandbox run of this exact hash.
-  testedAt         DateTime?
-  approvedAt       DateTime?
-  approvedByUserId String?
-  publishedAt      DateTime?
+  testedAt          DateTime?
+  approvedAt        DateTime?
+  approvedByUserId  String?
+  publishedAt       DateTime?
   publishedByUserId String?
   // Superseded or unpublished.
-  retiredAt        DateTime?
-  createdAt        DateTime          @default(now())
+  retiredAt         DateTime?
+  createdAt         DateTime          @default(now())
 
   flow Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
   runs FlowRun[]
@@ -2571,8 +2569,8 @@ model Giveaway {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
-  workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount       @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
   entries          GiveawayEntry[]
   draws            GiveawayDraw[]
   notifications    GiveawayNotification[]
@@ -2813,22 +2811,22 @@ enum MigrationItemStatus {
 }
 
 model MigrationProject {
-  id                   String          @id @default(cuid())
-  workspaceId          String
-  instagramAccountId   String?
-  source               MigrationSource @default(MANYCHAT)
-  name                 String
-  status               MigrationStatus @default(CONNECTED)
+  id                 String          @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String?
+  source             MigrationSource @default(MANYCHAT)
+  name               String
+  status             MigrationStatus @default(CONNECTED)
   // AES-GCM (lib/meta/oauth encryptToken); never serialized.
-  apiKeyEncrypted      String?
-  apiKeyHint           String?
+  apiKeyEncrypted    String?
+  apiKeyHint         String?
   // Page name / id etc. as returned by the source.
-  pageSnapshot         Json?
-  lastAnalyzedAt       DateTime?
-  lastError            String?
-  createdByUserId      String?
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  pageSnapshot       Json?
+  lastAnalyzedAt     DateTime?
+  lastError          String?
+  createdByUserId    String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   items     MigrationItem[]
@@ -2884,18 +2882,20 @@ enum McpActionStatus {
 /// Bearer token an AI client (Claude / ChatGPT) uses at /api/mcp. Only the
 /// sha256 hash is stored; the raw `sa_mcp_...` value is shown once on creation.
 model McpToken {
-  id              String    @id @default(cuid())
-  workspaceId     String
-  name            String
-  tokenHash       String    @unique
+  id                   String    @id @default(cuid())
+  workspaceId          String
+  name                 String
+  tokenHash            String    @unique
   // Last 4 characters of the raw token, for the list.
-  tokenHint       String
-  scope           McpScope  @default(READ)
-  createdByUserId String?
-  lastUsedAt      DateTime?
-  revokedAt       DateTime?
-  expiresAt       DateTime?
-  createdAt       DateTime  @default(now())
+  tokenHint            String
+  scope                McpScope  @default(READ)
+  // true (default): confirm_action over MCP is refused; a person approves in /developer/mcp.
+  requireHumanApproval Boolean   @default(true)
+  createdByUserId      String?
+  lastUsedAt           DateTime?
+  revokedAt            DateTime?
+  expiresAt            DateTime?
+  createdAt            DateTime  @default(now())
 
   workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   actions   McpAction[]
@@ -2920,6 +2920,10 @@ model McpAction {
   expiresAt       DateTime
   result          Json?
   error           String?
+  // Wrong confirm-code attempts; at 5 the action is REJECTED.
+  failedAttempts  Int             @default(0)
+  // Who approved it when a person did (developer:<userId>); null = confirmed over MCP.
+  approvedBy      String?
   createdAt       DateTime        @default(now())
   resolvedAt      DateTime?
 

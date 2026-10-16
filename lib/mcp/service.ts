@@ -15,7 +15,6 @@
  */
 
 import { z } from "zod";
-import { prisma } from "@/lib/db/client";
 import { formatMetric, type AnalyticsTab } from "@/lib/analytics/catalog";
 import { loadKpi } from "@/lib/analytics/kpi";
 import { readAnalytics, type AnalyticsResult } from "@/lib/analytics/read";
@@ -28,13 +27,15 @@ import { auditGraph, type AuditResult } from "@/lib/flows/audit";
 import { auditContextFrom, loadFlowContext } from "@/lib/flows/context";
 import { evaluatePolicy, type PolicyResult } from "@/lib/flows/policy";
 import { FLOW_TRIGGER_TYPES, flowGraphDraftSchema, sendText, type FlowGraph } from "@/lib/flows/schema";
-import { createFlow, getFlow, listFlows } from "@/lib/flows/service";
+import { countFlows, createFlow, getFlow, listFlows } from "@/lib/flows/service";
 import { loadKnowledgeBlock } from "@/lib/javobai/knowledge";
 import { findProfile } from "@/lib/assistant/profile";
 import { accountInWorkspace } from "@/lib/triggers/campaign-editing";
 import {
   commentCampaignSchema,
+  countCommentCampaigns,
   createCommentCampaign,
+  deleteCommentCampaign,
   getCommentCampaign,
   listCommentCampaigns,
   saveVariants,
@@ -42,7 +43,7 @@ import {
   updateCommentCampaign,
   type VariantInput,
 } from "@/lib/triggers/comment-service";
-import { badRequest, McpServiceError, notFound } from "./errors";
+import { badRequest, describeError, McpServiceError, notFound } from "./errors";
 
 export const CAMPAIGN_NOT_FOUND = "Kampaniya topilmadi";
 export const FLOW_NOT_FOUND = "Oqim topilmadi";
@@ -53,6 +54,16 @@ const clip = (text: string | null | undefined, max: number): string | null => {
   if (!text) return null;
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 };
+/**
+ * A user-originated label spliced into a preview sentence: control characters
+ * and newlines removed, cut to 40 characters, JSON-quoted so it can never read
+ * as part of the instruction around it.
+ */
+export function quote(text: string | null | undefined): string {
+  const flat = String(text ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ").replace(/\s+/g, " ").trim();
+  return JSON.stringify(flat.length > 40 ? `${flat.slice(0, 39)}…` : flat);
+}
+
 const iso = (value: Date | string | null | undefined): string | null => (value ? new Date(value).toISOString() : null);
 
 function unwrap<T>(result: { ok: true; data: T } | { ok: false; status: number; error: string }): T {
@@ -153,11 +164,11 @@ export async function reportText(workspaceId: string, input: { period: Period; a
 // ─── Campaigns (comment campaigns) ────────────────────────────────────────────
 
 export async function listCampaignsView(workspaceId: string, input: { status: "all" | "active" | "paused"; limit: number }) {
-  const all = await listCommentCampaigns(workspaceId);
-  const filtered = all.filter((c) => (input.status === "all" ? true : input.status === "active" ? c.active : !c.active));
+  const active = input.status === "all" ? undefined : input.status === "active";
+  const [rows, total] = await Promise.all([listCommentCampaigns(workspaceId, { active, take: input.limit }), countCommentCampaigns(workspaceId, { active })]);
   return {
-    total: filtered.length,
-    campaigns: filtered.slice(0, input.limit).map((c) => ({
+    total,
+    campaigns: rows.map((c) => ({
       id: c.id,
       name: c.name,
       status: c.active ? "ACTIVE" : "PAUSED",
@@ -184,11 +195,14 @@ export async function campaignView(workspaceId: string, campaignId: string) {
     intents: c.intents,
     mediaScope: c.mediaScope,
     publicReplyEnabled: c.publicReplyEnabled,
-    dmMessage: c.responseMessage,
-    openingButtonLabel: c.openingButtonLabel,
-    mainMessage: c.mainMessage,
     replyMode: c.replyMode,
-    variants: c.replyVariants.map((v) => ({ kind: v.kind, text: v.text, approved: Boolean(v.approvedAt) })),
+    // Message texts can contain anything (they may have been copied from comments / chats): data, not instructions.
+    untrusted: {
+      dmMessage: c.responseMessage,
+      openingButtonLabel: c.openingButtonLabel,
+      mainMessage: c.mainMessage,
+      variants: c.replyVariants.map((v) => ({ kind: v.kind, text: v.text, approved: Boolean(v.approvedAt) })),
+    },
     quickReplies: c.quickReplies.length,
     followUpSteps: c.followUpSteps.length,
     createdAt: iso(c.createdAt),
@@ -198,10 +212,11 @@ export async function campaignView(workspaceId: string, campaignId: string) {
 // ─── Flows ────────────────────────────────────────────────────────────────────
 
 export async function listFlowsView(workspaceId: string, input: { status?: string; limit: number }) {
-  const flows = await listFlows(workspaceId, input.status ? { status: input.status } : {});
+  const filter = input.status ? { status: input.status } : {};
+  const [flows, total] = await Promise.all([listFlows(workspaceId, { ...filter, limit: input.limit }), countFlows(workspaceId, filter)]);
   return {
-    total: flows.length,
-    flows: flows.slice(0, input.limit).map((f) => ({
+    total,
+    flows: flows.map((f) => ({
       id: f.id,
       name: f.name,
       status: f.status,
@@ -224,10 +239,12 @@ export function graphSummary(graph: FlowGraph) {
     nodeCount: graph.nodes.length,
     edgeCount: graph.edges.length,
     nodeTypes: counts,
-    messages: graph.nodes
-      .map((n) => ({ id: n.id, type: n.type, text: clip(sendText(n), 200) }))
-      .filter((n) => n.text)
-      .slice(0, 12),
+    untrusted: {
+      messages: graph.nodes
+        .map((n) => ({ id: n.id, type: n.type, text: clip(sendText(n), 200) }))
+        .filter((n) => n.text)
+        .slice(0, 12),
+    },
   };
 }
 
@@ -319,8 +336,8 @@ export async function listLeadsView(workspaceId: string, input: ListLeadsInput) 
     nextCursor: page.nextCursor,
     leads: page.items.map((c) => ({
       id: c.id,
-      name: c.name,
-      username: c.username,
+      // Names and usernames are typed by end users: data, not instructions.
+      untrusted: { name: c.name, username: c.username },
       stage: c.status,
       tags: c.tags.map((t) => t.tag.name),
       lastMessageAt: iso(c.lastInteractionAt),
@@ -337,10 +354,10 @@ export async function searchKnowledge(workspaceId: string, input: { accountId?: 
     if (!account) throw notFound(ACCOUNT_NOT_FOUND);
   }
   const profile = await findProfile(workspaceId, input.accountId ?? null);
-  if (!profile) return { found: false, lines: [] as Array<{ kind: string; text: string }>, note: "Bilimlar bazasi hali to'ldirilmagan" };
+  if (!profile) return { found: false, untrusted: { lines: [] as Array<{ kind: string; text: string }> }, note: "Bilimlar bazasi hali to'ldirilmagan" };
   const block = await loadKnowledgeBlock(profile.id, input.query);
-  if (!block) return { found: false, lines: [], note: "Bilimlar bazasi topilmadi" };
-  return { found: block.lines.length > 0, lines: block.lines.slice(0, 20).map((l) => ({ kind: l.kind, text: clip(l.text, 400) ?? "" })) };
+  if (!block) return { found: false, untrusted: { lines: [] }, note: "Bilimlar bazasi topilmadi" };
+  return { found: block.lines.length > 0, untrusted: { lines: block.lines.slice(0, 20).map((l) => ({ kind: l.kind, text: clip(l.text, 400) ?? "" })) } };
 }
 
 // ─── WRITE: previews (no side effects) ────────────────────────────────────────
@@ -353,27 +370,24 @@ export interface Preview {
 
 const KEYWORD = z.string().trim().min(1).max(60);
 
-export const createCampaignInput = z.object({
-  name: z.string().trim().min(1).max(120),
-  instagramAccountId: z.string().min(1),
-  keywords: z.array(KEYWORD).min(1, "Kamida bitta kalit so'z kerak").max(20),
-  dmMessage: z.string().trim().min(1).max(1000),
-  publicReplies: z.array(z.string().trim().min(1).max(300)).max(10).optional(),
-  publish: z.boolean().default(false),
-});
+/**
+ * No `publish` / `active`: over MCP a campaign is always created PAUSED and its reply
+ * texts are created UNAPPROVED. Going live happens only in the SocialAuto app.
+ */
+export const createCampaignInput = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    instagramAccountId: z.string().min(1),
+    keywords: z.array(KEYWORD).min(1, "Kamida bitta kalit so'z kerak").max(20),
+    dmMessage: z.string().trim().min(1).max(1000),
+    publicReplies: z.array(z.string().trim().min(1).max(300)).max(10).optional(),
+  })
+  .strict();
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
-
-/** Why a campaign must not go live right now (empty = fine). Reuses the account connection state. */
-export async function publishBlockers(workspaceId: string, accountId: string): Promise<string[]> {
-  const account = await prisma.instagramAccount.findFirst({ where: { id: accountId, workspaceId }, select: { username: true, tokenStatus: true } });
-  if (!account) return [ACCOUNT_NOT_FOUND];
-  if (account.tokenStatus !== "ACTIVE") return [`@${account.username} akkaunti ulanishi faol emas (${account.tokenStatus}). Yechim: Instagram'ni qayta ulang.`];
-  return [];
-}
 
 async function duplicateKeywordWarnings(workspaceId: string, keywords: string[], exceptId?: string): Promise<string[]> {
   const wanted = new Set(keywords.map((k) => k.trim().toLowerCase()));
-  const active = (await listCommentCampaigns(workspaceId)).filter((c) => c.active && c.id !== exceptId);
+  const active = (await listCommentCampaigns(workspaceId, { active: true, take: 200 })).filter((c) => c.id !== exceptId);
   const warnings: string[] = [];
   for (const c of active) {
     const shared = c.keywords.filter((k) => wanted.has(k.trim().toLowerCase()));
@@ -402,23 +416,26 @@ export async function previewCreateCampaign(workspaceId: string, input: CreateCa
   const account = await accountInWorkspace(workspaceId, input.instagramAccountId);
   if (!account) throw notFound(ACCOUNT_NOT_FOUND);
   const warnings = await duplicateKeywordWarnings(workspaceId, parsed.data.keywords);
-  if (input.publish) {
-    const blockers = await publishBlockers(workspaceId, input.instagramAccountId);
-    for (const b of blockers) warnings.push(`Nashr qilinmaydi, qoralama bo'lib qoladi: ${b}`);
-  }
+  warnings.push(PAUSED_NOTE);
   return {
-    summary: `«${input.name}» kampaniyasi yaratiladi (${input.publish ? "darhol yoqiladi" : "to'xtatilgan holatda, keyin yoqiladi"})`,
+    summary: `${quote(input.name)} kampaniyasi yaratiladi (to'xtatilgan holatda; yoqish faqat SocialAuto ilovasida)`,
     details: {
       account: `@${account.username}`,
       keywords: parsed.data.keywords,
       commentReplies: input.publicReplies ?? [],
       dmMessage: input.dmMessage,
-      willPublish: input.publish,
+      willPublish: false,
+      repliesApproved: false,
     },
     warnings,
   };
 }
 
+export const PAUSED_NOTE = "MCP hech narsani mijozlarga yetkaza olmaydi: kampaniya to'xtatilgan, javob matnlari tasdiqlanmagan. Yoqish va matnlarni tasdiqlash faqat SocialAuto ilovasida.";
+export const ACTIVE_TEXT_LOCKED =
+  "Faol kampaniyaning javob matnini (dmMessage / publicReplies) MCP orqali o'zgartirib bo'lmaydi. Yechim: avval pause_campaign bilan to'xtating, keyin o'zgartiring; qayta yoqish faqat ilovada.";
+
+/** No `active`: resuming a campaign is possible only in the SocialAuto app (pausing: pause_campaign). */
 export const updateCampaignInput = z
   .object({
     campaignId: z.string().min(1),
@@ -426,10 +443,10 @@ export const updateCampaignInput = z
     keywords: z.array(KEYWORD).min(1).max(20).optional(),
     dmMessage: z.string().trim().min(1).max(1000).optional(),
     publicReplies: z.array(z.string().trim().min(1).max(300)).max(10).optional(),
-    active: z.boolean().optional(),
   })
-  .refine((v) => v.name !== undefined || v.keywords !== undefined || v.dmMessage !== undefined || v.publicReplies !== undefined || v.active !== undefined, {
-    message: "Nimani o'zgartirish kerakligini bering: name, keywords, dmMessage, publicReplies yoki active",
+  .strict()
+  .refine((v) => v.name !== undefined || v.keywords !== undefined || v.dmMessage !== undefined || v.publicReplies !== undefined, {
+    message: "Nimani o'zgartirish kerakligini bering: name, keywords, dmMessage yoki publicReplies",
   });
 export type UpdateCampaignInput = z.infer<typeof updateCampaignInput>;
 
@@ -443,20 +460,18 @@ export async function previewUpdateCampaign(workspaceId: string, input: UpdateCa
   if (input.keywords !== undefined) changes.keywords = { from: before.keywords, to: input.keywords };
   if (input.dmMessage !== undefined) changes.dmMessage = { from: before.responseMessage, to: input.dmMessage };
   if (input.publicReplies !== undefined) changes.publicReplies = { from: before.replyVariants.filter((v) => v.kind === "PUBLIC").map((v) => v.text), to: input.publicReplies };
-  if (input.active !== undefined) changes.status = { from: before.active ? "ACTIVE" : "PAUSED", to: input.active ? "ACTIVE" : "PAUSED" };
+  if (before.active && (input.dmMessage !== undefined || input.publicReplies !== undefined)) throw badRequest(ACTIVE_TEXT_LOCKED);
   const warnings: string[] = [];
   if (input.keywords) warnings.push(...(await duplicateKeywordWarnings(workspaceId, input.keywords, before.id)));
-  if (input.active === true && !before.active) {
-    for (const b of await publishBlockers(workspaceId, before.instagramAccountId)) warnings.push(`Yoqilmaydi: ${b}`);
-  }
-  return { summary: `«${before.name}» kampaniyasi o'zgartiriladi`, details: { campaignId: before.id, changes }, warnings };
+  if (input.publicReplies !== undefined) warnings.push("Yangi ochiq javoblar tasdiqlanmagan holda saqlanadi: ilovada tasdiqlanmaguncha ishlatilmaydi.");
+  return { summary: `${quote(before.name)} kampaniyasi o'zgartiriladi`, details: { campaignId: before.id, changes }, warnings };
 }
 
 export async function previewPauseCampaign(workspaceId: string, input: z.infer<typeof pauseCampaignInput>): Promise<Preview> {
   const campaign = await getCommentCampaign(workspaceId, input.campaignId);
   if (!campaign) throw notFound(CAMPAIGN_NOT_FOUND);
   return {
-    summary: `«${campaign.name}» kampaniyasi to'xtatiladi`,
+    summary: `${quote(campaign.name)} kampaniyasi to'xtatiladi`,
     details: { campaignId: campaign.id, from: campaign.active ? "ACTIVE" : "PAUSED", to: "PAUSED" },
     warnings: campaign.active ? [] : ["Kampaniya allaqachon to'xtatilgan"],
   };
@@ -516,7 +531,7 @@ export async function previewCreateFlowDraft(workspaceId: string, input: CreateF
   ];
   return {
     preview: {
-      summary: `«${name}» oqimi qoralama sifatida saqlanadi (manba: AI)`,
+      summary: `${quote(name)} oqimi qoralama sifatida saqlanadi (manba: AI)`,
       details: { account: `@${account.username}`, graph: graphSummary(graph), ...findingsView(audit, policy) },
       warnings,
     },
@@ -538,8 +553,8 @@ export async function previewLeadTag(workspaceId: string, input: z.infer<typeof 
   const existing = await findTag(workspaceId, input.tag);
   const has = existing ? lead.tags.some((t) => t.tagId === existing.id) : false;
   return {
-    summary: `${lead.name ?? lead.username ?? "Lead"} ga «${input.tag}» tegi qo'shiladi`,
-    details: { leadId: lead.id, lead: lead.name ?? lead.username, tag: input.tag, tagExists: Boolean(existing) },
+    summary: `${quote(lead.name ?? lead.username ?? "Lead")} ga ${quote(input.tag)} tegi qo'shiladi`,
+    details: { leadId: lead.id, untrusted: { lead: lead.name ?? lead.username }, tag: input.tag, tagExists: Boolean(existing) },
     warnings: [...(existing ? [] : ["Bunday teg yo'q — yangi teg yaratiladi"]), ...(has ? ["Lead'da bu teg allaqachon bor"] : [])],
   };
 }
@@ -547,8 +562,8 @@ export async function previewLeadTag(workspaceId: string, input: z.infer<typeof 
 export async function previewLeadStage(workspaceId: string, input: z.infer<typeof leadStageInput>): Promise<Preview> {
   const lead = await leadCard(workspaceId, input.leadId);
   return {
-    summary: `${lead.name ?? lead.username ?? "Lead"} bosqichi ${lead.status} → ${input.stage} ga o'zgaradi`,
-    details: { leadId: lead.id, lead: lead.name ?? lead.username, from: lead.status, to: input.stage },
+    summary: `${quote(lead.name ?? lead.username ?? "Lead")} bosqichi ${lead.status} → ${input.stage} ga o'zgaradi`,
+    details: { leadId: lead.id, untrusted: { lead: lead.name ?? lead.username }, from: lead.status, to: input.stage },
     warnings: lead.status === input.stage ? ["Lead allaqachon shu bosqichda"] : [],
   };
 }
@@ -560,74 +575,64 @@ export async function executeCreateCampaign(workspaceId: string, raw: unknown) {
   const parsed = commentCampaignSchema.safeParse(campaignSchemaInput(input, false));
   if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? "Noto'g'ri ma'lumot");
   const created = unwrap(await createCommentCampaign(workspaceId, parsed.data));
-  if (input.publicReplies && input.publicReplies.length > 0) {
-    const variants: VariantInput[] = input.publicReplies.map((text) => ({ kind: "PUBLIC", text, weight: 1, source: "MANUAL" }));
-    unwrap(await saveVariants(workspaceId, created.id, variants));
+  try {
+    if (input.publicReplies && input.publicReplies.length > 0) {
+      // approved: false -> approvedAt stays null: a person approves the texts in the app.
+      const variants: VariantInput[] = input.publicReplies.map((text) => ({ kind: "PUBLIC", text, weight: 1, source: "MANUAL", approved: false }));
+      unwrap(await saveVariants(workspaceId, created.id, variants));
+    }
+  } catch (error) {
+    // No half-made campaign: the services take no shared transaction, so clean up what was created.
+    try {
+      await deleteCommentCampaign(workspaceId, created.id);
+    } catch (cleanup) {
+      console.error("[MCP] campaign rollback failed:", describeError(cleanup));
+    }
+    throw error;
   }
-  let published = false;
-  const notes: string[] = [];
-  if (input.publish) {
-    const blockers = await publishBlockers(workspaceId, input.instagramAccountId);
-    if (blockers.length === 0) published = await setCommentCampaignActive(workspaceId, created.id, true);
-    else notes.push(...blockers.map((b) => `Qoralama bo'lib qoldi: ${b}`));
-  }
-  return { campaignId: created.id, status: published ? "ACTIVE" : "PAUSED", published, notes };
+  return { campaignId: created.id, status: "PAUSED" as const, published: false, notes: [PAUSED_NOTE] };
 }
 
 export async function executeUpdateCampaign(workspaceId: string, raw: unknown) {
   const input = updateCampaignInput.parse(raw);
   const before = await getCommentCampaign(workspaceId, input.campaignId);
   if (!before) throw notFound(CAMPAIGN_NOT_FOUND);
-  const notes: string[] = [];
+  // Re-checked here: the campaign may have been switched on in the app since the preview.
+  if (before.active && (input.dmMessage !== undefined || input.publicReplies !== undefined)) throw badRequest(ACTIVE_TEXT_LOCKED);
 
-  const editsFields = input.name !== undefined || input.keywords !== undefined || input.dmMessage !== undefined || input.publicReplies !== undefined;
-  if (editsFields) {
-    const merged = commentCampaignSchema.safeParse({
-      name: input.name ?? before.name,
-      instagramAccountId: before.instagramAccountId,
-      triggerType: before.triggerType,
-      mediaScope: before.mediaScope,
-      mediaIds: before.mediaIds,
-      matchingMode: before.matchingMode,
-      keywords: input.keywords ?? before.keywords,
-      intents: before.intents,
-      priority: before.priority,
-      replyMode: before.replyMode,
-      publicReplyEnabled: input.publicReplies !== undefined ? input.publicReplies.length > 0 : before.publicReplyEnabled,
-      openingButtonLabel: before.openingButtonLabel,
-      mainMessage: before.mainMessage,
-      stopOnReply: before.stopOnReply,
-      stopOnLead: before.stopOnLead,
-      stopOnHandoff: before.stopOnHandoff,
-      responseMessage: input.dmMessage ?? before.responseMessage,
-      // Pause / resume is applied below, through the same blockers check as publishing.
-      active: before.active,
-    });
-    if (!merged.success) throw badRequest(merged.error.issues[0]?.message ?? "Noto'g'ri ma'lumot");
-    unwrap(await updateCommentCampaign(workspaceId, before.id, merged.data));
-    if (input.publicReplies !== undefined) {
-      const keepDm: VariantInput[] = before.replyVariants
-        .filter((v) => v.kind === "DM")
-        .map((v) => ({ id: v.id, kind: "DM", text: v.text, weight: v.weight, source: v.source }));
-      const publics: VariantInput[] = input.publicReplies.map((text) => ({ kind: "PUBLIC", text, weight: 1, source: "MANUAL" }));
-      unwrap(await saveVariants(workspaceId, before.id, [...keepDm, ...publics]));
-    }
+  const merged = commentCampaignSchema.safeParse({
+    name: input.name ?? before.name,
+    instagramAccountId: before.instagramAccountId,
+    triggerType: before.triggerType,
+    mediaScope: before.mediaScope,
+    mediaIds: before.mediaIds,
+    matchingMode: before.matchingMode,
+    keywords: input.keywords ?? before.keywords,
+    intents: before.intents,
+    priority: before.priority,
+    replyMode: before.replyMode,
+    publicReplyEnabled: input.publicReplies !== undefined ? input.publicReplies.length > 0 : before.publicReplyEnabled,
+    openingButtonLabel: before.openingButtonLabel,
+    mainMessage: before.mainMessage,
+    stopOnReply: before.stopOnReply,
+    stopOnLead: before.stopOnLead,
+    stopOnHandoff: before.stopOnHandoff,
+    responseMessage: input.dmMessage ?? before.responseMessage,
+    // Never changed here: going live is not an MCP action.
+    active: before.active,
+  });
+  if (!merged.success) throw badRequest(merged.error.issues[0]?.message ?? "Noto'g'ri ma'lumot");
+  unwrap(await updateCommentCampaign(workspaceId, before.id, merged.data));
+  if (input.publicReplies !== undefined) {
+    // Existing DM variants keep their approval as it is; new public texts start unapproved.
+    const keepDm: VariantInput[] = before.replyVariants
+      .filter((v) => v.kind === "DM")
+      .map((v) => ({ id: v.id, kind: "DM", text: v.text, weight: v.weight, source: v.source, approved: Boolean(v.approvedAt) }));
+    const publics: VariantInput[] = input.publicReplies.map((text) => ({ kind: "PUBLIC", text, weight: 1, source: "MANUAL", approved: false }));
+    unwrap(await saveVariants(workspaceId, before.id, [...keepDm, ...publics]));
   }
-
-  let status: "ACTIVE" | "PAUSED" = before.active ? "ACTIVE" : "PAUSED";
-  if (input.active !== undefined && input.active !== before.active) {
-    if (input.active) {
-      const blockers = await publishBlockers(workspaceId, before.instagramAccountId);
-      if (blockers.length === 0) {
-        await setCommentCampaignActive(workspaceId, before.id, true);
-        status = "ACTIVE";
-      } else notes.push(...blockers.map((b) => `Yoqilmadi: ${b}`));
-    } else {
-      await setCommentCampaignActive(workspaceId, before.id, false);
-      status = "PAUSED";
-    }
-  }
-  return { campaignId: before.id, status, notes };
+  const notes: string[] = input.publicReplies !== undefined ? ["Yangi ochiq javoblar tasdiqlanmagan: ilovada tasdiqlang."] : [];
+  return { campaignId: before.id, status: before.active ? ("ACTIVE" as const) : ("PAUSED" as const), notes };
 }
 
 export async function executePauseCampaign(workspaceId: string, raw: unknown) {

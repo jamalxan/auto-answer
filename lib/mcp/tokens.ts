@@ -28,6 +28,8 @@ export const createTokenSchema = z.object({
   scope: z.enum(["READ", "WRITE"], "Ruxsat READ yoki WRITE bo'lishi kerak").default("READ"),
   /** Days until the token stops working; omitted = no expiry. */
   expiresInDays: z.number().int("Kun butun son bo'lsin").min(1).max(365).optional(),
+  /** Default true: confirm_action over MCP is refused and a person approves in /developer/mcp. Opt out explicitly. */
+  requireHumanApproval: z.boolean("requireHumanApproval true yoki false bo'lsin").default(true),
 });
 export type CreateTokenInput = z.infer<typeof createTokenSchema>;
 
@@ -35,6 +37,7 @@ export interface TokenView {
   id: string;
   name: string;
   scope: "READ" | "WRITE";
+  requireHumanApproval: boolean;
   tokenHint: string;
   lastUsedAt: Date | null;
   revokedAt: Date | null;
@@ -50,6 +53,7 @@ function view(row: TokenRow): TokenView {
     id: row.id,
     name: row.name,
     scope: row.scope,
+    requireHumanApproval: row.requireHumanApproval !== false,
     tokenHint: row.tokenHint,
     lastUsedAt: row.lastUsedAt,
     revokedAt: row.revokedAt,
@@ -74,6 +78,7 @@ export async function createToken(workspaceId: string, input: unknown, userId: s
       tokenHash: hashToken(raw),
       tokenHint: raw.slice(-4),
       scope: body.scope,
+      requireHumanApproval: body.requireHumanApproval,
       createdByUserId: userId,
       expiresAt: body.expiresInDays ? new Date(now.getTime() + body.expiresInDays * 86_400_000) : null,
     },

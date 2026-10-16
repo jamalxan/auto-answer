@@ -29,11 +29,17 @@ export function methodNotAllowed(): Response {
   return error(405, "Faqat POST qo'llab-quvvatlanadi (MCP Streamable HTTP, JSON javob)", { Allow: "POST" });
 }
 
+/** Best-effort client address (first X-Forwarded-For hop / X-Real-IP); only used to throttle bad token guesses. */
+function clientIpOf(request: Request): string | null {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip")?.trim() || "";
+  return ip ? ip.slice(0, 64) : null;
+}
+
 export async function handleMcpPost(request: Request): Promise<Response> {
   if (!isMcpEnabled()) return error(503, MCP_OFF_MESSAGE, { "Retry-After": "300" });
   if (declaredTooLarge(request.headers, MAX_BODY_BYTES)) return error(413, TOO_LARGE);
 
-  const auth = await authenticateMcp(request.headers.get("authorization"));
+  const auth = await authenticateMcp(request.headers.get("authorization"), new Date(), clientIpOf(request));
   if (!auth.ok) {
     const headers: Record<string, string> = auth.status === 401 ? { "WWW-Authenticate": 'Bearer realm="socialauto"' } : { "Retry-After": String(auth.retryAfterSec ?? 60) };
     return error(auth.status, auth.error, headers);

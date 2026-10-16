@@ -11,7 +11,7 @@ Endpoint: `app/api/mcp/route.ts` -> `http.ts`. Kill switch: `MCP_DISABLED=1` (`.
 | `auth.ts` | bearer token -> workspace + scope; hash lookup, constant-time compare, revoked / expired, 60 req/min |
 | `tokens.ts` | create (raw value returned once), list, revoke (developer area) |
 | `tools.ts` | registry: zod input schema (-> JSON Schema), scope, `run` or `propose` + `execute` |
-| `confirm.ts` | propose -> confirm -> execute, single-use code, atomic claim, audit log reader |
+| `confirm.ts` | cheap pre-checks (pending cap, AI-builder budget), propose -> confirm -> execute, human approval (`requireHumanApproval`, `approveActionAsDeveloper`), single-use code + 5-attempt cap, atomic claim, pruning, audit log reader |
 | `service.ts` | workspace-scoped data layer over existing services (read views, previews, executors) |
 | `errors.ts` | `McpServiceError`, safe messages (unknown errors are never echoed) |
 
@@ -20,17 +20,29 @@ Endpoint: `app/api/mcp/route.ts` -> `http.ts`. Kill switch: `MCP_DISABLED=1` (`.
 1. **Tenant isolation first.** Every service function takes the token's `workspaceId` and passes it
    to an existing workspace-scoped service. Ids from the client are only ever looked up together with
    that workspaceId. Add no raw cross-workspace query. The isolation tests must stay green.
-2. **Writes never execute in the tool.** A write tool is `propose` (validate, check ownership,
+2. **Writes never execute in the tool, and nothing over MCP reaches customers.** A write tool is `propose` (validate, check ownership,
    build a preview, no side effect) + `execute` (runs only from `confirm_action`). Execute must
    re-validate the stored input and scope everything by the token's workspace.
 3. **Read views are whitelists.** No phone / e-mail / Instagram ids / tokens / encrypted columns /
    platform-wide numbers (see `kpiView`, `listLeadsView`).
-4. **No publish tools.** Flow publishing, unpublish, archive and delete are not available over MCP.
+4. **No go-live tools.** Flow publishing, switching a campaign on (`publish` / `active`), approving reply
+   texts, unpublish, archive and delete are not available over MCP. Campaigns are created paused with
+   unapproved variants; reply text of an ACTIVE campaign is not editable. `create_keyword_campaign` /
+   `update_campaign` schemas are `.strict()`: a stray `publish` / `active` is an error.
 5. Secrets: the raw token, `tokenHash` and `confirmCodeHash` never go into a response, log line or
    error. `listActions` selects neither the hash nor the stored input.
 6. Descriptions (LLM-facing) are English; previews / errors / results for people are Uzbek Latin.
+7. **User-originated text is `untrusted`.** Lead names / usernames, message and comment texts, flow
+   message texts and KB lines are returned only under an `untrusted` key; tools returning them say so in
+   their description (`UNTRUSTED_NOTE` in `config.ts`). In previews, splice names only through
+   `quote()` (`service.ts`).
+8. **Human approval is the default.** `confirm_action` for a token with `requireHumanApproval` must keep
+   answering "inson tasdig'i kerak" and leave the action PROPOSED; the developer approve route runs the
+   stored input. Do not add a path that executes without the claim in `confirm.ts`.
+9. Cheap checks (`assertCanPropose`, `assertFlowGenerationBudget`) run in `protocol.ts` BEFORE `propose`,
+   so a flooded token never reaches the paid AI builder.
 
 ## Limits that are per process
 
-The per-token rate limiter (`auth.ts`) keeps its window in memory. With several web processes the
+The per-token rate limiter, the invalid-token IP limiter (`auth.ts`) and the in-memory floor of the AI-builder limit (`confirm.ts`) keep their windows in memory. With several web processes the
 real ceiling is about N x 60 per minute; the confirmation and pending caps are database-backed.

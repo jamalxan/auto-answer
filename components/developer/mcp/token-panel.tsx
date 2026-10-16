@@ -22,6 +22,7 @@ export default function TokenPanel({
   const [name, setName] = useState("");
   const [scope, setScope] = useState<"READ" | "WRITE">("READ");
   const [days, setDays] = useState("");
+  const [humanApproval, setHumanApproval] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedToken | null>(null);
@@ -35,7 +36,7 @@ export default function TokenPanel({
     setBusy(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = { name: name.trim(), scope };
+      const body: Record<string, unknown> = { name: name.trim(), scope, requireHumanApproval: humanApproval };
       if (days.trim()) body.expiresInDays = Number(days);
       const res = await requestJson<CreatedToken>(`${MCP_API}/tokens`, jsonInit("POST", body));
       if (res.ok) {
@@ -124,6 +125,17 @@ export default function TokenPanel({
           <Field label="Muddati (kun, ixtiyoriy)" hint="Bo'sh = muddatsiz. Eng ko'pi 365 kun.">
             <input className={inputClass} inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} disabled={!canCreate || busy} aria-label="Muddati (kun)" />
           </Field>
+          {scope === "WRITE" && (
+            <label className="flex items-start gap-2 text-sm text-foreground">
+              <input type="checkbox" className="mt-1" checked={humanApproval} onChange={(e) => setHumanApproval(e.target.checked)} disabled={!canCreate || busy} />
+              <span>
+                Har bir yozishni inson tasdiqlasin (tavsiya etiladi)
+                <span className="block text-xs text-muted">
+                  Yoqilgan bo&apos;lsa AI confirm_action bilan bajara olmaydi: amalni shu sahifadagi &quot;Amallar jurnali&quot;dan siz tasdiqlaysiz. O&apos;chirsangiz AI preview kodi bilan o&apos;zi tasdiqlay oladi (prompt-injection xavfi).
+                </span>
+              </span>
+            </label>
+          )}
           {error && <Notice tone="error">{error}</Notice>}
           <button type="submit" className={primaryButton} disabled={!canCreate || busy || name.trim().length === 0}>
             {busy ? "Yaratilmoqda…" : "Token yaratish"}
@@ -146,6 +158,7 @@ export default function TokenPanel({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">
                       {t.name} <span className="label-mono ml-1 text-[10px] text-muted">{t.scope}</span>
+                      {t.scope === "WRITE" && <span className="label-mono ml-1 text-[10px] text-muted">{t.requireHumanApproval ? "INSON TASDIG'I" : "AI O'ZI TASDIQLAYDI"}</span>}
                     </p>
                     <p className="text-xs text-muted">
                       …{t.tokenHint} · oxirgi ishlatilgan: {t.lastUsedAt ? formatDateTime(t.lastUsedAt) : "hech qachon"} · yaratilgan {formatDateTime(t.createdAt)}

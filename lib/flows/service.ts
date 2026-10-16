@@ -403,11 +403,20 @@ export interface FlowListItem {
   createdAt: Date;
 }
 
-export async function listFlows(workspaceId: string, filter: { status?: string; accountId?: string } = {}): Promise<FlowListItem[]> {
+/** Number of flows matching the same status / account filter as listFlows. */
+export async function countFlows(workspaceId: string, filter: { status?: string; accountId?: string } = {}): Promise<number> {
   const where: Record<string, unknown> = { workspaceId };
   if (filter.status) where.status = filter.status;
   if (filter.accountId) where.instagramAccountId = filter.accountId;
-  const flows = (await prisma.flow.findMany({ where, orderBy: { updatedAt: "desc" }, take: 500 })) as unknown as FlowRow[];
+  return prisma.flow.count({ where });
+}
+
+export async function listFlows(workspaceId: string, filter: { status?: string; accountId?: string; limit?: number } = {}): Promise<FlowListItem[]> {
+  const where: Record<string, unknown> = { workspaceId };
+  if (filter.status) where.status = filter.status;
+  if (filter.accountId) where.instagramAccountId = filter.accountId;
+  const take = Math.min(Math.max(filter.limit ?? 500, 1), 500);
+  const flows = (await prisma.flow.findMany({ where, orderBy: { updatedAt: "desc" }, take })) as unknown as FlowRow[];
   if (flows.length === 0) return [];
   const flowIds = flows.map((f) => f.id);
   const [accounts, versions, runs] = await Promise.all([
