@@ -1,3 +1,7 @@
+> Update 2026-10-18 (2): ETAP 12 (MCP) is in the chain; merge tip is
+> `developer-etap12`. Extra additive migration: `20261023100000_mcp_etap12`.
+> Switch: `MCP_DISABLED`.
+
 > Update 2026-10-18: ETAP 11 (ManyChat migration) is now part of the chain; the
 > tip to merge is `developer-etap11`. One more additive migration:
 > `20261022100000_migration_etap11`. Switch: `MIGRATION_DISABLED`.

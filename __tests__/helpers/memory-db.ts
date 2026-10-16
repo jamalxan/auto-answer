@@ -227,6 +227,15 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   migrationItem: {
     project: { model: "migrationProject", fk: "projectId", kind: "one" },
   },
+  // MCP (ETAP 12)
+  mcpToken: {
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+    actions: { model: "mcpAction", fk: "tokenId", kind: "many" },
+  },
+  mcpAction: {
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+    token: { model: "mcpToken", fk: "tokenId", kind: "one" },
+  },
 };
 
 /**
@@ -279,6 +288,8 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   engagementBadge: [["contactId", "badgeKey"]],
   // Migration (ETAP 11)
   migrationItem: [["projectId", "kind", "sourceId"]],
+  // MCP (ETAP 12)
+  mcpToken: [["tokenHash"]],
 };
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -416,6 +427,9 @@ const DEFAULTS: Record<string, () => Row> = {
     lastAnalyzedAt: null, lastError: null, createdByUserId: null,
   }),
   migrationItem: () => ({ sourceId: null, folder: null, status: "PENDING", mapping: {}, sourceText: null, warnings: [], flowId: null, note: null, importClaimedAt: null }),
+  // MCP (ETAP 12)
+  mcpToken: () => ({ scope: "READ", createdByUserId: null, lastUsedAt: null, revokedAt: null, expiresAt: null }),
+  mcpAction: () => ({ status: "PROPOSED", confirmCodeHash: null, result: null, error: null, resolvedAt: null }),
   crmBroadcastRecipient: () => ({
     ineligibleReason: null, status: "PENDING", attempts: 0, sentMessageId: null, sentAt: null, error: null,
     repliedAt: null, replyMessageId: null, convertedAt: null, conversionDealId: null,

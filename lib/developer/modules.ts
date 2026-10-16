@@ -119,7 +119,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 12,
     title: "MCP / AI Control",
     summary: "Claude / ChatGPT orqali SocialAuto'ni boshqarish (tasdiqlash bilan).",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/mcp",
   },
 ];
 

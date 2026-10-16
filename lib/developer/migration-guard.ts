@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, jsonOk } from "@/lib/api-auth";
+import { readLimitedJson } from "@/lib/utils/limited-body";
 import { isMigrationEnabled } from "@/lib/migration/config";
 import { can, isReadOnlyRole, PERMISSION_LABELS, type Permission } from "@/lib/workspace-permissions";
 import type { ServiceResult } from "@/lib/crm/result";
@@ -83,39 +84,9 @@ export type LimitedJson = { ok: true; value: unknown } | { ok: false; response: 
  * `undefined` for an empty body and `null` for malformed JSON.
  */
 export async function readJsonLimited(request: NextRequest, maxBytes: number): Promise<LimitedJson> {
-  const big = tooLarge(request, maxBytes);
-  if (big) return { ok: false, response: big };
-  const reader = request.body?.getReader();
-  if (!reader) return { ok: true, value: undefined };
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel().catch(() => undefined);
-        return { ok: false, response: jsonError(TOO_LARGE_MESSAGE, 413) };
-      }
-      chunks.push(value);
-    }
-  } catch {
-    return { ok: true, value: null };
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  const raw = new TextDecoder().decode(bytes);
-  if (!raw.trim()) return { ok: true, value: undefined };
-  try {
-    return { ok: true, value: JSON.parse(raw) as unknown };
-  } catch {
-    return { ok: true, value: null };
-  }
+  const result = await readLimitedJson(request, maxBytes);
+  if (!result.ok) return { ok: false, response: jsonError(TOO_LARGE_MESSAGE, 413) };
+  return result;
 }
 
 /** Object body (or null when missing / malformed) under a byte cap; the 413 response is returned as `response`. */

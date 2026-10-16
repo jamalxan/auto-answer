@@ -263,3 +263,29 @@ Eslatmalar:
 - Rollar: Ko'ruvchi va Operator loyihalarni ko'radi, lekin ulash/tahlil/import/aylantirish 403 (Menejer+ kerak); sahifada sariq ogohlantirish chiqadi.
 - ManyChat API flow ichini, kalit so'z qoidalarini va obunachilarni bermaydi — shuning uchun ular qo'lda (matn bilan) yoki qayta opt-in orqali.
 - Kalit hech qachon javobda, logda yoki sahifada qaytmaydi; `__tests__/migration-api.test.ts` buni tekshiradi.
+
+## ETAP 12 — MCP / AI boshqaruv (`/developer/mcp`)
+
+Claude / ChatGPT kabi MCP mijozi orqali SocialAuto'ni o'qish va (tasdiq bilan) o'zgartirish. Endpoint:
+`POST /api/mcp` (Bearer token). `MCP_DISABLED=1` — favqulodda o'chirish (`/api/mcp` 503; tokenlarni
+ko'rish va bekor qilish ishlayveradi, yangisini yaratib bo'lmaydi). Sinov uchun egasi/administrator
+akkaunti, ulangan Instagram akkaunt, kamida 1 kampaniya va 1 kontakt kerak. Tenant tekshiruvi uchun
+ikkinchi workspace ham kerak (P8).
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| P1 | "Tokenlar" tabida nom + WRITE + muddat 30 kun → "Token yaratish" | `sa_mcp_…` token faqat bir marta ko'rinadi (nusxalash tugmasi, Claude Code `claude mcp add --transport http socialauto <URL> --header "Authorization: Bearer …"`, Claude Desktop va ChatGPT uchun ko'rsatma). "Nusxaladim" bosilgach yoki sahifa yangilangach token qayta ko'rinmaydi; ro'yxatda faqat oxirgi 4 belgi, oxirgi ishlatilgan "hech qachon", holat "Faol". Viewer/Member rolida yaratish va bekor qilish 403, ro'yxat ochiq |
+| P2 | "Sinab ko'rish" tabi: token avtomatik tushadi → "tools/list chaqirish" (yoki terminalda `curl -X POST <URL> -H "Authorization: Bearer …" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`) | Asboblar ro'yxati (READ token'da faqat o'qish asboblari, WRITE token'da yozish + `confirm_action` / `reject_action`). `list_campaigns`/`get_campaign`/`list_leads`… bor, "flow nashr qilish" asbobi yo'q. Tokensiz so'rov 401, `GET /api/mcp` 405 |
+| P3 | Claude Desktop/Code'ni ulang va so'rang: "kampaniyalarim ro'yxatini ko'rsat", "oxirgi 7 kun statistikasi", "lidlar (stage=NEW, 5 ta)", "diagnostika" | Javoblar workspace'ingiz ma'lumotlari bilan mos; lid kartasida faqat ism, username, bosqich, teglar, oxirgi xabar vaqti — telefon va e-mail yo'q; `get_kpi` da butun platforma navbatlari yo'q. Jurnalda (Amallar tabi) o'qish chaqiruvlari ko'rinmaydi (faqat yozish takliflari) |
+| P4 | Yozish: "«narx» so'zi uchun komment kampaniyasi yarat: komment ostiga «Direct'ga yubordik», DM'da narx" | AI avval PREVIEW qaytaradi (kalit so'z, matnlar, "to'xtatilgan holatda"), hech narsa yaratilmagan (Kommentlar ekranida yo'q). Jurnalda holat "Tasdiq kutilmoqda". Siz roziligingizdan keyin AI `confirm_action` chaqiradi → kampaniya PAUSED holatda paydo bo'ladi, jurnal "Bajarildi" + natija; "yoq" desangiz (publish) faqat Instagram ulanishi sog'lom bo'lsa yoqiladi, aks holda qoralama qoladi va sababi yoziladi |
+| P5 | Xuddi shu `confirm_action` ni ikkinchi marta chaqiring (yoki ikkita mijozdan bir vaqtda) | Faqat bitta marta bajariladi; ikkinchisi "allaqachon bajarilgan" xatosi; kampaniya bitta |
+| P6 | Noto'g'ri kod bilan `confirm_action`; keyin 10 daqiqadan ortiq kuting va to'g'ri kod bilan urining; yana: `reject_action` qilingan amalni tasdiqlang | Noto'g'ri kod: "Tasdiqlash kodi noto'g'ri" (amal saqlanadi, to'g'ri kod bilan hali ishlaydi). 10 daqiqadan keyin: "Amal muddati tugagan", jurnalda "Muddati tugadi". Rad etilgan amal tasdiqlanmaydi. Boshqa token (hatto shu workspace'dagi) boshqa tokenning `actionId`'sini tasdiqlay olmaydi ("topilmadi") |
+| P7 | Tokenni "Bekor qilish" (inline tasdiq) → shu token bilan `tools/list` | 401 "Token bekor qilingan"; tasdiq kutayotgan takliflari "Rad etildi" bo'ladi. Muddati tugagan token ham 401 ("muddati tugagan"). Bir daqiqada 60 tadan ko'p so'rov 429 (+ `Retry-After`) |
+| P8 | Ikkinchi workspace'da kampaniya/lid/flow yarating; birinchi workspace tokeni bilan ularning id'larini `get_campaign`, `get_flow`, `pause_campaign`, `add_lead_tag`, `set_lead_stage` ga bering; ikkinchi workspace'ning `actionId`'sini `confirm_action` ga bering | Hammasi "topilmadi" (mavjud bo'lmagan id bilan bir xil xabar); ikkinchi workspace'da hech narsa o'zgarmaydi; ro'yxatlarda faqat o'z workspace'ingiz. Boshqa workspace'ning Instagram akkaunti bilan `create_keyword_campaign` / `create_flow_draft` rad etiladi |
+| P9 | "Narx so'rab, telefon oladigan flow qoralamasini yarat" (`create_flow_draft`) | PREVIEW'da graf xulosasi (trigger, bloklar soni, xabar matnlari) + audit/policy topilmalari; tasdiqdan keyin Flows ekranida DRAFT (manba: AI), nashr qilinmagan. Nashr qilish uchun Flows'da sandbox testi va tasdiq kerak — MCP orqali nashr qilib bo'lmaydi |
+| P10 | Serverda `MCP_DISABLED=1`, web'ni qayta ishga tushiring | `/api/mcp` 503, sahifada qizil ogohlantirish, "Token yaratish" ishlamaydi (503), tokenlarni ko'rish va bekor qilish ishlaydi. Bayroqni olib tashlagach hammasi qaytadi |
+
+Eslatmalar:
+- ChatGPT'ning ba'zi "custom connector"lari faqat OAuth'ni qo'llaydi — ular statik Bearer token bilan ulanmaydi (OAuth bu etapda yo'q).
+- Tokenning o'zi hech qachon bazada, javobda yoki logda yo'q: saqlanadigan narsa sha256 va oxirgi 4 belgi. `__tests__/mcp-confirmation.test.ts` buni tekshiradi.
+- Jurnal (`McpAction`) bir vaqtda audit: asbob, taklif, natija/xato, vaqtlar. Bajarilgan va muvaffaqiyatsiz amallar `OperationalEvent` (SYSTEM) ga ham yoziladi.

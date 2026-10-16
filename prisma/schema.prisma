@@ -114,6 +114,10 @@ model Workspace {
       // Migration (ETAP 11), developer area
   migrationProjects   MigrationProject[]
 
+  // MCP / AI control layer (ETAP 12), developer area
+  mcpTokens           McpToken[]
+  mcpActions          McpAction[]
+
   // Engagement (ETAP 9), developer area
   giveaways           Giveaway[]
   referralPrograms    ReferralProgram[]
@@ -2859,4 +2863,69 @@ model MigrationItem {
 
   @@unique([projectId, kind, sourceId])
   @@index([projectId, kind, status])
+}
+
+// ─── MCP / AI control layer (ETAP 12), developer area ───────────────────────
+
+enum McpScope {
+  READ
+  WRITE
+}
+
+enum McpActionStatus {
+  PROPOSED
+  CONFIRMED
+  EXECUTED
+  REJECTED
+  EXPIRED
+  FAILED
+}
+
+/// Bearer token an AI client (Claude / ChatGPT) uses at /api/mcp. Only the
+/// sha256 hash is stored; the raw `sa_mcp_...` value is shown once on creation.
+model McpToken {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  tokenHash       String    @unique
+  // Last 4 characters of the raw token, for the list.
+  tokenHint       String
+  scope           McpScope  @default(READ)
+  createdByUserId String?
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actions   McpAction[]
+
+  @@index([workspaceId, createdAt])
+}
+
+/// A write proposed over MCP: the audit log and the confirmation store. Nothing
+/// runs until confirm_action moves PROPOSED -> CONFIRMED -> EXECUTED.
+model McpAction {
+  id              String          @id @default(cuid())
+  workspaceId     String
+  tokenId         String
+  tool            String
+  // The validated tool input (internal; never contains secrets).
+  input           Json
+  // What the person is shown before confirming.
+  preview         Json
+  status          McpActionStatus @default(PROPOSED)
+  // sha256 of the one-time confirm code; cleared when the action is settled.
+  confirmCodeHash String?
+  expiresAt       DateTime
+  result          Json?
+  error           String?
+  createdAt       DateTime        @default(now())
+  resolvedAt      DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  token     McpToken  @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([tokenId, status])
 }
