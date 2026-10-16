@@ -92,6 +92,9 @@ export interface Dictionary {
     roleMember: string;
     roleAdmin: string;
     roleOwner: string;
+    roleManager: string;
+    roleOperator: string;
+    roleViewer: string;
     invite: string;
     inviting: string;
     inviteError: string;

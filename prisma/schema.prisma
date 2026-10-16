@@ -18,12 +18,12 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts          Account[]
-  sessions          Session[]
-  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
-  workspaceMembers  WorkspaceMember[]
-  sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
-  telegramUsers     TelegramUser[]
+  accounts         Account[]
+  sessions         Session[]
+  ownedWorkspaces  Workspace[]           @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
+  sentInvitations  WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
+  telegramUsers    TelegramUser[]
 }
 
 model Account {
@@ -82,15 +82,15 @@ model Workspace {
   isSuspended Boolean   @default(false)
   suspendedAt DateTime?
 
-  members           WorkspaceMember[]
-  invitations       WorkspaceInvitation[]
-  instagramAccounts InstagramAccount[]
-  automations       Automation[]
-  dmLogs            DmLog[]
-  trackedLinks      TrackedLink[]
-  linkClicks        LinkClick[]
-  webhookEvents     WebhookEvent[]
-  operationalEvents OperationalEvent[]
+  members            WorkspaceMember[]
+  invitations        WorkspaceInvitation[]
+  instagramAccounts  InstagramAccount[]
+  automations        Automation[]
+  dmLogs             DmLog[]
+  trackedLinks       TrackedLink[]
+  linkClicks         LinkClick[]
+  webhookEvents      WebhookEvent[]
+  operationalEvents  OperationalEvent[]
   integrations       Integration[]
   leads              Lead[]
   conversations      Conversation[]
@@ -111,17 +111,28 @@ model Workspace {
   triggerFollowUpRuns  TriggerFollowUpRun[]
   triggerBacktrackRuns TriggerBacktrackRun[]
 
+  // CRM (developer area, ETAP 5)
+  crmContacts        CrmContact[]
+  crmTags            CrmTag[]
+  crmSegments        CrmSegment[]
+  crmPipelines       CrmPipeline[]
+  crmDeals           CrmDeal[]
+  crmAssignmentRules CrmAssignmentRule[]
+  crmAssignments     CrmAssignment[]
+  crmActivities      CrmActivity[]
+  crmBroadcasts      CrmBroadcast[]
+
   // JavobAI (developer area, ETAP 4)
-  javobAiAccounts   JavobAiAccount[]
-  aiScoringConfigs  AiScoringConfig[]
-  aiHandoffRules    AiHandoffRule[]
-  aiShadowTurns     AiShadowTurn[]
-  aiBudget          AiBudget?
+  javobAiAccounts  JavobAiAccount[]
+  aiScoringConfigs AiScoringConfig[]
+  aiHandoffRules   AiHandoffRule[]
+  aiShadowTurns    AiShadowTurn[]
+  aiBudget         AiBudget?
 
   // Monthly AI-conversation quota (TZ section 13). null = default from
   // lib/assistant/limits. The counter resets with usagePeriodStart.
-  aiConversationsLimit      Int?
-  aiConversationsThisPeriod Int @default(0)
+  aiConversationsLimit       Int?
+  aiConversationsThisPeriod  Int       @default(0)
   // Set when the LLM provider keeps failing: the assistant answers from
   // templates only until this moment.
   assistantTemplateOnlyUntil DateTime?
@@ -166,14 +177,14 @@ model WorkspaceInvitation {
 }
 
 model InstagramAccount {
-  id                String   @id @default(cuid())
+  id                String      @id @default(cuid())
   workspaceId       String
-  instagramId       String   @unique
+  instagramId       String      @unique
   username          String
   name              String?
   accessToken       String
   tokenExpiresAt    DateTime?
-  webhookSubscribed Boolean  @default(false)
+  webhookSubscribed Boolean     @default(false)
   // Real token health, verified against Meta every few hours
   // (lib/meta/token-health). "Connected" in the UI means tokenStatus = ACTIVE,
   // not merely "a row exists".
@@ -182,13 +193,13 @@ model InstagramAccount {
   tokenLastError    String?
   tokenBrokenAt     DateTime?
   tokenAlertedAt    DateTime?
-  connectedAt       DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  connectedAt       DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automations Automation[]
-  dmLogs      DmLog[]
-  linkClicks  LinkClick[]
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automations       Automation[]
+  dmLogs            DmLog[]
+  linkClicks        LinkClick[]
   followerSnapshots FollowerSnapshot[]
   conversations     Conversation[]
   leads             Lead[]
@@ -225,44 +236,44 @@ model FollowerSnapshot {
 }
 
 model Automation {
-  id                 String   @id @default(cuid())
+  id                 String @id @default(cuid())
   workspaceId        String
   instagramAccountId String
 
-  name           String
-  goal           String?
-  postId         String?
-  postUrl        String?
-  pendingNextReel Boolean @default(false)
-  matchAnyPost   Boolean @default(false)
-  keywords       String[]
-  matchAnyWord   Boolean @default(false)
+  name                    String
+  goal                    String?
+  postId                  String?
+  postUrl                 String?
+  pendingNextReel         Boolean  @default(false)
+  matchAnyPost            Boolean  @default(false)
+  keywords                String[]
+  matchAnyWord            Boolean  @default(false)
   // Also fire this campaign when someone sends a DM whose text matches the
   // keywords above. Independent of the post trigger — a DM has no media, so
   // postId / matchAnyPost do not apply to it.
-  dmTriggerEnabled Boolean @default(false)
+  dmTriggerEnabled        Boolean  @default(false)
   // Hand people who reply to this campaign's DM over to the lead assistant.
-  handoffToAssistant Boolean @default(false)
-  dmMessage      String
-  openingDmEnabled     Boolean @default(false)
-  openingDmMessage     String?
-  openingDmButtonLabel String?
-  linkButtonLabel      String?
-  requireFollow           Boolean @default(false)
+  handoffToAssistant      Boolean  @default(false)
+  dmMessage               String
+  openingDmEnabled        Boolean  @default(false)
+  openingDmMessage        String?
+  openingDmButtonLabel    String?
+  linkButtonLabel         String?
+  requireFollow           Boolean  @default(false)
   followPromptMessage     String?
   followPromptButtonLabel String?
-  followUpEnabled Boolean @default(false)
-  followUpMessage String?
+  followUpEnabled         Boolean  @default(false)
+  followUpMessage         String?
   // Minutes to wait after the link is delivered before sending the follow-up.
   // 0 sends it right away.
-  followUpDelayMinutes Int @default(0)
-  publicReplyEnabled Boolean @default(false)
-  publicReplyMessage String?
-  publicReplyMessages String[] @default([])
-  isActive       Boolean @default(true)
-  wholeWordMatch Boolean @default(true)
-  reportShareSlug    String? @unique
-  reportShareEnabled Boolean @default(true)
+  followUpDelayMinutes    Int      @default(0)
+  publicReplyEnabled      Boolean  @default(false)
+  publicReplyMessage      String?
+  publicReplyMessages     String[] @default([])
+  isActive                Boolean  @default(true)
+  wholeWordMatch          Boolean  @default(true)
+  reportShareSlug         String?  @unique
+  reportShareEnabled      Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -279,20 +290,20 @@ model Automation {
 }
 
 model DmLog {
-  id                 String     @id @default(cuid())
+  id                 String @id @default(cuid())
   workspaceId        String
   automationId       String
   instagramAccountId String
 
-  commenterId   String
-  commenterName String?
-  commentText   String
-  commentId     String
+  commenterId    String
+  commenterName  String?
+  commentText    String
+  commentId      String
   matchedKeyword String?
-  status        DmStatus @default(PENDING)
-  attempts      Int      @default(0)
-  dmSentAt      DateTime?
-  errorMessage  String?
+  status         DmStatus  @default(PENDING)
+  attempts       Int       @default(0)
+  dmSentAt       DateTime?
+  errorMessage   String?
 
   // The public comment reply is delivered independently of the DM, so its
   // outcome is tracked separately. publicReplySentAt makes it idempotent across
@@ -314,6 +325,7 @@ model DmLog {
   @@index([status])
   // Comment 2.0 / backtrack look up "already answered privately" by comment.
   @@index([commentId])
+  @@index([createdAt, id]) // CRM reconciler keyset scan
 }
 
 // Legacy reconciliation model; currently unwired. Runtime code does not read
@@ -372,14 +384,14 @@ model LinkClick {
 }
 
 model WebhookEvent {
-  id          String        @id @default(cuid())
-  workspaceId String?
-  object      String?
-  payload     Json
-  status      WebhookStatus @default(PENDING)
+  id           String        @id @default(cuid())
+  workspaceId  String?
+  object       String?
+  payload      Json
+  status       WebhookStatus @default(PENDING)
   errorMessage String?
-  createdAt   DateTime      @default(now())
-  processedAt DateTime?
+  createdAt    DateTime      @default(now())
+  processedAt  DateTime?
 
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
@@ -388,13 +400,13 @@ model WebhookEvent {
 }
 
 model OperationalEvent {
-  id          String                @id @default(cuid())
+  id          String                 @id @default(cuid())
   workspaceId String?
   source      OperationalEventSource
-  level       OperationalEventLevel @default(INFO)
+  level       OperationalEventLevel  @default(INFO)
   message     String
   payload     Json?
-  createdAt   DateTime              @default(now())
+  createdAt   DateTime               @default(now())
   resolvedAt  DateTime?
 
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
@@ -408,7 +420,12 @@ model OperationalEvent {
 enum WorkspaceRole {
   OWNER
   ADMIN
+  // Legacy name for OPERATOR; kept so existing rows need no migration.
   MEMBER
+  // ETAP 5 (TZ 53). Permission matrix: lib/workspace-permissions.ts.
+  MANAGER
+  OPERATOR
+  VIEWER
 }
 
 enum WorkspaceInvitationStatus {
@@ -656,7 +673,7 @@ model TelegramUser {
 }
 
 model Conversation {
-  id                 String         @id @default(cuid())
+  id                 String  @id @default(cuid())
   workspaceId        String
   instagramAccountId String
   // Instagram-scoped id of the customer.
@@ -664,27 +681,27 @@ model Conversation {
   igUsername         String?
   igName             String?
 
-  assistantState      AssistantState @default(NEW)
-  botMessageCount     Int            @default(0)
-  phoneAskCount       Int            @default(0)
+  assistantState        AssistantState @default(NEW)
+  botMessageCount       Int            @default(0)
+  phoneAskCount         Int            @default(0)
   // Consecutive spam/irrelevant intents.
-  spamStreak          Int            @default(0)
+  spamStreak            Int            @default(0)
   // Incremented when a chat restarts after 30 days of silence.
-  leadCycle           Int            @default(0)
+  leadCycle             Int            @default(0)
   // The bot stays silent until this moment after a human operator replied.
-  operatorActiveUntil DateTime?
+  operatorActiveUntil   DateTime?
   // Manual "stop the bot" switch from the inbox.
-  botPaused           Boolean        @default(false)
+  botPaused             Boolean        @default(false)
   // The campaign whose DM triggered the conversation (trigger A), if any.
-  campaignId          String?
-  source              LeadSource     @default(INBOUND_DM)
+  campaignId            String?
+  source                LeadSource     @default(INBOUND_DM)
   // { name, phone_e164, product_interest, extra_field, language }
-  collected           Json           @default("{}")
+  collected             Json           @default("{}")
   lastCustomerMessageAt DateTime?
-  lastBotMessageAt    DateTime?
-  lastNotifiedAt      DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  lastBotMessageAt      DateTime?
+  lastNotifiedAt        DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
@@ -692,11 +709,14 @@ model Conversation {
   leads            Lead[]
 
   // JavobAI (ETAP 4): v2-only state, 1:1.
-  aiState   AiConversationState?
+  aiState    AiConversationState?
   aiHandoffs AiHandoff[]
 
   @@unique([instagramAccountId, igUserId])
   @@index([workspaceId, assistantState])
+  // CRM reconciler cursor (ETAP 5).
+  @@index([workspaceId, updatedAt])
+  @@index([updatedAt, id]) // CRM reconciler keyset scan
 }
 
 model ConversationMessage {
@@ -762,6 +782,7 @@ model Lead {
   @@index([conversationId])
   @@index([workspaceId, phoneE164, createdAt])
   @@index([workspaceId, createdAt])
+  @@index([createdAt, id]) // CRM reconciler keyset scan
 }
 
 model LeadDelivery {
@@ -1153,10 +1174,10 @@ model InstagramEvent {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
-  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount   @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
-  contact          InstagramContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  claimedCampaign  TriggerCampaign?   @relation(fields: [claimedCampaignId], references: [id], onDelete: SetNull)
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount     @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  contact          InstagramContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  claimedCampaign  TriggerCampaign?     @relation(fields: [claimedCampaignId], references: [id], onDelete: SetNull)
   executions       TriggerExecution[]
   // Set when the event was queued by a backtrack scan, not a webhook.
   backtrackRunId   String?
@@ -1170,6 +1191,7 @@ model InstagramEvent {
   @@index([instagramAccountId, senderId, timestamp])
   // ON DELETE SET NULL when a campaign is deleted.
   @@index([claimedCampaignId])
+  @@index([createdAt, id]) // CRM reconciler keyset scan
 }
 
 model TriggerCampaign {
@@ -1190,35 +1212,35 @@ model TriggerCampaign {
 
   // -- Comment Automation 2.0 (triggerType COMMENT) --------------------------
   // Which posts: every post, or only mediaIds.
-  mediaScope         TriggerMediaScope   @default(ANY)
-  mediaIds           String[]            @default([])
+  mediaScope         TriggerMediaScope @default(ANY)
+  mediaIds           String[]          @default([])
   // Built-in intents (lib/triggers/keywords.ts) matched next to keywords.
-  intents            String[]            @default([])
+  intents            String[]          @default([])
   // Tie-breaker between equally specific matches; higher wins.
-  priority           Int                 @default(0)
-  replyMode          TriggerReplyMode    @default(RANDOM)
+  priority           Int               @default(0)
+  replyMode          TriggerReplyMode  @default(RANDOM)
   // Next index for SEQUENTIAL mode; advanced atomically per send.
-  sequenceCursor     Int                 @default(0)
-  publicReplyEnabled Boolean             @default(false)
+  sequenceCursor     Int               @default(0)
+  publicReplyEnabled Boolean           @default(false)
   // Set: the private reply carries this button, and tapping it opens the
   // 24h window for mainMessage, quick replies and follow-ups.
   openingButtonLabel String?
   mainMessage        String?
-  stopOnReply        Boolean             @default(true)
-  stopOnLead         Boolean             @default(true)
-  stopOnHandoff      Boolean             @default(true)
+  stopOnReply        Boolean           @default(true)
+  stopOnLead         Boolean           @default(true)
+  stopOnHandoff      Boolean           @default(true)
 
   // -- ETAP 3: DM-side triggers (Direct, Story Mention, Ad message) ----------
-  audience           TriggerAudience     @default(ANY)
+  audience         TriggerAudience     @default(ANY)
   // REOPENED audience: the person's previous message is older than this.
-  reopenAfterHours   Int                 @default(72)
+  reopenAfterHours Int                 @default(72)
   // One answer per person per campaign within this many hours (anti-spam).
-  cooldownHours      Int                 @default(24)
-  sourceFilter       TriggerSourceFilter @default(ANY)
+  cooldownHours    Int                 @default(24)
+  sourceFilter     TriggerSourceFilter @default(ANY)
   // sourceFilter ADS: only these ads (empty = any ad).
-  adIds              String[]            @default([])
+  adIds            String[]            @default([])
   // sourceFilter LINK: only these ig.me ref values (empty = any link).
-  refs               String[]            @default([])
+  refs             String[]            @default([])
 
   workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
@@ -1275,6 +1297,7 @@ model TriggerExecution {
   @@unique([eventId, campaignId])
   @@index([workspaceId, createdAt])
   @@index([campaignId, createdAt])
+  @@index([updatedAt, id]) // CRM reconciler keyset scan
 }
 
 model InstagramContact {
@@ -1517,27 +1540,29 @@ model JavobAiAccount {
 
 /// JavobAI's own state for a production Conversation (1:1).
 model AiConversationState {
-  id             String         @id @default(cuid())
-  conversationId String         @unique
-  handoffState   AiHandoffState @default(AI_ACTIVE)
-  score          Int            @default(0)
-  temperature    AiTemperature  @default(COLD)
+  id                   String         @id @default(cuid())
+  conversationId       String         @unique
+  handoffState         AiHandoffState @default(AI_ACTIVE)
+  score                Int            @default(0)
+  temperature          AiTemperature  @default(COLD)
   // Rolling summary of everything older than the message window.
-  summary        String         @default("")
+  summary              String         @default("")
   summaryUpToMessageId String?
   // email, budget, location, product... as extracted by code from turns.
-  extracted      Json           @default("{}")
+  extracted            Json           @default("{}")
   // Campaign / trigger that opened the thread (name, main message, ad id).
-  context        Json           @default("{}")
-  unknownStreak  Int            @default(0)
-  turns          Int            @default(0)
+  context              Json           @default("{}")
+  unknownStreak        Int            @default(0)
+  turns                Int            @default(0)
   // Mirrors Conversation.leadCycle so score events reset per lead.
-  leadCycle      Int            @default(0)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  leadCycle            Int            @default(0)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   scoreEvents  AiScoreEvent[]
+
+  @@index([updatedAt, id]) // CRM reconciler keyset scan
 }
 
 /// One scoring signal, counted once per lead cycle (idempotent on retries).
@@ -1594,6 +1619,7 @@ model AiHandoff {
 
   @@index([conversationId, openedAt])
   @@index([status, openedAt])
+  @@index([openedAt, id]) // CRM reconciler keyset scan
 }
 
 /// Business rules that force a handoff (TZ 25 "business rule").
@@ -1685,15 +1711,435 @@ model AiShadowTurn {
 
 /// Monthly USD budget per workspace with alert bookkeeping (TZ 66).
 model AiBudget {
-  id            String    @id @default(cuid())
-  workspaceId   String    @unique
-  monthlyUsdSoft Decimal  @db.Decimal(12, 2)
-  monthlyUsdHard Decimal? @db.Decimal(12, 2)
-  alerted50At   DateTime?
-  alerted80At   DateTime?
-  alerted100At  DateTime?
-  periodStart   DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  workspaceId    String    @unique
+  monthlyUsdSoft Decimal   @db.Decimal(12, 2)
+  monthlyUsdHard Decimal?  @db.Decimal(12, 2)
+  alerted50At    DateTime?
+  alerted80At    DateTime?
+  alerted100At   DateTime?
+  periodStart    DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// --- CRM / Lead Management (developer area, ETAP 5) --------------------------
+// New tables only. Production Conversation / Lead / InstagramContact are linked
+// by plain ids and never altered. See docs/developer/etap-5-crm.md and
+// lib/crm/types.ts (the string unions mirror these enums 1:1).
+
+enum CrmContactStatus {
+  NEW
+  ACTIVE
+  CUSTOMER
+  LOST
+  ARCHIVED
+}
+
+enum CrmContactSource {
+  COMMENT
+  STORY
+  DM
+  AD
+  LINK
+  BROADCAST
+  IMPORT
+  UNKNOWN
+}
+
+enum CrmTagOrigin {
+  MANUAL
+  AI
+  AUTOMATION
+  SYSTEM
+}
+
+enum CrmStageKind {
+  OPEN
+  WON
+  LOST
+}
+
+enum CrmAssignmentStrategy {
+  ROUND_ROBIN
+  TEAM
+  SPECIALIST
+}
+
+enum CrmAssignmentTrigger {
+  ON_HOT
+  ON_LEAD
+  ON_HANDOFF
+  ON_STAGE
+  MANUAL
+}
+
+enum CrmActivityType {
+  INBOUND_MESSAGE
+  AUTOMATION_REPLY
+  AI_REPLY
+  OPERATOR_REPLY
+  FOLLOW_UP_SENT
+  LEAD_CREATED
+  LEAD_DELIVERED
+  SCORE_CHANGED
+  TEMPERATURE_CHANGED
+  HANDOFF_OPENED
+  HANDOFF_ACCEPTED
+  HANDOFF_CLOSED
+  TAG_ADDED
+  TAG_REMOVED
+  STAGE_CHANGED
+  DEAL_CREATED
+  ASSIGNED
+  UNASSIGNED
+  FIELD_CHANGED
+  NOTE
+  BROADCAST_SENT
+  BROADCAST_SKIPPED
+  BROADCAST_REPLIED
+  BROADCAST_CONVERTED
+  OPT_OUT
+}
+
+enum CrmActorKind {
+  SYSTEM
+  AI
+  AUTOMATION
+  OPERATOR
+}
+
+enum CrmBroadcastStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum CrmRecipientStatus {
+  PENDING
+  SENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+/// One person per Instagram business account: the single CRM identity that
+/// links the trigger contact, the assistant conversation and the leads.
+model CrmContact {
+  id                 String           @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  igUserId           String
+  username           String?
+  name               String?
+  phoneE164          String?
+  email              String?
+  language           String?
+  source             CrmContactSource @default(UNKNOWN)
+  status             CrmContactStatus @default(NEW)
+  // Mirrors of AiConversationState; 0 / COLD when JavobAI never touched it.
+  score              Int              @default(0)
+  temperature        AiTemperature    @default(COLD)
+  hasAiState         Boolean          @default(false)
+  firstInteractionAt DateTime?
+  lastInteractionAt  DateTime?
+  // Customer message / tap: the 24h-window anchor for broadcasts.
+  lastInboundAt      DateTime?
+  lastOutboundAt     DateTime?
+  interactionCount   Int              @default(0)
+  assignedMemberId   String?
+  assignedAt         DateTime?
+  conversationId     String?          @unique
+  instagramContactId String?          @unique
+  optedOutAt         DateTime?
+  optOutReason       String?
+  mergedIntoId       String?
+  customFields       Json             @default("{}")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  workspace   Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tags        CrmContactTag[]
+  deals       CrmDeal[]
+  activities  CrmActivity[]
+  assignments CrmAssignment[]
+  recipients  CrmBroadcastRecipient[]
+
+  @@unique([instagramAccountId, igUserId])
+  @@index([workspaceId, lastInteractionAt])
+  @@index([workspaceId, status, score])
+  @@index([workspaceId, assignedMemberId])
+  @@index([workspaceId, phoneE164])
+  @@index([workspaceId, lastInboundAt])
+  @@index([workspaceId, temperature])
+}
+
+model CrmTag {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  slug        String
+  color       String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts  CrmContactTag[]
+
+  @@unique([workspaceId, slug])
+}
+
+model CrmContactTag {
+  id        String       @id @default(cuid())
+  contactId String
+  tagId     String
+  origin    CrmTagOrigin
+  // campaignId / ruleId / memberId / "ai:extracted.product"
+  sourceRef String?
+  createdAt DateTime     @default(now())
+
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     CrmTag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, tagId])
+  @@index([tagId])
+}
+
+/// Saved dynamic filter (lib/crm/segments.ts DSL).
+model CrmSegment {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  description     String?
+  filter          Json
+  lastCount       Int?
+  lastCountedAt   DateTime?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  broadcasts CrmBroadcast[]
+
+  @@index([workspaceId])
+}
+
+model CrmPipeline {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    CrmStage[]
+  deals     CrmDeal[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isDefault])
+}
+
+model CrmStage {
+  id         String       @id @default(cuid())
+  pipelineId String
+  name       String
+  sort       Int
+  kind       CrmStageKind @default(OPEN)
+  color      String?
+  // New deals land here.
+  isEntry    Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+
+  pipeline CrmPipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    CrmDeal[]
+
+  @@unique([pipelineId, name])
+  @@index([pipelineId, sort])
+}
+
+/// A lead moving through a pipeline. One per production Lead.
+model CrmDeal {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  contactId        String
+  pipelineId       String
+  stageId          String
+  leadId           String?   @unique
+  title            String
+  stageEnteredAt   DateTime  @default(now())
+  wonAt            DateTime?
+  lostAt           DateTime?
+  lostReason       String?
+  assignedMemberId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   CrmContact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  pipeline  CrmPipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage     CrmStage    @relation(fields: [stageId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, pipelineId, stageId])
+  @@index([contactId])
+}
+
+model CrmAssignmentRule {
+  id              String                @id @default(cuid())
+  workspaceId     String
+  name            String
+  active          Boolean               @default(true)
+  priority        Int                   @default(0)
+  trigger         CrmAssignmentTrigger
+  stageId         String?
+  strategy        CrmAssignmentStrategy
+  // WorkspaceMember ids: the pool (ROUND_ROBIN) or the team.
+  memberIds       String[]              @default([])
+  productKeywords String[]              @default([])
+  // Advanced atomically per assignment.
+  rrCursor        Int                   @default(0)
+  onlyUnassigned  Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments CrmAssignment[]
+
+  @@index([workspaceId, active, priority])
+}
+
+model CrmAssignment {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  contactId        String
+  dealId           String?
+  memberId         String
+  ruleId           String?
+  // "rule:<id>" | "manual" | "telegram_take" | "inbox_reply" | "lead_contacted"
+  reason           String
+  assignedByUserId String?
+  assignedAt       DateTime  @default(now())
+  unassignedAt     DateTime?
+  active           Boolean   @default(true)
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   CrmContact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  rule      CrmAssignmentRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([contactId, active])
+  @@index([workspaceId, memberId, active])
+}
+
+/// Timeline events that have no home elsewhere (tags, stages, assignments,
+/// notes, broadcasts) plus denormalised state changes. Messages are read live.
+model CrmActivity {
+  id            String          @id @default(cuid())
+  workspaceId   String
+  contactId     String
+  dealId        String?
+  type          CrmActivityType
+  occurredAt    DateTime
+  actorKind     CrmActorKind
+  actorMemberId String?
+  title         String
+  body          String?
+  payload       Json?
+  // Idempotency for rows synced from other tables.
+  sourceTable   String?
+  sourceId      String?
+  createdAt     DateTime        @default(now())
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceTable, sourceId, type])
+  @@index([contactId, occurredAt])
+  @@index([workspaceId, occurredAt])
+  @@index([workspaceId, type, occurredAt])
+}
+
+/// Keyset cursor per source for the reconciler (lib/crm/sync.ts).
+model CrmSyncCursor {
+  source    String   @id
+  cursorAt  DateTime
+  cursorId  String?
+  // Seeded at "now" on the first reconcile; the 30-day rescans never read before it (history = explicit backfill).
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CrmBroadcast {
+  id                   String             @id @default(cuid())
+  workspaceId          String
+  instagramAccountId   String
+  name                 String
+  segmentId            String?
+  // Snapshot of the segment filter at schedule time.
+  audienceFilter       Json
+  message              String
+  quickReplies         Json?
+  status               CrmBroadcastStatus @default(DRAFT)
+  scheduledAt          DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  throttlePerHour      Int                @default(100)
+  frequencyCapHours    Int                @default(24)
+  replyWindowHours     Int                @default(48)
+  conversionWindowDays Int                @default(7)
+  totalCount           Int                @default(0)
+  eligibleCount        Int                @default(0)
+  sentCount            Int                @default(0)
+  skippedCount         Int                @default(0)
+  failedCount          Int                @default(0)
+  repliedCount         Int                @default(0)
+  convertedCount       Int                @default(0)
+  lastError            String?
+  // Delivery chain: every scheduled tick bumps tickSeq (job id bcb_<id>_<tickSeq>);
+  // a tick whose seq is no longer current stops, so only one chain survives.
+  tickSeq              Int                @default(0)
+  // When the next tick is due; the maintenance sweep re-enqueues a lost chain from it.
+  nextTickAt           DateTime?
+  createdByUserId      String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  workspace  Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  segment    CrmSegment?             @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  recipients CrmBroadcastRecipient[]
+
+  @@index([workspaceId, status])
+  @@index([status, scheduledAt])
+}
+
+model CrmBroadcastRecipient {
+  id                  String             @id @default(cuid())
+  broadcastId         String
+  contactId           String
+  eligible            Boolean
+  // WINDOW_CLOSED | NO_INBOUND | OPTED_OUT | FREQUENCY_CAP | OPERATOR_ACTIVE |
+  // TOKEN_BROKEN | SUSPENDED | DUPLICATE
+  ineligibleReason    String?
+  eligibilitySnapshot Json
+  status              CrmRecipientStatus @default(PENDING)
+  attempts            Int                @default(0)
+  sentMessageId       String?
+  sentAt              DateTime?
+  error               String?
+  repliedAt           DateTime?
+  replyMessageId      String?
+  convertedAt         DateTime?
+  conversionDealId    String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  broadcast CrmBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   CrmContact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, contactId])
+  @@index([broadcastId, status])
+  @@index([contactId, sentAt])
 }

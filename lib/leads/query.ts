@@ -49,7 +49,7 @@ export function buildLeadWhere(workspaceId: string, f: LeadFilters): Prisma.Lead
   return where;
 }
 
-function csvCell(value: unknown): string {
+export function csvCell(value: unknown): string {
   const text = value === null || value === undefined ? "" : String(value);
   // Prevent spreadsheet formula injection from customer-supplied text.
   const safe = /^[=+\-@]/.test(text) && !/^\+\d+$/.test(text) ? `'${text}` : text;

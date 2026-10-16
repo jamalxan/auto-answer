@@ -7,6 +7,7 @@
  */
 
 import type { AiConversationState, Conversation, InstagramAccount } from "@/app/generated/prisma/client";
+import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { readJavobAiConfig, type JavobAiConfig } from "./config";
 import { upsertContactMemory } from "./memory";
@@ -129,6 +130,8 @@ export async function recordSignals(
       .create({ data: { stateId: state.id, leadCycle: state.leadCycle, signal: s.signal, points: s.points, messageId: messageId ?? null } })
       .catch(() => {});
   }
+  // The runtime writes score / temperature right before recording the signals: mirror them into the CRM.
+  if (signals.length > 0) void crmTouch({ kind: "score", aiStateId: state.id });
 }
 
 /** The account's JavobAiAccount config with defaults (defaults when no row). */

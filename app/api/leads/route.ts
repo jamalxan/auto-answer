@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { jsonOk, requireWorkspace } from "@/lib/api-auth";
+import { canManageWorkspace } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 import { buildLeadWhere } from "@/lib/leads/query";
 
@@ -64,6 +65,6 @@ export async function GET(request: NextRequest) {
     total,
     page,
     pageSize: PAGE_SIZE,
-    canManage: auth.ctx.role !== "MEMBER",
+    canManage: canManageWorkspace(auth.ctx.role),
   });
 }

@@ -7,6 +7,7 @@
  * move when the message is new, so a retry never counts the same reply twice.
  */
 
+import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { getMessagingProfile } from "@/lib/meta/client";
 import type {
@@ -143,6 +144,7 @@ export async function recordInteraction(event: InteractionEvent): Promise<Record
       where: { id: conversation.id },
       data: { lastMessageAt: later(conversation.lastMessageAt, event.timestamp) },
     });
+    void crmTouch({ kind: "trigger_interaction", instagramContactId: contact.id, at: event.timestamp, payload: { eventType: event.eventType, eventId: event.id } });
   }
 
   await prisma.instagramEvent.update({

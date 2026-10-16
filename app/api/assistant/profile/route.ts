@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { jsonError, jsonOk, requireWorkspace } from "@/lib/api-auth";
+import { canManageWorkspace } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 import { findProfile } from "@/lib/assistant/profile";
 import {
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   return jsonOk({
     profile: profile ? serializeProfile(profile) : null,
     accounts,
-    canManage: auth.ctx.role !== "MEMBER",
+    canManage: canManageWorkspace(auth.ctx.role),
   });
 }
 

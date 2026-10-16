@@ -1,4 +1,5 @@
 import { jsonOk, requireWorkspace } from "@/lib/api-auth";
+import { canManageWorkspace } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 import { serializeIntegration } from "@/lib/integrations/service";
 import { getBotUsername, isTelegramConfigured } from "@/lib/telegram/api";
@@ -39,7 +40,7 @@ export async function GET() {
       serializeIntegration(i, { pending: pendingBy.get(i.id) ?? 0, dead: deadBy.get(i.id) ?? 0 })
     ),
     accounts,
-    canManage: auth.ctx.role !== "MEMBER",
+    canManage: canManageWorkspace(auth.ctx.role),
     telegramBotConfigured: isTelegramConfigured() && Boolean(getBotUsername()),
     enabled: isFeatureEnabled("integrations"),
   });

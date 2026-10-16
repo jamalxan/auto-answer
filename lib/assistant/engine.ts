@@ -5,6 +5,7 @@
  */
 
 import type { Conversation, InstagramAccount } from "@/app/generated/prisma/client";
+import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { extractPhone } from "@/lib/leads/phone";
 import {
@@ -199,6 +200,7 @@ export async function handleInboundMessage(job: InboundJob): Promise<void> {
   } catch {
     return; // already processed
   }
+  void crmTouch({ kind: "inbound", conversationId: conversation.id, workspaceId: account.workspaceId, instagramAccountId: account.id, igUserId: job.senderId });
   conversation = await prisma.conversation.update({
     where: { id: conversation.id },
     data: { lastCustomerMessageAt: new Date() },
@@ -324,6 +326,7 @@ export async function handleEcho(job: EchoJob): Promise<void> {
       },
     })
     .catch(() => {});
+  void crmTouch({ kind: "operator_reply", conversationId: conversation.id });
 
   await prisma.conversation.update({
     where: { id: conversation.id },
@@ -340,7 +343,9 @@ export async function markOperatorActiveForContact(
   instagramAccountId: string,
   igUserId: string,
   text: string,
-  messageId?: string
+  messageId?: string,
+  /** The operator's User id (CRM: who answered). */
+  userId?: string | null
 ) {
   const conversation = await prisma.conversation.findUnique({
     where: { instagramAccountId_igUserId: { instagramAccountId, igUserId } },
@@ -352,6 +357,7 @@ export async function markOperatorActiveForContact(
       data: { conversationId: conversation.id, mid: messageId ?? null, author: "OPERATOR", text },
     })
     .catch(() => {});
+  void crmTouch({ kind: "operator_reply", conversationId: conversation.id, userId: userId ?? null });
   await markOperatorActive(conversation.id);
 }
 
@@ -689,6 +695,7 @@ async function deliverReply(
       where: { id: conversation.id },
       data: { lastBotMessageAt: new Date() },
     });
+    void crmTouch({ kind: "ai_reply", conversationId: conversation.id });
     return true;
   } catch (error) {
     if (error instanceof TokenExpiredError) {

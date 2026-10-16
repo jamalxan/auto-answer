@@ -30,10 +30,10 @@ interface SettingsData {
 }
 
 interface WorkspaceMembersData {
-  currentUserRole: "OWNER" | "ADMIN" | "MEMBER";
+  currentUserRole: "OWNER" | "ADMIN" | "MEMBER" | "MANAGER" | "OPERATOR" | "VIEWER";
   members: Array<{
     id: string;
-    role: "OWNER" | "ADMIN" | "MEMBER";
+    role: "OWNER" | "ADMIN" | "MEMBER" | "MANAGER" | "OPERATOR" | "VIEWER";
     createdAt: string;
     user: {
       id: string;
@@ -44,7 +44,7 @@ interface WorkspaceMembersData {
   invitations: Array<{
     id: string;
     email: string;
-    role: "OWNER" | "ADMIN" | "MEMBER";
+    role: "OWNER" | "ADMIN" | "MEMBER" | "MANAGER" | "OPERATOR" | "VIEWER";
     // Only sent to owners and admins.
     inviteUrl?: string;
     expiresAt: string;
@@ -297,6 +297,27 @@ export default function SettingsPage() {
             // Owners aren't editable — canManageWorkspace already blocks the
             // API from touching an OWNER row, so there's nothing to offer here.
             const canEditThisMember = canManageMembers && member.role !== "OWNER";
+            // The ADMIN / MEMBER picker only knows the production roles; a
+            // MANAGER / OPERATOR / VIEWER (set in the CRM Team tab) is shown
+            // read-only so a stray change cannot silently demote them.
+            const roleEditable = member.role === "ADMIN" || member.role === "MEMBER";
+            const roleLabel =
+              member.role === "OWNER"
+                ? t.settings.roleOwner
+                : member.role === "ADMIN"
+                  ? t.settings.roleAdmin
+                  : member.role === "MANAGER"
+                    ? t.settings.roleManager
+                    : member.role === "OPERATOR"
+                      ? t.settings.roleOperator
+                      : member.role === "VIEWER"
+                        ? t.settings.roleViewer
+                        : t.settings.roleMember;
+            const roleBadge = (
+              <span className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted">
+                {roleLabel}
+              </span>
+            );
             return (
               <div
                 key={member.id}
@@ -310,20 +331,24 @@ export default function SettingsPage() {
                 </div>
                 {canEditThisMember ? (
                   <div className="flex shrink-0 items-center gap-2">
-                    <select
-                      value={member.role}
-                      disabled={busy === `role:${member.id}`}
-                      onChange={(e) =>
-                        void updateMemberRole(
-                          member.id,
-                          e.target.value as "ADMIN" | "MEMBER"
-                        )
-                      }
-                      className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-foreground disabled:opacity-50"
-                    >
-                      <option value="ADMIN">{t.settings.roleAdmin}</option>
-                      <option value="MEMBER">{t.settings.roleMember}</option>
-                    </select>
+                    {roleEditable ? (
+                      <select
+                        value={member.role}
+                        disabled={busy === `role:${member.id}`}
+                        onChange={(e) =>
+                          void updateMemberRole(
+                            member.id,
+                            e.target.value as "ADMIN" | "MEMBER"
+                          )
+                        }
+                        className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-foreground disabled:opacity-50"
+                      >
+                        <option value="ADMIN">{t.settings.roleAdmin}</option>
+                        <option value="MEMBER">{t.settings.roleMember}</option>
+                      </select>
+                    ) : (
+                      roleBadge
+                    )}
                     <button
                       type="button"
                       onClick={() => void removeMember(member.id)}
@@ -336,13 +361,7 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 ) : (
-                  <span className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted">
-                    {member.role === "OWNER"
-                      ? t.settings.roleOwner
-                      : member.role === "ADMIN"
-                        ? t.settings.roleAdmin
-                        : t.settings.roleMember}
-                  </span>
+                  roleBadge
                 )}
               </div>
             );

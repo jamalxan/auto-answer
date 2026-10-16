@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
+import type { WorkspaceRole } from "@/app/generated/prisma/client";
 import {
   buildInvitationUrl,
   generateInvitationToken,
@@ -29,7 +30,7 @@ const deleteSchema = z.object({
 
 async function getMemberPayload(
   workspaceId: string,
-  currentUserRole?: "OWNER" | "ADMIN" | "MEMBER"
+  currentUserRole?: WorkspaceRole
 ) {
   const [members, invitations] = await Promise.all([
     prisma.workspaceMember.findMany({

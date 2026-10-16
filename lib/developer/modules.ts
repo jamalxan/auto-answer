@@ -63,7 +63,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 5,
     title: "CRM / Lead Management",
     summary: "Kontaktlar, taglar, segmentlar, pipeline, operator biriktirish, broadcast.",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/crm",
   },
   {
     key: "flow-builder",

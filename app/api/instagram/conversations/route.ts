@@ -158,7 +158,8 @@ export async function POST(request: NextRequest) {
       account.id,
       body.recipientId,
       text,
-      result.message_id
+      result.message_id,
+      context.userId
     ).catch(() => {});
     await invalidateConversationList(account.instagramId);
     return NextResponse.json({ success: true, data: result });

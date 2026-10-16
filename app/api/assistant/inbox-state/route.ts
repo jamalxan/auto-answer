@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { jsonOk, requireWorkspace } from "@/lib/api-auth";
+import { canManageWorkspace } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 import { readCollected } from "@/lib/leads/service";
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
   const conversation = await prisma.conversation.findFirst({
     where: { workspaceId: auth.ctx.workspaceId, instagramAccountId: accountId, igUserId: contactId },
   });
-  if (!conversation) return jsonOk({ conversation: null, lead: null, canManage: auth.ctx.role !== "MEMBER" });
+  if (!conversation) return jsonOk({ conversation: null, lead: null, canManage: canManageWorkspace(auth.ctx.role) });
 
   const lead = await prisma.lead.findFirst({
     where: { workspaceId: auth.ctx.workspaceId, conversationId: conversation.id },
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
   const collected = readCollected(conversation.collected);
 
   return jsonOk({
-    canManage: auth.ctx.role !== "MEMBER",
+    canManage: canManageWorkspace(auth.ctx.role),
     conversation: {
       id: conversation.id,
       assistantState: conversation.assistantState,

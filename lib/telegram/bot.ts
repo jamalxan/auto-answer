@@ -6,10 +6,14 @@
 
 import { prisma } from "@/lib/db/client";
 import { findProfile } from "@/lib/assistant/profile";
+import { assignmentAlertText, assignmentKeyboard, contactLabel, releaseContact, takeContact } from "@/lib/crm/assignment";
+import { isCrmServiceError } from "@/lib/crm/errors";
+import { crmTouch } from "@/lib/crm/hooks";
 import { newSandboxState } from "@/lib/assistant/sandbox";
 import { updateProfileFields } from "@/lib/assistant/profile-write";
 import { acceptHandoff, closeHandoff } from "@/lib/javobai/handoff";
 import { getRedisConnection } from "@/lib/queue/client";
+import { canManageWorkspace } from "@/lib/workspace-roles";
 import { buildLeadKeyboard, buildLeadText } from "./lead-message";
 import {
   TelegramApiError,
@@ -88,7 +92,7 @@ async function resolveOwner(tgUserId: string) {
   const member = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId: link.workspaceId, userId: link.userId } },
   });
-  if (!member || member.role === "MEMBER") return { status: "forbidden" as const, link };
+  if (!member || !canManageWorkspace(member.role)) return { status: "forbidden" as const, link };
   return { status: "ok" as const, link, role: member.role };
 }
 
@@ -161,7 +165,7 @@ async function startOnboardingFromCode(io: BotIO, message: TgMessage, code: stri
   const member = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId: row.workspaceId, userId: row.userId } },
   });
-  if (!member || member.role === "MEMBER") return void (await io.send(chatId, t.notAllowed));
+  if (!member || !canManageWorkspace(member.role)) return void (await io.send(chatId, t.notAllowed));
 
   await prisma.telegramUser.upsert({
     where: { tgUserId: String(message.from.id) },
@@ -307,6 +311,8 @@ async function handleContacted(io: BotIO, cb: NonNullable<TgUpdate["callback_que
     where: { id: lead.id },
     data: { contactedAt: lead.contactedAt ?? new Date(), contactedByUserId: link?.userId ?? lead.contactedByUserId },
   });
+  // CRM (ETAP 5.2): the deal moves "Yangi lead" → "Bog'lanildi".
+  void crmTouch({ kind: "lead_contacted", leadId: lead.id, userId: link?.userId ?? null });
   const who = cb.from.username ? `@${cb.from.username}` : (cb.from.first_name ?? "");
   const profile = await prisma.assistantProfile.findFirst({ where: { workspaceId: lead.workspaceId }, select: { extraFieldLabel: true } });
   const text = `${buildLeadText({
@@ -386,10 +392,81 @@ async function handleJavobAiCallback(io: BotIO, cb: NonNullable<TgUpdate["callba
   }
 }
 
+/**
+ * "Qabul qildim" / "Bo'shatish" under a CRM assignment alert (ETAP 5.3,
+ * owner decision 3): the chat must be connected to the contact's workspace
+ * and the presser must be a linked member of it — the contact goes to (or
+ * leaves) *their* member row. The alert is edited to show who took it.
+ *
+ * Every press is answered exactly once (Telegram ignores a second answer, so
+ * handleCallback routes "crm:" here before its generic answer): success,
+ * unknown contact, refusal and unexpected errors all stop the spinner with a
+ * short text.
+ */
+async function handleCrmCallback(io: BotIO, cb: NonNullable<TgUpdate["callback_query"]>, data: string) {
+  let answered = false;
+  const answer = async (text?: string) => {
+    if (answered) return;
+    answered = true;
+    await answerCallbackQuery(cb.id, text).catch(() => {});
+  };
+  try {
+    const chatId = cb.message ? String(cb.message.chat.id) : null;
+    if (!chatId || !cb.message) return;
+    const [, action, contactId] = data.split(":");
+    if (!contactId || (action !== "take" && action !== "release")) return;
+
+    const contact = await prisma.crmContact.findUnique({
+      where: { id: contactId },
+      select: { id: true, workspaceId: true, username: true, name: true, igUserId: true, phoneE164: true, conversationId: true },
+    });
+    if (!contact) return void (await answer("Kontakt topilmadi."));
+    const chat = await prisma.telegramChat.findFirst({
+      where: { chatId, active: true, integration: { workspaceId: contact.workspaceId } },
+    });
+    if (!chat) return void (await answer(tr("uz").notLinkedForLead));
+
+    const link = await prisma.telegramUser.findUnique({ where: { tgUserId: String(cb.from.id) } });
+    const member = link
+      ? await prisma.workspaceMember.findUnique({
+          where: { workspaceId_userId: { workspaceId: contact.workspaceId, userId: link.userId } },
+          select: { id: true, user: { select: { name: true, email: true } } },
+        })
+      : null;
+    if (!member) return void (await answer("Avval botga /start yozib, SocialAuto akkauntingizni bog'lang."));
+    const who = member.user?.name || member.user?.email || (cb.from.username ? `@${cb.from.username}` : (cb.from.first_name ?? ""));
+
+    try {
+      if (action === "take") {
+        await takeContact(contact.workspaceId, contact.id, member.id, "telegram_take");
+        await answer("Qabul qilindi ✅");
+        const text = `${assignmentAlertText(contact, who, null, "telegram_take")}\n\n✅ Qabul qildi: ${esc(who)}`;
+        await io.edit(chatId, cb.message.message_id, text, { keyboard: assignmentKeyboard(contact, "taken") }).catch(() => {});
+      } else {
+        const result = await releaseContact(contact.workspaceId, contact.id, member.id, "telegram_release");
+        await answer(result.released ? "Bo'shatildi ↩️" : "Kontakt hech kimga biriktirilmagan.");
+        const text = result.released
+          ? `${assignmentAlertText(contact, who, null, "telegram_release")}\n\n↩️ Bo'shatildi: ${esc(who)} — ${esc(contactLabel(contact))} navbatga qaytdi.`
+          : `${esc(contactLabel(contact))} hech kimga biriktirilmagan.`;
+        await io.edit(chatId, cb.message.message_id, text, { keyboard: assignmentKeyboard(contact, "released") }).catch(() => {});
+      }
+    } catch (error) {
+      if (isCrmServiceError(error)) return void (await answer(error.message));
+      await answer("Xatolik yuz berdi, birozdan keyin qayta urinib ko'ring.");
+      throw error;
+    }
+  } finally {
+    await answer();
+  }
+}
+
 async function handleCallback(io: BotIO, update: TgUpdate) {
   const cb = update.callback_query!;
   const data = cb.data ?? "";
   const tgUserId = String(cb.from.id);
+  // CRM (ETAP 5.3) assignment buttons: "crm:take:<contactId>" / "crm:release:<contactId>".
+  // Routed before the generic answer: the handler answers once with its own text.
+  if (data.startsWith("crm:")) return handleCrmCallback(io, cb, data);
   await answerCallbackQuery(cb.id).catch(() => {});
 
   if (data.startsWith("contacted:")) return handleContacted(io, cb, data.slice("contacted:".length));

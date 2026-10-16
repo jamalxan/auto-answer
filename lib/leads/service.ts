@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Lead } from "@/app/generated/prisma/client";
+import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { maskPhone } from "@/lib/integrations/crypto";
 import { enqueueDelivery, enqueueNotify } from "@/lib/queue/assistant-queue";
@@ -169,6 +170,7 @@ export async function createLeadForConversation(
   }
 
   await enqueueLeadDeliveries(lead, original ? "repeat" : "new");
+  void crmTouch({ kind: "lead_created", leadId: lead.id, conversationId: conversation.id });
   console.log(
     `[Leads] lead ${lead.id} created for ${conversation.instagramAccountId} phone=${maskPhone(phone)} repeat=${Boolean(original)}`
   );

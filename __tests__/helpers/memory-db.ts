@@ -9,7 +9,8 @@
 
 type Row = Record<string, unknown> & { id?: string };
 
-type Relation = { model: string; fk: string; kind: "one" | "many"; local?: string };
+/** `inverse`: a 1:1 whose foreign key sits on the other model (conversation.aiState → aiConversationState.conversationId). */
+type Relation = { model: string; fk: string; kind: "one" | "many"; local?: string; inverse?: boolean };
 
 const RELATIONS: Record<string, Record<string, Relation>> = {
   leadDelivery: {
@@ -25,12 +26,22 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
     workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
     messages: { model: "conversationMessage", fk: "conversationId", kind: "many" },
+    aiState: { model: "aiConversationState", fk: "conversationId", kind: "one", inverse: true },
+    aiHandoffs: { model: "aiHandoff", fk: "conversationId", kind: "many" },
   },
   conversationMessage: {
     conversation: { model: "conversation", fk: "conversationId", kind: "one" },
   },
   workspace: {
     owner: { model: "user", fk: "ownerId", kind: "one" },
+    members: { model: "workspaceMember", fk: "workspaceId", kind: "many" },
+  },
+  workspaceMember: {
+    user: { model: "user", fk: "userId", kind: "one" },
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+  },
+  telegramUser: {
+    user: { model: "user", fk: "userId", kind: "one" },
   },
   integration: {
     telegramChats: { model: "telegramChat", fk: "integrationId", kind: "many" },
@@ -62,6 +73,7 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   triggerExecution: {
     campaign: { model: "triggerCampaign", fk: "campaignId", kind: "one" },
     event: { model: "instagramEvent", fk: "eventId", kind: "one" },
+    followUps: { model: "triggerFollowUpRun", fk: "executionId", kind: "many" },
   },
   instagramContact: {
     instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
@@ -69,6 +81,66 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   triggerConversation: {
     contact: { model: "instagramContact", fk: "contactId", kind: "one" },
     messages: { model: "triggerMessage", fk: "conversationId", kind: "many" },
+  },
+  triggerFollowUpRun: {
+    execution: { model: "triggerExecution", fk: "executionId", kind: "one" },
+  },
+  aiConversationState: {
+    conversation: { model: "conversation", fk: "conversationId", kind: "one" },
+    scoreEvents: { model: "aiScoreEvent", fk: "stateId", kind: "many" },
+  },
+  aiHandoff: {
+    conversation: { model: "conversation", fk: "conversationId", kind: "one" },
+  },
+  // CRM (ETAP 5)
+  crmContact: {
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+    tags: { model: "crmContactTag", fk: "contactId", kind: "many" },
+    deals: { model: "crmDeal", fk: "contactId", kind: "many" },
+    activities: { model: "crmActivity", fk: "contactId", kind: "many" },
+    assignments: { model: "crmAssignment", fk: "contactId", kind: "many" },
+    recipients: { model: "crmBroadcastRecipient", fk: "contactId", kind: "many" },
+  },
+  crmTag: {
+    contacts: { model: "crmContactTag", fk: "tagId", kind: "many" },
+  },
+  crmContactTag: {
+    contact: { model: "crmContact", fk: "contactId", kind: "one" },
+    tag: { model: "crmTag", fk: "tagId", kind: "one" },
+  },
+  crmSegment: {
+    broadcasts: { model: "crmBroadcast", fk: "segmentId", kind: "many" },
+  },
+  crmPipeline: {
+    stages: { model: "crmStage", fk: "pipelineId", kind: "many" },
+    deals: { model: "crmDeal", fk: "pipelineId", kind: "many" },
+  },
+  crmStage: {
+    pipeline: { model: "crmPipeline", fk: "pipelineId", kind: "one" },
+    deals: { model: "crmDeal", fk: "stageId", kind: "many" },
+  },
+  crmDeal: {
+    contact: { model: "crmContact", fk: "contactId", kind: "one" },
+    pipeline: { model: "crmPipeline", fk: "pipelineId", kind: "one" },
+    stage: { model: "crmStage", fk: "stageId", kind: "one" },
+  },
+  crmAssignmentRule: {
+    assignments: { model: "crmAssignment", fk: "ruleId", kind: "many" },
+  },
+  crmAssignment: {
+    contact: { model: "crmContact", fk: "contactId", kind: "one" },
+    rule: { model: "crmAssignmentRule", fk: "ruleId", kind: "one" },
+  },
+  crmActivity: {
+    contact: { model: "crmContact", fk: "contactId", kind: "one" },
+  },
+  crmBroadcast: {
+    segment: { model: "crmSegment", fk: "segmentId", kind: "one" },
+    recipients: { model: "crmBroadcastRecipient", fk: "broadcastId", kind: "many" },
+  },
+  crmBroadcastRecipient: {
+    broadcast: { model: "crmBroadcast", fk: "broadcastId", kind: "one" },
+    contact: { model: "crmContact", fk: "contactId", kind: "one" },
   },
 };
 
@@ -88,6 +160,16 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   aiScoreEvent: [["stateId", "leadCycle", "signal"]],
   aiContactMemory: [["instagramAccountId", "igUserId"]],
   aiLeadInsight: [["leadId"]],
+  // CRM (ETAP 5)
+  crmContact: [["instagramAccountId", "igUserId"], ["conversationId"], ["instagramContactId"]],
+  crmTag: [["workspaceId", "slug"]],
+  crmContactTag: [["contactId", "tagId"]],
+  crmPipeline: [["workspaceId", "name"]],
+  crmStage: [["pipelineId", "name"]],
+  crmDeal: [["leadId"]],
+  crmActivity: [["sourceTable", "sourceId", "type"]],
+  crmSyncCursor: [["source"]],
+  crmBroadcastRecipient: [["broadcastId", "contactId"]],
 };
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -147,6 +229,33 @@ const DEFAULTS: Record<string, () => Row> = {
   aiLeadInsight: () => ({ email: null, budget: null, location: null, signals: [], isTest: false }),
   aiShadowTurn: () => ({ conversationId: null, productionReply: null, aiReply: null, intent: null, confidence: null, score: null, handoff: null, costUsd: 0, error: null }),
   llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
+  triggerFollowUpRun: () => ({ status: "SCHEDULED", sentAt: null, reason: null }),
+  // CRM (ETAP 5)
+  crmContact: () => ({
+    username: null, name: null, phoneE164: null, email: null, language: null, source: "UNKNOWN", status: "NEW",
+    score: 0, temperature: "COLD", hasAiState: false, firstInteractionAt: null, lastInteractionAt: null,
+    lastInboundAt: null, lastOutboundAt: null, interactionCount: 0, assignedMemberId: null, assignedAt: null,
+    conversationId: null, instagramContactId: null, optedOutAt: null, optOutReason: null, mergedIntoId: null, customFields: {},
+  }),
+  crmTag: () => ({ color: null }),
+  crmContactTag: () => ({ sourceRef: null }),
+  crmSegment: () => ({ description: null, lastCount: null, lastCountedAt: null, createdByUserId: null }),
+  crmPipeline: () => ({ isDefault: false }),
+  crmStage: () => ({ kind: "OPEN", color: null, isEntry: false }),
+  crmDeal: () => ({ leadId: null, stageEnteredAt: new Date(), wonAt: null, lostAt: null, lostReason: null, assignedMemberId: null }),
+  crmAssignmentRule: () => ({ active: true, priority: 0, stageId: null, memberIds: [], productKeywords: [], rrCursor: 0, onlyUnassigned: true }),
+  crmAssignment: () => ({ dealId: null, ruleId: null, assignedByUserId: null, assignedAt: new Date(), unassignedAt: null, active: true }),
+  crmActivity: () => ({ dealId: null, actorMemberId: null, body: null, payload: null, sourceTable: null, sourceId: null }),
+  crmSyncCursor: () => ({ cursorId: null }),
+  crmBroadcast: () => ({
+    segmentId: null, quickReplies: null, status: "DRAFT", scheduledAt: null, startedAt: null, completedAt: null,
+    throttlePerHour: 100, frequencyCapHours: 24, replyWindowHours: 48, conversionWindowDays: 7, totalCount: 0,
+    eligibleCount: 0, sentCount: 0, skippedCount: 0, failedCount: 0, repliedCount: 0, convertedCount: 0, lastError: null, tickSeq: 0, nextTickAt: null, createdByUserId: null,
+  }),
+  crmBroadcastRecipient: () => ({
+    ineligibleReason: null, status: "PENDING", attempts: 0, sentMessageId: null, sentAt: null, error: null,
+    repliedAt: null, replyMessageId: null, convertedAt: null, conversionDealId: null,
+  }),
 };
 
 let seq = 0;
@@ -185,6 +294,7 @@ export class MemoryDb {
   private related(model: string, row: Row, key: string): unknown {
     const rel = RELATIONS[model]?.[key];
     if (!rel) return undefined;
+    if (rel.kind === "one" && rel.inverse) return this.rows(rel.model).find((r) => r[rel.fk] === row.id) ?? null;
     if (rel.kind === "one") return this.rows(rel.model).find((r) => r.id === row[rel.fk]) ?? null;
     return this.rows(rel.model).filter((r) => r[rel.fk] === row.id);
   }
@@ -268,13 +378,21 @@ export class MemoryDb {
   }
 
   private sort(list: Row[], orderBy: unknown): Row[] {
-    const specs = (Array.isArray(orderBy) ? orderBy : [orderBy]) as Array<Record<string, "asc" | "desc">>;
+    const specs = (Array.isArray(orderBy) ? orderBy : [orderBy]) as Array<Record<string, "asc" | "desc" | { sort: "asc" | "desc"; nulls?: "first" | "last" }>>;
     return [...list].sort((a, b) => {
       for (const spec of specs) {
-        const [field, dir] = Object.entries(spec)[0];
-        const x = a[field] as number | Date | string;
-        const y = b[field] as number | Date | string;
-        if (x === y) continue;
+        const [field, raw] = Object.entries(spec)[0];
+        const dir = typeof raw === "string" ? raw : raw.sort;
+        // Postgres default: NULLS FIRST for desc, NULLS LAST for asc; `nulls` overrides.
+        const nullsFirst = typeof raw === "string" ? dir === "desc" : raw.nulls ? raw.nulls === "first" : dir === "desc";
+        const x = a[field] as number | Date | string | null | undefined;
+        const y = b[field] as number | Date | string | null | undefined;
+        const xNull = x === null || x === undefined;
+        const yNull = y === null || y === undefined;
+        if (xNull && yNull) continue;
+        if (xNull) return nullsFirst ? -1 : 1;
+        if (yNull) return nullsFirst ? 1 : -1;
+        if (x === y || (x instanceof Date && y instanceof Date && x.getTime() === y.getTime())) continue;
         const cmp = x < y ? -1 : 1;
         return dir === "desc" ? -cmp : cmp;
       }
@@ -292,9 +410,14 @@ export class MemoryDb {
   model(name: string) {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const db = this;
-    const find = (args: { where?: Row; orderBy?: unknown; skip?: number; take?: number } = {}) => {
+    const find = (args: { where?: Row; orderBy?: unknown; cursor?: Row; skip?: number; take?: number } = {}) => {
       let list = db.rows(name).filter((r) => db.matches(name, r, args.where));
       if (args.orderBy) list = db.sort(list, args.orderBy);
+      // Prisma cursor paging: start at the row matching `cursor` (the caller skips it with skip: 1).
+      if (args.cursor) {
+        const index = list.findIndex((r) => db.matches(name, r, args.cursor));
+        list = index === -1 ? [] : list.slice(index);
+      }
       if (args.skip) list = list.slice(args.skip);
       if (args.take !== undefined) list = list.slice(0, args.take);
       return list;
@@ -346,7 +469,7 @@ export class MemoryDb {
         const row = find(args)[0];
         return row ? db.withInclude(name, row, args.include ?? db.selectAsInclude(name, args.select)) : null;
       },
-      async findMany(args: { where?: Row; orderBy?: unknown; skip?: number; take?: number; include?: Record<string, unknown>; select?: Record<string, unknown> } = {}) {
+      async findMany(args: { where?: Row; orderBy?: unknown; cursor?: Row; skip?: number; take?: number; include?: Record<string, unknown>; select?: Record<string, unknown> } = {}) {
         return find(args).map((r) => db.withInclude(name, r, args.include ?? db.selectAsInclude(name, args.select)));
       },
       async count(args: { where?: Row } = {}) {
@@ -356,6 +479,14 @@ export class MemoryDb {
         db.log.push({ model: name, op: "update" });
         const row = find({ where })[0];
         if (!row) throw new Error(`${name} not found for update`);
+        // Unique keys hold on update too (Postgres raises P2002 for a taken value).
+        for (const key of UNIQUE_KEYS[name] ?? []) {
+          const next = { ...row, ...Object.fromEntries(Object.entries(data).filter(([k, v]) => key.includes(k) && v !== undefined)) };
+          if (key.some((k) => next[k] === null || next[k] === undefined)) continue;
+          if (db.rows(name).some((r) => r !== row && key.every((k) => r[k] === next[k]))) {
+            throw Object.assign(new Error(`Unique constraint failed: ${name}(${key.join(",")})`), { code: "P2002" });
+          }
+        }
         applyData(row, data);
         return db.withInclude(name, row, include);
       },

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { jsonError, jsonOk, requireWorkspace } from "@/lib/api-auth";
+import { canManageWorkspace } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,6 @@ export async function GET(_request: NextRequest, { params }: Props) {
         nextAttemptAt: d.nextAttemptAt,
       })),
     },
-    canManage: auth.ctx.role !== "MEMBER",
+    canManage: canManageWorkspace(auth.ctx.role),
   });
 }

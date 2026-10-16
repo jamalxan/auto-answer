@@ -99,3 +99,39 @@ Meta qoidalari (testda shunday bo'lishi kerak, xato emas):
 - Live kommentga private reply faqat efir davomida.
 - Story mention faqat public akkauntdan (yoki sizga obuna bo'lgan yopiq akkauntdan) keladi.
 - ig.me ref yangi suhbatda faqat Icebreakers sozlangan bo'lsa keladi; Instagram Web'da ishlamaydi.
+
+## ETAP 5 — CRM / Lead Management (`/developer/crm`)
+
+CRM faqat `CRM_ENABLED=1` bilan ishlaydi (web va worker'ga qo'ying, keyin
+qayta ishga tushiring): bu o'zgaruvchisiz hooklar, worker, reconciler va
+broadcast o'chiq, production avvalgidek ishlaydi. Avval "Umumiy" tabida
+**Backfill**'ni bir marta ishga tushiring (fon vazifasi sifatida navbatga
+qo'yiladi): InstagramContact, Conversation, Lead va DmLog'dagi har bir odam
+uchun bitta CrmContact yaratiladi; tarixiy yozuvlar uchun Telegram xabarlari
+va avtomatik biriktirish ishlamaydi. Reconciler birinchi ishga tushganda
+"hozir"dan boshlaydi — tarix faqat Backfill orqali. `CRM_DISABLED=1` —
+favqulodda o'chirish, `CRM_ENABLED=1` dan ustun turadi. Broadcast uchun test "mijoz" akkaunt
+sizga oxirgi 24 soat ichida yozgan bo'lishi kerak (Meta 24 soatlik oynasi).
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| K1 | "Umumiy" → Backfill | "Navbatga qo'yildi" (202); bir necha daqiqadan keyin "Kontaktlar"da to'rt jadvaldagi har bir odam bittadan, takror yo'q; Telegram'ga eski leadlar haqida xabar kelmaydi; qayta bosilsa son o'zgarmaydi. CRM_ENABLED=1 bo'lmasa — 409 "CRM o'chiq" |
+| K2 | C7 kontaktini oching (komment → javob → DM → AI javob → lead → yetkazish) | Timeline shu tartibda, yangisi tepada; "Eskilarini yuklash" keyingi sahifani qo'shadi; bitta xabar ikki marta chiqmaydi |
+| K3 | "Segmentlar" → yangi: Teg HOT + Telefon bor + custom.city = Toshkent + custom.course ichida IELTS | Preview soni = "Kontaktlar" tabida shu segment tanlanganda chiqadigan son; jumla: "Teg: HOT va Telefon bor va city = Toshkent va course ichida \"IELTS\"" |
+| K4 | "Kontaktlar" → CSV eksport (segment tanlangan holda) | Qatorlar soni = preview soni; VIEWER / OPERATOR uchun tugma yo'q, URL'ga kirsa 403 |
+| K5 | TZ §63 zanjiri: komment → javob → telefon chipi → Lead | "Pipeline"da bitim "Yangi lead" ustunida; Telegram'da "Bog'lanildi" → "Bog'lanildi" ustuniga ko'chadi |
+| K6 | Kanban'da bitimni "Yutildi"ga sudrang (yoki "Ko'chirish…") | Kontakt holati Mijoz, JavobAI harorati CUSTOMER; "Yo'qotildi"ga — sabab so'raladi, harorat LOST; qaytarilsa ball qaytadan hal qiladi |
+| K7 | "Jamoa" → qoida: HOT bo'lganda → navbat bilan (ikki operator) → ikki kontakt HOT bo'ladi | Birinchisi 1-operatorga, ikkinchisi 2-operatorga; workspace Telegram chatida xabar + "Qabul qildim / Bo'shatish" tugmalari |
+| K8 | Telegram'da boshqa a'zo "Qabul qildim" bosadi | Kontakt o'sha a'zoga biriktiriladi (timeline'da "Operator biriktirildi"); "Bo'shatish" — operator faqat o'zinikini bo'shata oladi |
+| K9 | VIEWER rolidagi a'zo bilan kiring | Hamma tab o'qiladi; status / teg / eslatma / biriktirish / segment / broadcast tugmalari yo'q; API'ga PATCH/POST yuborilsa 403 |
+| K10 | "Broadcast" → 3 kishilik segment: 1 soat oldin yozgan, 2 kun oldin yozgan, "STOP" yozgan | Preview: 1 yuboriladi, "24 soatlik oyna yopilgan: 1", "Obunadan chiqqan: 1"; "Hozir yuborish" → aynan bitta DM; qabul qiluvchilar ro'yxatida ikkita sabab |
+| K11 | Broadcast olgan mijoz 48 soat ichida javob yozadi; 7 kun ichida bitimi "Saralangan"ga ko'chiriladi | Detailda "Javob berdi" 1, "Konversiya" 1; kontakt timeline'ida "Broadcast'ga javob berdi" va "Broadcast konversiyasi" |
+| K12 | Mijoz "STOP" / "to'xtating" / "Отпишите" yozadi; keyingi broadcast | Kontakt kartasida "Obunadan chiqqan (STOP yozgan)", timeline'da OPT_OUT; keyingi broadcastda sabab "Obunadan chiqqan"; "Obunaga qaytarish" qaytaradi |
+
+Broadcast qoidalari (testda shunday bo'lishi kerak, xato emas):
+- Odam yozmagan yoki oxirgi xabaridan 23 soat 55 daqiqa o'tgan bo'lsa — yuborilmaydi, sababi ko'rinadi.
+- Operator bilan suhbatdagilar (handoff kutilmoqda / operator yozmoqda) o'tkazib yuboriladi (egasi qarori 2).
+- 24 soat ichida boshqa broadcast olgan odam "Yaqinda broadcast olgan" (chastota chegarasi 0 bo'lsa — yuboriladi).
+- Soatiga N: har 5 daqiqada floor(N/12) ta; akkauntning 750/soat limiti tugasa bir soat kutiladi, hech kim o'tkazilmaydi.
+- "To'xtatish" keyingi yuborishdan oldin ishlaydi; "Bekor qilish" navbatdagilarni "O'tkazildi" qiladi.
+- Worker yuborish o'rtasida o'lsa (10 daqiqadan eski "Yuborilmoqda") — "Xato: jarayon uzildi", qayta yuborilmaydi.

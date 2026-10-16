@@ -9,6 +9,7 @@
  */
 
 import type { Lead } from "@/app/generated/prisma/client";
+import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { createLeadForConversation, readCollected, type Collected } from "@/lib/leads/service";
 import { factsFromTurn, upsertContactMemory } from "./memory";
@@ -60,6 +61,8 @@ export async function captureJavobAiLead(input: JavobAiLeadInput): Promise<Lead 
       })
       .catch(() => {});
   }
+  // The lead's score / temperature are on the state now: mirror them into the CRM contact.
+  void crmTouch({ kind: "score", conversationId: input.conversationId });
 
   // Contact memory (4.2): the lead id and its one-line summary survive the
   // 30-day cycle; `cycle` is what `returning` compares. Best effort.

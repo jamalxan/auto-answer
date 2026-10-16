@@ -10,26 +10,7 @@ export type WorkspaceContext = {
   role: WorkspaceRole;
 };
 
-const ROLE_ORDER: Record<WorkspaceRole, number> = {
-  MEMBER: 1,
-  ADMIN: 2,
-  OWNER: 3,
-};
-
-export function hasWorkspaceRole(
-  role: WorkspaceRole,
-  minimumRole: WorkspaceRole
-) {
-  return ROLE_ORDER[role] >= ROLE_ORDER[minimumRole];
-}
-
-export function canManageWorkspace(role: WorkspaceRole) {
-  return hasWorkspaceRole(role, "ADMIN");
-}
-
-export function canManageBilling(role: WorkspaceRole) {
-  return role === "OWNER";
-}
+export { canManageBilling, canManageWorkspace, hasWorkspaceRole } from "@/lib/workspace-roles";
 
 export async function getCurrentWorkspaceContext(): Promise<WorkspaceContext | null> {
   const userId = await getCurrentUserId();

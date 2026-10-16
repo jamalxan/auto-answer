@@ -16,6 +16,7 @@
  */
 
 import type { AiHandoffState } from "@/app/generated/prisma/client";
+import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/env";
@@ -104,6 +105,7 @@ export async function openHandoff(conversationId: string, input: OpenHandoffInpu
   }
   await prisma.aiConversationState.update({ where: { id: state.id }, data: { handoffState: "HANDOFF_PENDING" } });
   await prisma.conversation.update({ where: { id: conversationId }, data: { assistantState: "HANDED_OFF" } });
+  void crmTouch({ kind: "handoff", conversationId });
   if (input.alert !== false) await alertHandoff(conversationId, input).catch(() => {});
   return "HANDOFF_PENDING";
 }
@@ -133,6 +135,7 @@ export async function acceptHandoff(conversationId: string, by: string): Promise
     where: { id: conversationId },
     data: { assistantState: "HANDED_OFF", operatorActiveUntil: new Date(now.getTime() + OPERATOR_ACTIVE_HOURS * HOUR_MS) },
   });
+  void crmTouch({ kind: "handoff", conversationId });
   return "OPERATOR_ACTIVE";
 }
 
@@ -150,6 +153,7 @@ export async function closeHandoff(conversationId: string, by: string, resumeAi 
     data: { status: "CLOSED", closedAt: now, closedBy: by, resumeAi },
   });
   await prisma.aiConversationState.update({ where: { id: state.id }, data: { handoffState: "CLOSED", unknownStreak: 0 } });
+  void crmTouch({ kind: "handoff", conversationId });
   if (resumeAi) {
     await prisma.conversation.update({ where: { id: conversationId }, data: { operatorActiveUntil: null, botPaused: false } });
   }

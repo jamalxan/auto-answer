@@ -6,6 +6,8 @@ import { isTriggerEngineEnabled } from "@/lib/triggers/config";
 import { createTriggerWorker, runTriggerMaintenance } from "@/lib/triggers/worker";
 import { isJavobAiEnabled } from "@/lib/javobai/config";
 import { createJavobAiWorker, runJavobAiMaintenance } from "@/lib/javobai/worker";
+import { createCrmWorker, isCrmEnabled, runCrmMaintenance } from "@/lib/crm/worker";
+import { registerBroadcastModule } from "@/lib/crm/broadcast-worker";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -16,6 +18,9 @@ const assistantWorker = createAssistantWorker();
 const triggerWorker = isTriggerEngineEnabled() ? createTriggerWorker() : null;
 // JavobAI (dev): its own queue, off with JAVOBAI_DISABLED.
 const javobAiWorker = isJavobAiEnabled() ? createJavobAiWorker() : null;
+// CRM (dev, ETAP 5): the "crm" queue (contact sync + broadcast jobs), opt-in with CRM_ENABLED=1, CRM_DISABLED=1 wins.
+if (isCrmEnabled()) registerBroadcastModule();
+const crmWorker = isCrmEnabled() ? createCrmWorker() : null;
 const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because
@@ -60,6 +65,8 @@ const maintenanceTimer = setInterval(() => {
   void runAssistantMaintenance();
   if (triggerWorker) void runTriggerMaintenance();
   if (javobAiWorker) void runJavobAiMaintenance();
+  // Reconciler every 5 min (self-throttled) plus the registered tasks (broadcast) every minute.
+  if (crmWorker) void runCrmMaintenance();
 }, 60_000);
 
 async function shutdown(signal: string) {
@@ -71,6 +78,7 @@ async function shutdown(signal: string) {
   await assistantWorker.close();
   await triggerWorker?.close();
   await javobAiWorker?.close();
+  await crmWorker?.close();
   process.exit(0);
 }
 
