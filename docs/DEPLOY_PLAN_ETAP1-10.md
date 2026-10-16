@@ -1,3 +1,27 @@
+# FINAL DEPLOY CHECKLIST (ETAP 1-12) — updated 2026-10-16
+
+Merge tip: `developer-etap12` (commit e6019d0). All branches are on GitHub.
+Verified on the tip: prisma validate, tsc, eslint (0 errors), vitest 2409/2409,
+next build OK. Nothing has been deployed yet.
+
+New additive migrations since the deployed `f39167d` (13): comment_automation_2,
+etap3, javobai_etap4, crm_etap5, flows_etap6, integration_types_etap8,
+outbound_bus_analytics_etap8_10, engagement_etap9, migration_etap11 (`20261022100000`),
+mcp_etap12 (`20261023100000`). They only add tables/columns/indexes.
+
+Order (night, after approval):
+1. Server `.env`: set `ADMIN_INITIAL_USERNAME`, `ADMIN_INITIAL_EMAIL`,
+   `ADMIN_INITIAL_PASSWORD` (>= 12 chars). Without them `/admin` stays closed.
+2. Optional `/developer`: `DEVELOPER_EMAIL` + `DEVELOPER_PASSWORD_HASH`
+   (`node scripts/hash-developer-password.mjs`, choose a NEW password).
+3. Leave `CRM_ENABLED` unset (CRM stays off). Kill switches default to "on
+   unless disabled"; set `MIGRATION_DISABLED=1`, `MCP_DISABLED=1`,
+   `ENGAGEMENT_DISABLED=1` if you want those modules inert after deploy.
+4. DB backup: `docker exec socialauto-postgres-1 pg_dump -U postgres socialauto > ~/backups/socialauto_$(date +%Y%m%d_%H%M).dump`
+5. `git checkout master && git merge --ff-only developer-etap12 && git push origin master`
+   (this triggers CI/CD: typecheck + tests -> image -> compose up -> /api/health).
+6. Smoke test (section below). Rollback: `APP_TAG=f39167d7d367383fdd824b096a3d107a32f5f8fe`.
+
 > Update 2026-10-18 (2): ETAP 12 (MCP) is in the chain; merge tip is
 > `developer-etap12`. Extra additive migration: `20261023100000_mcp_etap12`.
 > Switch: `MCP_DISABLED`.
@@ -62,8 +86,8 @@ Checked on 2026-10-16:
 ## Merge and deploy
 
 The seven earlier commits and the later ones form one chain
-(`audit-fixes → developer-etap1 → … → developer-etap9`). Merge the tip
-(`developer-etap9`) into `master` with a normal merge commit, then push
+(`audit-fixes → developer-etap1 → … → developer-etap12`). Merge the tip
+(`developer-etap12`) into `master` with a normal merge commit, then push
 `master`; the Deploy workflow does the rest. Because the chain is linear a
 fast-forward is enough.
 
