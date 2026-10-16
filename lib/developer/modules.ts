@@ -111,7 +111,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 11,
     title: "ManyChat Migration",
     summary: "ManyChat flow, trigger va taglarini import qilish.",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/migration",
   },
   {
     key: "mcp",

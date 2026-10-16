@@ -111,7 +111,10 @@ model Workspace {
   triggerFollowUpRuns  TriggerFollowUpRun[]
   triggerBacktrackRuns TriggerBacktrackRun[]
 
-      // Engagement (ETAP 9), developer area
+      // Migration (ETAP 11), developer area
+  migrationProjects   MigrationProject[]
+
+  // Engagement (ETAP 9), developer area
   giveaways           Giveaway[]
   referralPrograms    ReferralProgram[]
   engagementSettings  EngagementSettings?
@@ -2769,4 +2772,91 @@ model EngagementBadge {
 
   @@unique([contactId, badgeKey])
   @@index([workspaceId])
+}
+
+// --- Migration from other platforms (developer area, ETAP 11) ----------------
+// ManyChat exposes no flow content, so a project holds the automatic imports
+// (tags, fields) and the per-flow conversion state. See etap-11-migration.md.
+
+enum MigrationSource {
+  MANYCHAT
+}
+
+enum MigrationStatus {
+  CONNECTED
+  ANALYZED
+  IMPORTING
+  DONE
+  FAILED
+}
+
+enum MigrationItemKind {
+  TAG
+  CUSTOM_FIELD
+  BOT_FIELD
+  FLOW
+  GROWTH_TOOL
+}
+
+enum MigrationItemStatus {
+  PENDING
+  MAPPED
+  CONVERTED
+  IMPORTED
+  SKIPPED
+  UNSUPPORTED
+  FAILED
+}
+
+model MigrationProject {
+  id                   String          @id @default(cuid())
+  workspaceId          String
+  instagramAccountId   String?
+  source               MigrationSource @default(MANYCHAT)
+  name                 String
+  status               MigrationStatus @default(CONNECTED)
+  // AES-GCM (lib/meta/oauth encryptToken); never serialized.
+  apiKeyEncrypted      String?
+  apiKeyHint           String?
+  // Page name / id etc. as returned by the source.
+  pageSnapshot         Json?
+  lastAnalyzedAt       DateTime?
+  lastError            String?
+  createdByUserId      String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     MigrationItem[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model MigrationItem {
+  id              String              @id @default(cuid())
+  projectId       String
+  kind            MigrationItemKind
+  // ManyChat id (flow ns, tag id, field id) when it has one.
+  sourceId        String?
+  name            String
+  folder          String?
+  status          MigrationItemStatus @default(PENDING)
+  // Type / value / target (tag slug, customFields key, variable key...).
+  mapping         Json                @default("{}")
+  // Pasted flow text (never images); capped.
+  sourceText      String?
+  // [{ code, severity, message, feature? }]
+  warnings        Json                @default("[]")
+  // The SocialAuto flow created from this item.
+  flowId          String?
+  note            String?
+  // Set while an import of this item is running (conditional claim, stale after minutes).
+  importClaimedAt DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  project MigrationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, kind, sourceId])
+  @@index([projectId, kind, status])
 }

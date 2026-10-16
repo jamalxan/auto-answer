@@ -219,6 +219,14 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   engagementBadge: {
     workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
   },
+  // Migration (ETAP 11)
+  migrationProject: {
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+    items: { model: "migrationItem", fk: "projectId", kind: "many" },
+  },
+  migrationItem: {
+    project: { model: "migrationProject", fk: "projectId", kind: "one" },
+  },
 };
 
 /**
@@ -269,6 +277,8 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   engagementPoint: [["sourceTable", "sourceId", "reason"]],
   giveawayNotification: [["giveawayId", "entryId", "channel"]],
   engagementBadge: [["contactId", "badgeKey"]],
+  // Migration (ETAP 11)
+  migrationItem: [["projectId", "kind", "sourceId"]],
 };
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -400,6 +410,12 @@ const DEFAULTS: Record<string, () => Row> = {
   engagementSettings: () => ({ pointsRules: {}, badgeRules: [] }),
   engagementPoint: () => ({}),
   engagementBadge: () => ({ awardedAt: new Date() }),
+  // Migration (ETAP 11)
+  migrationProject: () => ({
+    source: "MANYCHAT", status: "CONNECTED", instagramAccountId: null, apiKeyEncrypted: null, apiKeyHint: null, pageSnapshot: null,
+    lastAnalyzedAt: null, lastError: null, createdByUserId: null,
+  }),
+  migrationItem: () => ({ sourceId: null, folder: null, status: "PENDING", mapping: {}, sourceText: null, warnings: [], flowId: null, note: null, importClaimedAt: null }),
   crmBroadcastRecipient: () => ({
     ineligibleReason: null, status: "PENDING", attempts: 0, sentMessageId: null, sentAt: null, error: null,
     repliedAt: null, replyMessageId: null, convertedAt: null, conversionDealId: null,

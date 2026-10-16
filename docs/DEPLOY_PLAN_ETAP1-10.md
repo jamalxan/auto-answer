@@ -1,3 +1,7 @@
+> Update 2026-10-18: ETAP 11 (ManyChat migration) is now part of the chain; the
+> tip to merge is `developer-etap11`. One more additive migration:
+> `20261022100000_migration_etap11`. Switch: `MIGRATION_DISABLED`.
+
 # Deploy plan — audit fixes + developer area (ETAP 1–10)
 
 > Update 2026-10-17: ETAP 9 (Engagement) is now part of the chain; the tip to

@@ -239,3 +239,27 @@ Eslatmalar:
 - Havola (`ig.me/m/<username>?ref=rf_<kod>`) yangi suhbatni faqat Icebreakers sozlangan bo'lsa va telefon ilovasida ochadi, Instagram Web'da ishlamaydi — dastur yoqilganda sahifada shu haqida ogohlantirish chiqadi.
 - "Qoidalar (Meta)" tabida platforma cheklovlari (yoqtirish/saqlash/ulashish tekshirilmaydi, obuna "imkon qadar", 5 000 izoh chegarasi, bir izohga bitta DM) ro'yxati bor.
 - Rollar: Ko'ruvchi va Operator hamma narsani ko'radi, lekin yozish va qur'a tugmalari 403 beradi; CSV eksport faqat Menejer+ (`export_data`).
+
+## ETAP 11 — ManyChat migration (`/developer/migration`)
+
+Yordamli migratsiya: teglar, maydonlar, bot maydonlari va flow ro'yxati API orqali o'qiladi; flow ichini
+foydalanuvchi matn/ekran rasmi bilan beradi, AI qoralama flow tuzadi. `MIGRATION_DISABLED=1` — favqulodda
+o'chirish (ulash, tahlil, import, aylantirish 503; o'qish va loyihani o'chirish ishlayveradi). Sinov uchun
+ManyChat sahifasi (kamida 2 teg, 1 maxsus maydon, 1 bot maydoni, 2 flow), uning API kaliti va ulangan
+Instagram akkaunt kerak.
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| M1 | "Ulash" bosqichi: avval noto'g'ri kalit, so'ng to'g'ri kalit bilan "Ulash va tekshirish" | Noto'g'ri kalitda Uzbekcha xato + yechim ("Settings → API dan qayta nusxalang"); sahifa/javob/log'da kalit ko'rinmaydi. To'g'ri kalitda "Tahlil" bosqichiga o'tadi (URL: `?project=…&step=1`), kalit maydoni tozalanadi, faqat oxirgi belgilar (`apiKeyHint`) ko'rinadi; bosqichda "nima o'qiladi / nima mumkin emas" qutisi bor |
+| M2 | "Tahlil" → "Tahlilni boshlash", so'ng "Moslashtirish": teg slug'ini tahrirlang ("Saqlanmagan" belgisi), "Teglar va maydonlarni import qilish…" → tasdiq | Hisoblagichlar (teg/maydon/bot maydon/flow/growth tool) ManyChat'dagi bilan teng; jadvallarda nom/papka/holat; import natijasi hisoblari ko'rinadi; CRM teglarida yangi teglar paydo bo'ladi, mavjudlari "birlashtirish" bilan qayta yaratilmaydi; qayta import ikkilantirmaydi |
+| M3 | Bot maydonlari jadvalida qiymatni o'zgartirib saqlang va import qiling | Bot maydonlari Flows'dagi o'zgaruvchilar ro'yxatida (qiymatlari bilan) ko'rinadi; mavjud o'zgaruvchi ustiga yozilmaydi (hisobotda "o'tkazib yuborildi") |
+| M4 | "Flow'lar" → flow'ni oching, haqiqiy ManyChat flow matnini joylang (trigger so'zi, xabarlar, tugmalar, shart, kutish), maqsad akkaunt va trigger turini tanlang, "AI bilan aylantirish" | Matn yozilganda ~1 s ichida "Aniqlangan imkoniyatlar" (trigger, bloklar) yangilanadi; belgilar hisoblagichi 12000 dan oshsa xato; natijada bloklar ro'yxati, audit (xato/ogohlantirish/taklif), policy PASS/WARNING/BLOCKED va "Qo'lda bajariladiganlar" ko'rinadi; hali flow yaratilmagan |
+| M5 | Matnga ManyChat'ning qo'llab-quvvatlanmaydigan elementlarini yozing (WhatsApp/Messenger kanali, to'lov, tashqi so'rov, sequence) | "Aniqlangan imkoniyatlar"da qizil (UNSUPPORTED) / sariq (PARTIAL) qatorlar yechim taklifi bilan; aylantirish natijasida ham "Qo'lda bajariladiganlar"da ro'yxatlanadi; hech biri jimgina yo'qolmaydi |
+| M6 | Flow'ni oching, 7 ta rasm tanlang; so'ng 5 MB li rasm; so'ng 2 ta oddiy ekran rasmi bilan saqlang | 7-rasmda "ko'pi bilan 6 ta" xato, katta rasm brauzerda yechim bilan rad etiladi; kichik rasmlar miniatura bilan chiqadi va olib tashlanadi (×); saqlangach rasmlar ro'yxati tozalanadi, matn maydoniga ajratib olingan matn tushadi; ma'lumotlar bazasida (MigrationItem) faqat matn bor, rasm yo'q |
+| M7 | Natija ko'rinishida "Qoralama sifatida saqlash" → "Flows'da ochish" | Flow DRAFT (manba: AI), nashr qilinmagan; havola `/developer/flows?flow=<id>` ochiladi, audit va policy natijasi Flows'dagi bilan bir xil; qatorning holati "Import qilingan"; sandbox'da sinab, so'ng nashr qilish mumkin (AI versiya tasdiq talab qiladi); "O'tkazib yuborish" (inline tasdiq) qatorni "O'tkazib yuborilgan" qiladi |
+| M8 | "Yakun" bosqichi, so'ng "Loyihani o'chirish" → tasdiq | Yakunda: nima bajarilgani sanoqlari, kontaktlarni qayta opt-in qildirish yo'riqnomasi (ig.me havolasi + `ref`, komment/story trigger), growth tool'larni qayta yaratish, sandbox'da sinash, nashr qilish; Flows/Comments/Triggers havolalari. O'chirgach loyiha ro'yxatda yo'q, `apiKeyEncrypted` tozalangan (DB'da qator yo'q), import qilingan teglar va flow qoralamalari qoladi; `MIGRATION_DISABLED=1` da ham o'chirish ishlaydi |
+
+Eslatmalar:
+- Rollar: Ko'ruvchi va Operator loyihalarni ko'radi, lekin ulash/tahlil/import/aylantirish 403 (Menejer+ kerak); sahifada sariq ogohlantirish chiqadi.
+- ManyChat API flow ichini, kalit so'z qoidalarini va obunachilarni bermaydi — shuning uchun ular qo'lda (matn bilan) yoki qayta opt-in orqali.
+- Kalit hech qachon javobda, logda yoki sahifada qaytmaydi; `__tests__/migration-api.test.ts` buni tekshiradi.
