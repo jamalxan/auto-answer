@@ -259,19 +259,30 @@ export interface CommentSimulation {
  */
 export async function simulateComment(
   workspaceId: string,
-  input: { instagramAccountId: string; mediaId: string | null; text: string; eventType?: "COMMENT" | "LIVE_COMMENT" }
+  input: {
+    instagramAccountId: string;
+    mediaId: string | null;
+    text: string;
+    eventType?: "COMMENT" | "LIVE_COMMENT";
+    /** The campaign being edited: tested "as if active" even while it is a draft / paused (dry run only, nothing is sent). */
+    includeCampaignId?: string | null;
+  }
 ): Promise<CommentSimulation> {
   const eventType = input.eventType ?? "COMMENT";
-  const campaigns = await prisma.triggerCampaign.findMany({
+  const includeId = input.includeCampaignId || null;
+  const found = await prisma.triggerCampaign.findMany({
     where: {
       workspaceId,
       triggerType: eventType,
-      active: true,
       kind: "CAMPAIGN",
-      OR: [{ instagramAccountId: input.instagramAccountId }, { instagramAccount: { instagramId: input.instagramAccountId } }],
+      AND: [
+        { OR: [{ instagramAccountId: input.instagramAccountId }, { instagramAccount: { instagramId: input.instagramAccountId } }] },
+        { OR: includeId ? [{ active: true }, { id: includeId }] : [{ active: true }] },
+      ],
     },
     orderBy: { createdAt: "asc" },
   });
+  const campaigns = found.map((c) => (includeId && c.id === includeId ? { ...c, active: true } : c));
   const selection = selectCommentCampaign(campaigns, { mediaId: input.mediaId || null, text: input.text, eventType });
   if (!selection.campaign || !selection.matchKind) {
     return { matched: false, reason: selection.ignoredReason ?? "Mos kampaniya topilmadi" };

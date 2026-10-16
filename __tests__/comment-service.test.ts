@@ -493,6 +493,7 @@ describe("live comments (ETAP 3)", () => {
       mediaId: null,
       text: "narx",
       eventType: "LIVE_COMMENT",
+      includeCampaignId: null,
     });
     expect(simulateInputSchema.parse({ instagramAccountId: "acc1", text: "narx" }).eventType).toBe("COMMENT");
   });

@@ -14,6 +14,7 @@ import {
   JAVOBAI_API,
   jsonInit,
   KNOWLEDGE_KIND_TEXT,
+  profileStateText,
   requestJson,
   type AccountView,
   type KnowledgeEntry,
@@ -178,7 +179,7 @@ function NewEntryForm({ accountId, onCreated }: { accountId: string; onCreated: 
   return (
     <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
       <p className="text-sm font-semibold text-foreground">Yangi yozuv</p>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <Field label="Turi">
           <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value as KnowledgeKind)}>
             {KINDS.map((k) => (
@@ -288,7 +289,7 @@ export default function KnowledgeTab({ account }: { account: AccountView | null 
               <p className="mt-1 text-xs text-muted">
                 {data.profile.companyName || "Nomsiz profil"} ·{" "}
                 {data.profile.scope === "account" ? "shu akkaunt uchun" : "workspace umumiy profil"} ·{" "}
-                {data.profile.live ? "tasdiqlangan" : "tasdiqlanmagan (LIVE yoqilmaydi)"} · {data.preview.lines.length} qator ·{" "}
+                {profileStateText(data.profile)}{data.profile.live ? "" : " (LIVE yoqilmaydi)"} · {data.preview.lines.length} qator ·{" "}
                 {data.preview.chars} belgi
                 {data.preview.truncated && <b className="text-warning"> · qisqartirildi (limit 6000)</b>}
               </p>

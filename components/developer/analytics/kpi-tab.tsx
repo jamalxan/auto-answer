@@ -108,7 +108,7 @@ export default function KpiTab() {
             <Tile label="META XATO DARAJASI" failed={isFailed("metaErrorRate")} hint={kpi.metaErrorRate ? `Oxirgi soat: ${kpi.metaErrorRate.attempts} urinish` : undefined}>
               {pctText(kpi.metaErrorRate?.rate)}
             </Tile>
-            <Tile label="AI KECHIKISH" failed={isFailed("aiLatencyMs")} hint={kpi.aiLatencyMs ? `${kpi.aiLatencyMs.calls} chaqiruv (1 soat)` : undefined}>
+            <Tile label="AI KECHIKISH" failed={isFailed("aiLatencyMs")} hint={kpi.aiLatencyMs ? `${kpi.aiLatencyMs.calls} chaqiruv (1 soat)${kpi.aiLatencyMs.p95 ? ` · p95 ${formatMetric(kpi.aiLatencyMs.p95, "ms")}` : ""}` : undefined}>
               {!kpi.aiLatencyMs || kpi.aiLatencyMs.avg === null ? "—" : formatMetric(kpi.aiLatencyMs.avg, "ms")}
             </Tile>
             <Tile label="AI XARAJAT (BUGUN)" failed={isFailed("aiCostTodayUsd")}>
@@ -131,9 +131,11 @@ export default function KpiTab() {
           <div className="panel overflow-hidden rounded-xl">
             <div className="px-4 py-3">
               <h2 className="text-sm font-semibold text-foreground">Navbatlar</h2>
-              <p className="mt-0.5 text-xs text-muted">Navbat chuqurligi butun platforma bo&apos;yicha (barcha workspace&apos;lar), faqat DM navbati workspace&apos;ga xos.</p>
+              <p className="mt-0.5 text-xs text-muted">{kpi.queueDepthsRestricted ? "Faqat platforma administratori uchun." : null} Navbat chuqurligi butun platforma bo&apos;yicha (barcha workspace&apos;lar), faqat DM navbati workspace&apos;ga xos.</p>
             </div>
-            {isFailed("queueDepths") || !kpi.queueDepths ? (
+            {kpi.queueDepthsRestricted ? (
+              <p className="px-4 pb-4 text-sm text-muted">Platforma navbatlari barcha mijozlarga tegishli — faqat platforma administratoriga ko&apos;rinadi. Sizning DM navbatingiz yuqoridagi &quot;DM navbati&quot; kartasida.</p>
+            ) : isFailed("queueDepths") || !kpi.queueDepths ? (
               <p className="px-4 pb-4 text-sm text-muted">Navbat ma&apos;lumoti hozir mavjud emas (Redis javob bermadi).</p>
             ) : (
               <div className="overflow-x-auto">

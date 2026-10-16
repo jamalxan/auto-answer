@@ -8,6 +8,7 @@
 export interface AssistantDictionary {
   nav: { assistant: string; leads: string; integrations: string };
   tokenBanner: { title: string; body: (usernames: string) => string; cta: string };
+  telegramBanner: { title: string; body: string; cta: string };
   tokenStatus: { active: string; broken: string; brokenHelp: string };
   campaignToggle: string;
   campaignToggleHelp: string;
@@ -240,7 +241,7 @@ export interface AssistantDictionary {
     accountFilterHelp: string;
     memberReadOnly: string;
     botNotConfigured: string;
-    brokenBanner: (name: string) => string;
+    brokenBanner: (name: string, telegramConnected: boolean) => string;
     steps: string;
     tokenExpires: (date: string) => string;
     disable: string;
@@ -327,6 +328,7 @@ export interface AssistantDictionary {
 
 export const assistantUz: AssistantDictionary = {
   nav: { assistant: "Assistent", leads: "Lidlar", integrations: "Integratsiyalar" },
+  telegramBanner: { title: "Telegram ulanmagan", body: "Ogohlantirishlar (Instagram uzilsa, CRM xatosi, yangi lid) hech kimga yetib bormaydi. Telegram'ni ulang — bir daqiqa.", cta: "Telegram'ni ulash" },
   tokenBanner: {
     title: "Instagram ulanishi uzilgan",
     body: (u) => `${u} uchun Meta tokenni rad etdi — kampaniyalar va assistent ishlamayapti. Akkauntni qayta ulang.`,
@@ -580,7 +582,7 @@ export const assistantUz: AssistantDictionary = {
     accountFilterHelp: "Hech narsa tanlanmasa — hamma akkauntlar. Agentliklar uchun: A mijoz akkaunti → A ning CRM'i.",
     memberReadOnly: "Integratsiyalarni faqat owner yoki admin o'zgartira oladi.",
     botNotConfigured: "Platforma Telegram boti sozlanmagan (TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME).",
-    brokenBanner: (n) => `${n} ulanishi uzildi, qayta ulang. Lidlar Telegram'ga yetkazilishda davom etadi, tiklangach CRM'ga avtomatik yuboriladi.`,
+    brokenBanner: (n, tg) => (tg ? `${n} ulanishi uzildi, qayta ulang. Lidlar Telegram'ga yetkazilishda davom etadi, tiklangach CRM'ga avtomatik yuboriladi.` : `${n} ulanishi uzildi, qayta ulang. Telegram ulanmagan, shuning uchun lidlar hozir hech qayerga yetmaydi; ulanish tiklangach CRM'ga avtomatik yuboriladi.`),
     steps: "Qadamlar",
     tokenExpires: (d) => `Token muddati: ${d}`,
     disable: "O'chirib qo'yish",
@@ -691,6 +693,7 @@ export const assistantUz: AssistantDictionary = {
 
 export const assistantRu: AssistantDictionary = {
   nav: { assistant: "Ассистент", leads: "Лиды", integrations: "Интеграции" },
+  telegramBanner: { title: "Telegram не подключён", body: "Предупреждения (обрыв Instagram, ошибка CRM, новый лид) никому не доходят. Подключите Telegram — это минута.", cta: "Подключить Telegram" },
   tokenBanner: {
     title: "Подключение Instagram потеряно",
     body: (u) => `Meta отклонила токен для ${u} — кампании и ассистент не работают. Подключите аккаунт заново.`,
@@ -944,7 +947,7 @@ export const assistantRu: AssistantDictionary = {
     accountFilterHelp: "Если ничего не выбрано — все аккаунты. Для агентств: аккаунт клиента A → CRM клиента A.",
     memberReadOnly: "Интеграции может менять только owner или admin.",
     botNotConfigured: "Telegram-бот платформы не настроен (TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME).",
-    brokenBanner: (n) => `Подключение ${n} потеряно, подключите заново. Лиды продолжают приходить в Telegram, а в CRM уйдут автоматически после восстановления.`,
+    brokenBanner: (n, tg) => (tg ? `Подключение ${n} потеряно, подключите заново. Лиды продолжают приходить в Telegram, а в CRM уйдут автоматически после восстановления.` : `Подключение ${n} потеряно, подключите заново. Telegram не подключён, поэтому лиды сейчас никуда не доходят; в CRM они уйдут автоматически после восстановления.`),
     steps: "Шаги",
     tokenExpires: (d) => `Токен действует до: ${d}`,
     disable: "Выключить",
@@ -1055,6 +1058,7 @@ export const assistantRu: AssistantDictionary = {
 
 export const assistantEn: AssistantDictionary = {
   nav: { assistant: "Assistant", leads: "Leads", integrations: "Integrations" },
+  telegramBanner: { title: "Telegram is not connected", body: "Alerts (Instagram disconnects, CRM errors, new leads) reach nobody. Connect Telegram — it takes a minute.", cta: "Connect Telegram" },
   tokenBanner: {
     title: "Instagram connection lost",
     body: (u) => `Meta rejected the token for ${u} — campaigns and the assistant are not working. Reconnect the account.`,
@@ -1308,7 +1312,7 @@ export const assistantEn: AssistantDictionary = {
     accountFilterHelp: "Nothing selected = all accounts. For agencies: client A's account → client A's CRM.",
     memberReadOnly: "Only an owner or admin can change integrations.",
     botNotConfigured: "The platform Telegram bot is not configured (TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME).",
-    brokenBanner: (n) => `${n} connection lost, reconnect it. Leads keep reaching Telegram and will be sent to the CRM automatically once it is repaired.`,
+    brokenBanner: (n, tg) => (tg ? `${n} connection lost, reconnect it. Leads keep reaching Telegram and will be sent to the CRM automatically once it is repaired.` : `${n} connection lost, reconnect it. Telegram is not connected, so leads are not reaching anyone right now; they will be sent to the CRM automatically once it is repaired.`),
     steps: "Steps",
     tokenExpires: (d) => `Token valid until: ${d}`,
     disable: "Disable",

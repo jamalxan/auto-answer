@@ -13,6 +13,8 @@ import {
   JAVOBAI_API,
   jsonInit,
   MODE_TEXT,
+  offModeDescription,
+  profileStateText,
   QUALIFICATION_TEXT,
   requestJson,
   type AccountConfig,
@@ -238,7 +240,11 @@ function AccountCard({
   if (!account.profile.exists) {
     problems.push("AI assistent profili yo'q — LIVE uchun /assistant sahifasida profil yarating va tasdiqlang.");
   } else if (!account.profile.live) {
-    problems.push("Profil yoqilmagan yoki tasdiqlanmagan — LIVE uchun /assistant sahifasida yoqib, tasdiqlang.");
+    problems.push(
+      account.profile.approved
+        ? "Profil tasdiqlangan, lekin assistent o'chirilgan — LIVE uchun /assistant sahifasida yoqing."
+        : "Profil tasdiqlanmagan — LIVE uchun /assistant sahifasida tasdiqlang va yoqing."
+    );
   }
   if (tokenBroken) problems.push("Instagram ulanishi uzilgan — javoblar ketmaydi. Foundation → Ulanishlar bo'limida qayta ulang.");
 
@@ -257,7 +263,7 @@ function AccountCard({
               ? `Bilim bazasi: ${account.profile.companyName || "nomsiz"} (${
                   account.profile.scope === "account" ? "shu akkaunt uchun" : "workspace umumiy"
                 }) · ${account.profile.products ?? 0} mahsulot · ${account.profile.faqs ?? 0} FAQ · ${
-                  account.profile.live ? "tasdiqlangan" : "tasdiqlanmagan"
+                  profileStateText(account.profile)
                 }`
               : "Bilim bazasi yo'q"}
           </p>
@@ -285,7 +291,7 @@ function AccountCard({
             disabled={busy || (mode === "LIVE" && !account.profile.live)}
             onSelect={() => void setMode(mode)}
             title={MODE_TEXT[mode].title}
-            description={MODE_TEXT[mode].description}
+            description={mode === "OFF" ? offModeDescription(account.profile) : MODE_TEXT[mode].description}
             badge={mode === "LIVE" && !account.profile.live ? "profil kerak" : undefined}
           />
         ))}
@@ -324,7 +330,7 @@ export default function AccountsTab({ data, onChanged }: { data: AccountsRespons
     <div className="space-y-4">
       <Notice tone="info">
         Rejim darhol kuchga kiradi (30 soniyagacha kesh). SHADOW hech narsa yubormaydi — avval SHADOW&apos;da bir necha kun
-        kuzatib, keyin LIVE yoqing. Favqulodda to&apos;xtatish: serverda <code>JAVOBAI_DISABLED=1</code>.
+        kuzatib, keyin LIVE yoqing. Favqulodda to&apos;xtatishni administrator serverdan bajaradi.
       </Notice>
       <ul className="space-y-3">
         {data.accounts.map((account) => (

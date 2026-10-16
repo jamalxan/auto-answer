@@ -258,21 +258,67 @@ describe("handoff triggers", () => {
   });
 });
 
+describe("price question the model missed (B-05)", () => {
+  it("'Salom, narxi qancha?' labelled OTHER still scores price_asked (+15)", async () => {
+    const result = await runJavobAiTurn(ctx("Salom, narxi qancha?", llm([{ reply: "Salom!", intent: "other", used_facts: [] }])));
+    expect(result.signals).toContainEqual({ signal: "price_asked", points: 15 });
+    expect(result.intent).toBe("price_question");
+  });
+
+  it("forces the signal even when the model chose another intent", async () => {
+    const result = await runJavobAiTurn(ctx("Milan narxi qancha? olmoqchiman", llm([{ reply: "Ha", intent: "purchase_intent", used_facts: ["P1"] }])));
+    expect(result.signals.map((s) => s.signal)).toContain("price_asked");
+  });
+
+  it("a delivery-time question labelled OTHER is not a price question (no signal, no unknown streak)", async () => {
+    const result = await runJavobAiTurn(ctx("Qancha vaqt ichida yetkazasiz?", llm([{ reply: "Odatda 2-3 kun.", intent: "other", used_facts: [] }])));
+    expect(result.intent).toBe("other");
+    expect(result.signals.map((s) => s.signal)).not.toContain("price_asked");
+    expect(result.unknownStreak).toBe(0);
+  });
+});
+
 describe("while a handoff is pending", () => {
   it("allows N grounded short replies, then stays silent", async () => {
     const provider = llm([{ reply: "Ha, Toshkent bo'ylab bepul.", intent: "product_question", used_facts: ["B3"] }]);
-    const first = await runJavobAiTurn(ctx("Yetkazib berish bormi?", provider, { state: { handoffState: "HANDOFF_PENDING", postHandoffReplies: 0 } }));
+    const first = await runJavobAiTurn(ctx("Yetkazib berish bormi?", provider, { config: { postHandoffReplies: 2 }, state: { handoffState: "HANDOFF_PENDING", postHandoffReplies: 0 } }));
     expect(first.reply).toBe("Ha, Toshkent bo'ylab bepul.");
     expect(first.postHandoff).toBe(true);
     expect(first.handoff.needed).toBe(false);
 
     const unknown = await runJavobAiTurn(
-      ctx("Samarqandga?", llm([{ reply: "Ha", intent: "product_question", used_facts: [] }]), { state: { handoffState: "HANDOFF_PENDING", postHandoffReplies: 1 } })
+      ctx("Samarqandga?", llm([{ reply: "Ha", intent: "product_question", used_facts: [] }]), { config: { postHandoffReplies: 2 }, state: { handoffState: "HANDOFF_PENDING", postHandoffReplies: 1 } })
     );
     expect(unknown.reply).toMatch(/Menejerimiz tez orada/);
 
     const silent = await runJavobAiTurn(ctx("Xo'sh?", provider, { state: { handoffState: "HANDOFF_PENDING", postHandoffReplies: 2 } }));
     expect(silent.reply).toBeNull();
+  });
+
+  it("default config (0 replies): three customer messages after a handoff get ZERO AI replies (B-06)", async () => {
+    const provider = llm([{ reply: "Ha, Toshkent bo'ylab bepul.", intent: "product_question", used_facts: ["B3"] }]);
+    for (const message of ["Yetkazib berish bormi?", "Samarqandga?", "Xo'sh?"]) {
+      const result = await runJavobAiTurn(ctx(message, provider, { state: { handoffState: "HANDOFF_PENDING", postHandoffReplies: 0 } }));
+      expect(result.reply).toBeNull();
+    }
+    expect(provider.complete).not.toHaveBeenCalled();
+    expect(DEFAULT_JAVOBAI_CONFIG.postHandoffReplies).toBe(0);
+  });
+
+  it("the 'manager will answer' line is never repeated", async () => {
+    const result = await runJavobAiTurn({
+      ...ctx("Samarqandga?", llm([{ reply: "Ha", intent: "product_question", used_facts: [] }]), { config: { postHandoffReplies: 3 }, state: { handoffState: "HANDOFF_PENDING" } }),
+      lastBotMessage: "Menejerimiz tez orada javob beradi.",
+    });
+    expect(result.reply).toBeNull();
+  });
+
+  it("the single handoff message carries the working hours", async () => {
+    const result = await runJavobAiTurn(
+      ctx("Operator bilan gaplashmoqchiman", llm([{ intent: "wants_human", reply: "x" }]), { profile: { workingHours: "09:00-18:00" } })
+    );
+    expect(result.handoff.needed).toBe(true);
+    expect(result.reply).toContain("09:00-18:00");
   });
 
   it("a number given while pending is still captured", async () => {

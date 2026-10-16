@@ -8,6 +8,7 @@
  * Connectors tab can refresh it after every change.
  */
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
@@ -114,10 +115,10 @@ export default function IntegrationsDashboard() {
       )}
 
       {meta && !meta.busEnabled && (
-        <Notice tone="error">
-          Hodisalar shinasi o&apos;chiq (<code>INTEGRATIONS_BUS_DISABLED=1</code>): yangi hodisalar yaratilmaydi va hech narsa yuborilmaydi.
-          Lead yetkazish (Telegram / amoCRM / Bitrix24) bunga bog&apos;liq emas.
-        </Notice>
+        <ServerOffNotice
+          what="Hodisalar shinasi o'chiq: yangi hodisalar yaratilmaydi va hech narsa yuborilmaydi. Lead yetkazish (Telegram / amoCRM / Bitrix24) bunga bog'liq emas."
+          ops={<><code>INTEGRATIONS_BUS_DISABLED=1</code> yoqilgan; olib tashlab, web va worker&apos;ni qayta ishga tushiring.</>}
+        />
       )}
       {meta && !meta.me.canWrite && (
         <Notice tone="info">

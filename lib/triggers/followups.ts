@@ -81,11 +81,14 @@ export function decideFollowUp(input: {
   now: Date;
   condition: TriggerFollowUpCondition;
   execution: FollowUpExecutionState;
+  /** Set when the campaign stops on purchase and the person bought (lead created / CRM deal won): why. */
+  purchase?: string | null;
 }): FollowUpDecision {
   const { now, condition, execution } = input;
   if (execution.stoppedAt) {
     return { action: "cancel", reason: execution.stopReason ?? "Follow-up to'xtatilgan" };
   }
+  if (input.purchase) return { action: "cancel", reason: input.purchase };
 
   if (condition === "NO_REPLY") {
     // The trigger moment is the tap (or the private reply without a button);
@@ -107,6 +110,40 @@ export function decideFollowUp(input: {
 export function followUpAttempt(reason: string | null | undefined): number {
   const match = /^Qayta urinish (\d+)\//.exec(reason ?? "");
   return match ? Number(match[1]) : 1;
+}
+
+export const PURCHASE_STOP_LEAD = "Sotib olish signali: lead yaratildi";
+export const PURCHASE_STOP_DEAL = "Sotib olish signali: CRM bitim yutildi (WON)";
+
+/**
+ * "Sotib olsa to'xtatish": has this person bought since the automation answered them? Uses signals that
+ * already exist — a Lead created for them in this account, or a CRM deal moved to WON (when CRM is in use).
+ * Returns the stop reason, or null.
+ */
+export async function findPurchaseSignal(execution: {
+  workspaceId: string;
+  createdAt: Date;
+  leadCapturedAt?: Date | null;
+  event: { senderId: string; instagramAccount: { id: string } };
+}): Promise<string | null> {
+  if (execution.leadCapturedAt) return PURCHASE_STOP_LEAD;
+  const igUserId = execution.event.senderId;
+  const instagramAccountId = execution.event.instagramAccount.id;
+  const lead = await prisma.lead.findFirst({
+    where: { workspaceId: execution.workspaceId, instagramAccountId, igUserId, createdAt: { gte: execution.createdAt } },
+    select: { id: true },
+  });
+  if (lead) return PURCHASE_STOP_LEAD;
+  const contact = await prisma.crmContact.findFirst({
+    where: { workspaceId: execution.workspaceId, instagramAccountId, igUserId },
+    select: { id: true },
+  });
+  if (!contact) return null;
+  const won = await prisma.crmDeal.findFirst({
+    where: { workspaceId: execution.workspaceId, contactId: contact.id, wonAt: { gte: execution.createdAt } },
+    select: { id: true },
+  });
+  return won ? PURCHASE_STOP_DEAL : null;
 }
 
 // ─── Scheduling ───────────────────────────────────────────────────────────────
@@ -255,7 +292,9 @@ async function processRun(runId: string, now: Date): Promise<keyof FollowUpSweep
     return "cancelled";
   }
 
-  const decision = decideFollowUp({ now, condition: step.condition, execution });
+  const purchase = execution.campaign.stopOnPurchase && !execution.stoppedAt ? await findPurchaseSignal(execution) : null;
+  if (purchase) await cancelFollowUps(run.workspaceId, execution.id, purchase);
+  const decision = decideFollowUp({ now, condition: step.condition, execution, purchase });
   if (decision.action === "cancel") {
     await finishRun(runId, "CANCELLED", decision.reason);
     return "cancelled";

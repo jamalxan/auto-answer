@@ -1,5 +1,6 @@
 "use client";
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
@@ -260,7 +261,7 @@ export default function FlowDrawer({
 
         <div className="space-y-5 p-4">
           {!canWrite && <Notice tone="warning">Faqat ko&apos;rish rejimi: matn kiritish va aylantirish uchun Menejer roli kerak.</Notice>}
-          {canWrite && !canConvert && <Notice tone="error">Migratsiya o&apos;chirilgan (MIGRATION_DISABLED): matnni saqlab bo&apos;lmaydi va aylantirib bo&apos;lmaydi.</Notice>}
+          {canWrite && !canConvert && <ServerOffNotice what="Migratsiya o'chirilgan: matnni saqlab bo'lmaydi va aylantirib bo'lmaydi." ops={<><code>MIGRATION_DISABLED</code> ni olib tashlang.</>} />}
           {item.warnings.length > 0 && (
             <Notice tone="warning">
               <ul className="list-disc pl-4">

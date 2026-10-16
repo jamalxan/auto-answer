@@ -8,10 +8,12 @@
  * PUT /draft (in place while unpublished, a new version after a publish).
  */
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmButton, Notice } from "@/components/developer/comments/parts";
 import { inputClass, Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { countUnconnected } from "./graph-edit";
 import AuditPanel from "./audit-panel";
 import Canvas from "./canvas";
 import PublishPanel from "./publish-panel";
@@ -250,7 +252,7 @@ export default function FlowEditor({
             </button>
           </div>
         </div>
-        {meta?.disabled && <Notice tone="error">Flow&apos;lar serverda o&apos;chirilgan (FLOWS_DISABLED): ishga tushirib bo&apos;lmaydi, mavjud oqimlar ishlamaydi.</Notice>}
+        {meta?.disabled && <ServerOffNotice what="Flow'lar o'chirilgan: ishga tushirib bo'lmaydi, mavjud oqimlar ishlamaydi." ops={<><code>FLOWS_DISABLED</code> ni olib tashlang.</>} />}
         {saveError && <Notice tone="error">{saveError}</Notice>}
         {editingPublished && !readOnly && (
           <Notice tone="info">Ishlayotgan v{detail.published?.version} ochiq. O&apos;zgartirib saqlasangiz, yangi qoralama (v{(detail.published?.version ?? 0) + 1}) ochiladi; ishlayotgan oqim o&apos;zgarmaydi.</Notice>
@@ -274,6 +276,12 @@ export default function FlowEditor({
           </button>
         ))}
       </div>
+
+      {tab === "builder" && countUnconnected(graph) > 0 && (
+        <Notice tone="warning">
+          {countUnconnected(graph)} ta majburiy chiqish hali ulanmagan. Audit ham shuni xato deb ko&apos;rsatadi{dirty ? " (saqlagach yangilanadi)" : ""}.
+        </Notice>
+      )}
 
       {tab === "builder" &&
         (mode === "SIMPLE" ? (

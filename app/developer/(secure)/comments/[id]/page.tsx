@@ -47,6 +47,7 @@ export default async function CommentCampaignPage({ params, searchParams }: Prop
         stopOnReply: campaign.stopOnReply,
         stopOnLead: campaign.stopOnLead,
         stopOnHandoff: campaign.stopOnHandoff,
+        stopOnPurchase: campaign.stopOnPurchase,
         responseMessage: campaign.responseMessage,
         active: campaign.active,
         variants: campaign.replyVariants.map((v) => ({

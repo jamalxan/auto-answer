@@ -43,6 +43,19 @@ function limitsOf(meta: FlowsMeta | null) {
   return meta?.limits ?? { ...LIMIT_FALLBACK, nodes: 120, edges: 300, variables: 50, windowMinutes: 1435 };
 }
 
+/**
+ * The note under "Tugma qo'shish". "Must have a button" only holds for the FIRST message of a comment /
+ * live-comment flow (it goes out as a private reply); Direct / story flows may send plain text.
+ */
+export function messageButtonHint(graph: FlowGraph, nodeId: string): string {
+  const trigger = graph.nodes.find((n) => n.type === "trigger");
+  const commentFlow = trigger?.type === "trigger" && (trigger.triggerType === "COMMENT" || trigger.triggerType === "LIVE_COMMENT");
+  if (commentFlow && trigger && edgeTarget(graph, trigger.id, "next") === nodeId) {
+    return "Komment oqimida birinchi xabar tugmali bo'lishi shart — mijoz bosgach 24 soatlik oyna ochiladi.";
+  }
+  return "Ixtiyoriy: mijoz tugmani bosguncha oqim kutadi, bosgach 24 soatlik oyna yangilanadi.";
+}
+
 export default function NodeInspector({ node, graph, meta, account, onChange, onEdge, nextInList, showHandles = true }: InspectorProps) {
   const common: Common = {
     graph,
@@ -74,7 +87,7 @@ export function HandleTargets({ node, graph, onEdge, nextInList }: { node: FlowN
           const target = edgeTarget(graph, node.id, handle);
           const missing = required && !target;
           return (
-            <li key={handle} className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:items-center">
+            <li key={handle} className="grid grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:items-center">
               <label htmlFor={`h-${node.id}-${handle}`} className={`text-xs ${missing ? "font-semibold text-error" : "text-foreground"}`}>
                 ↳ {label}
                 {!required && <span className="ml-1 text-muted">(ixtiyoriy)</span>}
@@ -251,6 +264,7 @@ function TriggerForm({ node, common, onChange }: P<"trigger">) {
 function MessageForm({ node, common, onChange }: P<"message">) {
   const lim = limitsOf(common.meta);
   const hasButton = !!node.button;
+  const hint = messageButtonHint(common.graph, node.id);
   return (
     <div className="space-y-3">
       <TemplateField
@@ -264,7 +278,7 @@ function MessageForm({ node, common, onChange }: P<"message">) {
       <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
         <div>
           <p className="text-sm font-medium text-foreground">Tugma qo&apos;shish</p>
-          <p className="text-xs text-muted">Komment oqimida birinchi xabar tugmali bo&apos;lishi shart — mijoz bosgach 24 soatlik oyna ochiladi.</p>
+          <p className="text-xs text-muted">{hint}</p>
         </div>
         <Toggle
           label="Tugma qo'shish"
@@ -312,7 +326,7 @@ function ButtonForm({ node, common, onChange }: P<"button">) {
           </button>
         </div>
         {node.buttons.map((b, i) => (
-          <div key={b.id} className="grid gap-2 rounded-lg border border-border p-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <div key={b.id} className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
             <TextInput label={`${i + 1}-tugma (${b.label.length}/${lim.buttonLabelLength})`} value={b.label} max={lim.buttonLabelLength} onChange={(label) => setButton(i, { label })} />
             <SelectInput
               label="Turi"
@@ -556,7 +570,7 @@ function WebhookForm({ node, common, onChange }: P<"webhook">) {
           </button>
         </div>
         {entries.map(([key, value], i) => (
-          <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_auto] sm:items-end">
+          <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_auto] sm:items-end">
             <TextInput label="Kalit" value={key} max={64} onChange={(k) => setBody(entries.map((e, j) => (j === i ? [k, e[1]] : e)))} />
             <TextInput label="Qiymat (shablon)" value={value} max={500} onChange={(v) => setBody(entries.map((e, j) => (j === i ? [e[0], v] : e)))} />
             <button type="button" className={secondaryButton} aria-label={`${i + 1}-maydonni o'chirish`} onClick={() => setBody(entries.filter((_, j) => j !== i))}>

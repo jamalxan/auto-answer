@@ -7,6 +7,7 @@
  * same place. /meta feeds accounts, limits, the kill switch and caller rights.
  */
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
@@ -122,9 +123,10 @@ export default function MigrationDashboard() {
         </div>
       )}
       {meta && !enabled && (
-        <Notice tone="error">
-          Migratsiya o&apos;chirilgan (<code>MIGRATION_DISABLED</code>): ulash, tahlil, import va aylantirish ishlamaydi. Yechim: serverda <code>MIGRATION_DISABLED</code> ni olib tashlab, web&apos;ni qayta ishga tushiring. Loyihani o&apos;chirish (kalitni tozalash) har doim ishlaydi.
-        </Notice>
+        <ServerOffNotice
+          what="Migratsiya o'chirilgan: ulash, tahlil, import va aylantirish ishlamaydi. Loyihani o'chirish (kalitni tozalash) har doim ishlaydi."
+          ops={<><code>MIGRATION_DISABLED</code> ni olib tashlab, web&apos;ni qayta ishga tushiring.</>}
+        />
       )}
       {meta && !canWrite && (
         <Notice tone="warning">

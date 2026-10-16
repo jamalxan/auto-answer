@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getRedisConnection } from "@/lib/queue/client";
 import { TriggerRetryableError } from "./errors";
 import { runDueFollowUps } from "./followups";
+import { LOG_ONLY_RETENTION_DAYS, logOnlyEventWhere } from "./normalize";
 import { PROCESSING_LEASE_MS, processInstagramEvent } from "./processor";
 import {
   backoffDelay,
@@ -25,7 +26,9 @@ export function createTriggerWorker(): Worker<ProcessEventJob> {
       concurrency: 5,
       settings: {
         backoffStrategy: (attemptsMade: number, _type?: string, err?: Error) =>
-          backoffDelay(attemptsMade, err instanceof TriggerRetryableError ? err.failure.kind : undefined),
+          err instanceof TriggerRetryableError
+            ? backoffDelay(attemptsMade, err.failure.kind, err.failure.retryAfterMs)
+            : backoffDelay(attemptsMade, undefined),
       },
     }
   );
@@ -80,7 +83,40 @@ export async function sweepTriggerEvents(now = new Date()): Promise<number> {
  *   1. sweep: re-queue events whose job was lost;
  *   2. Comment 2.0 follow-ups that are due (lib/triggers/followups.ts).
  */
+const LOG_ONLY_BATCH = 1000;
+const LOG_ONLY_SWEEP_EVERY_MS = 10 * 60_000;
+let lastLogOnlySweepAt = 0;
+
+/**
+ * M2 retention: log-only rows (IGNORED + "no automation", see ingest.ts) are
+ * only a log line; delete the ones older than LOG_ONLY_RETENTION_DAYS, at most
+ * `LOG_ONLY_BATCH` rows per pass (the next pass continues). Returns the count.
+ */
+export async function sweepLogOnlyEvents(now = new Date()): Promise<number> {
+  const olderThan = new Date(now.getTime() - LOG_ONLY_RETENTION_DAYS * 24 * 3600_000);
+  const rows = await prisma.instagramEvent.findMany({
+    where: { ...logOnlyEventWhere(), createdAt: { lt: olderThan } },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+    take: LOG_ONLY_BATCH,
+  });
+  if (rows.length === 0) return 0;
+  const { count } = await prisma.instagramEvent.deleteMany({
+    where: { id: { in: rows.map((row) => row.id) }, ...logOnlyEventWhere() },
+  });
+  return count;
+}
+
 export async function runTriggerMaintenance(): Promise<void> {
+  if (Date.now() - lastLogOnlySweepAt >= LOG_ONLY_SWEEP_EVERY_MS) {
+    lastLogOnlySweepAt = Date.now();
+    try {
+      const removed = await sweepLogOnlyEvents();
+      if (removed > 0) console.log(`[Trigger Engine] retention removed ${removed} log-only event(s)`);
+    } catch (error) {
+      console.error("[Trigger Engine] log-only retention failed:", error instanceof Error ? error.message : error);
+    }
+  }
   try {
     const requeued = await sweepTriggerEvents();
     if (requeued > 0) console.log(`[Trigger Engine] sweep re-queued ${requeued} event(s)`);

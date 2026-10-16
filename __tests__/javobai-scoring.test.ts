@@ -26,7 +26,7 @@ describe("config", () => {
       qualificationQuestions: ["product", "budget"],
       maxTurns: 12,
       askPhoneAtTemperature: "WARM",
-      postHandoffReplies: 2,
+      postHandoffReplies: 0,
       resumeAfterCloseHours: 24,
       isTest: true,
     });

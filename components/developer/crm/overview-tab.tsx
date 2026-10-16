@@ -33,8 +33,8 @@ interface Overview {
 function Stat({ label, value, tone, onClick }: { label: string; value: number | string; tone?: string; onClick?: () => void }) {
   const body = (
     <>
-      <p className="label-mono truncate text-[10px] font-semibold text-muted">{label}</p>
-      <p className={`mt-1 truncate text-xl font-bold ${tone ?? "text-foreground"}`}>{value}</p>
+      <p className="label-mono break-words text-[10px] font-semibold text-muted">{label}</p>
+      <p className={`mt-1 break-words text-xl font-bold leading-tight ${tone ?? "text-foreground"}`}>{value}</p>
     </>
   );
   if (onClick) {

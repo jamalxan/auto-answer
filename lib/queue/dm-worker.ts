@@ -29,6 +29,7 @@ import { decryptToken } from "@/lib/meta/oauth";
 import { markTokenBroken } from "@/lib/meta/token-health";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
 import { releaseDMSlot, reserveDMSlot } from "@/lib/utils/rate-limiter";
+import { isRateLimitExpired, RATE_LIMIT_EXPIRED_MESSAGE } from "@/lib/utils/rate-limit-age";
 import {
   releaseWorkspaceDMReservation,
   reserveWorkspaceDMSend,
@@ -600,6 +601,24 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       }
 
       if (rateLimit.shouldRequeue) {
+        // Hard age cap: a private reply that keeps hitting the hourly cap past
+        // Meta's 7-day limit can never be delivered — give up with a clear reason.
+        const logRow = await prisma.dmLog.findUnique({
+          where: { automationId_commentId: { automationId: automation.id, commentId } },
+          select: { createdAt: true },
+        });
+        const startedAt = job.data.commentAt ? new Date(job.data.commentAt) : logRow?.createdAt ?? null;
+        if (isRateLimitExpired(startedAt, "private_reply")) {
+          await prisma.dmLog.update({
+            where: { automationId_commentId: { automationId: automation.id, commentId } },
+            data: {
+              status: "FAILED",
+              matchedKeyword: matchResult.matchedKeyword,
+              errorMessage: RATE_LIMIT_EXPIRED_MESSAGE,
+            },
+          });
+          continue;
+        }
         await prisma.dmLog.update({
           where: {
             automationId_commentId: {

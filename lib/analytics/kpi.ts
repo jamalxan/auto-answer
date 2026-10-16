@@ -13,6 +13,7 @@
  */
 
 import type { JobType } from "bullmq";
+import { loadLlmStats } from "@/lib/assistant/llm/stats";
 import { prisma } from "@/lib/db/client";
 import { loadConnections } from "@/lib/foundation/connections";
 import { loadQueueStats, type QueueStats } from "@/lib/foundation/queue-stats";
@@ -43,7 +44,7 @@ export interface KpiData {
   queueDepths: QueueDepth[] | null;
   errors: { last1h: number; last24h: number } | null;
   metaErrorRate: RateSample | null;
-  aiLatencyMs: { avg: number | null; calls: number } | null;
+  aiLatencyMs: { avg: number | null; p95: number | null; calls: number } | null;
   aiCostTodayUsd: number | null;
   messageSuccessRate: RateSample | null;
   webhookDelay: { avgMs: number | null; maxMs: number | null; samples: number } | null;
@@ -93,12 +94,10 @@ export async function loadWebhookDelay(workspaceId: string, since: Date): Promis
   };
 }
 
-/** LLM call results since `since`. */
-export async function loadLlmRate(workspaceId: string, since: Date): Promise<RateSample & { avgLatencyMs: number | null }> {
-  const rows = (await prisma.llmUsage.findMany({ where: { workspaceId, createdAt: { gte: since } } })) as unknown as Array<{ ok: boolean; latencyMs: number }>;
-  const failures = rows.filter((r) => !r.ok).length;
-  const avgLatencyMs = rows.length ? Math.round(rows.reduce((s, r) => s + (Number(r.latencyMs) || 0), 0) / rows.length) : null;
-  return { ...rateSample(failures, rows.length), avgLatencyMs };
+/** LLM call results since `since` (the shared llm_usage reader: lib/assistant/llm/stats.ts). */
+export async function loadLlmRate(workspaceId: string, since: Date): Promise<RateSample & { avgLatencyMs: number | null; p95LatencyMs: number | null }> {
+  const stats = await loadLlmStats(workspaceId, since);
+  return { ...rateSample(stats.failures, stats.calls), avgLatencyMs: stats.avgLatencyMs, p95LatencyMs: stats.p95LatencyMs };
 }
 
 // ─── Loaders ─────────────────────────────────────────────────────────────────
@@ -281,7 +280,7 @@ export async function loadKpi(workspaceId: string, now: Date = new Date(), deps:
     queueDepths: depths,
     errors,
     metaErrorRate,
-    aiLatencyMs: llm ? { avg: llm.avgLatencyMs, calls: llm.attempts } : null,
+    aiLatencyMs: llm ? { avg: llm.avgLatencyMs, p95: llm.p95LatencyMs, calls: llm.attempts } : null,
     aiCostTodayUsd: aiCost,
     messageSuccessRate: success,
     webhookDelay,

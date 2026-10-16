@@ -136,7 +136,7 @@ export default function ScoringTab() {
         <Notice tone="info">Hozir standart qiymatlar ishlayapti (workspace uchun hali saqlanmagan). O&apos;zgartirib &quot;Saqlash&quot; ni bosing.</Notice>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section className="panel space-y-3 rounded-xl p-4">
           <div>
             <h2 className="text-sm font-semibold text-foreground">Signallar va ballar</h2>

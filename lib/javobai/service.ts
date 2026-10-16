@@ -83,10 +83,13 @@ async function accountInWorkspace(workspaceId: string, instagramAccountId: strin
 
 async function profileStatus(workspaceId: string, instagramAccountId: string) {
   const profile = await findProfile(workspaceId, instagramAccountId);
-  if (!profile) return { exists: false as const, live: false, scope: null, id: null, companyName: null };
+  if (!profile) return { exists: false as const, live: false, approved: false, enabled: false, scope: null, id: null, companyName: null };
   return {
     exists: true as const,
     live: isProfileLive(profile),
+    // The assistant page's own two flags (B-41): approved (Tasdiqlangan) and enabled (yoqilgan).
+    approved: profile.approvedAt !== null,
+    enabled: profile.enabled,
     scope: profile.instagramAccountId ? ("account" as const) : ("workspace" as const),
     id: profile.id,
     companyName: profile.companyName,

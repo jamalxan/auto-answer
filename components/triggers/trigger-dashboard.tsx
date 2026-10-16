@@ -442,46 +442,112 @@ function ContactsTab() {
   );
 }
 
-interface SimulationResult {
-  selected: { id: string; name: string; matchedKeyword: string | null; responseMessage: string } | null;
-  ignoredReason: string | null;
-  campaigns: Array<{ id: string; name: string; matched: boolean; matchedKeyword: string | null; reason: string | null }>;
+type SimType = "STORY_REPLY" | "COMMENT" | "LIVE_COMMENT" | "DIRECT_MESSAGE" | "STORY_MENTION" | "AD_MESSAGE" | "LINK";
+
+const SIM_TYPES: Array<[SimType, string]> = [
+  ["STORY_REPLY", "Story javobi"],
+  ["COMMENT", "Post komment"],
+  ["LIVE_COMMENT", "Live komment"],
+  ["DIRECT_MESSAGE", "Direct xabar"],
+  ["STORY_MENTION", "Story'da belgilash"],
+  ["AD_MESSAGE", "Reklamadan xabar"],
+  ["LINK", "ig.me havoladan"],
+];
+
+/** One result shape for every simulator endpoint (they all answer "who replies, why, with what"). */
+interface SimView {
+  selected: { name: string; matchedKeyword: string | null; text: string | null; publicText?: string | null } | null;
+  reason: string | null;
+  others: Array<{ id: string; name: string; matched: boolean; matchedKeyword: string | null; reason: string | null }>;
 }
 
 function SimulatorTab({ accounts }: { accounts: Account[] }) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [type, setType] = useState<SimType>("STORY_REPLY");
   const [text, setText] = useState("Narxi qancha?");
   const [storyId, setStoryId] = useState("");
-  const [result, setResult] = useState<SimulationResult | null>(null);
+  const [mediaId, setMediaId] = useState("");
+  const [adId, setAdId] = useState("");
+  const [ref, setRef] = useState("");
+  const [result, setResult] = useState<SimView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+
+  const noText = type === "STORY_MENTION";
+
+  async function post(url: string, body: unknown) {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    return (await res.json()) as { success: boolean; data?: Record<string, unknown>; error?: string };
+  }
 
   async function run() {
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch("/api/developer/triggers/simulate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instagramAccountId: accountId, text, storyId: storyId.trim() || null }),
-      });
-      const data = await res.json();
-      if (data.success) setResult(data.data);
-      else setError(data.error ?? "Xato");
-    } catch {
-      setError("Xato");
+      let view: SimView;
+      if (type === "STORY_REPLY") {
+        const data = await post("/api/developer/triggers/simulate", { instagramAccountId: accountId, text, storyId: storyId.trim() || null });
+        if (!data.success) throw new Error(data.error ?? "Xato");
+        const d = data.data as unknown as { selected: { name: string; matchedKeyword: string | null; responseMessage: string } | null; ignoredReason: string | null; campaigns: SimView["others"] };
+        view = {
+          selected: d.selected ? { name: d.selected.name, matchedKeyword: d.selected.matchedKeyword, text: d.selected.responseMessage } : null,
+          reason: d.ignoredReason,
+          others: d.campaigns,
+        };
+      } else {
+        const comment = type === "COMMENT" || type === "LIVE_COMMENT";
+        const data = comment
+          ? await post("/api/developer/comments/simulate", { instagramAccountId: accountId, text, mediaId: type === "COMMENT" ? mediaId.trim() || null : null, eventType: type })
+          : await post("/api/developer/triggers/dm/simulate", {
+              instagramAccountId: accountId,
+              eventType: type === "STORY_MENTION" ? "STORY_MENTION" : "DIRECT_MESSAGE",
+              text: noText ? "" : text,
+              referralSource: type === "AD_MESSAGE" ? "ADS" : type === "LINK" ? "LINK" : null,
+              adId: type === "AD_MESSAGE" ? adId.trim() || null : null,
+              ref: type === "LINK" ? ref.trim() || null : null,
+            });
+        if (!data.success) throw new Error(data.error ?? "Xato");
+        const d = data.data as { matched: boolean; campaignName?: string; matchedKeyword?: string | null; dmPreview?: string | null; replyPreview?: string | null; publicPreview?: string | null; reason?: string | null };
+        view = {
+          selected: d.matched ? { name: d.campaignName ?? "Kampaniya", matchedKeyword: d.matchedKeyword ?? null, text: d.dmPreview ?? d.replyPreview ?? null, publicText: d.publicPreview ?? null } : null,
+          reason: d.reason ?? null,
+          others: [],
+        };
+      }
+      setResult(view);
+    } catch (e) {
+      setResult(null);
+      setError(e instanceof Error && e.message ? e.message : "Xato");
     } finally {
       setRunning(false);
     }
   }
 
+  const textLabel = type === "STORY_REPLY" ? "Reply matni" : type === "DIRECT_MESSAGE" || type === "AD_MESSAGE" || type === "LINK" ? "Xabar matni" : "Komment matni";
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <div className="panel space-y-4 rounded-xl p-4">
+      <div className="panel min-w-0 space-y-4 rounded-xl p-4">
         <p className="text-sm text-muted">
-          Story reply kelganda engine qaysi campaign&apos;ni tanlashini tekshiradi. Hech narsa yuborilmaydi va saqlanmaydi.
-          Direct, reklama, havola va mention&apos;ni har bir automation ichidagi &quot;Test&quot; bo&apos;limida tekshiring.
+          Tanlangan turdagi hodisa kelganda engine qaysi kampaniyani tanlashini tekshiradi. Hech narsa yuborilmaydi va saqlanmaydi.
+          Faol kampaniyalar tekshiriladi; o&apos;chiq kampaniyani uning o&apos;z sahifasidagi «Test» bo&apos;limida sinang.
         </p>
+        <Field label="Hodisa turi">
+          <select
+            className={inputClass}
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value as SimType);
+              setResult(null);
+            }}
+          >
+            {SIM_TYPES.map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Akkaunt">
           <select className={inputClass} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
             {accounts.map((a) => (
@@ -491,19 +557,40 @@ function SimulatorTab({ accounts }: { accounts: Account[] }) {
             ))}
           </select>
         </Field>
-        <Field label="Reply matni">
-          <textarea className={`${inputClass} min-h-20`} value={text} onChange={(e) => setText(e.target.value)} />
-        </Field>
-        <Field label="Story ID (ixtiyoriy)" hint="Specific story campaignlarni tekshirish uchun">
-          <input className={inputClass} value={storyId} onChange={(e) => setStoryId(e.target.value)} />
-        </Field>
-        <button type="button" onClick={() => void run()} disabled={running || !accountId} className={primaryButton}>
+        {noText ? (
+          <p className="text-xs text-muted">Story&apos;da belgilashda matn bo&apos;lmaydi: odam story&apos;sida akkauntni belgilaydi.</p>
+        ) : (
+          <Field label={textLabel}>
+            <textarea className={`${inputClass} min-h-20`} value={text} onChange={(e) => setText(e.target.value)} />
+          </Field>
+        )}
+        {type === "STORY_REPLY" && (
+          <Field label="Story ID (ixtiyoriy)" hint="Aniq story kampaniyalarini tekshirish uchun">
+            <input className={inputClass} value={storyId} onChange={(e) => setStoryId(e.target.value)} />
+          </Field>
+        )}
+        {type === "COMMENT" && (
+          <Field label="Post ID (ixtiyoriy)" hint="Aniq post kampaniyalarini tekshirish uchun">
+            <input className={inputClass} value={mediaId} onChange={(e) => setMediaId(e.target.value)} />
+          </Field>
+        )}
+        {type === "AD_MESSAGE" && (
+          <Field label="Reklama ID (ixtiyoriy)">
+            <input className={inputClass} value={adId} onChange={(e) => setAdId(e.target.value)} />
+          </Field>
+        )}
+        {type === "LINK" && (
+          <Field label="Havola ref (ixtiyoriy)">
+            <input className={inputClass} value={ref} onChange={(e) => setRef(e.target.value)} />
+          </Field>
+        )}
+        <button type="button" onClick={() => void run()} disabled={running || !accountId || (!noText && !text.trim())} className={primaryButton}>
           {running ? "Tekshirilmoqda…" : "Tekshirish"}
         </button>
         {error && <p className="text-sm text-error">{error}</p>}
       </div>
 
-      <div className="panel rounded-xl p-4">
+      <div className="panel min-w-0 rounded-xl p-4">
         {!result ? (
           <EmptyState title="Natija shu yerda" />
         ) : (
@@ -511,24 +598,25 @@ function SimulatorTab({ accounts }: { accounts: Account[] }) {
             {result.selected ? (
               <div className="rounded-lg border border-success/30 bg-success/5 p-3">
                 <p className="font-semibold text-success">✓ {result.selected.name} javob beradi</p>
-                {result.selected.matchedKeyword && (
-                  <p className="mt-1 text-muted">Kalit so&apos;z: {result.selected.matchedKeyword}</p>
+                {result.selected.matchedKeyword && <p className="mt-1 text-muted">Kalit so&apos;z: {result.selected.matchedKeyword}</p>}
+                {result.selected.publicText && (
+                  <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-surface-hover px-2 py-1.5 text-foreground">Ochiq javob: {result.selected.publicText}</p>
                 )}
-                <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-surface-hover px-2 py-1.5 text-foreground">
-                  {result.selected.responseMessage}
-                </p>
+                {result.selected.text && (
+                  <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-surface-hover px-2 py-1.5 text-foreground">{result.selected.text}</p>
+                )}
               </div>
             ) : (
               <div className="rounded-lg border border-border p-3">
-                <p className="font-semibold text-foreground">Ignored</p>
-                <p className="mt-1 text-muted">{result.ignoredReason}</p>
+                <p className="font-semibold text-foreground">Hech qaysi kampaniya javob bermaydi</p>
+                <p className="mt-1 text-muted">{result.reason ?? "Mos kampaniya topilmadi."}</p>
               </div>
             )}
-            {result.campaigns.length > 0 && (
+            {result.others.length > 0 && (
               <ul className="space-y-1.5">
-                {result.campaigns.map((c) => (
+                {result.others.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-                    <span className="truncate text-foreground">{c.name}</span>
+                    <span className="min-w-0 truncate text-foreground">{c.name}</span>
                     <span className={`shrink-0 text-xs ${c.matched ? "text-success" : "text-muted"}`}>
                       {c.matched ? `mos${c.matchedKeyword ? ` · ${c.matchedKeyword}` : ""}` : c.reason}
                     </span>

@@ -33,6 +33,7 @@ import FollowUpsEditor, { type FollowUpItem } from "@/components/developer/comme
 import { Advanced, CharCount, Notice, Section } from "@/components/developer/comments/parts";
 import QuickRepliesEditor, { type QuickReplyItem } from "@/components/developer/comments/quick-replies-editor";
 import {
+  intentExamplePreview,
   jsonInit,
   QUICK_REPLY_ACTION_TEXT,
   REPLY_MODE_TEXT,
@@ -73,6 +74,7 @@ interface FormState {
   stopOnReply: boolean;
   stopOnLead: boolean;
   stopOnHandoff: boolean;
+  stopOnPurchase: boolean;
   responseMessage: string;
   active: boolean;
   variants: VariantItem[];
@@ -131,8 +133,10 @@ function initialForm(campaign: DmCampaignView | undefined, accounts: Account[], 
     stopOnReply: campaign?.stopOnReply ?? true,
     stopOnLead: campaign?.stopOnLead ?? true,
     stopOnHandoff: campaign?.stopOnHandoff ?? true,
+    stopOnPurchase: campaign?.stopOnPurchase ?? true,
     responseMessage: campaign?.responseMessage ?? "",
-    active: campaign?.active ?? true,
+    // A new campaign starts OFF (draft): nothing answers customers until the owner switches it on.
+    active: campaign?.active ?? false,
     variants: (campaign?.variants ?? []).filter((v) => v.kind === "DM").map(toVariantItem),
     quickReplies: (campaign?.quickReplies ?? []).map(toQuickReplyItem),
     followUps: (campaign?.followUpSteps ?? []).map(toFollowUpItem),
@@ -166,6 +170,7 @@ function campaignBody(form: FormState) {
     stopOnReply: form.stopOnReply,
     stopOnLead: form.stopOnLead,
     stopOnHandoff: form.stopOnHandoff,
+    stopOnPurchase: form.stopOnPurchase,
     responseMessage: fallbackText(form),
     active: form.active,
   };
@@ -307,7 +312,9 @@ export default function DmTriggerBuilder({
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
   const account = accounts.find((a) => a.id === form.accountId);
   const savedSnapshot = useMemo(() => (savedForm ? snapshotOf(savedForm) : null), [savedForm]);
-  const dirty = savedSnapshot === null || snapshotOf(form) !== savedSnapshot;
+  // A new campaign is clean until the form actually differs from its initial state.
+  const [pristineSnapshot] = useState(() => snapshotOf(initialForm(campaign, accounts, initialKind)));
+  const dirty = snapshotOf(form) !== (savedSnapshot ?? pristineSnapshot);
   const intentLabels = useMemo(() => new Map(intents.map((i) => [i.key, i.label])), [intents]);
   const mention = form.kind === "STORY_MENTION";
   const keywordsContext = mention
@@ -412,7 +419,7 @@ export default function DmTriggerBuilder({
   const noApproved = !form.variants.some((v) => v.approved && v.text.trim());
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-5">
         <Section index={1} title="Akkaunt & trigger turi" description="Qaysi akkauntga qanday xabar kelganda javob beriladi.">
           <Field label="Kampaniya nomi">
@@ -519,7 +526,7 @@ export default function DmTriggerBuilder({
                                   {on ? "✓" : ""}
                                 </span>
                               </span>
-                              <span className="mt-0.5 block truncate text-xs text-muted">{intent.examples.slice(0, 5).join(", ")}</span>
+                              <span className="mt-0.5 block truncate text-xs text-muted">{intentExamplePreview(intent.examples)}</span>
                             </button>
                           );
                         })}
@@ -640,7 +647,7 @@ export default function DmTriggerBuilder({
             </Field>
           )}
           {noApproved && !form.responseMessage.trim() && (
-            <Notice tone="warning">Kamida bitta variant yozing — aks holda javob ketmaydi.</Notice>
+            <Notice tone="warning">Na tasdiqlangan variant, na zaxira matn bor — javob ketmaydi. Kamida bittasini yozing.</Notice>
           )}
           <Field
             label="Quick reply tugmalari (ixtiyoriy)"
@@ -668,6 +675,7 @@ export default function DmTriggerBuilder({
                 ["stopOnReply", "Odam yozsa to'xtatish"],
                 ["stopOnLead", "Telefon raqam qoldirsa to'xtatish"],
                 ["stopOnHandoff", "Operatorga o'tkazilsa to'xtatish"],
+                    ["stopOnPurchase", "Sotib olsa to'xtatish (lead yaratilsa yoki CRM bitim yutilsa)"],
               ] as const
             ).map(([key, label]) => (
               <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
@@ -734,7 +742,7 @@ export default function DmTriggerBuilder({
             sampleAdId={form.adIds[0]}
             sampleRef={form.refs[0]}
             dirty={dirty}
-            active={savedForm?.active ?? true}
+            active={savedForm?.active ?? false}
           />
         </Section>
 
@@ -747,12 +755,13 @@ export default function DmTriggerBuilder({
             <Link href="/developer/triggers" className={secondaryButton}>
               Orqaga
             </Link>
-            <label className="flex items-center gap-2 text-sm text-foreground">
+            {/* A div, not a label: the text must not toggle the switch (the hit area is the switch only). */}
+            <div className="flex items-center gap-2 text-sm text-foreground">
               <Toggle on={form.active} onChange={(on) => set({ active: on })} label="Faol" />
-              {form.active ? "Faol" : "O'chiq"}
-            </label>
+              <span>{form.active ? "Faol" : "O'chiq (qoralama)"}</span>
+            </div>
             <span className={`text-xs ${dirty ? "text-warning" : "text-success"}`} aria-live="polite">
-              {dirty ? "Saqlanmagan o'zgarishlar bor" : (note ?? "Hammasi saqlangan")}
+              {dirty ? "Saqlanmagan o'zgarishlar bor" : (note ?? (campaignId ? "Hammasi saqlangan" : "Yangi kampaniya — hali saqlanmagan"))}
             </span>
           </div>
         </div>

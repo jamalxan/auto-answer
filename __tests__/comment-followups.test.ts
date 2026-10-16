@@ -55,6 +55,13 @@ describe("decideFollowUp", () => {
     ).toEqual({ action: "cancel", reason: "Mijoz javob yozdi" });
   });
 
+  it("cancels when the person already bought (stop on purchase)", () => {
+    expect(
+      decideFollowUp({ now: NOW, condition: "ALWAYS", execution: state({ openedAt: hoursAgo(1) }), purchase: "Sotib olish signali: lead yaratildi" })
+    ).toEqual({ action: "cancel", reason: "Sotib olish signali: lead yaratildi" });
+    expect(decideFollowUp({ now: NOW, condition: "ALWAYS", execution: state({ openedAt: hoursAgo(1) }), purchase: null }).action).toBe("send");
+  });
+
   it("NO_REPLY skips when the person wrote after the tap", () => {
     const opened = hoursAgo(3);
     expect(decideFollowUp({ now: NOW, condition: "NO_REPLY", execution: state({ openedAt: opened, lastInboundAt: opened }) }).action).toBe("send");

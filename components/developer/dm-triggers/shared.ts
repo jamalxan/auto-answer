@@ -56,6 +56,7 @@ export interface DmCampaignView {
   stopOnReply: boolean;
   stopOnLead: boolean;
   stopOnHandoff: boolean;
+  stopOnPurchase: boolean;
   responseMessage: string;
   active: boolean;
   variants: SavedVariant[];

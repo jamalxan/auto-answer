@@ -25,8 +25,16 @@ export const TRIGGER_BACKOFF_MS = [30_000, 120_000, 600_000, 1_800_000];
  */
 export const TRIGGER_RATE_LIMIT_BACKOFF_MS = 65 * 60_000;
 
-export function backoffDelay(attemptsMade: number, kind?: string): number {
-  if (kind === "rate_limit") return TRIGGER_RATE_LIMIT_BACKOFF_MS;
+/** Computed rate-limit waits are kept inside this range (never a busy loop, never longer than the fixed 65 min). */
+const RATE_LIMIT_MIN_DELAY_MS = 30_000;
+
+export function backoffDelay(attemptsMade: number, kind?: string, retryAfterMs?: number): number {
+  if (kind === "rate_limit") {
+    if (retryAfterMs !== undefined && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+      return Math.min(TRIGGER_RATE_LIMIT_BACKOFF_MS, Math.max(RATE_LIMIT_MIN_DELAY_MS, retryAfterMs));
+    }
+    return TRIGGER_RATE_LIMIT_BACKOFF_MS;
+  }
   return TRIGGER_BACKOFF_MS[Math.min(Math.max(attemptsMade, 1) - 1, TRIGGER_BACKOFF_MS.length - 1)];
 }
 

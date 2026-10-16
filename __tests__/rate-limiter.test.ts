@@ -73,14 +73,15 @@ describe("checkRateLimit", () => {
     expect(result.shouldSkip).toBe(false);
   });
 
-  it("should skip after max requeue attempts", async () => {
+  it("never skips (B-03): after many requeues it still waits for the next window", async () => {
     mockGet.mockResolvedValue(String(RATE_LIMIT_MAX));
 
-    const result = await checkRateLimit("account_123", 3);
+    const result = await checkRateLimit("account_123", 10);
 
     expect(result.allowed).toBe(false);
-    expect(result.shouldRequeue).toBe(false);
-    expect(result.shouldSkip).toBe(true);
+    expect(result.shouldRequeue).toBe(true);
+    expect(result.shouldSkip).toBe(false);
+    expect(result.requeueDelayMs).toBeGreaterThan(0);
   });
 });
 
@@ -114,14 +115,16 @@ describe("reserveDMSlot", () => {
     expect(result.shouldSkip).toBe(false);
   });
 
-  it("should skip after max requeue attempts", async () => {
-    mockEval.mockResolvedValue(["0", String(RATE_LIMIT_MAX), "0"]);
+  it("never skips (B-03): a denied reserve after many attempts is rescheduled past the window", async () => {
+    mockEval.mockResolvedValue(["0", String(RATE_LIMIT_MAX), "0", "1200"]);
 
-    const result = await reserveDMSlot("account_123", 3);
+    const result = await reserveDMSlot("account_123", 9);
 
     expect(result.allowed).toBe(false);
-    expect(result.shouldRequeue).toBe(false);
-    expect(result.shouldSkip).toBe(true);
+    expect(result.shouldRequeue).toBe(true);
+    expect(result.shouldSkip).toBe(false);
+    // window ends in 1200s; backoff only adds
+    expect(result.requeueDelayMs).toBeGreaterThanOrEqual(1_200_000);
   });
 });
 

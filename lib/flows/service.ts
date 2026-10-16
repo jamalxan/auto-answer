@@ -552,10 +552,15 @@ export async function saveDraft(workspaceId: string, flowId: string, input: unkn
 }
 
 export async function renameFlow(workspaceId: string, flowId: string, input: unknown) {
-  const parsed = z.object({ name: z.string().trim().min(1, "Nom kiritilmagan").max(120), mode: flowModeSchema.optional() }).safeParse(input);
+  // Partial update: the mode switch sends only { mode }, a rename only { name }.
+  const parsed = z
+    .object({ name: z.string().trim().min(1, "Nom kiritilmagan").max(120).optional(), mode: flowModeSchema.optional() })
+    .refine((v) => v.name !== undefined || v.mode !== undefined, { message: "Nom yoki rejim ko'rsatilmagan" })
+    .safeParse(input);
   if (!parsed.success) throw badRequest(firstIssue(parsed.error));
   await loadFlow(workspaceId, flowId);
-  const data: Record<string, unknown> = { name: parsed.data.name };
+  const data: Record<string, unknown> = {};
+  if (parsed.data.name !== undefined) data.name = parsed.data.name;
   if (parsed.data.mode) data.mode = parsed.data.mode;
   return prisma.flow.update({ where: { id: flowId }, data });
 }
@@ -587,8 +592,33 @@ export async function diffVersions(workspaceId: string, flowId: string, a: strin
 /** Restores an older version as the (new) draft. The draft is overwritten in place when it is unpublished. */
 export async function restoreVersion(workspaceId: string, flowId: string, versionId: string) {
   const { version } = await loadVersion(workspaceId, flowId, versionId);
-  return saveDraft(workspaceId, flowId, { graph: graphOf(version), changeNote: `v${version.version} qayta tiklandi` });
+  const saved = await saveDraft(workspaceId, flowId, { graph: graphOf(version), changeNote: `v${version.version} qayta tiklandi` });
+  // The restored draft is the SAME graph (same hash) as a version that was tested or already went live:
+  // it carries that proof over, so it can be published again without a new sandbox run. Editing it
+  // afterwards resets testedAt (saveDraft), as for any version.
+  const proof = previousTestProof(version);
+  if (proof && saved.version.id !== version.id) {
+    const fresh = (await prisma.flowVersion.findFirst({ where: { id: saved.version.id } })) as unknown as VersionRow | null;
+    if (fresh && fresh.hash === version.hash && !fresh.testedAt) {
+      await prisma.flowVersion.update({ where: { id: fresh.id }, data: { testedAt: proof } });
+      return { ...saved, version: { ...saved.version, testedAt: proof } };
+    }
+  }
+  return saved;
 }
+
+/**
+ * M6: versions published BEFORE the test gate existed have testedAt = null. A version that was
+ * already published (publishedAt != null) is exempt from the "must be tested" rule on republish;
+ * new and edited versions (never published, testedAt reset by a changed hash) still need a
+ * passing sandbox run. AI versions keep their own rule (test + approval) either way.
+ */
+function previousTestProof(version: VersionRow): Date | null {
+  if (version.testedAt) return version.testedAt;
+  if (version.publishedAt && version.source !== "AI") return version.publishedAt;
+  return null;
+}
+
 
 // ─── Test ─────────────────────────────────────────────────────────────────────
 
@@ -632,6 +662,7 @@ export async function testVersion(workspaceId: string, flowId: string, versionId
 export const NOT_APPROVABLE_AUDIT = "Audit xatolari bor — avval ularni tuzating";
 export const NOT_APPROVABLE_POLICY = "Policy BLOCKED — xabar yuborish qoidalari buzilgan, tasdiqlab bo'lmaydi";
 export const NEEDS_TEST = "AI yaratgan versiyani tasdiqlashdan oldin Test konsolida muvaffaqiyatli sinab ko'ring";
+export const NEEDS_TEST_PUBLISH = "Ishga tushirishdan oldin joriy versiyani Test konsolida muvaffaqiyatli sinab ko'ring (matn o'zgarsa, sinov bekor bo'ladi)";
 export const NEEDS_APPROVAL = "AI yaratgan versiya tasdiqsiz ishga tushmaydi — avval tasdiqlang";
 export const NEEDS_ACK = "Ogohlantirishlar bor — ularni ko'rib chiqqaningizni tasdiqlang";
 
@@ -666,10 +697,11 @@ export async function publishVersion(workspaceId: string, flowId: string, versio
   if (evaluation.structural.length > 0) throw unprocessable(`Graf to'liq emas: ${evaluation.structural[0]}`);
   if (evaluation.audit.errors.length > 0) throw unprocessable(NOT_APPROVABLE_AUDIT);
   if (evaluation.policy.verdict === "BLOCKED") throw unprocessable(NOT_APPROVABLE_POLICY);
-  if (version.source === "AI") {
-    if (!version.testedAt) throw unprocessable(NEEDS_TEST);
-    if (!version.approvedAt) throw unprocessable(NEEDS_APPROVAL);
-  }
+  // Every version needs a clean sandbox run of its CURRENT hash (testedAt is reset by a changed hash).
+  // (M6: a previously published non-AI version is exempt, see previousTestProof.)
+  if (!previousTestProof(version)) throw unprocessable(version.source === "AI" ? NEEDS_TEST : NEEDS_TEST_PUBLISH);
+  if (version.source === "AI" && !version.testedAt) throw unprocessable(NEEDS_TEST);
+  if (version.source === "AI" && !version.approvedAt) throw unprocessable(NEEDS_APPROVAL);
   if (evaluation.policy.verdict === "WARNING" && !parsed.data.acknowledgeWarnings) throw unprocessable(NEEDS_ACK);
   const result = (await publishFlowVersion(workspaceId, flowId, versionId, { userId })) as unknown as { ok: boolean; status?: number; error?: string; flow?: unknown };
   if (!result.ok) throw new FlowServiceError(result.status ?? 422, result.error ?? "Ishga tushirib bo'lmadi");

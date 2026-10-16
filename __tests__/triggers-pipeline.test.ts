@@ -6,7 +6,7 @@
  *   conversation → DM → log, plus duplicate protection and retries.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, resetDb } from "./helpers/db-instance";
 
 const mocks = vi.hoisted(() => ({
@@ -233,8 +233,11 @@ describe("Story Reply — happy path (A–G, J)", () => {
 describe("Isolation — the engine stays out of accounts without trigger campaigns", () => {
   it("does not store anything for an account with no trigger campaign", async () => {
     const result = await ingestWebhookPayload(storyReply("mid.x", "narx", { igId: OTHER_IG_ID }));
-    expect(result).toMatchObject({ stored: [], skipped: 1 });
-    expect(rows("instagramEvent")).toHaveLength(0);
+    // B-28: still logged (IGNORED, "avtomatika yo'q"), never queued or processed.
+    expect(result).toMatchObject({ stored: [], logged: 1 });
+    expect(rows("instagramEvent")).toHaveLength(1);
+    expect(rows("instagramEvent")[0]).toMatchObject({ processingStatus: "IGNORED", claimedCampaignId: null });
+    expect(mocks.enqueueEvent).not.toHaveBeenCalled();
   });
 
   it("does nothing at all when the kill switch is on", async () => {
@@ -288,6 +291,17 @@ describe("Duplicate protection (H)", () => {
   });
 });
 
+/**
+ * M3: rate-limited sends are given up once the event is 24h old, so tests that
+ * park a story reply on the hourly cap run with the clock just after the
+ * webhook fixture's timestamp (1760000001000).
+ */
+function pinClockNearFixture() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(1760000100_000));
+}
+afterEach(() => vi.useRealTimers());
+
 describe("Errors, queue and retry (I)", () => {
   it("a temporary Instagram failure is queued for retry with a readable reason, then succeeds", async () => {
     mocks.sendDirectMessage.mockRejectedValueOnce(new MetaApiError(2, undefined, "trace", "Service temporarily unavailable"));
@@ -309,17 +323,18 @@ describe("Errors, queue and retry (I)", () => {
     expect(mocks.sendDirectMessage).toHaveBeenCalledTimes(2);
   });
 
-  it("gives up after the last attempt and records the failure", async () => {
+  it("keeps rate-limited sends waiting instead of giving up (B-03)", async () => {
+    pinClockNearFixture();
     mocks.sendDirectMessage.mockRejectedValue(new RateLimitError("Too many calls"));
     const { stored } = await ingestWebhookPayload(storyReply("mid.limit", "narx"));
 
     for (let i = 1; i < TRIGGER_MAX_ATTEMPTS; i++) {
       await expect(processInstagramEvent(stored[0])).rejects.toBeInstanceOf(TriggerRetryableError);
     }
-    expect(await processInstagramEvent(stored[0])).toBe("failed");
-    expect(rows("instagramEvent")[0]).toMatchObject({ processingStatus: "FAILED", attempts: TRIGGER_MAX_ATTEMPTS });
-    expect(rows("triggerExecution")[0]).toMatchObject({ status: "FAILED", nextRetryAt: null });
-    expect(rows("operationalEvent").some((e) => String(e.message).includes("Trigger engine"))).toBe(true);
+    // B-03: the hourly cap never drops a message: past the attempt budget it keeps waiting.
+    await expect(processInstagramEvent(stored[0])).rejects.toBeInstanceOf(TriggerRetryableError);
+    expect(rows("instagramEvent")[0]).toMatchObject({ processingStatus: "RETRYING" });
+    expect(rows("triggerExecution")[0]).toMatchObject({ status: "RETRYING" });
   });
 
   it("a permanent rejection fails at once without retries", async () => {
@@ -348,6 +363,7 @@ describe("Errors, queue and retry (I)", () => {
   });
 
   it("the hourly cap queues the reply for later instead of sending", async () => {
+    pinClockNearFixture();
     mocks.reserveDMSlot.mockResolvedValueOnce({ allowed: false, currentCount: 750 });
     const { stored } = await ingestWebhookPayload(storyReply("mid.cap", "narx"));
     await expect(processInstagramEvent(stored[0])).rejects.toBeInstanceOf(TriggerRetryableError);
@@ -357,6 +373,7 @@ describe("Errors, queue and retry (I)", () => {
   });
 
   it("a rate-limit retry waits past the hourly window", async () => {
+    pinClockNearFixture();
     mocks.reserveDMSlot.mockResolvedValueOnce({ allowed: false, currentCount: 750 });
     const { stored } = await ingestWebhookPayload(storyReply("mid.cap2", "narx"));
     const error = await processInstagramEvent(stored[0]).catch((e) => e);

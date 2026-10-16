@@ -20,7 +20,7 @@ export const T2_STORY_MENTION: FlowStarterTemplateInput = {
     ],
     nodes: [
       { id: "t", type: "trigger", triggerType: "STORY_MENTION", matchingMode: "EVERY", cooldownHours: 24 },
-      { id: "m1", type: "message", text: "Rahmat, {{name|do'stim}}! Story'da belgilaganingiz uchun sizga taklif: {{vars.offer|menejer yozadi}}" },
+      { id: "m1", type: "message", text: "Rahmat, {{name|do'stim}}! Story'da belgilaganingiz uchun sizga taklif: {{vars.offer|maxsus taklif — batafsilini menejer yozadi}}" },
       {
         id: "b1",
         type: "button",
@@ -30,7 +30,7 @@ export const T2_STORY_MENTION: FlowStarterTemplateInput = {
           { id: "ph", label: "Raqam qoldirish", kind: "phone", saveAs: "phone" },
         ],
       },
-      { id: "m2", type: "message", text: "Shartlar: {{vars.terms|menejer yozadi}}. Savol bo'lsa shu yerga yozing 🙂" },
+      { id: "m2", type: "message", text: "Shartlar: {{vars.terms|aniq shartlarni menejer yozadi}}. Savol bo'lsa shu yerga yozing 🙂" },
       { id: "tag", type: "tag", action: "add", tagSlugs: ["story"] },
       { id: "lead", type: "lead", phoneFrom: "vars.phone", summary: "Story mention orqali", thanks: "Rahmat! Bog'lanamiz." },
       { id: "end", type: "end" },

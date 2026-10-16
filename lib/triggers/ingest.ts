@@ -34,6 +34,10 @@ import {
 import type { DmTriggerEventType } from "./matching";
 import {
   isC2Payload,
+  LOG_ONLY_TEXT_LIMIT,
+  logOnlyEventWhere,
+  NO_AUTOMATION_REASON,
+  normalizeLoggedOnlyItems,
   normalizeWebhookPayload,
   type NormalizedInstagramEvent,
   type RawWebhookPayload,
@@ -48,6 +52,8 @@ export interface IngestResult {
   skipped: number;
   /** Events that could not be stored (logged); production handles them as before. */
   failed: number;
+  /** Events stored as IGNORED only to be shown in the logs (no automation answers them). */
+  logged: number;
   /**
    * DMs / story mentions / referral messages a DIRECT_MESSAGE / STORY_MENTION
    * campaign answers: storyReplyKey() → campaign id. Only events whose row
@@ -112,46 +118,78 @@ export async function storeEvent(
     claimedCampaignId?: string | null;
     dmClaim?: DmClaimNote;
     db?: TriggerDb;
+    /** Log-only: store as IGNORED with this reason (no automation answers it). */
+    ignoredReason?: string;
   } = {}
 ): Promise<string | null> {
   const db = options.db ?? prisma;
-  try {
-    const row = await db.instagramEvent.create({
-      data: {
-        workspaceId: account.workspaceId,
-        instagramAccountId: account.id,
-        eventType: event.type,
-        senderId: event.senderId,
-        senderUsername: event.senderUsername ?? null,
-        messageId: event.messageId,
-        storyId: event.storyId ?? null,
-        storyUrl: event.storyUrl ?? null,
-        mediaId: event.mediaId ?? null,
-        text: event.text,
-        payload: event.payload ?? null,
-        referralSource: event.referralSource ?? null,
-        adId: event.adId ?? null,
-        ref: event.ref ?? null,
-        reaction: event.reaction ?? null,
-        reactedMid: event.reactedMid ?? null,
-        backtrackRunId: options.backtrackRunId ?? null,
-        claimedCampaignId: options.claimedCampaignId ?? null,
-        timestamp: event.timestamp,
-        rawPayload: {
+  const logOnly = Boolean(options.ignoredReason);
+  const text = logOnly ? event.text.slice(0, LOG_ONLY_TEXT_LIMIT) : event.text;
+  const data = {
+    workspaceId: account.workspaceId,
+    instagramAccountId: account.id,
+    eventType: event.type,
+    senderId: event.senderId,
+    senderUsername: event.senderUsername ?? null,
+    messageId: event.messageId,
+    storyId: event.storyId ?? null,
+    storyUrl: event.storyUrl ?? null,
+    mediaId: event.mediaId ?? null,
+    text,
+    payload: event.payload ?? null,
+    referralSource: event.referralSource ?? null,
+    adId: event.adId ?? null,
+    ref: event.ref ?? null,
+    reaction: event.reaction ?? null,
+    reactedMid: event.reactedMid ?? null,
+    backtrackRunId: options.backtrackRunId ?? null,
+    claimedCampaignId: options.claimedCampaignId ?? null,
+    timestamp: event.timestamp,
+    // M2: a log-only row keeps a small summary (type, ids, trimmed text), not the whole webhook item.
+    rawPayload: (logOnly
+      ? {
+          entryId: event.instagramAccountId,
+          hasAttachment: event.hasAttachment,
+          summary: {
+            type: event.type,
+            messageId: event.messageId,
+            senderId: event.senderId,
+            mediaId: event.mediaId ?? null,
+            storyId: event.storyId ?? null,
+            text,
+          },
+        }
+      : {
           entryId: event.instagramAccountId,
           hasAttachment: event.hasAttachment,
           item: event.raw,
           ...(options.dmClaim ? { dmClaim: options.dmClaim } : {}),
-        } as Prisma.InputJsonValue,
-        processingStatus: "PENDING",
-      },
-      select: { id: true },
-    });
+        }) as Prisma.InputJsonValue,
+    processingStatus: logOnly ? ("IGNORED" as const) : ("PENDING" as const),
+    ...(logOnly ? { error: options.ignoredReason, processedAt: new Date() } : {}),
+  };
+  try {
+    const row = await db.instagramEvent.create({ data, select: { id: true } });
     return row.id;
   } catch (error) {
-    if (isUniqueViolation(error)) return null;
-    throw error;
+    if (!isUniqueViolation(error)) throw error;
+    if (logOnly) return null;
   }
+
+  // M1: the unique (account, messageId) key is held by a log-only row (stored
+  // while no automation existed). A real event claims it: the row becomes the
+  // PENDING event (full payload) instead of being "already stored". The
+  // conditional update decides a race between two claimers.
+  const existing = await db.instagramEvent.findUnique({
+    where: { instagramAccountId_messageId: { instagramAccountId: account.id, messageId: event.messageId } },
+    select: { id: true },
+  });
+  if (!existing) return null;
+  const upgraded = await db.instagramEvent.updateMany({
+    where: { id: existing.id, ...logOnlyEventWhere() },
+    data: { ...data, error: null, processedAt: null, attempts: 0 },
+  });
+  return upgraded.count === 1 ? existing.id : null;
 }
 
 /**
@@ -274,9 +312,12 @@ export async function claimAndStoreDmEvent(
       // A redelivery keeps the decision made the first time.
       const stored = await tx.instagramEvent.findUnique({
         where: { instagramAccountId_messageId: { instagramAccountId: account.id, messageId: event.messageId } },
-        select: { claimedCampaignId: true },
+        select: { claimedCampaignId: true, processingStatus: true, error: true },
       });
-      if (stored) return { eventId: null, claimedCampaignId: stored.claimedCampaignId };
+      // (A log-only row is no decision: storeEvent upgrades it below.)
+      if (stored && !(stored.processingStatus === "IGNORED" && stored.error === NO_AUTOMATION_REASON)) {
+        return { eventId: null, claimedCampaignId: stored.claimedCampaignId };
+      }
 
       const decision = await decideDmTrigger(query, campaigns, tx);
       const claimedCampaignId = decision.campaign?.id ?? null;
@@ -303,17 +344,33 @@ export async function claimAndStoreDmEvent(
 }
 
 export async function ingestWebhookPayload(payload: unknown): Promise<IngestResult> {
-  const result: IngestResult = { stored: [], duplicates: 0, skipped: 0, failed: 0, claimed: new Map() };
+  const result: IngestResult = { stored: [], duplicates: 0, skipped: 0, failed: 0, logged: 0, claimed: new Map() };
   if (!isTriggerEngineEnabled()) return result;
 
-  const events = normalizeWebhookPayload(payload as RawWebhookPayload);
+  // B-28: every item is logged. Echoes, production postbacks and other
+  // webhook fields are stored IGNORED and never queued; the engine's own
+  // events below go through the claim / enqueue path.
+  const events = [
+    ...normalizeWebhookPayload(payload as RawWebhookPayload),
+    ...normalizeLoggedOnlyItems(payload as RawWebhookPayload),
+  ];
   // Events of a person stored earlier in this payload: history for the next one.
   const earlierByPerson = new Map<string, string[]>();
   for (const event of events) {
     try {
       const gate = await loadAccountGate(event.instagramAccountId);
-      if (!gate || !gate.engaged) {
+      if (!gate) {
         result.skipped++;
+        continue;
+      }
+
+      // No automation can answer it (account without a campaign, or an item
+      // the engine never answers): still logged, as IGNORED, never claimed
+      // and never queued — production paths stay exactly as they were.
+      if (!gate.engaged || event.type === "ECHO" || event.type === "POSTBACK" || event.type === "OTHER") {
+        const loggedId = await storeEvent(gate, event, { ignoredReason: NO_AUTOMATION_REASON });
+        if (loggedId) result.logged++;
+        else result.duplicates++;
         continue;
       }
 

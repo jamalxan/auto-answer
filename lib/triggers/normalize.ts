@@ -44,6 +44,9 @@
 import { isFlowPayload } from "@/lib/flows/config";
 
 export type NormalizedEventType =
+  | "ECHO"
+  | "POSTBACK"
+  | "OTHER"
   | "STORY_REPLY"
   | "STORY_MENTION"
   | "DIRECT_MESSAGE"
@@ -388,4 +391,114 @@ export function normalizeWebhookPayload(
   }
 
   return events;
+}
+
+/** Why a logged-only event carries status IGNORED (shown in the trigger logs). */
+export const NO_AUTOMATION_REASON = "Avtomatika yo'q — event faqat qayd etildi.";
+
+/**
+ * Prisma filter: every event EXCEPT the log-only rows (IGNORED + NO_AUTOMATION_REASON).
+ * Log-only rows are only a log line: they must not count as "known" comments
+ * (backtrack), as a previous interaction (DM audience) or block a later claim.
+ * Written with OR because a plain `not` on the nullable `error` drops NULLs.
+ */
+export function notLogOnlyEventWhere() {
+  return {
+    OR: [
+      { processingStatus: { not: "IGNORED" as const } },
+      { error: null },
+      { error: { not: NO_AUTOMATION_REASON } },
+    ],
+  };
+}
+
+/** Prisma filter: only the log-only rows. */
+export function logOnlyEventWhere() {
+  return { processingStatus: "IGNORED" as const, error: NO_AUTOMATION_REASON };
+}
+
+/** Log-only rows keep a trimmed summary instead of the full webhook item (volume). */
+export const LOG_ONLY_TEXT_LIMIT = 500;
+/** Log-only rows older than this are deleted by the retention sweep. */
+export const LOG_ONLY_RETENTION_DAYS = 14;
+
+/**
+ * Webhook items the engine never answers but the log must still show (B-28):
+ * the account's own echoes, postbacks production handles ("reveal:" etc.),
+ * and every `changes` field other than comments / live comments (mentions,
+ * story insights, ...). They are stored as ECHO / POSTBACK / OTHER with status
+ * IGNORED, never claimed and never queued. Read receipts are not logged
+ * (pure noise: one per opened message).
+ */
+export function normalizeLoggedOnlyItems(
+  payload: RawWebhookPayload,
+  now: Date = new Date()
+): NormalizedInstagramEvent[] {
+  if (!payload || payload.object !== "instagram") return [];
+  const out: NormalizedInstagramEvent[] = [];
+  const seen = new Set<string>();
+  const push = (event: NormalizedInstagramEvent) => {
+    const key = `${event.instagramAccountId}|${event.messageId}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(event);
+  };
+
+  for (const entry of payload.entry ?? []) {
+    const entryId = entry.id ?? "";
+    const entryTime = toDate(entry.time, now);
+    if (!entryId) continue;
+
+    for (const item of entry.messaging ?? []) {
+      const timestamp = toDate(item.timestamp, entryTime);
+      const senderId = item.sender?.id ?? entryId;
+      const message = item.message;
+      if (message?.is_echo && message.mid) {
+        push({
+          type: "ECHO",
+          instagramAccountId: entryId,
+          senderId,
+          messageId: message.mid,
+          text: message.text?.trim() ?? "",
+          hasAttachment: (message.attachments ?? []).length > 0,
+          timestamp,
+          raw: item as unknown as Record<string, unknown>,
+        });
+        continue;
+      }
+      const postback = item.postback;
+      if (!message && postback && !(isC2Payload(postback.payload) || isFlowPayload(postback.payload))) {
+        push({
+          type: "POSTBACK",
+          instagramAccountId: entryId,
+          senderId,
+          messageId: postback.mid ?? `postback:${senderId}:${timestamp.getTime()}:${postback.payload ?? ""}`,
+          text: postback.title?.trim() ?? "",
+          payload: postback.payload,
+          hasAttachment: false,
+          timestamp,
+          raw: item as unknown as Record<string, unknown>,
+        });
+      }
+    }
+
+    (entry.changes ?? []).forEach((change, index) => {
+      if (!change.field || change.field === "comments" || change.field === "live_comments") return;
+      const value = change.value ?? {};
+      const stamp = toDate(value.timestamp, entryTime);
+      push({
+        type: "OTHER",
+        instagramAccountId: entryId,
+        senderId: value.from?.id ?? entryId,
+        senderUsername: value.from?.username,
+        messageId: `change:${change.field}:${value.id ?? value.comment_id ?? stamp.getTime()}:${index}`,
+        mediaId: value.media?.id ?? value.media_id,
+        text: change.field,
+        hasAttachment: false,
+        timestamp: stamp,
+        raw: { field: change.field, value: change.value } as Record<string, unknown>,
+      });
+    });
+  }
+  return out;
 }

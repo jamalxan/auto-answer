@@ -6,6 +6,7 @@ import {
   createCommentCampaign,
   firstIssue,
   listCommentCampaigns,
+  listLegacyAutomations,
   listWorkspaceAccounts,
 } from "@/lib/triggers/comment-service";
 
@@ -15,11 +16,13 @@ export async function GET() {
   const auth = await requireDeveloper();
   if (!auth.ok) return auth.response;
 
-  const [campaigns, accounts] = await Promise.all([
+  const [campaigns, accounts, legacy] = await Promise.all([
     listCommentCampaigns(auth.ctx.workspaceId),
     listWorkspaceAccounts(auth.ctx.workspaceId),
+    // Production (old) campaigns, read-only (B-34).
+    listLegacyAutomations(auth.ctx.workspaceId).catch(() => []),
   ]);
-  return jsonOk({ campaigns, accounts });
+  return jsonOk({ campaigns, accounts, legacy });
 }
 
 export async function POST(request: NextRequest) {

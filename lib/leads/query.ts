@@ -7,6 +7,10 @@ export interface LeadFilters {
   from?: string | null;
   to?: string | null;
   q?: string | null;
+  /** Test/sandbox leads are hidden unless explicitly requested. */
+  includeTest?: boolean;
+  /** "lead" | "contact": omit for both. */
+  kind?: string | null;
 }
 
 const STATUSES = new Set(["NEW", "SENT", "PARTIAL", "FAILED"]);
@@ -26,6 +30,9 @@ function parseDate(value: string | null | undefined, endOfDay = false): Date | n
 /** Workspace-scoped lead filter shared by the list and CSV export. */
 export function buildLeadWhere(workspaceId: string, f: LeadFilters): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = { workspaceId };
+  if (!f.includeTest) where.isTest = false;
+  const kind = f.kind?.toUpperCase();
+  if (kind === "LEAD" || kind === "CONTACT") where.kind = kind;
   const status = f.status?.toUpperCase();
   if (status && STATUSES.has(status)) where.status = status as never;
   const source = f.source?.toUpperCase();

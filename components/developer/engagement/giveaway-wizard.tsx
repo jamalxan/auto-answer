@@ -54,7 +54,8 @@ function initial(meta: Meta, giveaway: GiveawayRow | null): FormState {
   const now = Date.now();
   return {
     name: "",
-    accountId: meta.accounts.length === 1 ? meta.accounts[0].id : "",
+    // The first account is preselected so the post picker loads at once.
+    accountId: meta.accounts[0]?.id ?? "",
     post: null,
     rules: structuredClone(meta.defaults.rules),
     start: toLocalInput(new Date(now)),

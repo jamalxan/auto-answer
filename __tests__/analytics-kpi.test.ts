@@ -72,7 +72,7 @@ describe("loadKpi", () => {
     expect(kpi.metaErrorRate).toEqual({ rate: 0.3333, attempts: 3, failures: 1 });
     expect(kpi.messageSuccessRate?.rate).toBeCloseTo(0.6667, 3);
     expect(kpi.errors).toEqual({ last1h: 1, last24h: 1 });
-    expect(kpi.aiLatencyMs).toEqual({ avg: 600, calls: 2 });
+    expect(kpi.aiLatencyMs).toMatchObject({ avg: 600, calls: 2 });
     expect(kpi.aiCostTodayUsd).toBe(0.75);
     expect(kpi.webhookDelay).toEqual({ avgMs: 6 * 60_000, maxMs: 10 * 60_000, samples: 2 });
     expect(kpi.queue?.dm.queued).toBe(12);

@@ -6,6 +6,7 @@ import { ensureWorkspaceForUser } from "@/lib/workspace";
 import { isAdminEmail } from "@/lib/admin";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
+import { isTelegramConfigured } from "@/lib/telegram/api";
 
 export default async function DashboardLayout({
   children,
@@ -28,6 +29,14 @@ export default async function DashboardLayout({
     select: { username: true, tokenStatus: true },
   });
 
+  // B-27: warnings go to Telegram; with no active chat they reach nobody.
+  const telegramMissing =
+    accounts.length > 0 &&
+    isTelegramConfigured() &&
+    (await prisma.telegramChat
+      .count({ where: { active: true, integration: { workspaceId: workspace.id, type: "TELEGRAM", status: "ACTIVE" } } })
+      .catch(() => 1)) === 0;
+
   const locale = await getServerLocale();
   const brokenAccounts = accounts.filter((a) => a.tokenStatus === "BROKEN");
   const banner = dictionaries[locale].assistant.tokenBanner;
@@ -47,6 +56,7 @@ export default async function DashboardLayout({
             }
           : null
       }
+      telegramBanner={telegramMissing ? dictionaries[locale].assistant.telegramBanner : null}
       suspendedBanner={
         workspace.isSuspended ? dictionaries[locale].workspaceSuspendedBanner : null
       }

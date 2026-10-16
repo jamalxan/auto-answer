@@ -97,7 +97,7 @@ function ConditionRow({ meta, cond, onChange, onRemove }: { meta: Meta; cond: Dr
   }
 
   return (
-    <div className="grid gap-2 rounded-lg border border-border p-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-start">
+    <div className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-start">
       <div className="flex gap-2">
         <label className="sr-only" htmlFor={`f-${cond.key}`}>
           Maydon

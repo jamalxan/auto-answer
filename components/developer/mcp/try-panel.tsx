@@ -1,5 +1,6 @@
 "use client";
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useEffect, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
 import { Field, inputClass, primaryButton } from "@/components/developer/ui";
@@ -56,7 +57,7 @@ export default function TryPanel({ meta, freshToken }: { meta: McpMeta; freshTok
       <p className="text-xs text-muted">
         Brauzerdan haqiqiy <code>POST {meta.endpoint}</code> chaqiriladi. Token faqat shu so&apos;rovga ishlatiladi va saqlanmaydi.
       </p>
-      {!meta.enabled && <Notice tone="error">MCP o&apos;chirilgan (MCP_DISABLED) — endpoint 503 qaytaradi.</Notice>}
+      {!meta.enabled && <ServerOffNotice what="MCP o'chirilgan: endpoint 503 qaytaradi." ops={<><code>MCP_DISABLED</code> ni olib tashlang.</>} />}
       <Field label="Token" hint="Yangi yaratilgan token shu yerga o'zi tushadi.">
         <input
           type="password"

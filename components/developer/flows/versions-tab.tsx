@@ -63,7 +63,7 @@ function DiffPanel({ diff }: { diff: DiffView }) {
               </p>
               <ul className="mt-1 space-y-1.5">
                 {n.fields.map((f) => (
-                  <li key={f.field} className="grid gap-1 text-xs sm:grid-cols-[7rem_1fr_1fr]">
+                  <li key={f.field} className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-[7rem_1fr_1fr]">
                     <span className="label-mono text-[10px] text-muted">{TYPE_FIELD[f.field] ?? f.field}</span>
                     <span className="break-words rounded bg-error/10 px-1.5 py-0.5 text-foreground">− {valueText(f.before)}</span>
                     <span className="break-words rounded bg-success/10 px-1.5 py-0.5 text-foreground">+ {valueText(f.after)}</span>
@@ -220,7 +220,7 @@ export default function VersionsTab({ flowId, refreshKey, dirty, onRestored }: {
       {versions.length > 1 && (
         <section aria-label="Solishtirish" className="panel space-y-3 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-foreground">Ikki versiyani solishtirish</h3>
-          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="label-mono text-[11px] font-semibold text-muted">Eski</span>
               <select className={inputClass} value={a} onChange={(e) => setA(e.target.value)}>

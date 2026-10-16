@@ -1,6 +1,6 @@
 import type { Integration } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
-import { resumeIntegration } from "@/lib/leads/delivery";
+import { markIntegrationBroken, resumeIntegration } from "@/lib/leads/delivery";
 import {
   AmoClient,
   LongLivedTokenStrategy,
@@ -73,10 +73,27 @@ export async function checkIntegration(integration: Integration): Promise<Connec
  * Run a connection check and persist the outcome. A repaired integration
  * releases every delivery that was held while it was broken (TZ acceptance #10).
  */
-export async function runConnectionCheck(integrationId: string) {
+/** Consecutive passing background checks a BROKEN integration needs before it resumes (no flapping). */
+export const RESUME_AFTER_PASSES = 2;
+
+export async function runConnectionCheck(integrationId: string, options: { manual?: boolean } = {}) {
   const integration = await prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
   const result = await checkIntegration(integration);
   const wasBroken = integration.status === "BROKEN";
+  const checkedAt = new Date();
+
+  if (result.ok && wasBroken && !options.manual) {
+    // Background check: one pass is not proof (a flapping API would flip the
+    // status and alert every 5 minutes). Stay BROKEN until enough passes in a row.
+    const streak = (integration.healthOkStreak ?? 0) + 1;
+    if (streak < RESUME_AFTER_PASSES) {
+      await prisma.integration.update({
+        where: { id: integration.id },
+        data: { healthOkStreak: streak, lastCheckedAt: checkedAt },
+      });
+      return result;
+    }
+  }
 
   if (result.ok) {
     await prisma.integration.update({
@@ -85,18 +102,44 @@ export async function runConnectionCheck(integrationId: string) {
         status: integration.status === "DISABLED" ? "DISABLED" : "ACTIVE",
         lastCheckedAt: new Date(),
         lastError: null,
+        ...((integration.healthOkStreak ?? 0) !== 0 ? { healthOkStreak: 0 } : {}),
       },
     });
-    if (wasBroken) {
+    // Repaired (or a held lead was left behind): put every waiting delivery
+    // back in the queue and close the "integration lost" system error.
+    const held = await prisma.leadDelivery.count({
+      where: { integrationId: integration.id, status: { in: ["PENDING", "FAILED"] }, nextAttemptAt: null },
+    });
+    if (wasBroken || held > 0) {
       await resumeIntegration(integration.id);
       await resumeOutboundIntegration(integration.id).catch(() => 0);
     }
+    if (wasBroken) {
+      await prisma.operationalEvent
+        .updateMany({
+          where: {
+            workspaceId: integration.workspaceId,
+            source: "SYSTEM",
+            level: "ERROR",
+            resolvedAt: null,
+            message: { contains: "integratsiyasi uzildi" },
+          },
+          data: { resolvedAt: checkedAt },
+        })
+        .catch(() => undefined);
+    }
   } else {
+    if (result.reason === "auth" && integration.status === "ACTIVE") {
+      // Typed INTEGRATION_AUTH_EXPIRED: BROKEN + system error + owner alert (once).
+      await markIntegrationBroken(integration, result.message ?? "401");
+    }
     await prisma.integration.update({
       where: { id: integration.id },
       data: {
         status: result.reason === "auth" ? "BROKEN" : integration.status,
-        lastCheckedAt: new Date(),
+        // A failed check restarts the passing streak.
+        ...((integration.healthOkStreak ?? 0) !== 0 ? { healthOkStreak: 0 } : {}),
+        lastCheckedAt: checkedAt,
         lastError: (result.message ?? "").slice(0, 500),
       },
     });
@@ -140,18 +183,19 @@ export { encryptCredentials, isValidBitrixWebhookUrl, normalizeWebhookUrl };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Warn when a long-lived token is 14 and 3 days from expiry (TZ 7.2). The
- * `tokenWarnedAt` marker makes each threshold fire once.
+ * Warn when a long-lived token is 7 and 1 day from expiry (B-04, like the
+ * Instagram token warnings). The `tokenWarnedAt` marker makes each threshold
+ * fire once.
  */
 export function expiryWarningDue(
   expiresAt: Date,
   warnedAt: Date | null,
   now = new Date()
-): 14 | 3 | null {
+): 7 | 1 | null {
   const daysLeft = (expiresAt.getTime() - now.getTime()) / DAY_MS;
-  if (daysLeft <= 0) return null; // already expired: the API will mark it broken
+  if (daysLeft <= 0) return null; // already expired: the 5-minute check marks it broken
   const warnedDaysLeft = warnedAt ? (expiresAt.getTime() - warnedAt.getTime()) / DAY_MS : Infinity;
-  if (daysLeft <= 3 && warnedDaysLeft > 3) return 3;
-  if (daysLeft <= 14 && warnedDaysLeft > 14) return 14;
+  if (daysLeft <= 1 && warnedDaysLeft > 1) return 1;
+  if (daysLeft <= 7 && warnedDaysLeft > 7) return 7;
   return null;
 }

@@ -101,6 +101,8 @@ export interface TurnSignalInput {
   phoneKnown: boolean;
   returningContact: boolean;
   cameFromAd: boolean;
+  /** The deterministic detector (lib/javobai/price-detector.ts) fired: forces price_asked whatever the model said. */
+  priceAsked?: boolean;
 }
 
 /**
@@ -110,7 +112,7 @@ export interface TurnSignalInput {
 export function signalsFromTurn(input: TurnSignalInput, rules: ScoreRule[] = DEFAULT_SCORING.rules): ScoreEvent[] {
   const keys: string[] = [];
   if (input.extracted.product) keys.push("product_selected");
-  if (input.intent === "price_question") keys.push("price_asked");
+  if (input.intent === "price_question" || input.priceAsked) keys.push("price_asked");
   if (input.phoneKnown) keys.push("phone_provided");
   if (input.intent === "purchase_intent") keys.push("purchase_intent");
   if (input.intent === "payment_intent") keys.push("payment_intent", "purchase_intent");

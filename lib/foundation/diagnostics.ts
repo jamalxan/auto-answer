@@ -9,12 +9,14 @@
 
 import { prisma } from "@/lib/db/client";
 import { getLlmProvider } from "@/lib/assistant/llm/provider";
+import { isLlmErrorRateHigh, loadLlmStats, LLM_ERROR_WARN_RATE } from "@/lib/assistant/llm/stats";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
 import { isTelegramConfigured } from "@/lib/telegram/api";
 import type { ConnectionStatus } from "./connection-status";
 import { loadConnections, type ConnectionView } from "./connections";
 import { explainError, RECONNECT_HREF } from "./error-catalog";
 import { loadQueueStats, type QueueStats } from "./queue-stats";
+import { defaultHourlyLimit } from "@/lib/utils/rate-limiter";
 import { formatAgo, formatMinutes, toDate, withTimeout } from "./time";
 
 export type DiagnosticStatus = "ok" | "warning" | "error" | "unknown";
@@ -316,7 +318,7 @@ export function buildRateLimitCheck(rate: QueueStats["rate"], now: Date): Diagno
   const base = {
     key: "rate_limit",
     label: "Rate limit",
-    meaning: "Bitta akkauntdan soatiga 750 tagacha private reply yuborish mumkin (Meta limiti).",
+    meaning: `Bitta akkauntdan soatiga ${defaultHourlyLimit()} tagacha xabar yuboriladi (sozlanadi: DM_HOURLY_LIMIT_DEFAULT). Limit to'lsa xabarlar yo'qolmaydi — keyingi soatda yuboriladi.`,
     lastCheck: now.toISOString(),
   };
   if (rate.length === 0) return { ...base, status: "unknown", value: "Akkaunt yo'q", issue: null, action: null };
@@ -442,6 +444,8 @@ export interface AiInput {
   configured: boolean;
   model: string | null;
   templateOnlyUntil: Date | string | null;
+  /** LLM call outcomes over `windowDays` (llm_usage, the shared source). */
+  llm?: { calls: number; failures: number; windowDays: number; p95LatencyMs?: number | null } | null;
 }
 
 export function buildAiCheck(input: AiInput, now: Date): DiagnosticItem {
@@ -470,7 +474,20 @@ export function buildAiCheck(input: AiInput, now: Date): DiagnosticItem {
       action: { label: "O'zi tiklanadi. Tez-tez takrorlansa — provider kalit va limitlarini tekshiring." },
     };
   }
-  return { ...base, status: "ok", value: input.model ? `Ishlayapti · ${input.model}` : "Ishlayapti", issue: null, action: null };
+  const llm = input.llm;
+  if (llm && isLlmErrorRateHigh(llm)) {
+    const pct = Math.round((llm.failures / llm.calls) * 100);
+    return {
+      ...base,
+      status: "warning",
+      value: `Diqqat · ${pct}% xato (${llm.failures}/${llm.calls})`,
+      issue: `Oxirgi ${llm.windowDays} kunda AI chaqiruvlarning ${pct}% i xato bilan tugadi (${llm.failures}/${llm.calls}; chegara ${Math.round(LLM_ERROR_WARN_RATE * 100)}%). Mijozga shablon yoki kechikkan javob ketishi mumkin.`,
+      action: { label: "Provider limiti va model nomini tekshiring; xatolar tafsiloti Analitika → AI bo'limida." },
+    };
+  }
+  const okValue = input.model ? `Ishlayapti · ${input.model}` : "Ishlayapti";
+  const detail = llm && llm.calls > 0 ? ` · ${llm.failures}/${llm.calls} xato (${llm.windowDays} kun)` : "";
+  return { ...base, status: "ok", value: okValue + detail, issue: null, action: null };
 }
 
 export interface CrmInput {
@@ -544,12 +561,13 @@ export function buildTelegramCheck(input: TelegramInput, now: Date): DiagnosticI
       action: { label: "Serverda TELEGRAM_BOT_TOKEN ni sozlang." },
     };
   }
-  if (input.activeChats === 0 && input.linkedUsers === 0) {
+  // Warnings go to active chats only (alertWorkspace); a linked bot user alone does not receive them.
+  if (input.activeChats === 0) {
     return {
       ...base,
       status: "warning",
       value: "Ulanmagan",
-      issue: "Telegram ulanmagan — Instagram uzilsa bu haqda xabar olmaysiz.",
+      issue: "Telegram ulanmagan: ogohlantirishlar yetib bormaydi (Instagram uzilsa, CRM xatosi, yangi lid haqida xabar olmaysiz).",
       action: { label: "Integratsiyalar sahifasida Telegram'ni ulang.", href: "/integrations" },
     };
   }
@@ -578,10 +596,15 @@ async function settle<T>(promise: Promise<T>): Promise<{ value: T } | null> {
   }
 }
 
+const LLM_WINDOW_DAYS = 7;
+
 function loadAi(workspaceId: string) {
-  return prisma.workspace
-    .findUnique({ where: { id: workspaceId }, select: { assistantTemplateOnlyUntil: true } })
-    .then((workspace) => {
+  const since = new Date(Date.now() - LLM_WINDOW_DAYS * DAY_MS);
+  return Promise.all([
+    prisma.workspace.findUnique({ where: { id: workspaceId }, select: { assistantTemplateOnlyUntil: true } }),
+    loadLlmStats(workspaceId, since).catch(() => null),
+  ])
+    .then(([workspace, stats]) => {
       let provider: ReturnType<typeof getLlmProvider> = null;
       try {
         provider = getLlmProvider();
@@ -592,6 +615,7 @@ function loadAi(workspaceId: string) {
         configured: Boolean(provider),
         model: provider?.model ?? null,
         templateOnlyUntil: workspace?.assistantTemplateOnlyUntil ?? null,
+        llm: stats ? { calls: stats.calls, failures: stats.failures, windowDays: LLM_WINDOW_DAYS, p95LatencyMs: stats.p95LatencyMs } : null,
       };
     });
 }
@@ -642,7 +666,7 @@ export async function runDiagnostics(
   const since24h = new Date(now.getTime() - DAY_MS);
   const given = <T>(value: T) => Promise.resolve({ value });
 
-  const [connections, queue, worker, lastSent, failures, lastWebhook, webhookFailed, lastTriggerEvent, ai, crm, telegram] =
+  const [connections, queue, worker, lastSent, failures, lastWebhook, webhookFailed, lastTriggerEvent, lastDmLog, lastChatMessage, ai, crm, telegram] =
     await Promise.all([
       preloaded.connections ? given(preloaded.connections) : settle(loadConnections(workspaceId, now)),
       preloaded.queue ? given(preloaded.queue) : settle(loadQueueStats(workspaceId, { now })),
@@ -677,6 +701,23 @@ export async function runDiagnostics(
           select: { createdAt: true },
         })
       ),
+      // B-28: "last event" is the newest of ALL sources (webhook deliveries,
+      // trigger events, DM logs and assistant chat messages), not only the
+      // webhook rows that happened to be tagged with a workspace.
+      settle(
+        prisma.dmLog.findFirst({
+          where: { workspaceId },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        })
+      ),
+      settle(
+        prisma.conversationMessage.findFirst({
+          where: { conversation: { workspaceId } },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        })
+      ),
       settle(loadAi(workspaceId)),
       settle(loadCrm(workspaceId, since24h)),
       settle(loadTelegram(workspaceId)),
@@ -693,7 +734,12 @@ export async function runDiagnostics(
     : null;
   const hasLiveAccount = (accounts ?? []).some((a) => a.status !== "DISCONNECTED" && a.status !== "RECONNECT_REQUIRED");
 
-  const eventTimes = [lastWebhook?.value?.createdAt, lastTriggerEvent?.value?.createdAt]
+  const eventTimes = [
+    lastWebhook?.value?.createdAt,
+    lastTriggerEvent?.value?.createdAt,
+    lastDmLog?.value?.createdAt,
+    lastChatMessage?.value?.createdAt,
+  ]
     .map((d) => d?.getTime() ?? 0)
     .filter(Boolean);
   const lastEventAt = eventTimes.length ? new Date(Math.max(...eventTimes)) : null;

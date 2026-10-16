@@ -344,7 +344,7 @@ describe("Scenario A — comment narx → private reply with button → tap → 
     // 2. the tap on the opening button → price + chips
     const tap = await deliver(postback("pb1", `fl:${run.id}:m1:open`));
     expect(tap.outcomes).toEqual(["processed"]);
-    expect(dmSends()).toEqual(["Mahsulot narxi: menejer aytadi. Katalogni ham yuboraymi?"]);
+    expect(dmSends()).toEqual(["Narx hozircha kiritilmagan — aniq narxni menejer aytadi. Katalogni ham yuboraymi?"]);
     expect(mocks.sendDirectMessageWithQuickReplies).toHaveBeenCalledWith("plain:enc", IG_ID, USER, "Tanlang:", [
       { title: "Katalog", payload: `fl:${run.id}:b1:cat`, contentType: "text" },
       { title: "Raqamimni qoldiraman", payload: `fl:${run.id}:b1:ph`, contentType: "user_phone_number" },
@@ -358,7 +358,7 @@ describe("Scenario A — comment narx → private reply with button → tap → 
     expect(phone.outcomes).toEqual(["processed"]);
     expect(mocks.captureTriggerLead).toHaveBeenCalledTimes(1);
     expect(mocks.captureTriggerLead.mock.calls[0][0]).toMatchObject({ igUserId: USER, phoneE164: "+998901234567", campaignName: "Narx oqimi", isTest: true });
-    expect(dmSends()).toEqual(["Mahsulot narxi: menejer aytadi. Katalogni ham yuboraymi?", "Rahmat! Tez orada bog'lanamiz."]);
+    expect(dmSends()).toEqual(["Narx hozircha kiritilmagan — aniq narxni menejer aytadi. Katalogni ham yuboraymi?", "Rahmat! Tez orada bog'lanamiz."]);
     expect(rows("crmContactTag").length).toBe(2);
     expect(rows("crmTag").map((t) => t.slug).sort()).toEqual(["lead", "narx"]);
     expect(mocks.notifyWorkspaceChats).toHaveBeenCalledWith("ws1", "🔥 Yangi lead: @ali +998901234567 — Narxi qancha?");
@@ -368,7 +368,7 @@ describe("Scenario A — comment narx → private reply with button → tap → 
     expect(run0()).toMatchObject({ status: "DONE", endReason: "Oqim tugadi" });
     expect(run0().finishedAt).toBeInstanceOf(Date);
     expect(steps(run.id).map((s) => `${s.nodeId}:${s.status}`)).toEqual([
-      "t:DONE", "m1:WAITING", "m1:DONE", "m2:DONE", "b1:WAITING", "b1:DONE", "lead:DONE", "tag:DONE", "tg:DONE", "end:DONE",
+      "t:DONE", "m1:WAITING", "m1:DONE", "sp:DONE", "sc:DONE", "cp:DONE", "m2x:DONE", "b1:WAITING", "b1:DONE", "lead:DONE", "tag:DONE", "tg:DONE", "end:DONE",
     ]);
     expect(await flowOwnsThread("acc1", USER)).toBe(false);
 

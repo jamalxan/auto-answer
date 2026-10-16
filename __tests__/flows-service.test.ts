@@ -41,6 +41,7 @@ import {
   listVersions,
   meta,
   publishVersion,
+  renameFlow,
   restoreVersion,
   run,
   runAudit,
@@ -327,9 +328,29 @@ describe("approveVersion and publishVersion gating", () => {
     expect(mocks.publishFlowVersion).toHaveBeenCalledWith(WS, flow.id, vid, { userId: "u7" });
   });
 
-  it("a manual version publishes without approval; BLOCKED never publishes; warnings need acknowledgement", async () => {
+  it("a manual version publishes without approval but only after a passing test of its current text", async () => {
     const { flow } = await newFlow();
     const vid = flow.draftVersionId!;
+    await expect(publishVersion(WS, flow.id, vid, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 422, message: expect.stringContaining("sinab ko'ring") });
+    // a failed sandbox run does not count
+    mocks.runFlowSandbox.mockResolvedValueOnce({ steps: [{ status: "FAILED", error: "boom" }], status: "FAILED" });
+    await testVersion(WS, flow.id, vid, {});
+    await expect(publishVersion(WS, flow.id, vid, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 422 });
+    await testVersion(WS, flow.id, vid, {});
+    // editing after the test removes it again
+    const graph = flowGraphDraftSchema.parse(versionRow(vid).graph);
+    await saveDraft(WS, flow.id, { graph: withEdited(graph, "boshqa matn") });
+    await expect(publishVersion(WS, flow.id, vid, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 422, message: expect.stringContaining("sinab ko'ring") });
+    expect(mocks.publishFlowVersion).not.toHaveBeenCalled();
+    await testVersion(WS, flow.id, vid, {});
+    await expect(publishVersion(WS, flow.id, vid, { acknowledgeWarnings: true }, "u1")).resolves.toBeTruthy();
+    expect(mocks.publishFlowVersion).toHaveBeenCalledTimes(1);
+  });
+
+  it("BLOCKED never publishes; warnings need acknowledgement", async () => {
+    const { flow } = await newFlow();
+    const vid = flow.draftVersionId!;
+    await testVersion(WS, flow.id, vid, {});
     const verdict = (versionRow(vid).policyResult as { verdict: string }).verdict;
     if (verdict === "WARNING") {
       await expect(publishVersion(WS, flow.id, vid, {}, "u1")).rejects.toMatchObject({ message: expect.stringContaining("Ogohlantirishlar") });
@@ -355,12 +376,14 @@ describe("approveVersion and publishVersion gating", () => {
         ],
       },
     });
+    await testVersion(WS, blocked.flow.id, blocked.flow.draftVersionId!, {});
     await expect(publishVersion(WS, blocked.flow.id, blocked.flow.draftVersionId!, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 422 });
     expect(mocks.publishFlowVersion).toHaveBeenCalledTimes(1);
   });
 
   it("passes the engine's refusal through with its status; FLOWS_DISABLED blocks publish", async () => {
     const { flow } = await newFlow();
+    await testVersion(WS, flow.id, flow.draftVersionId!, {});
     mocks.publishFlowVersion.mockResolvedValueOnce({ ok: false, status: 409, error: "Boshqa oqim band" });
     await expect(publishVersion(WS, flow.id, flow.draftVersionId!, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 409, message: "Boshqa oqim band" });
     process.env.FLOWS_DISABLED = "1";
@@ -527,5 +550,88 @@ describe("run adapter", () => {
       throw new Error("x");
     });
     expect(boom).toMatchObject({ ok: false, status: 500 });
+  });
+});
+
+describe("renameFlow (partial PATCH)", () => {
+  it("a mode switch alone (no name) is accepted and keeps the graph; a rename alone keeps the mode", async () => {
+    const { flow, vid } = await (async () => {
+      const f = (await newFlow()).flow;
+      return { flow: f, vid: f.draftVersionId! };
+    })();
+    const graphBefore = JSON.stringify(versionRow(vid).graph);
+    await renameFlow(WS, flow.id, { mode: "ADVANCED" });
+    expect(flowRow(flow.id)).toMatchObject({ mode: "ADVANCED", name: flow.name });
+    await renameFlow(WS, flow.id, { mode: "SIMPLE" });
+    expect(flowRow(flow.id).mode).toBe("SIMPLE");
+    await renameFlow(WS, flow.id, { name: "  Yangi nom " });
+    expect(flowRow(flow.id)).toMatchObject({ name: "Yangi nom", mode: "SIMPLE" });
+    expect(JSON.stringify(versionRow(vid).graph)).toBe(graphBefore);
+  });
+
+  it("an empty body or empty name is a plain Uzbek 400, never a raw zod message", async () => {
+    const { flow } = await newFlow();
+    await expect(renameFlow(WS, flow.id, {})).rejects.toMatchObject({ status: 400, message: "Nom yoki rejim ko'rsatilmagan" });
+    await expect(renameFlow(WS, flow.id, { name: "   " })).rejects.toMatchObject({ status: 400, message: "name: Nom kiritilmagan" });
+    await expect(renameFlow(WS, flow.id, { mode: "X" })).rejects.toSatisfy((e: Error) => !/Invalid|expected/i.test(e.message));
+  });
+});
+
+describe("M6: versions published before the test gate keep republishing", () => {
+  /** A legacy published version: publishedAt set, testedAt null (it went live before the gate existed). */
+  async function legacyPublished() {
+    const { flow } = await newFlow();
+    const v1 = flow.draftVersionId!;
+    Object.assign(versionRow(v1), { publishedAt: new Date("2026-09-01T00:00:00Z"), testedAt: null });
+    Object.assign(flowRow(flow.id), { status: "PUBLISHED", publishedVersionId: v1 });
+    return { flow, v1 };
+  }
+
+  it("republishes a previously published version after unpublish without a new test", async () => {
+    const { flow, v1 } = await legacyPublished();
+    await unpublish(WS, flow.id);
+    Object.assign(flowRow(flow.id), { status: "DRAFT", publishedVersionId: null });
+    await expect(publishVersion(WS, flow.id, v1, { acknowledgeWarnings: true }, "u1")).resolves.toBeTruthy();
+    expect(mocks.publishFlowVersion).toHaveBeenCalledWith(WS, flow.id, v1, { userId: "u1" });
+  });
+
+  it("a never-published, untested version still needs a test", async () => {
+    const { flow } = await newFlow();
+    await expect(publishVersion(WS, flow.id, flow.draftVersionId!, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringContaining("sinab ko'ring"),
+    });
+  });
+
+  it("an edited copy of a published version needs a new test", async () => {
+    const { flow, v1 } = await legacyPublished();
+    const g1 = flowGraphDraftSchema.parse(versionRow(v1).graph);
+    const v2 = (await saveDraft(WS, flow.id, { graph: withEdited(g1, "o'zgargan matn") })).version.id;
+    expect(v2).not.toBe(v1);
+    await expect(publishVersion(WS, flow.id, v2, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 422, message: expect.stringContaining("sinab ko'ring") });
+  });
+
+  it("restoring a published version gives a draft that publishes without a new test; editing it resets that", async () => {
+    const { flow, v1 } = await legacyPublished();
+    const g1 = flowGraphDraftSchema.parse(versionRow(v1).graph);
+    const v2 = (await saveDraft(WS, flow.id, { graph: withEdited(g1, "ikkinchi") })).version.id;
+    const restored = await restoreVersion(WS, flow.id, v1);
+    expect(restored.version.id).toBe(v2);
+    expect(versionRow(v2).hash).toBe(hashGraph(g1));
+    expect(versionRow(v2).testedAt).toBeInstanceOf(Date);
+    await expect(publishVersion(WS, flow.id, v2, { acknowledgeWarnings: true }, "u1")).resolves.toBeTruthy();
+
+    // edit after the restore: the carried proof is gone
+    await saveDraft(WS, flow.id, { graph: withEdited(g1, "yana boshqa") });
+    expect(versionRow(v2).testedAt).toBeNull();
+    await expect(publishVersion(WS, flow.id, v2, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("an AI version keeps its own rule: published before but untested still needs a test", async () => {
+    const graph = findStarterTemplate(T1)!.graph;
+    const created = await createFlow(WS, { name: "AI", instagramAccountId: "a1", graph, prompt: "x" }, { userId: "u1" });
+    const vid = created.flow.draftVersionId!;
+    Object.assign(versionRow(vid), { publishedAt: new Date(), testedAt: null, approvedAt: new Date() });
+    await expect(publishVersion(WS, created.flow.id, vid, { acknowledgeWarnings: true }, "u1")).rejects.toMatchObject({ status: 422 });
   });
 });

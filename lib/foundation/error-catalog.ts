@@ -14,6 +14,7 @@
  * retry/no-retry decision; this file is the human explanation.
  */
 
+import { IntegrationAuthError } from "@/lib/integrations/errors";
 import {
   MetaApiError,
   PermissionError,
@@ -215,7 +216,7 @@ export const ERROR_CATALOG = {
     severity: "warning",
     retryable: true,
     problem: "Soatlik xabar limiti to'ldi.",
-    cause: "Bitta akkauntdan soatiga 750 tadan ko'p private reply yuborib bo'lmaydi (Meta limiti).",
+    cause: "Bitta akkauntdan soatiga belgilangan limitdan (standart 200, sozlanadi) ko'p xabar yuborilmaydi — Meta cheklovlaridan himoya.",
     solution: "Xabarlar navbatda turadi va limit yangilangach yuboriladi.",
     action: WAIT,
   },
@@ -318,6 +319,15 @@ export const ERROR_CATALOG = {
     solution: "Server sozlamalarini tekshiring — bu hal bo'lmaguncha yangi eventlar qabul qilinmaydi.",
     action: { kind: "check_settings", label: "Server sozlamasi" },
   },
+  INTEGRATION_AUTH_EXPIRED: {
+    code: "INTEGRATION_AUTH_EXPIRED",
+    severity: "critical",
+    retryable: false,
+    problem: "CRM ulanishi tugagan (amoCRM / Bitrix24 kirishni rad etdi).",
+    cause: "CRM tokeni amal qilish muddatini tugatgan, bekor qilingan yoki ruxsati olib tashlangan (401/403).",
+    solution: "Integratsiyalar bo'limida CRM'ni yangi token bilan qayta ulang. Kutayotgan lidlar ulanish tiklangach avtomatik yuboriladi.",
+    action: { kind: "reconnect", label: "Qayta ulash", href: "/integrations" },
+  },
   UNKNOWN: {
     code: "UNKNOWN",
     severity: "error",
@@ -335,6 +345,11 @@ export type ErrorCode = keyof typeof ERROR_CATALOG;
 
 // Order matters: a specific Meta rejection wins over the generic class.
 const TEXT_RULES: Array<[ErrorCode, RegExp]> = [
+  // CRM credentials rejected (lib/integrations IntegrationAuthError, markIntegrationBroken's event text).
+  [
+    "INTEGRATION_AUTH_EXPIRED",
+    /IntegrationAuthError|amocrm responded 40[13]|bitrix24 auth failed|integratsiyasi uzildi/i,
+  ],
   ["IG_DISCONNECTED", /disconnected by user|no instagram access token/i],
   ["IG_APP_REMOVED", /deauthorize|app removed in instagram|has not authorized application/i],
   ["IG_TOKEN_UNREADABLE", /cannot be decrypted|could not decrypt|failed to decrypt/i],
@@ -367,6 +382,7 @@ export function tokenErrorCode(subcode: number | undefined, text: string): Error
 }
 
 function classify(input: unknown, text: string): ErrorCode {
+  if (input instanceof IntegrationAuthError) return "INTEGRATION_AUTH_EXPIRED";
   for (const [code, pattern] of TEXT_RULES) {
     if (pattern.test(text)) return code;
   }

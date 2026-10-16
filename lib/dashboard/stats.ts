@@ -5,6 +5,7 @@
  */
 
 import { prisma } from "@/lib/db/client";
+import { loadDeliverySummary } from "@/lib/leads/undelivered";
 import { aiConversationLimit } from "@/lib/assistant/profile";
 import {
   calculateCtr,
@@ -27,6 +28,17 @@ export async function getDashboardStats(opts: {
   weekStart.setDate(weekStart.getDate() - 7);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const accountFilter = selectedAccountId ? { instagramAccountId: selectedAccountId } : {};
+  // B-11: "sent in a period" is the analytics definition (lib/analytics/compute.ts):
+  // the moment the DM went out (dmSentAt), createdAt only for rows that predate it.
+  const sentSince = (from: Date, to?: Date) => {
+    const range = to ? { gte: from, lt: to } : { gte: from };
+    return {
+      workspaceId,
+      status: "SENT" as const,
+      OR: [{ dmSentAt: range }, { dmSentAt: null, createdAt: range }],
+      ...accountFilter,
+    };
+  };
 
   // The seven daily buckets of the chart, counted together with everything
   // else instead of one query after another.
@@ -91,15 +103,9 @@ export async function getDashboardStats(opts: {
     }),
     prisma.automation.count({ where: { workspaceId, ...accountFilter } }),
     prisma.automation.count({ where: { workspaceId, isActive: true, ...accountFilter } }),
-    prisma.dmLog.count({
-      where: { workspaceId, status: "SENT", createdAt: { gte: todayStart }, ...accountFilter },
-    }),
-    prisma.dmLog.count({
-      where: { workspaceId, status: "SENT", createdAt: { gte: weekStart }, ...accountFilter },
-    }),
-    prisma.dmLog.count({
-      where: { workspaceId, status: "SENT", createdAt: { gte: monthStart }, ...accountFilter },
-    }),
+    prisma.dmLog.count({ where: sentSince(todayStart) }),
+    prisma.dmLog.count({ where: sentSince(weekStart) }),
+    prisma.dmLog.count({ where: sentSince(monthStart) }),
     prisma.dmLog.count({ where: { workspaceId, status: "SENT", ...accountFilter } }),
     prisma.dmLog.groupBy({
       by: ["status"],
@@ -135,9 +141,7 @@ export async function getDashboardStats(opts: {
     }),
     Promise.all(
       days.map(({ dayStart, dayEnd }) =>
-        prisma.dmLog.count({
-          where: { workspaceId, status: "SENT", createdAt: { gte: dayStart, lt: dayEnd }, ...accountFilter },
-        })
+        prisma.dmLog.count({ where: sentSince(dayStart, dayEnd) })
       )
     ),
   ]);
@@ -183,7 +187,7 @@ export async function getDashboardStats(opts: {
 /** The lead cards on the dashboard (last 30 days). */
 export async function getLeadCards(workspaceId: string) {
   const since30 = new Date(Date.now() - 30 * DAY_MS);
-  const [leads30, assistantChats, capturedWithPhone, dead, held] = await Promise.all([
+  const [leads30, assistantChats, capturedWithPhone, deliveries] = await Promise.all([
     prisma.lead.count({ where: { workspaceId, isTest: false, createdAt: { gte: since30 } } }),
     prisma.conversation.count({
       where: { workspaceId, botMessageCount: { gt: 0 }, createdAt: { gte: since30 } },
@@ -197,20 +201,14 @@ export async function getLeadCards(workspaceId: string) {
         conversation: { botMessageCount: { gt: 0 } },
       },
     }),
-    prisma.leadDelivery.count({ where: { lead: { workspaceId, isTest: false }, status: "DEAD" } }),
-    prisma.leadDelivery.count({
-      where: {
-        lead: { workspaceId, isTest: false },
-        status: { in: ["PENDING", "FAILED"] },
-        integration: { status: "BROKEN" },
-      },
-    }),
+    // B-32: the same undelivered count Diagnostics and Integrations show.
+    loadDeliverySummary(workspaceId),
   ]);
   return {
     leads30,
     conversionPct: assistantChats > 0 ? Math.round((capturedWithPhone / assistantChats) * 100) : 0,
     assistantChats,
-    undelivered: dead + held,
+    undelivered: deliveries.undeliveredLeads,
   };
 }
 

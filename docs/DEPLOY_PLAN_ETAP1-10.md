@@ -80,7 +80,16 @@ Checked on 2026-10-16:
    Choose a **new** password — the previous one appeared in git history.
 3. **Backup the database**:
    `docker exec socialauto-postgres-1 pg_dump -U postgres socialauto > ~/backups/socialauto_$(date +%Y%m%d_%H%M).dump`
-4. Optional switches (all default OFF): `CRM_ENABLED=1`,
+4. **Hourly DM cap (behaviour change).** `DM_HOURLY_LIMIT_DEFAULT` now
+   defaults to **200** per Instagram account per hour; production used a
+   hard-coded **750** before. Set it explicitly in the server `.env`
+   (`DM_HOURLY_LIMIT_DEFAULT=750` preserves the previous production behaviour)
+   until the owner has confirmed Meta's current figure; a per-account
+   override (`InstagramAccount.dmHourlyLimit`) wins over it. Sends over the
+   cap wait for the next window and are given up (FAILED, "Soatlik limit
+   tufayli yuborilmadi — muddat o'tdi") after 24h (DMs) / 7 days (private
+   replies to comments).
+5. Optional switches (all default OFF): `CRM_ENABLED=1`,
    `JAVOBAI_MODEL`, `JAVOBAI_MODEL_SMART`, `FLOW_*`; see `.env.example`.
 
 ## Merge and deploy
@@ -102,6 +111,26 @@ health check passes. If the health check fails the workflow prints
 - Create nothing new; check that an existing comment campaign still sends.
 - `/admin/login` with the new admin credentials.
 - Follow `docs/developer/TESTING.md` only for the modules you enable.
+
+## Hardening: hide the nginx version (host, one line)
+
+The app now sends HSTS/CSP/X-Frame-Options/etc. itself (`next.config.ts`).
+On the host, add one line inside the `http { ... }` block of
+`/etc/nginx/nginx.conf`, then `sudo nginx -t && sudo systemctl reload nginx`:
+
+```
+server_tokens off;
+```
+
+## HSTS (`Strict-Transport-Security`)
+
+The app sends `max-age=31536000` only — deliberately **without**
+`includeSubDomains`/`preload`, because other subdomains (e.g. promtchi) are not
+verified to be HTTPS-only. Once every subdomain is confirmed to serve valid
+HTTPS, change the value in `next.config.ts` (`securityHeaders`) to
+`max-age=31536000; includeSubDomains` and, only if you also want browser
+preload lists, `; preload` (then submit at hstspreload.org — hard to undo),
+and update `__tests__/security-headers.test.ts`.
 
 ## Rollback
 

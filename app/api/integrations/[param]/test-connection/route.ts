@@ -18,6 +18,6 @@ export async function POST(_request: NextRequest, { params }: Props) {
   });
   if (!integration) return jsonError("Not found", 404);
 
-  const result = await runConnectionCheck(id);
+  const result = await runConnectionCheck(id, { manual: true });
   return jsonOk(result);
 }

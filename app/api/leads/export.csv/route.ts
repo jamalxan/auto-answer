@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
       from: sp.get("from"),
       to: sp.get("to"),
       q: sp.get("q"),
+      kind: sp.get("kind"),
     }),
     orderBy: { createdAt: "desc" },
     take: EXPORT_LIMIT,

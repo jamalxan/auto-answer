@@ -7,6 +7,7 @@ import { emitLeadCreated } from "@/lib/integrations2/emit";
 import { enqueueDelivery, enqueueNotify } from "@/lib/queue/assistant-queue";
 import { enqueueLeadDeliveries } from "./delivery";
 import { buildTranscript } from "./transcript";
+import { classifyLead, isTestLeadName, normalizeLeadPhone, validateLeadName } from "./validate";
 
 export const REPEAT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -49,6 +50,8 @@ export interface CreateLeadOptions {
   /** "complaint" -> 🔴, "no_phone" -> 🟡 */
   flag?: "complaint" | "no_phone" | null;
   summary?: string | null;
+  /** Force the test marker (sandbox runs). Name "[TEST]…" and sandbox users are detected automatically. */
+  isTest?: boolean;
 }
 
 /**
@@ -74,7 +77,10 @@ export async function createLeadForConversation(
   if (existing) return existing;
 
   const collected = readCollected(conversation.collected);
-  const phone = collected.phone_e164 ?? null;
+  // Re-validate at the door: whatever the capture layer collected, only a
+  // number that normalises to a valid E.164 is stored as the phone.
+  const normalized = normalizeLeadPhone(collected.phone_e164 ?? collected.phone_raw ?? null);
+  const phone = normalized.e164;
 
   let campaignName: string | null = null;
   let postUrl: string | null = null;
@@ -98,7 +104,10 @@ export async function createLeadForConversation(
   }
 
   const original = phone ? await findOriginalLead(conversation.workspaceId, phone) : null;
-  const name = collected.name ?? conversation.igName ?? null;
+  const name = validateLeadName(collected.name) ?? validateLeadName(conversation.igName);
+  const kind = classifyLead({ phoneE164: phone, productInterest: collected.product_interest });
+  const isTest =
+    Boolean(options.isTest) || isTestLeadName(collected.name) || conversation.igUserId.startsWith("sandbox");
   const source = conversation.campaignId ? "CAMPAIGN" : conversation.source;
 
   const transcript = buildTranscript(
@@ -138,7 +147,7 @@ export async function createLeadForConversation(
         igUsername: conversation.igUsername,
         name,
         phoneE164: phone,
-        phoneRaw: collected.phone_raw ?? null,
+        phoneRaw: collected.phone_raw ?? (normalized.invalid ? normalized.raw : null),
         productInterest: collected.product_interest ?? null,
         extraField: collected.extra_field ?? null,
         language: collected.language ?? null,
@@ -150,6 +159,8 @@ export async function createLeadForConversation(
         summary: options.summary ?? null,
         transcript,
         flag: options.flag ?? (phone ? null : "no_phone"),
+        kind,
+        isTest,
         isRepeat: Boolean(original),
         repeatOfId: original?.id ?? null,
         trackedLinkClicked: clicked,

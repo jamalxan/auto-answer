@@ -106,7 +106,7 @@ function ConditionRow({
   const intentValues = Array.isArray(cond.value) ? cond.value.map(String) : cond.value ? [String(cond.value)] : [];
 
   return (
-    <div className="grid gap-2 rounded-lg border border-border p-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-start">
+    <div className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-start">
       <div className="space-y-1.5">
         <select aria-label={`${index + 1}-shart: maydon`} className={inputClass} value={isVars ? "vars" : cond.field} onChange={(e) => setField(e.target.value === "vars" ? `vars.${graphVars[0] ?? "phone"}` : e.target.value)}>
           {Object.entries(FIELD_SPECS).map(([field, s]) => (

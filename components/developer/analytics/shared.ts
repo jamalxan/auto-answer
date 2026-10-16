@@ -35,7 +35,7 @@ export interface AlertRuleView {
   lastAlertedAt: string | null;
 }
 
-export type KpiResponse = KpiData & { alertRules: AlertRuleView[] };
+export type KpiResponse = KpiData & { alertRules: AlertRuleView[]; queueDepthsRestricted?: boolean };
 
 /** Which tile metrics are drawn as lines by default, per tab. */
 export const DEFAULT_CHART_KEYS: Record<string, string[]> = {

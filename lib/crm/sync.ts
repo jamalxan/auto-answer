@@ -27,6 +27,7 @@
 
 import type { AiHandoff, Conversation, InstagramEventType, Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
+import { NO_AUTOMATION_REASON } from "@/lib/triggers/normalize";
 import { recordActivity } from "./activity";
 import { mirrorAiState, upsertContactFromParts, type UpsertContactInput } from "./contacts";
 import { emitCrmEvent } from "./hooks";
@@ -413,7 +414,14 @@ function rescanFrom(cursor: Cursor, ctx: BatchContext): { from: Cursor; edge: Cu
 
 async function instagramEventBatch(cursor: Cursor, ctx: BatchContext): Promise<BatchResult> {
   const rows = await prisma.instagramEvent.findMany({
-    where: { AND: [after("createdAt", cursor, ctx.bound), { eventType: { in: INTERACTION_EVENT_TYPES } }] },
+    where: {
+      AND: [
+        after("createdAt", cursor, ctx.bound),
+        { eventType: { in: INTERACTION_EVENT_TYPES } },
+        // B-28: log-only rows (no automation on the account) never create CRM contacts.
+        { OR: [{ error: null }, { error: { not: NO_AUTOMATION_REASON } }] },
+      ],
+    },
     orderBy: ascending("createdAt"),
     take: RECONCILE_BATCH,
   });

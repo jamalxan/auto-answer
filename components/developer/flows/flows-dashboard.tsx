@@ -8,9 +8,9 @@
  * versions|runs|publish.
  */
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Notice } from "@/components/developer/comments/parts";
 import { DevBadge, Pill, secondaryButton } from "@/components/developer/ui";
 import AiCreate from "./ai-create";
 import FlowEditor, { EDITOR_TABS, type EditorTab } from "./flow-editor";
@@ -105,9 +105,10 @@ export default function FlowsDashboard() {
         </div>
       )}
       {meta?.disabled && (
-        <Notice tone="error">
-          Flow&apos;lar o&apos;chirilgan (<code>FLOWS_DISABLED</code>): yangi ishga tushishlar boshlanmaydi va ishga tushirib bo&apos;lmaydi. Yechim: serverda <code>FLOWS_DISABLED</code> ni olib tashlab, web va worker&apos;ni qayta ishga tushiring.
-        </Notice>
+        <ServerOffNotice
+          what="Flow'lar o'chirilgan: yangi ishga tushishlar boshlanmaydi."
+          ops={<><code>FLOWS_DISABLED</code> ni olib tashlab, web va worker&apos;ni qayta ishga tushiring.</>}
+        />
       )}
 
       {!meta ? (

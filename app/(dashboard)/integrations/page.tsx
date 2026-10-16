@@ -112,6 +112,10 @@ export default function IntegrationsPage() {
   if (loadError || !data) return <Notice tone="error">{t.assistant.common.loadError}</Notice>;
 
   const broken = data.integrations.filter((i) => i.status === "BROKEN");
+  // Only name channels that really are connected: an ACTIVE Telegram integration with an active chat.
+  const telegramConnected = data.integrations.some(
+    (i) => i.type === "TELEGRAM" && i.status === "ACTIVE" && i.chats.some((c) => c.active)
+  );
   const shared = {
     accounts: data.accounts,
     canManage: data.canManage,
@@ -129,7 +133,7 @@ export default function IntegrationsPage() {
       {!data.canManage && <Notice tone="warning">{I.memberReadOnly}</Notice>}
       {broken.map((b) => (
         <Notice key={b.id} tone="error">
-          {I.brokenBanner(b.name)}
+          {I.brokenBanner(b.name, telegramConnected)}
         </Notice>
       ))}
 

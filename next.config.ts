@@ -4,8 +4,52 @@ import type { NextConfig } from "next";
 // it is served from the root: admin.socialauto.uz/login, not /admin/login.
 const adminHost = [{ type: "host" as const, value: process.env.ADMIN_HOST ?? "admin.socialauto.uz" }];
 
+/**
+ * Content-Security-Policy, enforced (not report-only).
+ *
+ * Next.js emits inline bootstrap scripts and React/Tailwind inject inline
+ * styles, so 'unsafe-inline' is required until we move to per-request nonces
+ * (proxy.ts + dynamic rendering, see node_modules/next/dist/docs/01-app/02-guides/
+ * content-security-policy.md). Fonts come from next/font/google, which
+ * self-hosts them at build time, so font-src stays 'self'.
+ *
+ * To tighten later:
+ *  1. img-src: replace `https:` with the exact Meta CDN hosts
+ *     (https://*.cdninstagram.com https://*.fbcdn.net) once every avatar/thumbnail
+ *     source is known.
+ *  2. script-src: drop 'unsafe-inline' and use a nonce set in proxy.ts.
+ *  3. style-src: same, with a nonce.
+ * 'unsafe-eval' is only added in dev (React debugging needs it).
+ */
+const isDev = process.env.NODE_ENV !== "production";
+export const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "media-src 'self' blob: https:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+export const securityHeaders = [
+  // No includeSubDomains / preload on purpose: other subdomains (e.g. promtchi) are not
+  // verified to be HTTPS-only. See docs/DEPLOY_PLAN_ETAP1-10.md ("HSTS") to enable them later.
+  { key: "Strict-Transport-Security", value: "max-age=31536000" },
+  { key: "Content-Security-Policy", value: contentSecurityPolicy },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+];
+
 const nextConfig: NextConfig = {
   /* config options here */
+  poweredByHeader: false,
   reactCompiler: true,
   turbopack: {
     root: process.cwd(),
@@ -34,6 +78,9 @@ const nextConfig: NextConfig = {
       { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
     ];
     return [
+      // Applies to every route; webhook/MCP/cron endpoints are plain JSON
+      // responses so these browser-oriented headers do not affect them.
+      { source: "/:path*", headers: securityHeaders },
       { source: "/icon-:size.png", headers: longCache },
       { source: "/apple-touch-icon.png", headers: longCache },
       { source: "/manifest.webmanifest", headers: longCache },

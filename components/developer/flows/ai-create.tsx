@@ -147,7 +147,7 @@ export default function AiCreate({ meta, canWrite, onOpen }: { meta: FlowsMeta; 
                 </ul>
               </Notice>
             )}
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
               <BlockOutline graph={result.graph} meta={meta} />
               <PhonePreview graph={result.graph} />
             </div>

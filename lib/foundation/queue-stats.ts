@@ -13,7 +13,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { getDMQueue, getRedisConnection } from "@/lib/queue/client";
-import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW } from "@/lib/utils/rate-limiter";
+import { defaultHourlyLimit, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW } from "@/lib/utils/rate-limiter";
 import type { DisplayTone } from "@/lib/triggers/display";
 import { formatMinutes, withTimeout } from "./time";
 
@@ -101,6 +101,8 @@ export interface QueueAccount {
   id: string;
   username: string;
   instagramId: string;
+  /** Per-account hourly DM cap override (null/absent = DM_HOURLY_LIMIT_DEFAULT). */
+  dmHourlyLimit?: number | null;
 }
 
 async function scanDmQueue(instagramIds: Set<string>) {
@@ -128,12 +130,13 @@ async function readRateCounters(accounts: QueueAccount[]) {
     pipeline.ttl(`rate:dm:${account.instagramId}`);
   }
   const results = (await pipeline.exec()) ?? [];
-  return accounts.map((_, i) => {
+  return accounts.map((account, i) => {
     const count = results[i * 2]?.[1];
     const ttl = results[i * 2 + 1]?.[1];
     return buildRateUsage(
       Number.parseInt(typeof count === "string" ? count : "0", 10) || 0,
-      typeof ttl === "number" ? ttl : null
+      typeof ttl === "number" ? ttl : null,
+      account.dmHourlyLimit && account.dmHourlyLimit > 0 ? account.dmHourlyLimit : defaultHourlyLimit()
     );
   });
 }
@@ -150,7 +153,7 @@ export async function loadQueueStats(
     options.accounts ??
     (await prisma.instagramAccount.findMany({
       where: { workspaceId },
-      select: { id: true, username: true, instagramId: true },
+      select: { id: true, username: true, instagramId: true, dmHourlyLimit: true },
       orderBy: { connectedAt: "desc" },
     }));
   const instagramIds = new Set(accounts.map((a) => a.instagramId));

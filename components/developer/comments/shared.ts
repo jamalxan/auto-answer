@@ -18,6 +18,17 @@ export interface IntentOption {
   examples: string[];
 }
 
+/**
+ * A short preview of an intent's vocabulary that shows every script (B-20):
+ * Uzbek Latin first, then Cyrillic (uz / ru), so the list does not look Latin-only.
+ */
+export function intentExamplePreview(examples: string[], latin = 2, cyrillic = 3): string {
+  const lat = examples.filter((e) => /^[a-z]/i.test(e)).slice(0, latin);
+  const cyr = examples.filter((e) => /[Ѐ-ӿ]/.test(e)).slice(0, cyrillic);
+  const picked = [...lat, ...cyr];
+  return (picked.length ? picked : examples.slice(0, 5)).join(", ");
+}
+
 export interface SavedVariant {
   id: string;
   kind: "DM" | "PUBLIC";
@@ -61,6 +72,7 @@ export interface CommentCampaignView {
   stopOnReply: boolean;
   stopOnLead: boolean;
   stopOnHandoff: boolean;
+  stopOnPurchase: boolean;
   responseMessage: string;
   active: boolean;
   variants: SavedVariant[];

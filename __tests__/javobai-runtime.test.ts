@@ -284,7 +284,7 @@ describe("gate", () => {
 
 describe("LIVE: scenario B + C end to end", () => {
   it("KB answer → qualification → purchase → phone → 🧪 TEST 🔥 lead → handoff → post-handoff → echo → close → resume", async () => {
-    seedWorld("LIVE");
+    seedWorld("LIVE", { postHandoffReplies: 2 });
     setLlmProviderForTests(
       llm([
         { reply: "Ha, Milan divanimiz bor, 4 500 000 so'm.", intent: "product_question", used_facts: ["P1"], extracted: { product: "Milan" } },

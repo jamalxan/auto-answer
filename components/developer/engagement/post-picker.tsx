@@ -49,7 +49,11 @@ export default function PostPicker({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // The account + reload the data on screen belongs to: until it matches, the first fetch is still due / running
+  // (a preselected account must read "Yuklanmoqda…", never "post topilmadi").
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [manual, setManual] = useState("");
+  const fetchKey = `${accountId}:${reloadKey}`;
   const seq = useRef(0);
 
   useEffect(() => {
@@ -57,6 +61,7 @@ export default function PostPicker({
     if (!accountId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset when the account is cleared
       setData(null);
+      setLoadedFor(null);
       return;
     }
     setLoading(true);
@@ -66,8 +71,15 @@ export default function PostPicker({
         setData(res.ok ? res.data : null);
         setError(res.ok ? null : res.error);
       })
+      .catch(() => {
+        if (mine !== seq.current) return;
+        setData(null);
+        setError("Tarmoq xatosi — qayta urinib ko'ring");
+      })
       .finally(() => {
-        if (mine === seq.current) setLoading(false);
+        if (mine !== seq.current) return;
+        setLoading(false);
+        setLoadedFor(`${accountId}:${reloadKey}`);
       });
     const counter = seq;
     return () => {
@@ -100,7 +112,7 @@ export default function PostPicker({
           Yangilash
         </button>
       </div>
-      {loading ? (
+      {loading || loadedFor !== fetchKey ? (
         <p className="text-xs text-muted">Yuklanmoqda…</p>
       ) : posts.length > 0 ? (
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">

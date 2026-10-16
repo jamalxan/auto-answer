@@ -13,8 +13,8 @@ import { formatPercent, formatUsd, JAVOBAI_API, requestJson, type ShadowResponse
 function Stat({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
     <div className="panel min-w-0 rounded-xl px-4 py-3">
-      <p className="label-mono truncate text-[10px] font-semibold text-muted">{label}</p>
-      <p className={`mt-1 truncate text-xl font-bold ${tone ?? "text-foreground"}`}>{value}</p>
+      <p className="label-mono break-words text-[10px] font-semibold text-muted">{label}</p>
+      <p className={`mt-1 break-words text-xl font-bold leading-tight ${tone ?? "text-foreground"}`}>{value}</p>
     </div>
   );
 }

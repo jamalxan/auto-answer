@@ -242,7 +242,7 @@ describe("leads list filters and CSV", () => {
 
   it("ignores unknown filter values instead of failing", () => {
     const where = buildLeadWhere("w1", { status: "bogus", source: "x", account: "all", from: "nope" });
-    expect(where).toEqual({ workspaceId: "w1" });
+    expect(where).toEqual({ workspaceId: "w1", isTest: false });
   });
 
   it("searches phones by digits", () => {
@@ -283,12 +283,12 @@ describe("amoCRM token expiry warnings (TZ 7.2)", () => {
   const now = new Date("2026-10-06T00:00:00Z");
   const days = (n: number) => new Date(now.getTime() + n * 86_400_000);
 
-  it("warns at 14 days, then at 3 days, once each", () => {
+  it("warns at 7 days, then at 1 day, once each (B-04)", () => {
     expect(expiryWarningDue(days(20), null, now)).toBeNull();
-    expect(expiryWarningDue(days(13), null, now)).toBe(14);
-    expect(expiryWarningDue(days(13), days(-0.5), now)).toBeNull();
-    expect(expiryWarningDue(days(2.5), days(-10.5), now)).toBe(3);
-    expect(expiryWarningDue(days(2), days(-1), now)).toBeNull();
+    expect(expiryWarningDue(days(6), null, now)).toBe(7);
+    expect(expiryWarningDue(days(6), days(-0.5), now)).toBeNull();
+    expect(expiryWarningDue(days(0.5), days(-5.5), now)).toBe(1);
+    expect(expiryWarningDue(days(0.5), days(-0.2), now)).toBeNull();
   });
 
   it("does not warn for an already expired token", () => {
@@ -296,7 +296,7 @@ describe("amoCRM token expiry warnings (TZ 7.2)", () => {
   });
 
   it("the runner alerts once and records the warning", async () => {
-    db.seed("integration", { id: "i1", workspaceId: "w1", type: "AMOCRM", name: "amoCRM", tokenExpiresAt: days(10) });
+    db.seed("integration", { id: "i1", workspaceId: "w1", type: "AMOCRM", name: "amoCRM", tokenExpiresAt: days(5) });
     expect(await runTokenExpiryWarnings(now)).toBe(1);
     expect(alertWorkspace).toHaveBeenCalledTimes(1);
     expect(await runTokenExpiryWarnings(now)).toBe(0);

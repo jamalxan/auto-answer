@@ -294,7 +294,7 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
 
 const DEFAULTS: Record<string, () => Row> = {
   lead: () => ({
-    status: "NEW", source: "INBOUND_DM", isTest: false, isRepeat: false, repeatCount: 0,
+    status: "NEW", source: "INBOUND_DM", isTest: false, kind: "LEAD", isRepeat: false, repeatCount: 0,
     trackedLinkClicked: false, contactedAt: null, repeatOfId: null, flag: null,
   }),
   leadDelivery: () => ({ status: "PENDING", attempts: 0, nextAttemptAt: null, lastError: null, externalId: null, externalUrl: null, kind: "new", sentAt: null }),
@@ -328,7 +328,7 @@ const DEFAULTS: Record<string, () => Row> = {
     processedAt: null, contactId: null, conversationId: null, storyId: null, storyUrl: null, mediaId: null,
     senderUsername: null, text: "", claimedCampaignId: null,
   }),
-  triggerCampaign: () => ({ storyScope: "ALL", storyIds: [], keywords: [], matchingMode: "EVERY", responseType: "SEND_MESSAGE", active: true, kind: "CAMPAIGN" }),
+  triggerCampaign: () => ({ storyScope: "ALL", storyIds: [], keywords: [], matchingMode: "EVERY", responseType: "SEND_MESSAGE", active: true, kind: "CAMPAIGN", stopOnPurchase: true }),
   triggerExecution: () => ({
     status: "PENDING", matchedKeyword: null, sentMessageId: null, attempts: 0, error: null, errorDetail: null,
     nextRetryAt: null, sentAt: null,
@@ -693,12 +693,13 @@ export class MemoryDb {
         return { count: victims.size };
       },
       /** Keys only, or with `_sum` / orderBy `_sum.<field>` / take (the engagement leaderboard). */
-      async groupBy({ by, where, _sum, orderBy, take }: { by: string[]; where?: Row; _sum?: Record<string, boolean>; orderBy?: unknown; take?: number }) {
+      async groupBy({ by, where, _sum, _count, orderBy, take }: { by: string[]; where?: Row; _sum?: Record<string, boolean>; _count?: unknown; orderBy?: unknown; take?: number }) {
         const seen = new Map<string, Row>();
         for (const r of find({ where })) {
           const key = by.map((k) => r[k]).join("|");
           const group = seen.get(key) ?? { ...Object.fromEntries(by.map((k) => [k, r[k]])), ...(_sum ? { _sum: Object.fromEntries(Object.keys(_sum).map((f) => [f, 0])) } : {}) };
           if (_sum) for (const f of Object.keys(_sum)) (group._sum as Row)[f] = Number((group._sum as Row)[f] ?? 0) + (Number(r[f]) || 0);
+          if (_count) group._count = { _all: Number(((group._count as Row | undefined)?._all as number) ?? 0) + 1 };
           seen.set(key, group);
         }
         let list = [...seen.values()];

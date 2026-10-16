@@ -39,13 +39,13 @@ describe("scenario A in the sandbox", () => {
       text: "Salom Ali! Narxlar bilan tanishish uchun tugmani bosing 👇",
       buttons: [{ id: "open", label: "Narxni ko'rish" }],
     });
-    expect(result.sends.map((s) => s.nodeId)).toEqual(["m1", "m2", "b1", "lead"]);
+    expect(result.sends.map((s) => s.nodeId)).toEqual(["m1", "m2x", "b1", "lead"]);
     expect(result.sends[2].buttons?.map((b) => b.id)).toEqual(["cat", "ph"]);
     expect(result.variables.phone).toBe("+998901234567");
     expect(result.tags).toEqual(["lead", "narx"]);
     expect(result.effects.map((e) => e.kind)).toEqual(["public_reply", "lead", "tag_add", "notify_telegram"]);
     expect(result.effects.find((e) => e.kind === "notify_telegram")!.detail.text).toBe("🔥 Yangi lead: @ali +998901234567 — narx qancha?");
-    expect(result.steps.map((s) => s.nodeId)).toEqual(["t", "m1", "m1", "m2", "b1", "b1", "lead", "tag", "tg", "end"]);
+    expect(result.steps.map((s) => s.nodeId)).toEqual(["t", "m1", "m1", "sp", "sc", "cp", "m2x", "b1", "b1", "lead", "tag", "tg", "end"]);
     expect(result.policyVerdict).not.toBe("BLOCKED");
   });
 
@@ -57,12 +57,42 @@ describe("scenario A in the sandbox", () => {
     expect(result.warnings.some((w) => w.includes("Test kiritmasi tugadi"))).toBe(true);
   });
 
-  it("the lead node takes the `missing` edge without a phone", async () => {
-    // "later" skips the phone: tap the second chip set
-    const result = await runFlowSandbox("ws1", t1(), { taps: ["open", "cat", "later"] });
+  it("asks for the phone, waits for the typed reply, normalises it and only then creates the lead", async () => {
+    // The owner fills the two values in the "set variable" blocks.
+    const filled = flowGraphDraftSchema.parse({
+      ...t1(),
+      nodes: t1().nodes.map((n) =>
+        n.id === "sp" ? { ...n, value: "1 200 000 so'm" } : n.id === "sc" ? { ...n, value: "https://example.uz/katalog" } : n
+      ),
+    });
+    const result = await runFlowSandbox("ws1", filled, {
+      taps: ["open", "cat"],
+      inbound: [{ text: "90 123 45 67" }],
+    });
     expect(result.status).toBe("DONE");
-    expect(result.sends.map((s) => s.nodeId)).toEqual(["m1", "m2", "b1", "m3", "b2", "bye"]);
+    expect(result.sends.map((s) => s.nodeId)).toEqual(["m1", "m2", "b1", "m3", "ask", "lead"]);
+    expect(result.sends[1].text).toBe("Mahsulot narxi: 1 200 000 so'm. Katalogni ham yuboraymi?");
+    expect(result.sends[4].text).toContain("telefon raqamingizni yozing");
+    expect(result.variables.phone).toBe("+998901234567");
+    expect(result.effects.find((e) => e.kind === "lead")).toBeDefined();
+    expect(result.sends.at(-1)!.text).toBe("Rahmat! Tez orada bog'lanamiz.");
+  });
+
+  it("an empty price / catalog says so honestly instead of 'Mahsulot narxi: menejer aytadi'", async () => {
+    const result = await runFlowSandbox("ws1", t1(), { taps: ["open", "cat"] });
+    const texts = result.sends.map((s) => s.text);
+    expect(texts).toContain("Narx hozircha kiritilmagan — aniq narxni menejer aytadi. Katalogni ham yuboraymi?");
+    expect(texts).toContain("Katalog havolasi hozircha kiritilmagan — menejer yuboradi.");
+    expect(texts.some((t) => t.includes("narxi: menejer aytadi"))).toBe(false);
+    expect(result.status).toBe("WAITING_INBOUND"); // it is waiting for the phone, nothing else
+  });
+
+  it("no valid phone → no lead (retry once, then the missing edge)", async () => {
+    const result = await runFlowSandbox("ws1", t1(), { taps: ["open", "cat"], inbound: [{ text: "keyinroq" }, { text: "12345" }] });
+    expect(result.status).toBe("DONE");
+    expect(result.sends.map((s) => s.nodeId)).toEqual(["m1", "m2x", "b1", "m3x", "ask", "ask", "bye"]);
     expect(result.effects.find((e) => e.kind === "lead")).toBeUndefined();
+    expect(result.variables.phone ?? "").toBe("");
   });
 });
 

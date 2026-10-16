@@ -7,6 +7,7 @@
  * the URL (?tab= &giveaway= &new=1) so a link opens the right screen.
  */
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DevBadge, Pill, secondaryButton } from "@/components/developer/ui";
@@ -108,10 +109,10 @@ export default function EngagementDashboard() {
       )}
 
       {meta?.disabled && (
-        <Notice tone="error">
-          Engagement o&apos;chiq (<code>ENGAGEMENT_DISABLED</code>): izohlar yig&apos;ilmaydi, referral hisoblanmaydi, g&apos;oliblarga xabar ketmaydi. Yechim: serverda{" "}
-          <code>ENGAGEMENT_DISABLED</code> ni olib tashlang va web hamda worker&apos;ni qayta ishga tushiring.
-        </Notice>
+        <ServerOffNotice
+          what="Engagement o'chiq: izohlar yig'ilmaydi, referral hisoblanmaydi, g'oliblarga xabar ketmaydi."
+          ops={<><code>ENGAGEMENT_DISABLED</code> ni olib tashlang va web hamda worker&apos;ni qayta ishga tushiring.</>}
+        />
       )}
       {meta && meta.me.normalizedRole === "VIEWER" && <Notice tone="info">Kuzatuvchi (VIEWER) rolidasiz: hamma narsani ko&apos;rasiz, lekin o&apos;zgartira olmaysiz.</Notice>}
       {meta && meta.me.normalizedRole === "OPERATOR" && (

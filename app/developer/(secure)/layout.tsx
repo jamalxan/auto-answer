@@ -1,5 +1,6 @@
 import DeveloperShell from "@/components/developer/developer-shell";
-import { prisma } from "@/lib/db/client";
+import { isAdminEmail } from "@/lib/admin";
+import { auth } from "@/lib/auth";
 import { requireDeveloperPage } from "@/lib/developer/access";
 import { navigableModules } from "@/lib/developer/modules";
 
@@ -8,10 +9,12 @@ export const dynamic = "force-dynamic";
 
 export default async function DeveloperSecureLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireDeveloperPage();
-  const workspace = await prisma.workspace.findUnique({
-    where: { id: ctx.workspaceId },
-    select: { name: true },
-  });
+  // ctx already carries the workspace row: no second query per RSC request.
+  // The admin flag is cosmetic (shows ops notes), so a failed session read
+  // must never take the whole shell down.
+  const isPlatformAdmin = await auth()
+    .then((session) => isAdminEmail(session?.user?.email))
+    .catch(() => false);
 
   const nav = [
     { href: "/developer", label: "Umumiy" },
@@ -19,7 +22,7 @@ export default async function DeveloperSecureLayout({ children }: { children: Re
   ];
 
   return (
-    <DeveloperShell nav={nav} workspaceName={workspace?.name ?? ""}>
+    <DeveloperShell nav={nav} workspaceName={ctx.workspace.name ?? ""} isPlatformAdmin={isPlatformAdmin}>
       {children}
     </DeveloperShell>
   );

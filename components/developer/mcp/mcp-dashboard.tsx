@@ -7,8 +7,8 @@
  * the app to manage another one).
  */
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Notice } from "@/components/developer/comments/parts";
 import { DevBadge, Pill, secondaryButton } from "@/components/developer/ui";
 import ActionsLog from "./actions-log";
 import { MCP_API, requestJson, type McpMeta, type TokenRow } from "./shared";
@@ -92,9 +92,10 @@ export default function McpDashboard() {
         </div>
       )}
       {meta && !meta.enabled && (
-        <Notice tone="error">
-          MCP o&apos;chirilgan (<code>MCP_DISABLED</code>): <code>/api/mcp</code> 503 qaytaradi va yangi token yaratib bo&apos;lmaydi. Tokenlarni ko&apos;rish va bekor qilish ishlayveradi. Yechim: serverda <code>MCP_DISABLED</code> ni olib tashlab, web&apos;ni qayta ishga tushiring.
-        </Notice>
+        <ServerOffNotice
+          what="MCP o'chirilgan: /api/mcp 503 qaytaradi va yangi token yaratib bo'lmaydi. Tokenlarni ko'rish va bekor qilish ishlayveradi."
+          ops={<><code>MCP_DISABLED</code> ni olib tashlab, web&apos;ni qayta ishga tushiring.</>}
+        />
       )}
 
       <nav aria-label="MCP bo'limlari">

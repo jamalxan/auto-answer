@@ -27,7 +27,7 @@ import {
   buildLeadText,
   type CrmLink,
 } from "@/lib/telegram/lead-message";
-import { alertWorkspace, sendWithRetry } from "@/lib/telegram/notify";
+import { alertWorkspace, getWorkspaceChats, sendWithRetry } from "@/lib/telegram/notify";
 
 export type DeliveryKind = "new" | "repeat";
 
@@ -55,9 +55,16 @@ export function integrationAcceptsAccount(
  * automatically once the integration is fixed (`resumeIntegration`).
  */
 export async function enqueueLeadDeliveries(
-  lead: Pick<Lead, "id" | "workspaceId" | "instagramAccountId">,
+  lead: Pick<Lead, "id" | "workspaceId" | "instagramAccountId"> &
+    Partial<Pick<Lead, "isTest" | "kind" | "phoneE164">>,
   kind: DeliveryKind
 ): Promise<void> {
+  // Real-customer pipelines only: test leads go out through `sendTestLead`
+  // (one explicit integration), never through the automatic fan-out.
+  if (lead.isTest) return;
+  // A phoneless bare contact is not a lead worth a CRM card: Telegram/Sheets-style
+  // owner alerts still run, amoCRM/Bitrix24 are skipped.
+  const skipCrm = lead.kind === "CONTACT" && !lead.phoneE164;
   const integrations = await prisma.integration.findMany({
     // Positive type list (ETAP 8): WEBHOOK / SHEETS / MAKE / ZAPIER integrations
     // live on the outbound bus and must never get a LeadDelivery.
@@ -70,6 +77,7 @@ export async function enqueueLeadDeliveries(
 
   for (const integration of integrations) {
     if (!integrationAcceptsAccount(integration, lead.instagramAccountId)) continue;
+    if (skipCrm && (integration.type === "AMOCRM" || integration.type === "BITRIX24")) continue;
     const active = integration.status === "ACTIVE";
     const delivery = await prisma.leadDelivery.upsert({
       where: {
@@ -335,12 +343,25 @@ async function sendToBitrix(
 
 // ─── Processing ────────────────────────────────────────────────────────────────
 
-export async function markIntegrationBroken(integration: Integration, message: string) {
+/** "Integration lost" alerts (system error + owner message) at most once per integration in this window. */
+export const BROKEN_ALERT_COOLDOWN_MS = 6 * 3600_000;
+
+export async function markIntegrationBroken(integration: Integration, message: string, now = new Date()) {
   if (integration.status === "BROKEN") return;
+  const lastAlert = (integration as { brokenAlertedAt?: Date | null }).brokenAlertedAt ?? null;
+  const shouldAlert = !lastAlert || now.getTime() - lastAlert.getTime() >= BROKEN_ALERT_COOLDOWN_MS;
   await prisma.integration.update({
     where: { id: integration.id },
-    data: { status: "BROKEN", lastError: message.slice(0, 500), lastCheckedAt: new Date() },
+    data: {
+      status: "BROKEN",
+      lastError: message.slice(0, 500),
+      lastCheckedAt: now,
+      healthOkStreak: 0,
+      ...(shouldAlert ? { brokenAlertedAt: now } : {}),
+    },
   });
+  // A flapping integration (BROKEN -> ACTIVE -> BROKEN) alerts once per cooldown, not every 5 minutes.
+  if (!shouldAlert) return;
   await prisma.operationalEvent.create({
     data: {
       workspaceId: integration.workspaceId,
@@ -351,12 +372,20 @@ export async function markIntegrationBroken(integration: Integration, message: s
     },
   });
   const label = integration.type === "AMOCRM" ? "amoCRM" : integration.type === "BITRIX24" ? "Bitrix24" : "Telegram";
+  // Only promise Telegram delivery when a Telegram chat is actually connected.
+  const telegramChats = integration.type === "TELEGRAM" ? 0 : (await getWorkspaceChats(integration.workspaceId).catch(() => [])).length;
+  const tail =
+    telegramChats > 0
+      ? `Lidlar Telegram'ga yetkazilishda davom etadi, ${label}'ga esa ulanish tiklangach avtomatik yuboriladi.`
+      : `Telegram ulanmagan — lidlar ${label}'ga ulanish tiklangach avtomatik yuboriladi (hozir hech qayerga yetmaydi).`;
   await alertWorkspace(
     integration.workspaceId,
     `${label} ulanishi uzildi`,
-    `⚠️ <b>${label} ulanishi uzildi</b>\nQayta ulang — lidlar Telegram'ga yetkazilishda davom etadi, ${label}'ga esa ulanish tiklangach avtomatik yuboriladi.`,
-    `${label} ulanishi uzildi. SocialAuto → Integratsiyalar bo'limida qayta ulang. Lidlar ulanish tiklangach avtomatik yuboriladi.`
+    `⚠️ <b>${label} ulanishi uzildi</b>
+Qayta ulang. ${tail}`,
+    `${label} ulanishi uzildi. SocialAuto → Integratsiyalar bo'limida qayta ulang. ${tail}`
   );
+
 }
 
 /** Recompute `lead.status` from its delivery rows. */
@@ -523,8 +552,23 @@ export async function sweepDueDeliveries(limit = 100): Promise<number> {
     select: { id: true },
     take: limit,
   });
+  // Rows left "held" (nextAttemptAt null) on an integration that is ACTIVE again.
+  const orphaned = await prisma.leadDelivery.findMany({
+    where: {
+      status: { in: ["PENDING", "FAILED"] },
+      nextAttemptAt: null,
+      updatedAt: { lte: new Date(Date.now() - 2 * 60_000) },
+      integration: { status: "ACTIVE" },
+    },
+    select: { id: true },
+    take: limit,
+  });
+  for (const { id } of orphaned) {
+    await prisma.leadDelivery.update({ where: { id }, data: { nextAttemptAt: new Date() } });
+    await enqueueDelivery(id);
+  }
   for (const { id } of due) await enqueueDelivery(id);
-  return due.length;
+  return due.length + orphaned.length;
 }
 
 /** Manual "Qayta yuborish" from the leads page. */

@@ -19,6 +19,9 @@ export function hashToken(raw: string): string {
   return createHash("sha256").update(raw, "utf8").digest("hex");
 }
 
+/** Expiry applied when the caller gives no number of days. */
+export const DEFAULT_TOKEN_EXPIRY_DAYS = 90;
+
 export function generateRawToken(): string {
   return `${TOKEN_PREFIX}${randomBytes(24).toString("base64url")}`;
 }
@@ -26,8 +29,10 @@ export function generateRawToken(): string {
 export const createTokenSchema = z.object({
   name: z.string().trim().min(1, "Token nomini kiriting").max(80, "Nom 80 belgidan oshmasin"),
   scope: z.enum(["READ", "WRITE"], "Ruxsat READ yoki WRITE bo'lishi kerak").default("READ"),
-  /** Days until the token stops working; omitted = no expiry. */
+  /** Days until the token stops working; omitted = DEFAULT_TOKEN_EXPIRY_DAYS (never silently unlimited). */
   expiresInDays: z.number().int("Kun butun son bo'lsin").min(1).max(365).optional(),
+  /** Deliberate opt-in to a token that never expires (the UI asks for a checkbox + warning). */
+  noExpiry: z.boolean("noExpiry true yoki false bo'lsin").default(false),
   /** Default true: confirm_action over MCP is refused and a person approves in /developer/mcp. Opt out explicitly. */
   requireHumanApproval: z.boolean("requireHumanApproval true yoki false bo'lsin").default(true),
 });
@@ -80,7 +85,9 @@ export async function createToken(workspaceId: string, input: unknown, userId: s
       scope: body.scope,
       requireHumanApproval: body.requireHumanApproval,
       createdByUserId: userId,
-      expiresAt: body.expiresInDays ? new Date(now.getTime() + body.expiresInDays * 86_400_000) : null,
+      expiresAt: body.noExpiry
+        ? null
+        : new Date(now.getTime() + (body.expiresInDays ?? DEFAULT_TOKEN_EXPIRY_DAYS) * 86_400_000),
     },
   })) as unknown as TokenRow;
   return { token: raw, view: view(row) };

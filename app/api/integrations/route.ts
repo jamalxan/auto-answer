@@ -2,6 +2,7 @@ import { jsonOk, requireWorkspace } from "@/lib/api-auth";
 import { canManageWorkspace } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 import { serializeIntegration } from "@/lib/integrations/service";
+import { loadDeliverySummary } from "@/lib/leads/undelivered";
 import { LEAD_PIPELINE_TYPES } from "@/lib/integrations2/config";
 import { getBotUsername, isTelegramConfigured } from "@/lib/telegram/api";
 import { isFeatureEnabled } from "@/lib/assistant/profile";
@@ -12,7 +13,7 @@ export async function GET() {
   const auth = await requireWorkspace();
   if (!auth.ok) return auth.response;
 
-  const [integrations, accounts, pending, dead] = await Promise.all([
+  const [integrations, accounts, deliveries] = await Promise.all([
     prisma.integration.findMany({
       // Bus-only types (Webhook / Sheets / Make / Zapier) live in /developer/integrations.
       where: { workspaceId: auth.ctx.workspaceId, type: { in: [...LEAD_PIPELINE_TYPES] } },
@@ -23,19 +24,11 @@ export async function GET() {
       where: { workspaceId: auth.ctx.workspaceId },
       select: { id: true, username: true },
     }),
-    prisma.leadDelivery.groupBy({
-      by: ["integrationId"],
-      where: { integration: { workspaceId: auth.ctx.workspaceId }, status: { in: ["PENDING", "FAILED"] } },
-      _count: true,
-    }),
-    prisma.leadDelivery.groupBy({
-      by: ["integrationId"],
-      where: { integration: { workspaceId: auth.ctx.workspaceId }, status: "DEAD" },
-      _count: true,
-    }),
+    // B-32: same delivery numbers as the dashboard and Diagnostics.
+    loadDeliverySummary(auth.ctx.workspaceId),
   ]);
-  const pendingBy = new Map(pending.map((p) => [p.integrationId, p._count]));
-  const deadBy = new Map(dead.map((p) => [p.integrationId, p._count]));
+  const pendingBy = deliveries.waitingByIntegration;
+  const deadBy = deliveries.deadByIntegration;
 
   return jsonOk({
     integrations: integrations.map((i) =>

@@ -143,6 +143,13 @@ export function handlesOf(node: FlowNode): HandleInfo[] {
   return out;
 }
 
+/** Required outputs with no target — the live (unsaved) counterpart of the audit's "dead_end" errors. */
+export function countUnconnected(graph: FlowGraph): number {
+  let count = 0;
+  for (const node of graph.nodes) for (const h of handlesOf(node)) if (h.required && !edgeTarget(graph, node.id, h.handle)) count += 1;
+  return count;
+}
+
 export function edgeTarget(graph: FlowGraph, from: string, handle: string): string | null {
   return graph.edges.find((e) => e.from === from && e.handle === handle)?.to ?? null;
 }

@@ -41,7 +41,7 @@ export default function QuickRepliesEditor({
     <div className="space-y-2">
       {items.map((item, index) => (
         <div key={item.key} className="space-y-2 rounded-lg border border-border p-2.5">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] sm:items-start">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] sm:items-start">
             <div className="space-y-1">
               <input
                 className={inputClass}

@@ -14,7 +14,7 @@
  * drops to the default (cheap) model.
  */
 
-import { getLlmProviderFor, llmTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
+import { describeLlmFailure, getLlmProviderFor, llmTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { enforceBudgetBeforeCall } from "@/lib/javobai/budget";
 import { javobAiModel, javobAiSmartModel } from "@/lib/javobai/config";
@@ -144,7 +144,8 @@ export async function generateFlowFromPrompt(workspaceId: string, input: Generat
     ok = true;
   } catch (error) {
     if (error instanceof FlowServiceError) throw error;
-    throw new FlowServiceError(502, `AI javob bermadi: ${error instanceof Error ? error.message : "noma'lum xato"}`);
+    console.warn("[flow-builder] LLM call failed:", error instanceof Error ? error.message.slice(0, 200) : "unknown");
+    throw new FlowServiceError(502, describeLlmFailure(error));
   } finally {
     await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_FLOWBUILDER, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs, ok });
   }

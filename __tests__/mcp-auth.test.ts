@@ -75,6 +75,15 @@ describe("bearer parsing and rejection", () => {
     const created = await createToken(WS_A, { name: "short", scope: "READ", expiresInDays: 1 }, "dev");
     expect((await post(created.token)).status).toBe(200);
   });
+
+  it("defaults to a 90-day expiry when no days are given; unlimited needs noExpiry", async () => {
+    const def = await createToken(WS_A, { name: "default" }, "dev");
+    const days = (new Date(def.view.expiresAt as unknown as string).getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(89);
+    expect(days).toBeLessThanOrEqual(90);
+    const forever = await createToken(WS_A, { name: "forever", noExpiry: true }, "dev");
+    expect(forever.view.expiresAt).toBeNull();
+  });
 });
 
 describe("rate limit", () => {

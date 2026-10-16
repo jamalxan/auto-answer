@@ -14,6 +14,7 @@ import { createFlowsWorker, isFlowsEnabled, runFlowsMaintenance } from "@/lib/fl
 import { createAnalyticsWorker, isAnalyticsEnabled, runAnalyticsMaintenance } from "@/lib/analytics/worker";
 import { createEngagementWorker, isEngagementEnabled, runEngagementMaintenance } from "@/lib/engagement/worker";
 import { registerEngagementReferralModule } from "@/lib/engagement/referral/module";
+import { runIntegrationHealthMaintenance } from "@/lib/integrations/health";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -78,6 +79,8 @@ const pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
 // Re-queue deliveries that are due but have no live job (Redis flush, crash).
 const maintenanceTimer = setInterval(() => {
   void runAssistantMaintenance();
+  // amoCRM / Bitrix24 connection check (self-throttled to every 5 min): 401 → BROKEN, repaired → held leads released.
+  void runIntegrationHealthMaintenance();
   if (triggerWorker) void runTriggerMaintenance();
   if (javobAiWorker) void runJavobAiMaintenance();
   // Reconciler every 5 min (self-throttled) plus the registered tasks (broadcast) every minute.

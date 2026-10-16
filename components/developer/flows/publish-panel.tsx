@@ -5,8 +5,7 @@
  * explicit acknowledgements and the publish / unpublish / archive actions
  * with inline confirms. Rules (docs/developer/etap-6-7-flow-builder.md):
  * a BLOCKED policy or any audit error stops every publish; an AI-generated
- * version also needs a passing test and a human approval; manually built
- * flows publish directly. Publishing a new version never touches runs that
+ * version also needs a passing test and a human approval; every version needs a passing sandbox test of its current text. Publishing a new version never touches runs that
  * are already waiting: they finish on their own version.
  */
 
@@ -73,7 +72,7 @@ export default function PublishPanel({
   const tested = !!draft?.testedAt;
   const approved = !!draft?.approvedAt;
   const needsAck = verdict === "WARNING";
-  const ready = !!draft && structuralOk && auditOk && policyOk && !dirty && (!isAi || tested) && (!needsAck || ackWarnings) && (!isAi || approved || ackApprove);
+  const ready = !!draft && structuralOk && auditOk && policyOk && !dirty && tested && (!needsAck || ackWarnings) && (!isAi || approved || ackApprove);
 
   async function act(key: string, fn: () => Promise<{ ok: true } | { ok: false; error: string }>, message: string) {
     setActing(key);
@@ -216,7 +215,7 @@ export default function PublishPanel({
             <Check ok={structuralOk} title="Graf to'liq" detail={ev && ev.structural.length ? ev.structural[0] : !ev ? "Audit hali ishga tushmagan." : undefined} />
             <Check ok={auditOk} title="Audit: xato yo'q" detail={ev ? `${ev.audit.errors.length} xato, ${ev.audit.warnings.length} ogohlantirish` : undefined} />
             <Check ok={policyOk && !needsAck} warn={needsAck} title={`Policy: ${verdict ?? "—"}`} detail={verdict === "BLOCKED" ? "BLOCKED — nashr qilib bo'lmaydi." : needsAck ? "Ogohlantirishlar bor — pastda tasdiqlang." : undefined} />
-            <Check ok={tested} warn={!isAi && !tested} title={isAi ? "Test: muvaffaqiyatli (majburiy)" : "Test: sinab ko'rilgan (tavsiya)"} detail={tested ? `Sinalgan ${formatDateTime(draft.testedAt)}` : "Test bo'limida sinab ko'ring."} />
+            <Check ok={tested} title="Test: joriy versiya muvaffaqiyatli sinalgan (majburiy)" detail={tested ? `Sinalgan ${formatDateTime(draft.testedAt)}` : "Test bo'limida kamida bitta muvaffaqiyatli sinov o'tkazing. Matn o'zgarsa, sinov bekor bo'ladi."} />
             {isAi && <Check ok={approved} title="Inson tasdig'i" detail={approved ? `Tasdiqlangan ${formatDateTime(draft.approvedAt)}` : "Quyidagi katakchani belgilang."} />}
           </ul>
 
@@ -269,7 +268,7 @@ export default function PublishPanel({
       {canWrite && (
         <section aria-label="Boshqa amallar" className="panel space-y-4 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-foreground">Boshqa amallar</h3>
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="label-mono text-[11px] font-semibold text-muted">Shablon sifatida saqlash</span>
               <input className={inputClass} value={tplName} maxLength={120} placeholder="Shablon nomi" onChange={(e) => setTplName(e.target.value)} />

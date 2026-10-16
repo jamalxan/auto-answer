@@ -75,7 +75,7 @@ function MappingRow({ projectId, item, canWrite, onSaved }: { projectId: string;
           <Pill tone={STATUS_TEXT[item.status].tone}>{STATUS_TEXT[item.status].label}</Pill>
         </div>
       </div>
-      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <input
           className={inputClass}
           value={target}

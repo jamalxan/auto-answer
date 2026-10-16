@@ -7,6 +7,7 @@
  * contact / broadcast id in the URL opens its detail.
  */
 
+import { ServerOffNotice } from "@/components/developer/server-off";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DevBadge, Pill, secondaryButton } from "@/components/developer/ui";
@@ -129,11 +130,10 @@ export default function CrmDashboard() {
       )}
 
       {meta?.disabled && (
-        <Notice tone="error">
-          CRM o&apos;chiq — hooklar, worker va reconciler to&apos;xtagan: yangi xabarlar CRM&apos;ga tushmaydi, broadcast
-          yuborilmaydi. Yechim: serverda <code>CRM_ENABLED=1</code> qo&apos;ying (<code>CRM_DISABLED</code> bo&apos;lmasin) va web hamda
-          worker&apos;ni qayta ishga tushiring.
-        </Notice>
+        <ServerOffNotice
+          what="CRM o'chiq: yangi xabarlar CRM'ga tushmaydi va broadcast yuborilmaydi. Administrator uni serverda yoqqach, eski ma'lumotlarni olish uchun &quot;Umumiy&quot; tabida Backfill'ni bir marta ishga tushiring (u mavjud yozuvlarni takrorlamaydi, hech kimga xabar yubormaydi)."
+          ops={<>Serverda <code>CRM_ENABLED=1</code> qo&apos;ying (<code>CRM_DISABLED</code> bo&apos;lmasin), so&apos;ng web va worker&apos;ni qayta ishga tushiring.</>}
+        />
       )}
 
       {meta && meta.me.normalizedRole === "VIEWER" && (

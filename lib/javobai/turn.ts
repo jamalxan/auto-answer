@@ -20,10 +20,10 @@ import { extractPhone, looksLikeBrokenPhone, stripPhone } from "@/lib/leads/phon
 import type { Collected } from "@/lib/leads/service";
 import { isRepeat } from "@/lib/assistant/humanize";
 import type { Lang } from "@/lib/assistant/language";
-import { llmTimeoutMs, type LLMProvider, type LlmMessage } from "@/lib/assistant/llm/provider";
+import { LlmError, llmTimeoutMs, type LLMProvider, type LlmMessage } from "@/lib/assistant/llm/provider";
 import { filterReply } from "@/lib/assistant/post-filter";
 import { pickTemplate, renderFinalMessage } from "@/lib/assistant/templates";
-import { askedQuestion, mergeHistory, sanitizeName, type TurnEvent, type TurnUsage } from "@/lib/assistant/turn";
+import { askedQuestion, mergeHistory, sanitizeName, stripEmail, type TurnEvent, type TurnUsage } from "@/lib/assistant/turn";
 import { containsWords, normalizeForMatch } from "@/lib/triggers/keywords";
 import {
   FACTUAL_INTENTS,
@@ -36,6 +36,8 @@ import {
 import type { KnowledgeBlock } from "./knowledge";
 import { detectLanguageV2, fromLegacyLang, toLegacyLang } from "./language";
 import { buildJavobAiSystemPrompt, nextStepInstruction, type AgentStage } from "./prompt";
+import { detectsPriceQuestion } from "./price-detector";
+import { dropKnownFieldQuestions, limitToOneQuestion, stripQuestions } from "./reply-rules";
 import { DEFAULT_TURN_CAPS, type TurnCaps } from "./routing";
 import { JAVOBAI_JSON_SCHEMA, parseJavobAiOutput, type JavobAiOutput } from "./schema";
 import {
@@ -217,8 +219,8 @@ async function callLlm(ctx: JavobAiTurnContext, system: string, llm: LLMProvider
       }
       events.push({ type: "llm_bad_json", payload: { attempt } });
     } catch (error) {
-      usages.push({ model: llm.model, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: false });
-      events.push({ type: "llm_error", payload: { message: error instanceof Error ? error.message : String(error) } });
+      usages.push({ model: error instanceof LlmError && error.model ? error.model : llm.model, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: error instanceof LlmError ? error.latencyMs : 0, ok: false });
+      events.push({ type: "llm_error", payload: { message: error instanceof LlmError ? error.message : "LLM error", kind: error instanceof LlmError ? error.kind : "unknown", status: error instanceof LlmError ? (error.status ?? null) : null } });
       return { output: null, usages, events, failed: true };
     }
   }
@@ -494,13 +496,17 @@ export async function runJavobAiTurn(ctx: JavobAiTurnContext): Promise<JavobAiTu
   const extracted = mergeExtracted(ctx.state.extracted, out, text);
   if (extracted.name && !collected.name) collected.name = extracted.name;
   else if (phoneNow && !collected.name) {
-    collected.name = sanitizeName(stripPhone(text)) ?? (ctx.igName ? sanitizeName(ctx.igName) : null);
+    collected.name = sanitizeName(stripEmail(stripPhone(text))) ?? (ctx.igName ? sanitizeName(ctx.igName) : null);
   }
   if (extracted.product && !collected.product_interest) collected.product_interest = extracted.product;
   const extraFieldChanged = extracted.extra_field && extracted.extra_field !== ctx.state.extracted.extra_field;
   if (extraFieldChanged) collected.extra_field = extracted.extra_field;
 
-  const intent: JavobAiIntent = out?.intent ?? (phoneNow ? "gives_contact" : "other");
+  // Union with the deterministic price detector (B-05): a price question the
+  // model labelled OTHER / greeting still counts as one.
+  const priceHit = detectsPriceQuestion(text);
+  let intent: JavobAiIntent = out?.intent ?? (phoneNow ? "gives_contact" : "other");
+  if (priceHit && (intent === "other" || intent === "greeting")) intent = "price_question";
   const confidence = out?.confidence ?? 0;
   const cited = (out?.used_facts ?? []).filter((id) => validIds.has(id));
   // A confident catalog match from the photo grounds an uncited answer (4.3).
@@ -537,7 +543,7 @@ export async function runJavobAiTurn(ctx: JavobAiTurnContext): Promise<JavobAiTu
 
   // ── Scoring (code, once per signal per cycle) ─────────────────────────────
   const candidates = signalsFromTurn(
-    { intent, extracted, phoneKnown, returningContact: ctx.memory.returning, cameFromAd: Boolean(ctx.context.cameFromAd) },
+    { intent, extracted, phoneKnown, returningContact: ctx.memory.returning, cameFromAd: Boolean(ctx.context.cameFromAd), priceAsked: priceHit },
     scoring.rules
   );
   const signals = newSignals(candidates, ctx.state.countedSignals);
@@ -637,21 +643,28 @@ export async function runJavobAiTurn(ctx: JavobAiTurnContext): Promise<JavobAiTu
   }
 
   // ── Make sure the step code wanted is in the reply ────────────────────────
+  // B-09 / B-10: never ask about a field the customer already gave, and never
+  // more than ONE question. A question chosen by code replaces the model's own.
+  const knownNow = { name: Boolean(collected.name), budget: Boolean(extracted.budget), location: Boolean(extracted.location), phone: phoneKnown, product: Boolean(extracted.product || collected.product_interest) };
+  reply = dropKnownFieldQuestions(reply, knownNow);
   let askedPhone = false;
   let askedField: QualificationField | null = null;
   if (purchase && !phoneKnown && ctx.state.phoneAskCount < PHONE_ASK_LIMIT) {
     // Purchase-ready without a number: ask for it now, whatever was planned.
-    if (!PHONE_WORDS.test(reply)) reply = `${reply}\n${pickJavobAiTemplate("ask_phone_purchase", { lang })}`.trim();
+    if (!(PHONE_WORDS.test(reply) && QUESTION_MARK.test(reply))) reply = `${stripQuestions(reply)}\n${pickJavobAiTemplate("ask_phone_purchase", { lang })}`.trim();
     askedPhone = true;
   } else if (askPhoneNow && !unknown) {
     if (!PHONE_WORDS.test(reply) || !QUESTION_MARK.test(reply)) {
-      reply = `${reply}\n${pickJavobAiTemplate("ask_phone", { lang, avoid: ctx.lastBotMessage })}`.trim();
+      reply = `${stripQuestions(reply)}\n${pickJavobAiTemplate("ask_phone", { lang, avoid: ctx.lastBotMessage })}`.trim();
     }
     askedPhone = true;
   } else if (askFieldNow && !unknown) {
-    if (!QUESTION_MARK.test(reply)) reply = `${reply}\n${qualificationTemplate(askFieldNow, lang)}`.trim();
+    if (!QUESTION_MARK.test(reply)) reply = `${reply}
+${qualificationTemplate(askFieldNow, lang)}`.trim();
     askedField = askFieldNow;
   }
+  reply = limitToOneQuestion(reply);
+  if (!reply.trim()) reply = fallback();
 
   return {
     ...scored,
@@ -666,6 +679,14 @@ export async function runJavobAiTurn(ctx: JavobAiTurnContext): Promise<JavobAiTu
   };
 }
 
+const WORKING_HOURS_LABEL: Record<Lang, string> = { uz_latn: "Ish vaqtimiz", uz_cyrl: "Иш вақтимиз", ru: "Время работы" };
+
+/** The ONE "qabul qilindi" line carries an approximate time: the shop's working hours (B-06). */
+function withWorkingHours(message: string, workingHours: string | null | undefined, lang: Lang): string {
+  const hours = workingHours?.trim();
+  return hours ? `${message} (${WORKING_HOURS_LABEL[lang] ?? WORKING_HOURS_LABEL.uz_latn}: ${hours.slice(0, 80)})` : message;
+}
+
 /** Close the AI's part: handoff reply (+ an optional answer line), lead when the phone is known. */
 function finishHandoff(
   ctx: JavobAiTurnContext,
@@ -678,7 +699,7 @@ function finishHandoff(
   const closing =
     base.phoneCaptured && phone
       ? renderFinalMessage({ lang, name: base.collected.name ?? null, phoneE164: phone, template: ctx.kb.profile.finalMessageTemplate })
-      : handoffTemplateFor(reason, lang);
+      : withWorkingHours(handoffTemplateFor(reason, lang), ctx.kb.profile.workingHours, lang);
   const reply = answer ? `${answer}\n${closing}` : closing;
   const complaint = reason === "complaint";
   return {
@@ -726,7 +747,11 @@ async function postHandoffTurn(
     return { ...base, reply: null, postHandoff: true };
   }
   const text = ctx.customerText.trim();
-  const silent = () => ({ ...base, reply: pickJavobAiTemplate("silent_pending", { lang }), postHandoff: true, usedTemplate: true });
+  // The "manager will answer soon" line goes out at most once: a repeat stays silent.
+  const silent = () => {
+    const line = pickJavobAiTemplate("silent_pending", { lang, avoid: ctx.lastBotMessage });
+    return { ...base, reply: isRepeat(line, ctx.lastBotMessage) ? null : line, postHandoff: true, usedTemplate: true };
+  };
   if (ctx.templateOnly || !ctx.llm || !text) return silent();
 
   const system = buildJavobAiSystemPrompt({

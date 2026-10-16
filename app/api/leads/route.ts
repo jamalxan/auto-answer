@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
     from: sp.get("from"),
     to: sp.get("to"),
     q: sp.get("q"),
+    kind: sp.get("kind"),
+    includeTest: sp.get("includeTest") === "1",
   });
   const page = Math.max(1, Number(sp.get("page")) || 1);
 
@@ -42,6 +44,7 @@ export async function GET(request: NextRequest) {
         status: true,
         flag: true,
         isTest: true,
+        kind: true,
         isRepeat: true,
         contactedAt: true,
         conversationId: true,

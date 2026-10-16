@@ -43,6 +43,9 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   STORY_REACTION: "Story reaction",
   COMMENT: "Komment",
   MESSAGE_REACTION: "Reaksiya (kuzatuv)",
+  ECHO: "Echo (o'zimiz yuborgan)",
+  POSTBACK: "Postback (tugma)",
+  OTHER: "Boshqa webhook",
 };
 
 /** Log filters: every event type, plus Direct messages split by where they came from. */
@@ -55,6 +58,9 @@ export const EVENT_FILTER_LABELS: Record<string, string> = {
   LIVE_COMMENT: "Live komment",
   COMMENT: "Komment",
   MESSAGE_REACTION: "Reaksiya (kuzatuv rejimi)",
+  ECHO: "Echo",
+  POSTBACK: "Postback",
+  OTHER: "Boshqa webhook",
 };
 
 /** ETAP 3 automation kinds as the home list and the builder name them. */

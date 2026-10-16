@@ -44,8 +44,8 @@ interface CampaignRow {
 function Stat({ label, value, tone }: { label: string; value: number | string; tone?: string }) {
   return (
     <div className="panel min-w-0 rounded-xl px-4 py-3">
-      <p className="label-mono truncate text-[10px] font-semibold text-muted">{label}</p>
-      <p className={`mt-1 truncate text-xl font-bold ${tone ?? "text-foreground"}`}>{value}</p>
+      <p className="label-mono break-words text-[10px] font-semibold text-muted">{label}</p>
+      <p className={`mt-1 break-words text-xl font-bold leading-tight ${tone ?? "text-foreground"}`}>{value}</p>
     </div>
   );
 }
@@ -208,19 +208,66 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
   );
 }
 
+interface LegacyRow {
+  id: string;
+  name: string;
+  isActive: boolean;
+  keywords: string[];
+  matchAnyWord: boolean;
+  postId: string | null;
+  matchAnyPost: boolean;
+  instagramAccount: { username: string };
+  stats: { total: number; sent: number; failed: number; skipped: number };
+}
+
+/** B-34: production (old) campaigns, read-only. They already answer comments; Comment 2.0 never copies them (double-send). */
+function LegacySection({ rows }: { rows: LegacyRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">Production kampaniyalar (eski tizim)</h2>
+        <p className="mt-0.5 text-xs text-muted">
+          Hozir ishlayotgan eski kampaniyalar — bu yerda faqat ko&apos;rinadi (o&apos;zgartirib bo&apos;lmaydi). Ular Comment 2.0&apos;ga ko&apos;chirilmagan, shuning uchun komment ikki marta javob olmaydi.
+        </p>
+      </div>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <li key={row.id} className="panel rounded-xl p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{row.name}</span>
+              <Pill tone="warning">production (eski)</Pill>
+              <Pill tone={row.isActive ? "success" : "muted"}>{row.isActive ? "Faol" : "O'chiq"}</Pill>
+              <span className="text-xs text-muted">@{row.instagramAccount.username}</span>
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {row.matchAnyWord ? "Istalgan so'z" : row.keywords.join(", ") || "—"} · {row.matchAnyPost ? "Har qanday post" : row.postId ? "Aniq post" : "Post belgilanmagan"}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Yuborildi {row.stats.sent} · Xato {row.stats.failed} · O&apos;tkazib yuborildi {row.stats.skipped} · Jami {row.stats.total}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function CommentsDashboard() {
   const [campaigns, setCampaigns] = useState<CampaignRow[] | null>(null);
+  const [legacy, setLegacy] = useState<LegacyRow[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
     const mine = ++seq.current;
-    const res = await requestJson<{ campaigns: CampaignRow[]; accounts: Account[] }>("/api/developer/comments/campaigns");
+    const res = await requestJson<{ campaigns: CampaignRow[]; accounts: Account[]; legacy?: LegacyRow[] }>("/api/developer/comments/campaigns");
     if (mine !== seq.current) return;
     if (res.ok) {
       setCampaigns(res.data.campaigns);
       setAccounts(res.data.accounts);
+      setLegacy(res.data.legacy ?? []);
       setError(null);
     } else {
       setError(res.error);
@@ -318,6 +365,8 @@ export default function CommentsDashboard() {
               ))}
             </ul>
           )}
+
+          <LegacySection rows={legacy} />
         </>
       )}
     </div>

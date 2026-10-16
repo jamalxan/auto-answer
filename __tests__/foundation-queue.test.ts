@@ -80,7 +80,7 @@ describe("formatting", () => {
 
 describe("buildRateUsage", () => {
   it("normal usage", () => {
-    expect(buildRateUsage(120, 1800)).toEqual({
+    expect(buildRateUsage(120, 1800, 750)).toEqual({
       used: 120,
       limit: 750,
       remaining: 630,
@@ -91,9 +91,9 @@ describe("buildRateUsage", () => {
   });
 
   it("warning from 80%, error at the cap, never over 100%", () => {
-    expect(buildRateUsage(600, 100).tone).toBe("warning");
-    expect(buildRateUsage(750, 100)).toMatchObject({ tone: "error", remaining: 0, percent: 100 });
-    expect(buildRateUsage(900, 100)).toMatchObject({ percent: 100, remaining: 0 });
+    expect(buildRateUsage(600, 100, 750).tone).toBe("warning");
+    expect(buildRateUsage(750, 100, 750)).toMatchObject({ tone: "error", remaining: 0, percent: 100 });
+    expect(buildRateUsage(900, 100, 750)).toMatchObject({ percent: 100, remaining: 0 });
   });
 
   it("no running window when the key is missing or has no TTL", () => {
@@ -129,7 +129,7 @@ describe("loadQueueStats", () => {
       types.includes("active") ? [job("IG1"), job("OTHER")] : [job("IG1"), job("IG2"), job("OTHER"), job("OTHER")]
     );
     mocks.pipelineExec.mockResolvedValue([
-      [null, "700"],
+      [null, "170"],
       [null, 1200],
       [null, null],
       [null, -2],
@@ -158,7 +158,7 @@ describe("loadQueueStats", () => {
   it("reads rate counters by Instagram id (the key the workers use)", async () => {
     const stats = await loadQueueStats("ws_1", { now: NOW });
     expect(mocks.pipelineCalls).toEqual(["get rate:dm:IG1", "ttl rate:dm:IG1", "get rate:dm:IG2", "ttl rate:dm:IG2"]);
-    expect(stats.rate[0]).toMatchObject({ instagramAccountId: "acc1", usage: { used: 700, tone: "warning", resetInSeconds: 1200 } });
+    expect(stats.rate[0]).toMatchObject({ instagramAccountId: "acc1", usage: { used: 170, limit: 200, tone: "warning", resetInSeconds: 1200 } });
     expect(stats.rate[1]).toMatchObject({ instagramAccountId: "acc2", usage: { used: 0, resetInSeconds: null } });
   });
 

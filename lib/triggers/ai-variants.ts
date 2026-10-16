@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { getLlmProvider, llmTimeoutMs } from "@/lib/assistant/llm/provider";
+import { describeLlmFailure, getLlmProvider, LlmError, llmTimeoutMs } from "@/lib/assistant/llm/provider";
 import { COMMENT_LIMITS as L } from "./comment-limits";
 
 export const AI_TONES = ["friendly", "professional", "playful"] as const;
@@ -191,7 +191,10 @@ export function parseVariantDrafts(raw: unknown, options: { kind: "DM" | "PUBLIC
 }
 
 /** Drafts only — the caller shows them for review; nothing is stored. */
-export async function generateVariantDrafts(input: AiVariantRequest): Promise<{ drafts: string[]; model: string }> {
+export async function generateVariantDrafts(
+  input: AiVariantRequest,
+  context: { workspaceId?: string } = {}
+): Promise<{ drafts: string[]; model: string }> {
   const llm = getLlmProvider();
   if (!llm) throw new AiVariantsError("no_llm", ERROR_TEXT.no_llm);
 
@@ -206,13 +209,15 @@ export async function generateVariantDrafts(input: AiVariantRequest): Promise<{ 
       schemaName: "reply_variants",
       temperature: 0.8,
       maxTokens: input.kind === "DM" ? 300 * input.count + 200 : 120 * input.count + 200,
-      timeoutMs: llmTimeoutMs(30_000),
+      // The adapter retries transient failures itself (15 s each by default).
+      timeoutMs: llmTimeoutMs(20_000),
+      usage: context.workspaceId ? { workspaceId: context.workspaceId, kind: "comment_variants" } : undefined,
     });
     json = response.json;
     model = response.model;
   } catch (error) {
     console.error("[comment-ai-variants] LLM call failed:", error instanceof Error ? error.message : error);
-    throw new AiVariantsError("llm_failed", ERROR_TEXT.llm_failed);
+    throw new AiVariantsError("llm_failed", error instanceof LlmError ? describeLlmFailure(error) : ERROR_TEXT.llm_failed);
   }
 
   const drafts = parseVariantDrafts(json, { kind: input.kind, count: input.count });

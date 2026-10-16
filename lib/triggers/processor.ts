@@ -226,6 +226,7 @@ export async function processInstagramEvent(eventId: string): Promise<ProcessOut
   if (result.status === "RETRYING") {
     throw new TriggerRetryableError({
       kind: result.kind ?? "temporary",
+      ...(result.retryAfterMs !== undefined ? { retryAfterMs: result.retryAfterMs } : {}),
       retryable: true,
       userMessage: result.error ?? "",
       technical: result.errorDetail ?? result.error ?? "retry",

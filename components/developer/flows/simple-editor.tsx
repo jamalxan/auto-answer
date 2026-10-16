@@ -104,7 +104,7 @@ export default function SimpleEditor({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
       <div className="min-w-0">
         <ol className="space-y-0">
           {graph.nodes.map((node, index) => {

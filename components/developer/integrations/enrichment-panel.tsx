@@ -128,7 +128,7 @@ export default function EnrichmentPanel({
             <div className="space-y-2">
               {stageNames.length === 0 && <p className="text-xs text-muted">CRM pipeline hali yo&apos;q — avval CRM bo&apos;limida bosqichlarni yarating.</p>}
               {stageNames.map((stage) => (
-                <div key={stage} className="grid items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+                <div key={stage} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
                   <span className="truncate text-sm text-foreground">{stage}</span>
                   {options && options.statuses.length > 0 ? (
                     <select

@@ -3,10 +3,12 @@
 /**
  * Story Reply campaign builder (dev).
  *
- *   Trigger   Story Reply
+ *   Trigger   Story reply
  *   Scope     All stories | Specific story
  *   Condition Every reply | Keyword contains | Exact
- *   Action    Send Message   (Flow / AI / Tag / Lead / Operator / Webhook — V2)
+ *   Action    Send message. Flow / question / AI / tag / lead / operator / webhook are NOT
+ *             supported for story replies yet (STORY_REPLY joins flows in ETAP 11) — shown
+ *             honestly as "tez orada", never as a working option.
  */
 
 import Link from "next/link";
@@ -60,13 +62,14 @@ interface RepliedStory {
 
 const MAX_RESPONSE = 1000;
 
+/** Not wired for story replies yet: the engine only sends one message. */
 const FUTURE_ACTIONS = [
-  "Start Flow",
-  "Ask Question",
+  "Flow'ga ulash",
+  "Savol berish",
   "AI javob",
-  "Add Tag",
-  "Create Lead",
-  "Assign Operator",
+  "Teg qo'shish",
+  "Lead yaratish",
+  "Operatorga topshirish",
   "Webhook",
 ];
 
@@ -232,7 +235,7 @@ export default function StoryReplyBuilder({
   const [matchingMode, setMatchingMode] = useState<"EVERY" | "CONTAINS" | "EXACT">(campaign?.matchingMode ?? "CONTAINS");
   const [keywords, setKeywords] = useState<string[]>(campaign?.keywords ?? []);
   const [responseMessage, setResponseMessage] = useState(campaign?.responseMessage ?? "");
-  const [active, setActive] = useState(campaign?.active ?? true);
+  const [active, setActive] = useState(campaign?.active ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -281,10 +284,10 @@ export default function StoryReplyBuilder({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-5">
         <section className="panel space-y-4 rounded-xl p-4 sm:p-5">
-          <Field label="Campaign nomi">
+          <Field label="Kampaniya nomi">
             <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
           </Field>
           <Field
@@ -304,28 +307,28 @@ export default function StoryReplyBuilder({
         <section className="panel space-y-4 rounded-xl p-4 sm:p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Trigger</h2>
-            <span className="rounded-md bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">Story Reply</span>
+            <span className="rounded-md bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">Story javobi</span>
           </div>
 
-          <Field label="Scope">
+          <Field label="Qaysi storylar">
             <div className="grid gap-2 sm:grid-cols-2">
               <Choice
                 checked={storyScope === "ALL"}
                 onSelect={() => setStoryScope("ALL")}
-                title="All Stories"
+                title="Barcha storylar"
                 description="Har qanday storyga kelgan reply"
               />
               <Choice
                 checked={storyScope === "SPECIFIC"}
                 onSelect={() => setStoryScope("SPECIFIC")}
-                title="Specific Story"
+                title="Aniq story"
                 description="Faqat tanlangan storylar"
               />
             </div>
           </Field>
           {storyScope === "SPECIFIC" && <StoryPicker accountId={accountId} selected={storyIds} onChange={setStoryIds} />}
 
-          <Field label="Trigger condition">
+          <Field label="Qachon javob beriladi">
             <div className="grid gap-2 sm:grid-cols-3">
               {(["EVERY", "CONTAINS", "EXACT"] as const).map((mode) => (
                 <Choice
@@ -352,13 +355,17 @@ export default function StoryReplyBuilder({
         </section>
 
         <section className="panel space-y-4 rounded-xl p-4 sm:p-5">
-          <h2 className="text-sm font-semibold text-foreground">Action</h2>
+          <h2 className="text-sm font-semibold text-foreground">Amal</h2>
           <div className="grid gap-2 sm:grid-cols-2">
-            <Choice checked onSelect={() => {}} title="Send Message" description="DM orqali javob yuborish" />
+            <Choice checked onSelect={() => {}} title="Xabar yuborish" description="Direct orqali javob yuborish" />
             {FUTURE_ACTIONS.map((label) => (
-              <Choice key={label} checked={false} disabled onSelect={() => {}} title={label} badge="V2" />
+              <Choice key={label} checked={false} disabled onSelect={() => {}} title={label} badge="tez orada" />
             ))}
           </div>
+          <p className="text-xs text-muted">
+            Story javobi hozircha faqat bitta xabar yuboradi. Boshqa amallar (Flow, savol, teg, lead, operator) bu turda hali ishlamaydi — «tez orada».
+            Murakkab ssenariy kerak bo&apos;lsa, Flow Builder&apos;da Direct yoki «Story&apos;da belgilash» triggeri bilan oqim quring.
+          </p>
           <Field label="Javob matni" hint={`${responseMessage.length}/${MAX_RESPONSE}`}>
             <textarea
               className={`${inputClass} min-h-32`}
@@ -371,7 +378,7 @@ export default function StoryReplyBuilder({
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
             <div>
               <p className="text-sm font-medium text-foreground">Faol</p>
-              <p className="text-xs text-muted">O&apos;chirilgan campaign reply&apos;larga javob bermaydi.</p>
+              <p className="text-xs text-muted">O&apos;chiq kampaniya (qoralama) reply&apos;larga javob bermaydi. Yangi kampaniya o&apos;chiq holda boshlanadi.</p>
             </div>
             <Toggle on={active} onChange={setActive} label="Faol" />
           </div>
@@ -381,7 +388,7 @@ export default function StoryReplyBuilder({
 
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" className={primaryButton} onClick={save} disabled={saving}>
-            {saving ? "Saqlanmoqda…" : isEdit ? "Saqlash" : "Campaign yaratish"}
+            {saving ? "Saqlanmoqda…" : isEdit ? "Saqlash" : "Kampaniya yaratish"}
           </button>
           <Link href="/developer/triggers?tab=campaigns" className={secondaryButton}>
             Bekor qilish

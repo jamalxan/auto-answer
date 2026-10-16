@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import LogoMark from "@/components/logo-mark";
 import { DevBadge } from "@/components/developer/ui";
+import { PlatformAdminProvider } from "@/components/developer/server-off";
 import { developerLogoutAction } from "@/lib/developer/actions";
 
 export interface DeveloperNavItem {
@@ -21,10 +22,12 @@ export interface DeveloperNavItem {
 export default function DeveloperShell({
   nav,
   workspaceName,
+  isPlatformAdmin = false,
   children,
 }: {
   nav: DeveloperNavItem[];
   workspaceName: string;
+  isPlatformAdmin?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -56,6 +59,9 @@ export default function DeveloperShell({
             <Link
               key={item.href}
               href={item.href}
+              // Every module is force-dynamic behind this auth layout: auto-prefetching all
+              // of them on each page view fired a burst of RSC requests (3+ DB queries each).
+              prefetch={false}
               aria-current={isActive(item.href) ? "page" : undefined}
               className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 isActive(item.href)
@@ -71,7 +77,9 @@ export default function DeveloperShell({
           ))}
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        <PlatformAdminProvider value={isPlatformAdmin}>{children}</PlatformAdminProvider>
+      </main>
     </div>
   );
 }

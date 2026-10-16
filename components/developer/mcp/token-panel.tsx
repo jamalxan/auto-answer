@@ -6,6 +6,9 @@ import { Choice, EmptyState, Field, formatDateTime, inputClass, Pill, primaryBut
 import CopyButton from "./copy-button";
 import { connectionSnippets, jsonInit, MCP_API, requestJson, tokenState, type CreatedToken, type McpMeta, type TokenRow } from "./shared";
 
+/** Mirrors DEFAULT_TOKEN_EXPIRY_DAYS in lib/mcp/tokens.ts (server default when the field is empty). */
+const DEFAULT_EXPIRY_DAYS = 90;
+
 /** Create (the raw token is shown once), list and revoke. */
 export default function TokenPanel({
   meta,
@@ -22,6 +25,7 @@ export default function TokenPanel({
   const [name, setName] = useState("");
   const [scope, setScope] = useState<"READ" | "WRITE">("READ");
   const [days, setDays] = useState("");
+  const [noExpiry, setNoExpiry] = useState(false);
   const [humanApproval, setHumanApproval] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,13 +41,15 @@ export default function TokenPanel({
     setError(null);
     try {
       const body: Record<string, unknown> = { name: name.trim(), scope, requireHumanApproval: humanApproval };
-      if (days.trim()) body.expiresInDays = Number(days);
+      if (noExpiry) body.noExpiry = true;
+      else body.expiresInDays = days.trim() ? Number(days) : DEFAULT_EXPIRY_DAYS;
       const res = await requestJson<CreatedToken>(`${MCP_API}/tokens`, jsonInit("POST", body));
       if (res.ok) {
         setCreated(res.data);
         onCreated(res.data.token);
         setName("");
         setDays("");
+        setNoExpiry(false);
         onChanged();
       } else setError(res.error);
     } finally {
@@ -122,9 +128,26 @@ export default function TokenPanel({
               description="Kampaniya, flow qoralamasi, teg va bosqich o'zgartirishni taklif qiladi; har biri alohida tasdiq kodi bilan bajariladi."
             />
           </div>
-          <Field label="Muddati (kun, ixtiyoriy)" hint="Bo'sh = muddatsiz. Eng ko'pi 365 kun.">
-            <input className={inputClass} inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} disabled={!canCreate || busy} aria-label="Muddati (kun)" />
+          <Field label="Muddati (kun)" hint={`Bo'sh qoldirsangiz ${DEFAULT_EXPIRY_DAYS} kun. Eng ko'pi 365 kun.`}>
+            <input
+              className={inputClass}
+              inputMode="numeric"
+              value={days}
+              placeholder={String(DEFAULT_EXPIRY_DAYS)}
+              onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))}
+              disabled={!canCreate || busy || noExpiry}
+              aria-label="Muddati (kun)"
+            />
           </Field>
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input type="checkbox" className="mt-1" checked={noExpiry} onChange={(e) => setNoExpiry(e.target.checked)} disabled={!canCreate || busy} />
+            <span>
+              Muddatsiz (cheksiz) token
+              <span className="block text-xs text-muted">
+                Xavfli: token o&apos;g&apos;irlansa, uni qo&apos;lda bekor qilmaguningizcha ishlayveradi. Faqat zarur bo&apos;lsa yoqing.
+              </span>
+            </span>
+          </label>
           {scope === "WRITE" && (
             <label className="flex items-start gap-2 text-sm text-foreground">
               <input type="checkbox" className="mt-1" checked={humanApproval} onChange={(e) => setHumanApproval(e.target.checked)} disabled={!canCreate || busy} />

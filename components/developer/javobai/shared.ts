@@ -29,7 +29,12 @@ export interface AccountConfig {
 
 export interface ProfileStatus {
   exists: boolean;
+  /** approved AND enabled — what LIVE needs. */
   live: boolean;
+  /** The assistant page's "Tasdiqlangan" (approvedAt set). */
+  approved?: boolean;
+  /** The assistant page's on/off switch. */
+  enabled?: boolean;
   scope: "account" | "workspace" | null;
   id: string | null;
   companyName: string | null;
@@ -270,7 +275,7 @@ export interface SandboxResult {
 export const MODE_TEXT: Record<JavobAiMode, { title: string; description: string; tone: DisplayTone }> = {
   OFF: {
     title: "OFF — ishlamaydi",
-    description: "Hozirgi (production) assistent javob beradi. JavobAI hech narsa qilmaydi — avvalgidek.",
+    description: "JavobAI hech narsa qilmaydi — avvalgidek. Javobni production assistent beradi (yoqilgan bo'lsa).",
     tone: "muted",
   },
   SHADOW: {
@@ -286,6 +291,25 @@ export const MODE_TEXT: Record<JavobAiMode, { title: string; description: string
     tone: "success",
   },
 };
+
+/** OFF mode text that tells what REALLY answers: the production assistant only when it is on (B-41). */
+export function offModeDescription(profile: ProfileStatus): string {
+  if (profile.exists && profile.live) {
+    return "JavobAI hech narsa qilmaydi. Hozirgi (production) assistent yoqilgan — u javob beradi.";
+  }
+  if (profile.exists && profile.approved && profile.enabled === false) {
+    return "JavobAI hech narsa qilmaydi. Production assistent ham o'chirilgan — hozir mijozga AI javob bermaydi.";
+  }
+  return "JavobAI hech narsa qilmaydi. Production assistent yoqilmagan (profil tasdiqlanmagan yoki yo'q) — hozir mijozga AI javob bermaydi.";
+}
+
+/** "tasdiqlangan · yoqilgan" — the same words as the assistant page. */
+export function profileStateText(profile: ProfileStatus): string {
+  if (!profile.exists) return "profil yo'q";
+  const approved = profile.approved ?? profile.live;
+  if (!approved) return "tasdiqlanmagan";
+  return profile.enabled === false ? "tasdiqlangan · o'chirilgan" : "tasdiqlangan · yoqilgan";
+}
 
 export const HANDOFF_STATE_TEXT: Record<HandoffState, { label: string; tone: DisplayTone }> = {
   AI_ACTIVE: { label: "AI javob bermoqda", tone: "success" },

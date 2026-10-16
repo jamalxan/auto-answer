@@ -123,6 +123,7 @@ export const commentCampaignSchema = z
     stopOnReply: z.boolean().default(true),
     stopOnLead: z.boolean().default(true),
     stopOnHandoff: z.boolean().default(true),
+    stopOnPurchase: z.boolean().default(true),
     responseMessage: z
       .string()
       .trim()
@@ -203,6 +204,8 @@ export const simulateInputSchema = z.object({
   mediaId: z.string().trim().max(64).nullish().transform((v) => v || null),
   text: z.string().trim().min(1, "Komment matnini kiriting").max(2000),
   eventType: z.enum(COMMENT_TRIGGER_TYPES).default("COMMENT"),
+  /** The campaign being edited — tested even while it is off (draft / paused). */
+  campaignId: z.string().trim().max(64).nullish().transform((v) => v || null),
 });
 
 // ─── Scoping helpers ──────────────────────────────────────────────────────────
@@ -292,6 +295,67 @@ export async function listCommentCampaigns(workspaceId: string, options: { activ
         followUps: s.followUps,
       },
       lastBacktrack: lastRun.get(campaign.id) ?? null,
+    };
+  });
+}
+
+export interface LegacyAutomationRow {
+  id: string;
+  name: string;
+  isActive: boolean;
+  keywords: string[];
+  matchAnyWord: boolean;
+  postId: string | null;
+  matchAnyPost: boolean;
+  instagramAccount: { username: string };
+  stats: { total: number; sent: number; failed: number; skipped: number };
+  /** Marks the row as the production (old) engine: shown read-only, never edited or imported here. */
+  source: "production_legacy";
+}
+
+/**
+ * B-34: the production comment→DM campaigns (the legacy `Automation` model,
+ * answered by lib/queue/dm-worker.ts) listed read-only next to Comment 2.0, so
+ * a live "Salom" campaign is not invisible here. Nothing is imported or
+ * copied: two engines answering one comment would double-send, so these rows
+ * only show what already runs. Counts come from the same DmLog the dashboard
+ * and the analytics rollups read.
+ */
+export async function listLegacyAutomations(workspaceId: string): Promise<LegacyAutomationRow[]> {
+  const automations = await prisma.automation.findMany({
+    where: { workspaceId },
+    orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
+    take: 100,
+    select: {
+      id: true,
+      name: true,
+      isActive: true,
+      keywords: true,
+      matchAnyWord: true,
+      postId: true,
+      matchAnyPost: true,
+      instagramAccount: { select: { username: true } },
+    },
+  });
+  if (automations.length === 0) return [];
+  const logs = await prisma.dmLog.groupBy({
+    by: ["automationId", "status"],
+    where: { workspaceId, automationId: { in: automations.map((a) => a.id) } },
+    _count: { _all: true },
+  });
+  return automations.map((a) => {
+    const rows = logs.filter((l) => l.automationId === a.id);
+    const count = (pick: (status: string) => boolean) =>
+      rows.filter((r) => pick(r.status)).reduce((sum, r) => sum + r._count._all, 0);
+    return {
+      ...a,
+      stats: {
+        total: count(() => true),
+        sent: count((s) => s === "SENT"),
+        failed: count((s) => s === "FAILED"),
+        skipped: count((s) => s.startsWith("SKIPPED_")),
+      },
+      source: "production_legacy" as const,
     };
   });
 }
@@ -487,6 +551,7 @@ export async function simulateCommentDryRun(workspaceId: string, input: z.infer<
       mediaId: input.eventType === "LIVE_COMMENT" ? null : input.mediaId,
       text: input.text,
       eventType: input.eventType,
+      includeCampaignId: input.campaignId,
     })
   );
 }

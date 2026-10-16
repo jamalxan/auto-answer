@@ -126,7 +126,7 @@ export default function TemplatesGallery({ meta, canWrite, onOpen }: { meta: Flo
               </div>
               {open && (
                 <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
                     <BlockOutline graph={t.graph} meta={meta} />
                     <PhonePreview graph={t.graph} />
                   </div>

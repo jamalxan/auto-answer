@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     dmLog: { findFirst: vi.fn(), findMany: vi.fn() },
     webhookEvent: { findFirst: vi.fn(), count: vi.fn() },
     instagramEvent: { findFirst: vi.fn() },
+    conversationMessage: { findFirst: vi.fn() },
     workspace: { findUnique: vi.fn() },
     integration: { findMany: vi.fn() },
     leadDelivery: { groupBy: vi.fn() },
@@ -213,17 +214,17 @@ describe("buildRateLimitCheck", () => {
   });
 
   it("error at the cap, with minutes to reset", () => {
-    const item = buildRateLimitCheck([row("a", buildRateUsage(10, 100)), row("b", buildRateUsage(750, 600))], NOW);
+    const item = buildRateLimitCheck([row("a", buildRateUsage(10, 100)), row("b", buildRateUsage(750, 600, 750))], NOW);
     expect(item).toMatchObject({ status: "error", value: "750/750 (@b)" });
     expect(item.action?.label).toContain("10 daqiqada");
   });
 
   it("error at the cap without a TTL still says to wait", () => {
-    expect(buildRateLimitCheck([row("a", buildRateUsage(750, -1))], NOW).action?.label).toBe("Limit yangilanishini kuting.");
+    expect(buildRateLimitCheck([row("a", buildRateUsage(750, -1, 750))], NOW).action?.label).toBe("Limit yangilanishini kuting.");
   });
 
   it("warning from 80%", () => {
-    expect(buildRateLimitCheck([row("a", buildRateUsage(650, 100))], NOW).status).toBe("warning");
+    expect(buildRateLimitCheck([row("a", buildRateUsage(650, 100, 750))], NOW).status).toBe("warning");
   });
 
   it("ok = Normal", () => {
@@ -358,6 +359,7 @@ describe("runDiagnostics", () => {
     p.webhookEvent.findFirst.mockResolvedValue({ createdAt: ago(2 * MIN) });
     p.webhookEvent.count.mockResolvedValue(0);
     p.instagramEvent.findFirst.mockResolvedValue(null);
+    p.conversationMessage.findFirst.mockResolvedValue(null);
     p.workspace.findUnique.mockResolvedValue({ assistantTemplateOnlyUntil: null });
     p.integration.findMany.mockResolvedValue([]);
     p.leadDelivery.groupBy.mockResolvedValue([]);

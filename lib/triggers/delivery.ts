@@ -25,6 +25,7 @@ import type {
   TriggerExecution,
 } from "@/app/generated/prisma/client";
 import { classifySendError, type ClassifiedFailure } from "./errors";
+import { isRateLimitExpired, RATE_LIMIT_EXPIRED_MESSAGE } from "@/lib/utils/rate-limit-age";
 import { backoffDelay, TRIGGER_MAX_ATTEMPTS } from "./queue";
 
 export type EventWithAccount = InstagramEvent & { instagramAccount: InstagramAccount };
@@ -35,6 +36,8 @@ export interface HandlerResult {
   errorDetail?: string | null;
   /** Why a RETRYING result failed; picks the retry delay. */
   kind?: ClassifiedFailure["kind"];
+  /** Rate-limit retries: the TTL-based wait computed at the send (see ClassifiedFailure.retryAfterMs). */
+  retryAfterMs?: number;
 }
 
 export type EventHandler = (event: EventWithAccount) => Promise<HandlerResult>;
@@ -154,6 +157,7 @@ export async function sendGuarded(
         retryable: true,
         userMessage: "Soatlik DM limiti to'lgan — keyinroq qayta yuboriladi.",
         technical: `reserveDMSlot: count=${slot.currentCount}`,
+        retryAfterMs: slot.requeueDelayMs,
       },
     };
   }
@@ -225,25 +229,56 @@ export async function beginExecution(
   return { execution: created, created: true };
 }
 
+// ─── Rate-limit age cap ───────────────────────────────────────────────────────
+
+export interface EventAge {
+  /** The comment / message time; falls back to when the event row was created. */
+  timestamp?: Date | null;
+  createdAt?: Date | null;
+}
+
+/**
+ * A send held back by the hourly cap is retried until the event is too old to
+ * deliver (24h for DMs, 7 days for private replies to comments): then it
+ * fails for good with a clear reason instead of cycling forever.
+ */
+export function capRateLimitAge(event: EventAge & { eventType: string }, failure: ClassifiedFailure, now: Date = new Date()): ClassifiedFailure {
+  if (failure.kind !== "rate_limit" || !failure.retryable) return failure;
+  const kind = event.eventType === "COMMENT" || event.eventType === "LIVE_COMMENT" ? "private_reply" : "dm";
+  if (!isRateLimitExpired(event.timestamp ?? event.createdAt, kind, now)) return failure;
+  return { ...failure, retryable: false, userMessage: RATE_LIMIT_EXPIRED_MESSAGE };
+}
+
+function retrying(failure: ClassifiedFailure): HandlerResult {
+  return {
+    status: "RETRYING",
+    error: failure.userMessage,
+    errorDetail: failure.technical,
+    kind: failure.kind,
+    ...(failure.retryAfterMs !== undefined ? { retryAfterMs: failure.retryAfterMs } : {}),
+  };
+}
+
 /** Failure → RETRYING or FAILED on the execution, and the matching event result. */
 export async function failExecution(
-  event: { id: string; workspaceId: string; eventType: string; attempts: number },
+  event: EventAge & { id: string; workspaceId: string; eventType: string; attempts: number },
   executionId: string,
-  failure: ClassifiedFailure
+  rawFailure: ClassifiedFailure
 ): Promise<HandlerResult> {
-  const final = !failure.retryable || event.attempts >= TRIGGER_MAX_ATTEMPTS;
+  const failure = capRateLimitAge(event, rawFailure);
+  const final = !failure.retryable || (event.attempts >= TRIGGER_MAX_ATTEMPTS && failure.kind !== "rate_limit"); // hourly cap: wait, never drop (the sweep re-queues)
   await prisma.triggerExecution.update({
     where: { id: executionId },
     data: {
       status: final ? "FAILED" : "RETRYING",
       error: failure.userMessage,
       errorDetail: failure.technical,
-      nextRetryAt: final ? null : new Date(Date.now() + backoffDelay(event.attempts, failure.kind)),
+      nextRetryAt: final ? null : new Date(Date.now() + backoffDelay(event.attempts, failure.kind, failure.retryAfterMs)),
     },
   });
   await recordBackendFailure(event, failure, final);
   if (final) return { status: "FAILED", error: failure.userMessage, errorDetail: failure.technical };
-  return { status: "RETRYING", error: failure.userMessage, errorDetail: failure.technical, kind: failure.kind };
+  return retrying(failure);
 }
 
 /** Nothing to send, by rule (limit reached, comment too old...). Ends the event. */
@@ -278,11 +313,12 @@ export async function markExecutionSent(executionId: string, sent: SentMessage, 
 
 /** A failure outside an execution (direct / follow-up sends): retry the event or give up. */
 export async function eventFailure(
-  event: { id: string; workspaceId: string; eventType: string; attempts: number },
-  failure: ClassifiedFailure
+  event: EventAge & { id: string; workspaceId: string; eventType: string; attempts: number },
+  rawFailure: ClassifiedFailure
 ): Promise<HandlerResult> {
-  const final = !failure.retryable || event.attempts >= TRIGGER_MAX_ATTEMPTS;
+  const failure = capRateLimitAge(event, rawFailure);
+  const final = !failure.retryable || (event.attempts >= TRIGGER_MAX_ATTEMPTS && failure.kind !== "rate_limit"); // hourly cap: wait, never drop (the sweep re-queues)
   await recordBackendFailure(event, failure, final);
   if (final) return { status: "FAILED", error: failure.userMessage, errorDetail: failure.technical };
-  return { status: "RETRYING", error: failure.userMessage, errorDetail: failure.technical, kind: failure.kind };
+  return retrying(failure);
 }

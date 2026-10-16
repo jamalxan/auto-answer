@@ -152,7 +152,7 @@ function StageEditor({ pipelineId, stages, onDone, onCancel }: { pipelineId: str
       </p>
       <ul className="space-y-2">
         {drafts.map((d, i) => (
-          <li key={d.key} className="grid gap-2 rounded-lg border border-border p-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] sm:items-center">
+          <li key={d.key} className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] sm:items-center">
             <div className="flex gap-1">
               <button type="button" className={secondaryButton} aria-label="Yuqoriga" disabled={i === 0} onClick={() => move(i, -1)}>
                 ↑

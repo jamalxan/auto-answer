@@ -45,8 +45,8 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<{ ok: true; 
 function Stat({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
     <div className="panel min-w-0 rounded-xl px-4 py-3">
-      <p className="label-mono truncate text-[10px] font-semibold text-muted">{label}</p>
-      <p className={`mt-1 truncate text-xl font-bold ${tone ?? "text-foreground"}`}>{value}</p>
+      <p className="label-mono break-words text-[10px] font-semibold text-muted">{label}</p>
+      <p className={`mt-1 break-words text-xl font-bold leading-tight ${tone ?? "text-foreground"}`}>{value}</p>
     </div>
   );
 }
@@ -192,7 +192,7 @@ function DiagnosticRow({ item, open, onToggle }: { item: DiagnosticItem; open: b
           {style.icon}
         </span>
         <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{item.label}</span>
-        <span className={`min-w-0 truncate text-right text-sm ${item.status === "ok" ? "text-muted" : style.className}`}>
+        <span className={`min-w-0 break-words text-right text-sm ${item.status === "ok" ? "text-muted" : style.className}`}>
           {item.value}
         </span>
         <span className="shrink-0 text-xs text-muted" aria-hidden="true">
@@ -200,7 +200,7 @@ function DiagnosticRow({ item, open, onToggle }: { item: DiagnosticItem; open: b
         </span>
       </button>
       {open && (
-        <dl className="grid gap-3 px-4 pb-4 text-sm sm:grid-cols-[10rem_1fr]">
+        <dl className="grid grid-cols-1 gap-3 px-4 pb-4 text-sm sm:grid-cols-[10rem_1fr]">
           <dt className="label-mono text-[11px] font-semibold text-muted">Status</dt>
           <dd>
             <Pill tone={style.tone}>{style.label}</Pill>
@@ -369,7 +369,7 @@ function ErrorCard({ item }: { item: ErrorFeedItem }) {
         </div>
         <span className="text-xs text-muted">{formatDateTime(item.occurredAt)}</span>
       </div>
-      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[6rem_1fr]">
+      <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-[6rem_1fr]">
         <dt className="label-mono text-[11px] font-semibold text-muted">Muammo</dt>
         <dd className="font-medium text-foreground">{item.problem}</dd>
         <dt className="label-mono text-[11px] font-semibold text-muted">Sabab</dt>

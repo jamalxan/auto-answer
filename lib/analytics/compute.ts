@@ -230,7 +230,7 @@ async function aiMetrics(workspaceId: string, w: Window, acc: Accumulator) {
     prisma.crmActivity.findMany({ where: { workspaceId, type: "TEMPERATURE_CHANGED", occurredAt: w.range } }),
     prisma.llmUsage.findMany({ where: { workspaceId, createdAt: w.range } }),
     prisma.aiShadowTurn.findMany({ where: { workspaceId, createdAt: w.range } }),
-    prisma.assistantEvent.findMany({ where: { workspaceId, createdAt: w.range, type: { in: ["blocked_reply", "fallback", "llm_error"] } } }),
+    prisma.assistantEvent.findMany({ where: { workspaceId, createdAt: w.range, type: { in: ["blocked_reply", "fallback"] } } }),
     prisma.conversationMessage.findMany({
       where: { createdAt: w.range, author: { in: ["CUSTOMER", "ASSISTANT", "OPERATOR"] }, conversation: { workspaceId } },
       include: { conversation: true },
@@ -306,14 +306,18 @@ async function aiMetrics(workspaceId: string, w: Window, acc: Accumulator) {
     const account = u.conversationId ? convAccount.get(u.conversationId) : undefined;
     const dims: Dim[] = [["kind", u.kind || "reply"]];
     acc.add(account, "ai.calls", 1, dims);
-    if (!u.ok) acc.add(account, "ai.failed_calls", 1, dims);
+    if (!u.ok) {
+      acc.add(account, "ai.failed_calls", 1, dims);
+      // One source: a failed llm_usage row IS an LLM error (no separate llm_error event count).
+      acc.add(account, "ai.llm_errors", 1);
+    }
     acc.add(account, "ai.cost_usd", toUsd(u.costUsd), dims);
     acc.add(account, "ai.tokens_in", Number(u.inputTokens) || 0, dims);
     acc.add(account, "ai.tokens_out", Number(u.outputTokens) || 0, dims);
     acc.add(account, "ai.latency_ms_sum", Number(u.latencyMs) || 0, dims);
   }
   acc.add("", "ai.shadow_turns", (shadow as unknown[]).length);
-  const EVENT_METRIC: Record<string, string> = { blocked_reply: "ai.blocked_replies", fallback: "ai.fallbacks", llm_error: "ai.llm_errors" };
+  const EVENT_METRIC: Record<string, string> = { blocked_reply: "ai.blocked_replies", fallback: "ai.fallbacks" };
   for (const e of eventRows) {
     const metric = EVENT_METRIC[e.type];
     if (metric) acc.add(e.conversationId ? convAccount.get(e.conversationId) : undefined, metric, 1);

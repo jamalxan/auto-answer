@@ -229,18 +229,24 @@ export async function simulateDmTrigger(
     adId?: string | null;
     ref?: string | null;
     contactState?: "NEW" | "RETURNING" | "REOPENED";
+    /** The campaign being edited: tested "as if active" even while it is a draft / paused (dry run only). */
+    includeCampaignId?: string | null;
   }
 ): Promise<DmTriggerSimulation> {
-  const campaigns = await prisma.triggerCampaign.findMany({
+  const includeId = input.includeCampaignId || null;
+  const found = await prisma.triggerCampaign.findMany({
     where: {
       workspaceId,
       triggerType: input.eventType,
-      active: true,
       kind: "CAMPAIGN",
-      OR: [{ instagramAccountId: input.instagramAccountId }, { instagramAccount: { instagramId: input.instagramAccountId } }],
+      AND: [
+        { OR: [{ instagramAccountId: input.instagramAccountId }, { instagramAccount: { instagramId: input.instagramAccountId } }] },
+        { OR: includeId ? [{ active: true }, { id: includeId }] : [{ active: true }] },
+      ],
     },
     orderBy: { createdAt: "asc" },
   });
+  const campaigns = found.map((c) => (includeId && c.id === includeId ? { ...c, active: true } : c));
 
   const state = input.contactState ?? "NEW";
   const selection = selectDmCampaign(campaigns, {

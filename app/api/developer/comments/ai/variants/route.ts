@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return jsonError(firstIssue(parsed.error), 400);
 
   try {
-    return jsonOk(await generateVariantDrafts(parsed.data));
+    return jsonOk(await generateVariantDrafts(parsed.data, { workspaceId: auth.ctx.workspaceId }));
   } catch (error) {
     if (error instanceof AiVariantsError) {
       return jsonError(error.message, AI_ERROR_STATUS[error.code], { code: error.code });

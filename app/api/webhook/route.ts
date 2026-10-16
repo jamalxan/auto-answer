@@ -126,6 +126,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Tag the delivery with its workspace for EVERY entry (not only comment /
+    // DM ones), so "last event" in Foundation sees postbacks, echoes, mentions
+    // and story replies too. Best effort.
+    try {
+      const entryIds = ((payload as { entry?: Array<{ id?: string }> }).entry ?? [])
+        .map((entry) => entry.id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
+      if (entryIds.length) {
+        const owner = await prisma.instagramAccount.findFirst({
+          where: { instagramId: { in: entryIds } },
+          select: { workspaceId: true },
+        });
+        if (owner) {
+          await prisma.webhookEvent.update({ where: { id: webhookEvent.id }, data: { workspaceId: owner.workspaceId } });
+        }
+      }
+    } catch (tagError) {
+      console.error("[Webhook] Failed to tag webhook workspace:", tagError instanceof Error ? tagError.message : tagError);
+    }
+
     // Instagram Trigger Engine (dev) first: it stores the events (only for
     // accounts that have a trigger campaign) and decides, once, which DMs /
     // story mentions / ad and link messages an ETAP 3 Direct or Story Mention

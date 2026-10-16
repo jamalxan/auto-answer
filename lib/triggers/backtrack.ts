@@ -36,7 +36,7 @@ import { readAccessToken } from "./delivery";
 import { classifySendError } from "./errors";
 import { storeEvent } from "./ingest";
 import { selectCommentCampaign } from "./matching";
-import type { NormalizedInstagramEvent } from "./normalize";
+import { notLogOnlyEventWhere, type NormalizedInstagramEvent } from "./normalize";
 import { enqueueEvent } from "./queue";
 
 export const BACKTRACK_MAX_DAYS = 7;
@@ -214,7 +214,7 @@ async function scan(runId: string, campaign: CampaignWithAccount, days: number):
     const ids = comments.map((c) => c.id);
     const [events, answered] = await Promise.all([
       prisma.instagramEvent.findMany({
-        where: { instagramAccountId: account.id, messageId: { in: ids } },
+        where: { instagramAccountId: account.id, messageId: { in: ids }, ...notLogOnlyEventWhere() },
         select: { messageId: true },
       }),
       prisma.dmLog.findMany({

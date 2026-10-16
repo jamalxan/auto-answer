@@ -39,7 +39,7 @@ import {
   type CommentMatchableCampaign,
   type DmTriggerEventType,
 } from "./matching";
-import { isC2Payload } from "./normalize";
+import { isC2Payload, notLogOnlyEventWhere } from "./normalize";
 
 const CLAIM_TTL_MS = 30_000;
 /** Accounts known to have no active COMMENT campaign, until `expires`. */
@@ -127,7 +127,7 @@ const CONVERSATION_ACTIVE_MS = 24 * HOUR_MS;
 /** Messages that make up a DM conversation (for "reopened"). Comments do not. */
 const DM_SIDE_EVENT_TYPES = ["DIRECT_MESSAGE", "STORY_REPLY", "STORY_MENTION"] as const;
 /** Not an interaction with the account (observation only, never booked on the contact). */
-const NOT_HISTORY_EVENT_TYPES = ["MESSAGE_REACTION", "STORY_REACTION"] as const;
+const NOT_HISTORY_EVENT_TYPES = ["MESSAGE_REACTION", "STORY_REACTION", "ECHO", "POSTBACK", "OTHER"] as const;
 /** Executions whose thread a plain DM continues (direct-handler.ts bookkeeping). */
 export const CONVERSATION_EVENT_TYPES = ["COMMENT", "LIVE_COMMENT", "DIRECT_MESSAGE", "STORY_MENTION"] as const;
 /** Of those, the ones started by a (live) comment: the other bot. */
@@ -283,14 +283,16 @@ export async function decideDmTrigger(
     : { timestamp: { lte: query.at } };
 
   const previous = await db.instagramEvent.findFirst({
-    where: { ...person, eventType: { notIn: [...NOT_HISTORY_EVENT_TYPES] }, ...upToNow },
+    // Log-only rows (stored while no automation existed) are not interactions: a
+    // first DM after the first campaign is created is still a NEW_CONTACT.
+    where: { ...person, eventType: { notIn: [...NOT_HISTORY_EVENT_TYPES] }, AND: [upToNow, notLogOnlyEventWhere()] },
     select: { id: true },
   });
 
   let hoursSincePreviousInbound: number | null = null;
   if (previous && list.some((c) => c.audience === "REOPENED")) {
     const previousDm = await db.instagramEvent.findFirst({
-      where: { ...person, eventType: { in: [...DM_SIDE_EVENT_TYPES] }, ...upToNow },
+      where: { ...person, eventType: { in: [...DM_SIDE_EVENT_TYPES] }, AND: [upToNow, notLogOnlyEventWhere()] },
       orderBy: { timestamp: "desc" },
       select: { timestamp: true },
     });

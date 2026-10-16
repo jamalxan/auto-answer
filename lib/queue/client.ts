@@ -33,6 +33,9 @@ export interface ProcessCommentJob {
   // from. Campaigns are bound to that post, so both ids have to be matched.
   originalMediaId?: string;
   requeueAttempt?: number;
+  // ISO time of the comment itself when known (reconciler): the hourly-limit
+  // requeue loop gives up once it is older than Meta's private-reply window.
+  commentAt?: string;
   // Which path enqueued this comment. It is not copied to ProcessedComment or
   // used for reconciliation dedup.
   source?: CommentSource;

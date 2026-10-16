@@ -541,6 +541,39 @@ describe("follow-up sweep", () => {
     expect(mocks.sendDirectMessage).not.toHaveBeenCalled();
   });
 
+  it("stop on purchase: a CRM deal won (or a lead created) cancels the follow-ups; switched off, they still go", async () => {
+    await deliver(commentPayload("cmt1", "narx"));
+    const exec = execution();
+    await deliver(postback("mid.tap.1", `c2:${exec.id}:open`));
+    db.seed("crmContact", { id: "ct1", workspaceId: "ws1", instagramAccountId: "acc1", igUserId: USER });
+    db.seed("crmDeal", { id: "dl1", workspaceId: "ws1", contactId: "ct1", pipelineId: "p1", stageId: "s1", title: "Bitim", wonAt: new Date(Date.now() + 3600_000) });
+
+    const result = await runDueFollowUps(new Date(Date.now() + 2 * 3600_000));
+    expect(result.sent).toBe(0);
+    expect(mocks.sendDirectMessage).not.toHaveBeenCalled();
+    expect(rows("triggerFollowUpRun").filter((r) => r.status === "CANCELLED").length).toBeGreaterThan(0);
+    expect(rows("triggerExecution")[0].stopReason).toContain("CRM bitim yutildi");
+  });
+
+  it("stop on purchase off: the same won deal does not stop the follow-up", async () => {
+    campaign.stopOnPurchase = false;
+    await deliver(commentPayload("cmt1", "narx"));
+    await deliver(postback("mid.tap.1", `c2:${execution().id}:open`));
+    db.seed("crmContact", { id: "ct1", workspaceId: "ws1", instagramAccountId: "acc1", igUserId: USER });
+    db.seed("crmDeal", { id: "dl1", workspaceId: "ws1", contactId: "ct1", pipelineId: "p1", stageId: "s1", title: "Bitim", wonAt: new Date(Date.now() + 3600_000) });
+    const result = await runDueFollowUps(new Date(Date.now() + 2 * 3600_000));
+    expect(result.sent).toBe(1);
+  });
+
+  it("stop on purchase: a lead created after the answer stops the follow-ups", async () => {
+    await deliver(commentPayload("cmt1", "narx"));
+    await deliver(postback("mid.tap.1", `c2:${execution().id}:open`));
+    db.seed("lead", { id: "ld1", workspaceId: "ws1", instagramAccountId: "acc1", igUserId: USER, createdAt: new Date(Date.now() + 1000) });
+    const result = await runDueFollowUps(new Date(Date.now() + 2 * 3600_000));
+    expect(result.sent).toBe(0);
+    expect(rows("triggerExecution")[0].stopReason).toContain("lead yaratildi");
+  });
+
   it("retries a temporary failure up to three tries", async () => {
     await deliver(commentPayload("cmt1", "narx"));
     await deliver(postback("mid.tap.1", `c2:${execution().id}:open`));
@@ -630,6 +663,17 @@ describe("simulateComment", () => {
     });
     expect(db.log.length).toBe(before);
     expect(rows("triggerCampaign")[0].sequenceCursor).toBe(0);
+    expect(mocks.sendPrivateReplyWithButton).not.toHaveBeenCalled();
+  });
+
+  it("tests an off (draft / paused) campaign when it is named, still without sending or writing", async () => {
+    campaign.active = false;
+    expect(await simulateComment("ws1", { instagramAccountId: "acc1", mediaId: POST, text: "Цена?" })).toMatchObject({ matched: false });
+    const before = db.log.length;
+    const sim = await simulateComment("ws1", { instagramAccountId: "acc1", mediaId: POST, text: "Цена?", includeCampaignId: "camp1" });
+    expect(sim).toMatchObject({ matched: true, campaignId: "camp1" });
+    expect(db.log.length).toBe(before);
+    expect(rows("triggerCampaign")[0].active).toBe(false);
     expect(mocks.sendPrivateReplyWithButton).not.toHaveBeenCalled();
   });
 

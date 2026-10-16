@@ -119,6 +119,7 @@ export const dmCampaignSchema = z
     stopOnReply: z.boolean().default(true),
     stopOnLead: z.boolean().default(true),
     stopOnHandoff: z.boolean().default(true),
+    stopOnPurchase: z.boolean().default(true),
     responseMessage: z
       .string()
       .trim()
@@ -207,6 +208,8 @@ export const dmSimulateInputSchema = z.object({
   adId: z.string().trim().max(40).nullish().transform((v) => v || undefined),
   ref: z.string().trim().max(D.refLength).nullish().transform((v) => v || undefined),
   contactState: z.enum(["NEW", "RETURNING", "REOPENED"]).default("NEW"),
+  /** The campaign being edited — tested even while it is off (draft / paused). */
+  campaignId: z.string().trim().max(64).nullish().transform((v) => v || null),
 });
 
 // ─── Scoping helpers ──────────────────────────────────────────────────────────
@@ -380,6 +383,7 @@ export async function simulateDmDryRun(workspaceId: string, input: z.infer<typeo
       adId: !mention && input.referralSource === "ADS" ? input.adId : undefined,
       ref: !mention && input.referralSource === "LINK" ? input.ref : undefined,
       contactState: input.contactState,
+      includeCampaignId: input.campaignId,
     })
   );
 }

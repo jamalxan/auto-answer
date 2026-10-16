@@ -29,6 +29,38 @@ function AlertBanner({
   );
 }
 
+function TelegramBanner({ title, body, cta }: { title: string; body: string; cta: string }) {
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+  // Non-blocking: amber, dismissible for this visit, never replaces the page.
+  return (
+    <div className="mb-6 flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-400">
+        <Icon name="alert" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-amber-300">{title}</p>
+        <p className="mt-0.5 text-sm text-amber-200/80">{body}</p>
+        <Link
+          href="/integrations"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-3 py-1.5 text-sm font-semibold text-amber-300 hover:bg-amber-500/25"
+        >
+          {cta}
+          <Icon name="arrowRight" className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+      <button
+        type="button"
+        onClick={() => setHidden(true)}
+        aria-label="×"
+        className="h-8 w-8 shrink-0 rounded-lg text-amber-300/70 hover:bg-amber-500/15"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 interface DashboardShellProps {
   children: React.ReactNode;
   workspaceName: string;
@@ -37,6 +69,8 @@ interface DashboardShellProps {
   isAdmin?: boolean;
   suspendedBanner?: { title: string; body: string } | null;
   tokenBanner?: { title: string; body: string; cta: string } | null;
+  /** B-27: Telegram not connected, so no warning reaches anyone. */
+  telegramBanner?: { title: string; body: string; cta: string } | null;
 }
 
 export default function DashboardShell({
@@ -47,6 +81,7 @@ export default function DashboardShell({
   isAdmin = false,
   suspendedBanner = null,
   tokenBanner = null,
+  telegramBanner = null,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -88,6 +123,7 @@ export default function DashboardShell({
                 </Link>
               </AlertBanner>
             )}
+            {telegramBanner && <TelegramBanner {...telegramBanner} />}
             {children}
           </div>
         </main>

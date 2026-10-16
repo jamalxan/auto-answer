@@ -46,8 +46,8 @@ function Stat({
   const good = deltaPct === null || deltaPct === undefined || deltaPct === 0 ? null : inverse ? deltaPct < 0 : deltaPct > 0;
   return (
     <div className="panel min-w-0 rounded-xl px-4 py-3" title={hint}>
-      <p className="label-mono truncate text-[10px] font-semibold text-muted">{label}</p>
-      <p className="mt-1 truncate text-xl font-bold text-foreground">{value}</p>
+      <p className="label-mono break-words text-[10px] font-semibold text-muted">{label}</p>
+      <p className="mt-1 break-words text-xl font-bold leading-tight text-foreground">{value}</p>
       {(delta || compare) && (
         <p className="mt-0.5 truncate text-[11px] text-muted">
           {delta && <span className={good === null ? "" : good ? "text-success" : "text-error"}>{delta}</span>}

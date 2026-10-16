@@ -35,7 +35,7 @@ export default function SimulatorSection({
   mediaIds: string[];
   /** Unsaved changes: the test runs on what is saved. */
   dirty: boolean;
-  /** The engine only matches active campaigns. */
+  /** Off campaigns are still tested (the simulator treats the edited one as active). */
   active: boolean;
   /** Live campaigns are tested as a live comment: no post to pick. */
   eventType?: "COMMENT" | "LIVE_COMMENT";
@@ -59,6 +59,7 @@ export default function SimulatorSection({
           text,
           mediaId: eventType === "LIVE_COMMENT" ? null : mediaId.trim() || null,
           eventType,
+          campaignId,
         })
       );
       if (mine !== seq.current) return;
@@ -77,7 +78,11 @@ export default function SimulatorSection({
   return (
     <div className="space-y-3">
       {!active && (
-        <Notice tone="warning">Kampaniya o&apos;chiq — test faqat faol kampaniyalarni tekshiradi, shu kampaniya javob bermaydi.</Notice>
+        <Notice tone="info">
+          {campaignId
+            ? "Kampaniya hozir o'chiq (qoralama/pauza) — test uni faol deb hisoblab tekshiradi. Test faqat simulyator: hech narsa yuborilmaydi."
+            : "Kampaniya hali saqlanmagan — avval «Saqlash» ni bosing, shunda test uni ham tekshiradi."}
+        </Notice>
       )}
       {dirty && (
         <Notice tone="warning">Saqlanmagan o&apos;zgarishlar bor — test saqlangan sozlamalar bo&apos;yicha ishlaydi.</Notice>

@@ -24,8 +24,12 @@ export const javobAiConfigSchema = z.object({
   maxTurns: z.number().int().min(4).max(30).default(12),
   /** The agent asks for the phone once the lead is at least this warm. */
   askPhoneAtTemperature: z.enum(["WARM", "HOT"]).default("WARM"),
-  /** Short grounded replies still allowed while a handoff is pending. */
-  postHandoffReplies: z.number().int().min(0).max(3).default(2),
+  /**
+   * Replies the AI may still send while a handoff is pending. 0 (default for
+   * NEW configs, B-06): after the handoff message the AI stays silent and the
+   * manager owns the thread. Stored configs keep whatever they saved.
+   */
+  postHandoffReplies: z.number().int().min(0).max(3).default(0),
   /** An operator silent for this long closes the handoff; the AI may resume. */
   resumeAfterCloseHours: z.number().int().min(1).max(168).default(24),
   /**

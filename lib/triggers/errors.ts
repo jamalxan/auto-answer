@@ -28,6 +28,8 @@ export interface ClassifiedFailure {
   retryable: boolean;
   userMessage: string;
   technical: string;
+  /** rate_limit only: wait until the hourly window ends (TTL-based) instead of the fixed 65 min. */
+  retryAfterMs?: number;
 }
 
 // Rejections no retry can fix: the 24-hour messaging window only closes, and

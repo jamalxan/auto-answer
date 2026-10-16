@@ -128,7 +128,7 @@ export default function TestConsole({
   const sendQueue = result ? [...result.sends] : [];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
       <section aria-label="Test kirishlari" className="panel space-y-4 rounded-xl p-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-foreground">Kirishlar</h3>
@@ -270,7 +270,7 @@ export default function TestConsole({
             {result.variables && Object.keys(result.variables).length > 0 && (
               <section aria-label="O'zgaruvchilar" className="rounded-xl border border-border p-3">
                 <h3 className="mb-2 text-sm font-semibold text-foreground">O&apos;zgaruvchilar</h3>
-                <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
                   {Object.entries(result.variables).map(([k, v]) => (
                     <div key={k} className="contents">
                       <dt className="label-mono text-[11px] text-muted">{k}</dt>

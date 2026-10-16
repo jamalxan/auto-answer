@@ -283,6 +283,7 @@ async function sweepCampaign(
         instagramAccountId: account.instagramId,
         commentId: c.id,
         commentText: c.text ?? "",
+        commentAt: c.timestamp,
         commenterId: c.from!.id,
         commenterName: c.from?.username,
         mediaId,
@@ -338,12 +339,53 @@ export async function adMediaFor(postId: string): Promise<string[]> {
   }
 }
 
+const SWEEP_REPEAT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 async function recordSweep(
   workspaceId: string,
   stat: SweepStat
 ): Promise<void> {
-  // Only log when something happened or something went wrong.
+  // Only log when something happened or something went wrong (B-39: a sweep
+  // that found nothing is silent; it used to be easy to mistake for spam).
   if (stat.enqueued === 0 && stat.errors.length === 0) return;
+
+  const prefix = `Comment sweep "${stat.campaign}" [${stat.keywords}]`;
+  if (stat.enqueued === 0) {
+    // Error-only sweeps repeat every 5 minutes with the same cause: group them
+    // into one row (repeatCount + lastSeenAt) instead of a new row each time.
+    const message = `${prefix}: xato — ${stat.errors.slice(0, 3).join("; ")}`.slice(0, 500);
+    try {
+      const existing = await prisma.operationalEvent.findFirst({
+        where: {
+          workspaceId,
+          source: "SYSTEM",
+          message,
+          resolvedAt: null,
+          createdAt: { gte: new Date(Date.now() - SWEEP_REPEAT_WINDOW_MS) },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, payload: true },
+      });
+      if (existing) {
+        const previous = (existing.payload ?? {}) as { repeatCount?: number };
+        await prisma.operationalEvent.update({
+          where: { id: existing.id },
+          data: {
+            payload: { ...stat, repeatCount: (previous.repeatCount ?? 1) + 1, lastSeenAt: new Date().toISOString() },
+          },
+        });
+        return;
+      }
+    } catch {
+      // grouping is best effort: fall through and write a plain row
+    }
+    await prisma.operationalEvent
+      .create({
+        data: { workspaceId, source: "SYSTEM", level: "WARNING", message, payload: { ...stat, repeatCount: 1 } },
+      })
+      .catch(() => {});
+    return;
+  }
 
   await prisma.operationalEvent
     .create({
@@ -351,7 +393,7 @@ async function recordSweep(
         workspaceId,
         source: "SYSTEM",
         level: stat.errors.length > 0 ? "WARNING" : "INFO",
-        message: `Comment sweep "${stat.campaign}" [${stat.keywords}]: ${stat.enqueued} enqueued, ${stat.matched} matched, ${stat.alreadyReplied} already replied`,
+        message: `${prefix}: ${stat.enqueued} enqueued, ${stat.matched} matched, ${stat.alreadyReplied} already replied`,
         payload: { ...stat },
       },
     })

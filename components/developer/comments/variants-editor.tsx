@@ -90,7 +90,7 @@ export default function VariantsEditor({
       {items.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted">
           Hali variant yo&apos;q.{" "}
-          {kind === "DM" ? "Variant bo'lmasa, pastdagi zaxira matn yuboriladi." : "Ochiq javob uchun kamida 1 ta variant kerak."}
+          {kind === "DM" ? "Tasdiqlangan variant bo'lmasa, «Kengaytirilgan» dagi zaxira matn yuboriladi (u ham bo'sh bo'lsa, javob ketmaydi)." : "Ochiq javob uchun kamida 1 ta variant kerak."}
         </p>
       ) : (
         <ol className="space-y-2">

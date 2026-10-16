@@ -17,6 +17,7 @@ vi.mock("../lib/telegram/notify", () => ({
   alertWorkspace: vi.fn(async () => {}),
   sendWithRetry: vi.fn(async () => ({ message_id: 11 })),
   notifyWorkspaceChats: vi.fn(async () => 1),
+  getWorkspaceChats: vi.fn(async () => [{ id: "c1", chatId: "1", integrationId: "t1" }]),
 }));
 vi.mock("../lib/telegram/api", async (original) => ({
   ...(await original<typeof import("../lib/telegram/api")>()),

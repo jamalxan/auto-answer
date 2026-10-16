@@ -19,7 +19,7 @@ import type { Collected } from "@/lib/leads/service";
 import { isRepeat } from "./humanize";
 import { detectLanguage, normalizeLang, type Lang } from "./language";
 import { LLM_JSON_SCHEMA, parseLlmOutput, type LlmOutput } from "./llm-output";
-import { llmTimeoutMs, type LLMProvider, type LlmMessage } from "./llm/provider";
+import { LlmError, llmTimeoutMs, type LLMProvider, type LlmMessage } from "./llm/provider";
 import { filterReply, type BlockReason } from "./post-filter";
 import {
   buildSystemPrompt,
@@ -27,6 +27,7 @@ import {
   type ProfileSnapshot,
   type StageValue,
 } from "./prompt";
+import { validateLeadName } from "@/lib/leads/validate";
 import { pickTemplate, renderFinalMessage, type TemplateKey } from "./templates";
 
 export type ActiveState = "NEW" | "NEED" | "CONTACT";
@@ -121,19 +122,26 @@ export function catalogMatch(profile: ProfileSnapshot, text: string): string | n
   return null;
 }
 
-/** A usable first name: 1–3 words, letters only, sensible length. */
+/** A usable first name: 1–3 words, letters only, sensible length (shared validator: lib/leads/validate). */
 export function sanitizeName(value: string | null | undefined): string | null {
   if (!value) return null;
+  // An email (or anything with "@") is never a name: it has its own field.
+  if (value.includes("@")) return null;
   const cleaned = value.replace(/[^\p{L}\s'‘’`ʻ.-]/gu, " ").replace(/\s+/g, " ").trim();
   if (!cleaned || cleaned.length > 40) return null;
   const words = cleaned.split(" ");
   if (words.length > 3) return null;
   if (words.some((w) => NAME_STOP.has(w.toLowerCase()))) return null;
-  return cleaned.replace(/(^|\s)\p{L}/gu, (m) => m.toUpperCase());
+  return validateLeadName(value);
+}
+
+/** Remove e-mail addresses from text so the remaining words can be read as a name. */
+export function stripEmail(text: string): string {
+  return text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, " ").replace(/\s+/g, " ").trim();
 }
 
 function nameFromRemainder(text: string): string | null {
-  return sanitizeName(stripPhone(text));
+  return sanitizeName(stripEmail(stripPhone(text)));
 }
 
 function stageFor(ctx: TurnContext, complaint: boolean): StageValue {
@@ -178,7 +186,7 @@ async function callLlm(
     stage,
     nextStep,
   });
-  const messages = mergeHistory(ctx.history.slice(-12), ctx.customerText);
+  const messages = mergeHistory(ctx.history.slice(-8), ctx.customerText);
 
   let extraNudge = "";
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -211,16 +219,20 @@ async function callLlm(
       events.push({ type: "llm_bad_json", payload: { attempt } });
     } catch (error) {
       usages.push({
-        model: ctx.llm.model,
+        model: error instanceof LlmError && error.model ? error.model : ctx.llm.model,
         inputTokens: 0,
         outputTokens: 0,
         costUsd: 0,
-        latencyMs: 0,
+        latencyMs: error instanceof LlmError ? error.latencyMs : 0,
         ok: false,
       });
       events.push({
         type: "llm_error",
-        payload: { message: error instanceof Error ? error.message : String(error) },
+        payload: {
+          message: error instanceof LlmError ? error.message : "LLM error",
+          kind: error instanceof LlmError ? error.kind : "unknown",
+          status: error instanceof LlmError ? (error.status ?? null) : null,
+        },
       });
       // A provider outage will not heal within the same turn.
       return { output: null, usages, events, failed: true };

@@ -146,7 +146,7 @@ export default function GamificationTab({ meta }: { meta: Meta }) {
               <p className="text-xs text-muted">Kontakt umumiy ball chegarasiga yetganda nishon oladi.</p>
               <ul className="space-y-2">
                 {settings.badgeRules.map((b, i) => (
-                  <li key={i} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[1fr_1fr_7rem_auto] sm:items-end">
+                  <li key={i} className="grid grid-cols-1 gap-2 rounded-lg border border-border p-3 sm:grid-cols-[1fr_1fr_7rem_auto] sm:items-end">
                     <Field label="Nomi">
                       <input className={inputClass} value={b.name} maxLength={30} disabled={!canManage} onChange={(e) => setBadge(i, { name: e.target.value })} />
                     </Field>

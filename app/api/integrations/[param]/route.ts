@@ -177,6 +177,10 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   if (d.tokenExpiresAt !== undefined) {
     data.tokenExpiresAt = d.tokenExpiresAt ? new Date(d.tokenExpiresAt) : null;
     data.tokenWarnedAt = null;
+  } else if (d.token && integration.type === "AMOCRM") {
+    // A new token invalidates the old expiry date: unknown until the user sets it.
+    data.tokenExpiresAt = null;
+    data.tokenWarnedAt = null;
   }
   if (d.disabled !== undefined) {
     data.status = d.disabled ? "DISABLED" : integration.status === "DISABLED" ? "ACTIVE" : integration.status;
@@ -190,7 +194,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   const updated = await prisma.integration.update({ where: { id }, data });
   // New credentials: verify right away; if it works, held leads are released.
   if (d.token || d.webhookUrl) {
-    const result = await runConnectionCheck(id);
+    const result = await runConnectionCheck(id, { manual: true });
     if (!result.ok) return jsonError(result.reason === "auth" ? "invalid_credentials" : "connection_failed", 422, { code: result.reason });
   }
   const fresh = await prisma.integration.findUniqueOrThrow({ where: { id }, include: { telegramChats: true } });

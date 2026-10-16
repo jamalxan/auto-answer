@@ -146,6 +146,9 @@ const EVENT_TYPES: InstagramEventType[] = [
   "STORY_REACTION",
   "COMMENT",
   "MESSAGE_REACTION",
+  "ECHO",
+  "POSTBACK",
+  "OTHER",
 ];
 const EVENT_STATUSES: InstagramEventStatus[] = ["PENDING", "PROCESSING", "PROCESSED", "IGNORED", "RETRYING", "FAILED"];
 

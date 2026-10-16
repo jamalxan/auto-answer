@@ -70,11 +70,13 @@ describe("LLM fallback models", () => {
     expect(models).toEqual(["main-model", "main-model", "main-model", "backup-model"]);
   });
 
-  it("does not switch models for a non-transient error", async () => {
-    const fetchMock = mockStatuses([400]);
+  it("does not switch models for a non-transient error (400 gets one degraded retry on the same model)", async () => {
+    const fetchMock = mockStatuses([400, 400]);
     const withFallback = new OpenAICompatibleProvider("key", "main-model", "https://x/v1", ["backup-model"]);
     await expect(withFallback.complete(request)).rejects.toMatchObject({ status: 400 });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const models = fetchMock.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string).model);
+    expect(models).toEqual(["main-model", "main-model"]);
   });
 
   it("moves to the next model after a timeout or network error", async () => {
@@ -84,17 +86,24 @@ describe("LLM fallback models", () => {
       return new Response(JSON.stringify(ok), { status: 200 });
     });
     vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
     const withFallback = new OpenAICompatibleProvider("key", "main-model", "https://x/v1", ["backup-model"]);
-    const result = await withFallback.complete(request);
+    const pending = withFallback.complete(request);
+    await vi.advanceTimersByTimeAsync(3000);
+    const result = await pending;
 
     expect(result.model).toBe("backup-model");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // main model: 1 try + 2 backoff retries, then the fallback.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("reports the network error when every model is unreachable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
+    vi.useFakeTimers();
     const withFallback = new OpenAICompatibleProvider("key", "main-model", "https://x/v1", ["backup-model"]);
-    await expect(withFallback.complete(request)).rejects.toMatchObject({ name: "LlmError", status: undefined });
+    const assertion = expect(withFallback.complete(request)).rejects.toMatchObject({ name: "LlmError", status: undefined });
+    await vi.advanceTimersByTimeAsync(5000);
+    await assertion;
   });
 
   it("prices a call by the model that actually answered", () => {

@@ -217,6 +217,8 @@ model InstagramAccount {
   tokenLastError    String?
   tokenBrokenAt     DateTime?
   tokenAlertedAt    DateTime?
+  // Per-account hourly outbound DM cap; null = DM_HOURLY_LIMIT_DEFAULT (200).
+  dmHourlyLimit     Int?
   connectedAt       DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
@@ -646,6 +648,10 @@ model Integration {
   tokenWarnedAt        DateTime?
   lastCheckedAt        DateTime?
   lastError            String?
+  // Review fix M5: "integration lost" alert at most once per 6h (flapping must not spam),
+  // and consecutive passing health checks needed before a BROKEN integration resumes.
+  brokenAlertedAt      DateTime?
+  healthOkStreak       Int               @default(0)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -795,6 +801,9 @@ model Lead {
   // Why the lead is special: "no_phone" | "complaint" | null
   flag               String?
   isTest             Boolean    @default(false)
+  // "LEAD" = valid phone or explicit buying interest; "CONTACT" = neither
+  // (never delivered to amoCRM/Bitrix24). See lib/leads/validate.ts.
+  kind               String     @default("LEAD")
   // conversationId:leadCycle - makes lead creation idempotent per conversation
   // while still allowing a fresh lead when the chat restarts after 30 days.
   idempotencyKey     String     @unique
@@ -1050,6 +1059,11 @@ enum InstagramEventType {
   // Any reaction to a message (message_reactions). Stored in observation mode
   // only: whether story reactions arrive this way is not documented.
   MESSAGE_REACTION
+  // Logged-only webhook items (always IGNORED, never answered): the account's
+  // own echoes, postbacks production handles, and every other webhook field.
+  ECHO
+  POSTBACK
+  OTHER
 }
 
 enum InstagramEventStatus {
@@ -1270,6 +1284,8 @@ model TriggerCampaign {
   stopOnReply        Boolean           @default(true)
   stopOnLead         Boolean           @default(true)
   stopOnHandoff      Boolean           @default(true)
+  // Stop follow-ups once the person bought: a Lead was created or a CRM deal is WON.
+  stopOnPurchase     Boolean           @default(true)
 
   // -- ETAP 6: a published Flow owns a hidden proxy row so the webhook's single
   // claim / matching / gate logic stays the only one. CAMPAIGN = normal rows.

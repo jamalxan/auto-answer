@@ -80,12 +80,39 @@ export interface RollupAllResult {
   failed: number;
 }
 
+export const INITIAL_BACKFILL_DAYS = 30;
+const backfilled = new Set<string>();
+
+/**
+ * B-11: a workspace whose history was never rolled up (analytics enabled
+ * after the product was already live) showed 0 leads / 0 comments while the
+ * Panel, reading the live tables, showed real numbers. When a workspace has no
+ * rollup row at all, the last 30 days are computed once. Idempotent (days are
+ * replaced, never appended) and safe to repeat; once per process per workspace
+ * at most. Returns the days computed (0 = nothing to do).
+ */
+export async function ensureInitialBackfill(workspaceId: string, now: Date = new Date()): Promise<number> {
+  if (backfilled.has(workspaceId)) return 0;
+  backfilled.add(workspaceId);
+  const existing = await prisma.analyticsDaily.count({ where: { workspaceId } });
+  if (existing > 0) return 0;
+  const window = backfillWindow(INITIAL_BACKFILL_DAYS, now);
+  const results = await rollupRange(workspaceId, window.from, window.to, now);
+  return results.length;
+}
+
+/** Tests: forget which workspaces were backfilled. */
+export function resetInitialBackfillForTests(): void {
+  backfilled.clear();
+}
+
 /** One pass over every active workspace; a failing workspace never stops the others. */
 export async function rollupAll(range: { from: string; to: string }, now: Date = new Date()): Promise<RollupAllResult> {
   const ids = await activeWorkspaceIds();
   let failed = 0;
   for (const workspaceId of ids) {
     try {
+      await ensureInitialBackfill(workspaceId, now);
       await rollupRange(workspaceId, range.from, range.to, now);
     } catch (error) {
       failed += 1;

@@ -17,11 +17,23 @@ export const fail = (status: number, error: string): { ok: false; status: number
 
 export const done = <T>(data: T): { ok: true; data: T } => ({ ok: true, data });
 
+/** Zod's default English messages → plain Uzbek (custom messages pass through untouched). */
+function plainMessage(message: string): string {
+  if (/^Invalid input: expected .*received undefined/i.test(message)) return "kiritilmagan";
+  if (/^Invalid input: expected/i.test(message)) return "noto'g'ri turdagi qiymat";
+  if (/^Invalid input$/i.test(message) || /^Invalid (option|value|enum)/i.test(message)) return "noto'g'ri qiymat";
+  if (/^Too small/i.test(message)) return "qiymat juda kichik yoki qisqa";
+  if (/^Too big/i.test(message)) return "qiymat juda katta yoki uzun";
+  if (/^Invalid /i.test(message)) return "noto'g'ri format";
+  return message;
+}
+
 export function firstIssue(error: z.ZodError): string {
   const issue = error.issues[0];
   if (!issue) return "Noto'g'ri ma'lumot";
   const path = issue.path.filter((p) => typeof p === "string").join(".");
-  return path ? `${path}: ${issue.message}` : issue.message;
+  const message = plainMessage(issue.message);
+  return path ? `${path}: ${message}` : message;
 }
 
 /** Prisma unique-constraint violation (P2002), duck-typed so tests can throw it. */
