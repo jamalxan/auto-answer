@@ -1,5 +1,9 @@
 # Deploy plan — audit fixes + developer area (ETAP 1–10)
 
+> Update 2026-10-17: ETAP 9 (Engagement) is now part of the chain; the tip to
+> merge is `developer-etap9` (not `developer-etap6`). One more additive
+> migration: `20261021100000_engagement_etap9`. Switch: `ENGAGEMENT_DISABLED`.
+
 Server: AWS `ubuntu@32.199.91.62` (nginx on the host, Docker compose project
 `socialauto` in `~/socialauto`). CI/CD already exists: a push to `master`
 runs `.github/workflows/deploy.yml` (typecheck + tests → image to GHCR →
@@ -50,8 +54,8 @@ Checked on 2026-10-16:
 ## Merge and deploy
 
 The seven earlier commits and the later ones form one chain
-(`audit-fixes → developer-etap1 → … → developer-etap6`). Merge the tip
-(`developer-etap6`) into `master` with a normal merge commit, then push
+(`audit-fixes → developer-etap1 → … → developer-etap9`). Merge the tip
+(`developer-etap9`) into `master` with a normal merge commit, then push
 `master`; the Deploy workflow does the rest. Because the chain is linear a
 fast-forward is enough.
 
