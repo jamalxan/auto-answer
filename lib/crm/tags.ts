@@ -356,7 +356,8 @@ export async function applyAutomationTags(workspaceId: string, contactId: string
     if (slug) await addAutoTag(workspaceId, contactId, { name, slug }, "AUTOMATION", `campaign:${facts.campaignId}`);
   }
   if (facts.adId) await addAutoTag(workspaceId, contactId, AUTO_TAGS.reklama, "AUTOMATION", `ad:${facts.adId}`);
-  if (facts.ref) {
+  // "rf_<code>" refs are referral links (ETAP 9): a code is not a campaign link, so no "havola:" tag.
+  if (facts.ref && !facts.ref.toLowerCase().startsWith("rf_")) {
     const tag = namespacedTag(LINK_TAG_PREFIX, facts.ref.slice(0, 60));
     if (tag) await addAutoTag(workspaceId, contactId, tag, "AUTOMATION", `ref:${facts.ref}`);
   }

@@ -215,3 +215,27 @@ Eslatmalar:
 - "Qabul qilindi (Meta)" v1 da "Yuborildi" bilan teng (Meta yetkazib berish kvitansiyasini alohida bermaydi).
 - "AI hal qildi" qat'iy: lid yig'ilgan va suhbatda hech qachon operatorga topshirish bo'lmagan.
 - "Javoblar": trigger'larda mijozning birinchi xabari (`firstInboundAt`); bu maydon qo'shilishidan oldingi yozuvlarda "ochilgan" vaqti ishlatiladi.
+
+## ETAP 9 — Engagement (`/developer/engagement`)
+
+Giveaway (komment → qatnashchi → commit → qur'a → tasdiq → xabar), Referral va Gamification.
+`ENGAGEMENT_DISABLED=1` — favqulodda o'chirish (sahifada qizil ogohlantirish chiqadi). Sinov uchun
+Instagram akkaunt, 24 soatlik oyna ochiq va yopiq ikkita test odam, Telegram ulangan workspace kerak.
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| E1 | Giveaway tabida "Yangi giveaway": akkaunt → postni tanlang (rasm), qoidalar, davr (7 kun), 1 g'olib + 2 zaxira → "Qoralama sifatida saqlash" → "Faollashtirish" | Qoralama saqlanadi (sarlavhada "Saqlanmagan o'zgarishlar" saqlashdan keyin yo'qoladi); bosqichlar DRAFT → Faol; faollashtirishdan keyin "Tahrirlash" tugmasi yo'q (qoidalar qotadi); Viewer/Operator'da "Yangi giveaway" tugmasi ko'rinmaydi |
+| E2 | Test odam postga izoh yozadi; sahifani 1 daqiqa kuzating (15 s da o'zi yangilanadi) | Izoh ≤ 1 daqiqada ishtirokchilar jadvalida (holat, tekshiruvlar, izoh vaqti); "Ishtirokchi" hisoblagichi 1 ga oshadi |
+| E3 | Xuddi shu odam yana 2 ta izoh yozadi | Yangi qator qo'shilmaydi: bitta ishtirok, "3 ta izoh (bitta ishtirok)" belgisi; eligible soni o'zgarmaydi |
+| E4 | "Do'stlarni belgilash" (kamida 2) yoqing; izoh 1: `@ali` ; izoh 2: `@ali @vali @ali` | 1-izoh "Mos emas" (sabab: kamida 2 ta farqli do'st); 2-izoh "Qabul qilindi" (belgilanganlar: @ali, @vali — bir xil @ali bitta sanaladi); qoidalar yonida "Qisman" nishoni va tushuntirish ko'rinadi |
+| E5 | "Obuna bo'lish" + "Menga ko'rsating" yoqilgan; Instagram obunani tasdiqlay olmaydigan odam izoh yozadi | Holat "Tekshirilmoqda", obuna natijasi "Tasdiqlab bo'lmadi"; qatorda "Qabul qilish / Rad etish"; yuqorida "Tekshirib bo'lmaydiganlarni qabul qilish" bitta bosishda hammasini qabul qiladi ("N ta qabul qilindi") |
+| E6 | "Yopish va commit" (inline tasdiq) | Holat Yopilgan; commitment hash ko'rinadi va "Hashni nusxalash" ishlaydi; tushuntirish: qur'adan keyin sha256(seed) shu hashga teng bo'ladi; hali g'olib va seed ko'rinmaydi; yangi izoh endi qabul qilinmaydi |
+| E7 | "Qur'a tashlash" → "Tekshirish" → `…/verify` ga mustaqil POST (`seedHex`, `commitment`, `entrants`, `winners`) | G'oliblar va zaxira ro'yxati, bir qatorli tekshirish satri; "Tekshirish" — "Tekshiruv o'tdi"; mustaqil POST ham `ok: true`; commitment = sha256(ochilgan seed); g'oliblar ro'yxatini o'zgartirib yuborsangiz `ok: false` + sabab; seed'ning shifrlangan nusxasi hech bir javobda yo'q |
+| E8 | G'olibni "Chetlatish…" (sabab yozing) | Joriy qur'a "Bekor qilingan" (tarixda ko'rinadi, sabab bilan), yangi qur'a YANGI commitment bilan tashlanadi va "Tasdiq kutilmoqda"; eski qur'aning seed'i ochiq qoladi va u ham "Tekshirish" dan o'tadi; sababsiz chetlatish tugmasi ishlamaydi |
+| E9 | Qur'ani "Tasdiqlash", so'ng "G'oliblarga xabar": bir g'olib oyna ochiq, ikkinchisi yopiq | Tasdiqlamaguncha xabar tugmasi yo'q va hech narsa ketmaydi; ochiq oynadagiga Direct, yopiq oynadagiga izoh ostida bitta ochiq javob ("@user tabriklaymiz! Direct'ga yozing"), Telegram'ga har doim ro'yxat; har g'olib ostida kanal natijasi va sababi; qayta bosish ikkinchi xabar yubormaydi |
+| E10 | Referral tabi: dasturni yoqing (birinchi xabar, ball 10, Telegram), kontaktga kod yarating, havolani do'st ochib birinchi xabarini yozadi; keyin kontaktning o'z havolasi bilan o'zi yozadi; Gamification tabida ballarni ko'ring | Do'st birinchi xabarida taklif "Mukofotlandi": teg + ball + Telegram; o'zini o'zi taklif "Shubhali (o'zini taklif qildi)" bo'lib tasdiqingizni kutadi (Tasdiqlash / Rad etish); ball jurnalida bitta yozuv — qayta ishlansa ikkilanmaydi; yetarli ballda nishon beriladi; reytingda kontakt ko'rinadi; izoh uchun ball sukut bo'yicha o'chiq |
+
+Eslatmalar:
+- Havola (`ig.me/m/<username>?ref=rf_<kod>`) yangi suhbatni faqat Icebreakers sozlangan bo'lsa va telefon ilovasida ochadi, Instagram Web'da ishlamaydi — dastur yoqilganda sahifada shu haqida ogohlantirish chiqadi.
+- "Qoidalar (Meta)" tabida platforma cheklovlari (yoqtirish/saqlash/ulashish tekshirilmaydi, obuna "imkon qadar", 5 000 izoh chegarasi, bir izohga bitta DM) ro'yxati bor.
+- Rollar: Ko'ruvchi va Operator hamma narsani ko'radi, lekin yozish va qur'a tugmalari 403 beradi; CSV eksport faqat Menejer+ (`export_data`).

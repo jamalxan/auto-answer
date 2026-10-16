@@ -40,6 +40,7 @@ import {
 } from "./normalize";
 import { findPendingLeadExecution, phoneFromText } from "./lead-capture";
 import { enqueueEvent } from "./queue";
+import { hasActiveEngagement } from "@/lib/engagement/gate";
 
 export interface IngestResult {
   stored: string[];
@@ -58,7 +59,7 @@ export interface IngestResult {
 interface AccountGate {
   id: string;
   workspaceId: string;
-  /** False when the account has no trigger campaign: the engine stays out. */
+  /** False when the account has no trigger campaign, giveaway or referral program: the engine stays out. */
   engaged: boolean;
 }
 
@@ -82,11 +83,13 @@ async function loadAccountGate(instagramId: string): Promise<AccountGate | null>
     select: { id: true, workspaceId: true, _count: { select: { triggerCampaigns: true } } },
   });
   // With flows off their hidden proxy campaigns (kind FLOW) must not engage the account.
-  const engaged = account
+  let engaged = account
     ? isFlowsEnabled()
       ? account._count.triggerCampaigns > 0
       : (await prisma.triggerCampaign.count({ where: { instagramAccountId: account.id, kind: "CAMPAIGN" } })) > 0
     : false;
+  // ETAP 9: an ACTIVE giveaway or referral program engages the account too (its comments / refs must be stored).
+  if (account && !engaged) engaged = await hasActiveEngagement(account.id);
   const value = account ? { id: account.id, workspaceId: account.workspaceId, engaged } : null;
   gateCache.set(instagramId, { value, expires: Date.now() + GATE_TTL_MS });
   return value;

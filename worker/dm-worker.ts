@@ -12,6 +12,8 @@ import { isOutboundBusEnabled } from "@/lib/integrations2/config";
 import { createIntegrationsWorker, runIntegrationsMaintenance } from "@/lib/integrations2/worker";
 import { createFlowsWorker, isFlowsEnabled, runFlowsMaintenance } from "@/lib/flows/worker";
 import { createAnalyticsWorker, isAnalyticsEnabled, runAnalyticsMaintenance } from "@/lib/analytics/worker";
+import { createEngagementWorker, isEngagementEnabled, runEngagementMaintenance } from "@/lib/engagement/worker";
+import { registerEngagementReferralModule } from "@/lib/engagement/referral/module";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -31,6 +33,9 @@ const analyticsWorker = isAnalyticsEnabled() ? createAnalyticsWorker() : null;
 const flowsWorker = isFlowsEnabled() ? createFlowsWorker() : null;
 // Integrations 2.0 (dev, ETAP 8): the outbound event bus ("integrations" queue), off with INTEGRATIONS_BUS_DISABLED=1.
 const integrationsWorker = isOutboundBusEnabled() ? createIntegrationsWorker() : null;
+// Engagement (dev, ETAP 9): giveaway backfill / notify jobs plus the collector tick, off with ENGAGEMENT_DISABLED=1.
+if (isEngagementEnabled()) registerEngagementReferralModule();
+const engagementWorker = isEngagementEnabled() ? createEngagementWorker() : null;
 const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because
@@ -82,6 +87,8 @@ const maintenanceTimer = setInterval(() => {
   if (flowsWorker) void runFlowsMaintenance();
   // Rollups every 10 min and alerts every 5 min (both self-throttled).
   if (analyticsWorker) void runAnalyticsMaintenance();
+  // Giveaway collector and the registered engagement tasks (self-throttled).
+  if (engagementWorker) void runEngagementMaintenance();
 }, 60_000);
 
 async function shutdown(signal: string) {
@@ -97,6 +104,7 @@ async function shutdown(signal: string) {
   await integrationsWorker?.close();
   await flowsWorker?.close();
   await analyticsWorker?.close();
+  await engagementWorker?.close();
   process.exit(0);
 }
 

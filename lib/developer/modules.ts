@@ -95,7 +95,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 9,
     title: "Engagement",
     summary: "Giveaway, referral, gamification.",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/engagement",
   },
   {
     key: "content-analytics",

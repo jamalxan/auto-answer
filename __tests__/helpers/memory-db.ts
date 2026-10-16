@@ -179,6 +179,46 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   flowRunStep: {
     run: { model: "flowRun", fk: "runId", kind: "one" },
   },
+  // Engagement (ETAP 9)
+  giveaway: {
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+    entries: { model: "giveawayEntry", fk: "giveawayId", kind: "many" },
+    draws: { model: "giveawayDraw", fk: "giveawayId", kind: "many" },
+    notifications: { model: "giveawayNotification", fk: "giveawayId", kind: "many" },
+  },
+  giveawayEntry: {
+    giveaway: { model: "giveaway", fk: "giveawayId", kind: "one" },
+  },
+  giveawayDraw: {
+    giveaway: { model: "giveaway", fk: "giveawayId", kind: "one" },
+  },
+  giveawayNotification: {
+    giveaway: { model: "giveaway", fk: "giveawayId", kind: "one" },
+  },
+  referralProgram: {
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+    codes: { model: "referralCode", fk: "programId", kind: "many" },
+    events: { model: "referralEvent", fk: "programId", kind: "many" },
+  },
+  referralCode: {
+    program: { model: "referralProgram", fk: "programId", kind: "one" },
+    events: { model: "referralEvent", fk: "codeId", kind: "many" },
+  },
+  referralEvent: {
+    program: { model: "referralProgram", fk: "programId", kind: "one" },
+    code: { model: "referralCode", fk: "codeId", kind: "one" },
+  },
+  engagementSettings: {
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+  },
+  engagementPoint: {
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+  },
+  engagementBadge: {
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+  },
 };
 
 /**
@@ -219,6 +259,16 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   // Analytics (ETAP 10)
   analyticsDaily: [["workspaceId", "instagramAccountId", "day", "metric", "dimKind", "dimId"]],
   analyticsAlertState: [["workspaceId", "rule"]],
+  // Engagement (ETAP 9)
+  giveawayEntry: [["giveawayId", "igUserId"]],
+  giveawayDraw: [["giveawayId", "sequence"]],
+  referralProgram: [["instagramAccountId"]],
+  referralCode: [["instagramAccountId", "code"], ["programId", "igUserId"]],
+  referralEvent: [["programId", "refereeIgUserId"]],
+  engagementSettings: [["workspaceId"]],
+  engagementPoint: [["sourceTable", "sourceId", "reason"]],
+  giveawayNotification: [["giveawayId", "entryId", "channel"]],
+  engagementBadge: [["contactId", "badgeKey"]],
 };
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -325,6 +375,31 @@ const DEFAULTS: Record<string, () => Row> = {
     signature: null, externalId: null, externalUrl: null, durationMs: null, sentAt: null, subscriptionId: null,
   }),
   integrationSubscription: () => ({ filter: {}, active: true }),
+  // Engagement (ETAP 9)
+  giveaway: () => ({
+    description: null, mediaMeta: null, status: "DRAFT", winnersCount: 1, backupCount: 0, seedCommitment: null, seedEncrypted: null,
+    committedAt: null, confirmCampaignId: null, collectCursorAt: null, collectCursorId: null, backfillStatus: null,
+    backfillScanned: 0, backfillError: null, entriesCount: 0, eligibleCount: 0, createdByUserId: null,
+  }),
+  giveawayEntry: () => ({
+    username: null, contactId: null, commentCount: 1, sourceEventIds: [], mentionEventId: null, mentionedAt: null,
+    taggedUsernames: [], followResult: "NOT_CHECKED", followCheckedAt: null, checks: {}, status: "PENDING_CHECK",
+    ineligibleReason: null, disqualifiedAt: null, disqualifiedBy: null, disqualifyReason: null,
+  }),
+  giveawayDraw: () => ({
+    winnerEntryIds: [], backupEntryIds: [], status: "DRAWN", drawnAt: new Date(), confirmedAt: null, confirmedByUserId: null,
+    voidedAt: null, voidReason: null,
+  }),
+  giveawayNotification: () => ({ reason: null, sentMessageId: null, snapshot: null }),
+  referralProgram: () => ({ active: false, qualifier: "FIRST_MESSAGE", rewardRules: {}, burstLimitPerDay: 10 }),
+  referralCode: () => ({ contactId: null, lastSharedAt: null }),
+  referralEvent: () => ({
+    referrerContactId: null, refereeContactId: null, status: "PENDING", qualifiedAt: null, qualifiedBy: null, rewardedAt: null,
+    rewardSnapshot: null, fraudFlags: [], reviewedAt: null, reviewedByUserId: null, rejectReason: null,
+  }),
+  engagementSettings: () => ({ pointsRules: {}, badgeRules: [] }),
+  engagementPoint: () => ({}),
+  engagementBadge: () => ({ awardedAt: new Date() }),
   crmBroadcastRecipient: () => ({
     ineligibleReason: null, status: "PENDING", attempts: 0, sentMessageId: null, sentAt: null, error: null,
     repliedAt: null, replyMessageId: null, convertedAt: null, conversionDealId: null,
@@ -587,10 +662,45 @@ export class MemoryDb {
         db.tables[name] = db.rows(name).filter((r) => !victims.has(r));
         return { count: victims.size };
       },
-      async groupBy({ by, where }: { by: string[]; where?: Row }) {
+      /** Keys only, or with `_sum` / orderBy `_sum.<field>` / take (the engagement leaderboard). */
+      async groupBy({ by, where, _sum, orderBy, take }: { by: string[]; where?: Row; _sum?: Record<string, boolean>; orderBy?: unknown; take?: number }) {
         const seen = new Map<string, Row>();
-        for (const r of find({ where })) seen.set(by.map((k) => r[k]).join("|"), Object.fromEntries(by.map((k) => [k, r[k]])));
-        return [...seen.values()];
+        for (const r of find({ where })) {
+          const key = by.map((k) => r[k]).join("|");
+          const group = seen.get(key) ?? { ...Object.fromEntries(by.map((k) => [k, r[k]])), ...(_sum ? { _sum: Object.fromEntries(Object.keys(_sum).map((f) => [f, 0])) } : {}) };
+          if (_sum) for (const f of Object.keys(_sum)) (group._sum as Row)[f] = Number((group._sum as Row)[f] ?? 0) + (Number(r[f]) || 0);
+          seen.set(key, group);
+        }
+        let list = [...seen.values()];
+        const specs = (Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : []) as Array<Record<string, unknown>>;
+        if (specs.length > 0) {
+          list = list.sort((a, b) => {
+            for (const spec of specs) {
+              const [field, raw] = Object.entries(spec)[0];
+              let x: unknown;
+              let y: unknown;
+              let dir: unknown = raw;
+              if (field === "_sum") {
+                const [f, d] = Object.entries(raw as Row)[0];
+                x = (a._sum as Row)[f];
+                y = (b._sum as Row)[f];
+                dir = d;
+              } else {
+                x = a[field];
+                y = b[field];
+              }
+              if (x === y) continue;
+              const cmp = (x as number | string) < (y as number | string) ? -1 : 1;
+              return dir === "desc" ? -cmp : cmp;
+            }
+            return 0;
+          });
+        }
+        return take !== undefined ? list.slice(0, take) : list;
+      },
+      async aggregate({ where, _sum }: { where?: Row; _sum?: Record<string, boolean> }) {
+        const rows = find({ where });
+        return { _sum: Object.fromEntries(Object.keys(_sum ?? {}).map((f) => [f, rows.length ? rows.reduce((total, r) => total + (Number(r[f]) || 0), 0) : null])) };
       },
     };
   }

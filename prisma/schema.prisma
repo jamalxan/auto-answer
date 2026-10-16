@@ -111,7 +111,14 @@ model Workspace {
   triggerFollowUpRuns  TriggerFollowUpRun[]
   triggerBacktrackRuns TriggerBacktrackRun[]
 
-      // Integrations 2.0 (ETAP 8) and Analytics (ETAP 10), developer area
+      // Engagement (ETAP 9), developer area
+  giveaways           Giveaway[]
+  referralPrograms    ReferralProgram[]
+  engagementSettings  EngagementSettings?
+  engagementPoints    EngagementPoint[]
+  engagementBadges    EngagementBadge[]
+
+  // Integrations 2.0 (ETAP 8) and Analytics (ETAP 10), developer area
   outboundEvents      OutboundEvent[]
   analyticsDaily      AnalyticsDaily[]
   analyticsAlertStates AnalyticsAlertState[]
@@ -221,6 +228,8 @@ model InstagramAccount {
   instagramContacts    InstagramContact[]
   triggerConversations TriggerConversation[]
     javobAiAccount       JavobAiAccount?
+  giveaways            Giveaway[]
+  referralProgram      ReferralProgram?
   flows                Flow[]
 
 
@@ -2473,4 +2482,291 @@ model AnalyticsAlertState {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, rule])
+}
+
+// --- Engagement: Giveaway, Referral, Gamification (developer area, ETAP 9) ---
+// New tables only. See docs/developer/etap-9-engagement.md.
+
+enum GiveawayStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  DRAWN
+  ARCHIVED
+}
+
+enum GiveawayEntryStatus {
+  ELIGIBLE
+  INELIGIBLE
+  PENDING_CHECK
+  WINNER
+  DISQUALIFIED
+}
+
+enum GiveawayDrawStatus {
+  DRAWN
+  CONFIRMED
+  // Re-drawn after a disqualification; kept for the audit trail.
+  VOIDED
+}
+
+enum FollowCheckResult {
+  FOLLOWER
+  NOT_FOLLOWER
+  UNVERIFIABLE
+  NOT_CHECKED
+}
+
+enum ReferralEventStatus {
+  PENDING
+  QUALIFIED
+  REWARDED
+  REJECTED
+}
+
+enum ReferralQualifier {
+  FIRST_MESSAGE
+  LEAD
+  PURCHASE
+}
+
+model Giveaway {
+  id                 String         @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  name               String
+  description        String?
+  // The post. Permalink / caption cached in mediaMeta.
+  mediaId            String
+  mediaMeta          Json?
+  // lib/engagement/giveaway/rules.ts (zod, versioned)
+  rules              Json
+  windowStart        DateTime
+  windowEnd          DateTime
+  status             GiveawayStatus @default(DRAFT)
+  winnersCount       Int            @default(1)
+  backupCount        Int            @default(0)
+  // Commit-reveal: sha256(seed) is public before the draw.
+  seedCommitment     String?
+  seedEncrypted      String?
+  committedAt        DateTime?
+  // Optional Comment 2.0 campaign that sends the participation confirmation.
+  confirmCampaignId  String?
+  // Collector bookkeeping
+  collectCursorAt    DateTime?
+  collectCursorId    String?
+  backfillStatus     String?
+  backfillScanned    Int            @default(0)
+  backfillError      String?
+  entriesCount       Int            @default(0)
+  eligibleCount      Int            @default(0)
+  createdByUserId    String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  entries          GiveawayEntry[]
+  draws            GiveawayDraw[]
+  notifications    GiveawayNotification[]
+
+  @@index([workspaceId, status])
+  @@index([instagramAccountId, mediaId, status])
+}
+
+model GiveawayEntry {
+  id               String              @id @default(cuid())
+  giveawayId       String
+  workspaceId      String
+  igUserId         String
+  username         String?
+  contactId        String?
+  firstCommentId   String
+  firstCommentText String
+  firstCommentAt   DateTime
+  commentCount     Int                 @default(1)
+  // InstagramEvent ids (empty for backfilled entries)
+  sourceEventIds   String[]            @default([])
+  mentionEventId   String?
+  mentionedAt      DateTime?
+  taggedUsernames  String[]            @default([])
+  followResult     FollowCheckResult   @default(NOT_CHECKED)
+  followCheckedAt  DateTime?
+  // { ruleKey: { passed, detail, at } }
+  checks           Json                @default("{}")
+  status           GiveawayEntryStatus @default(PENDING_CHECK)
+  ineligibleReason String?
+  disqualifiedAt   DateTime?
+  disqualifiedBy   String?
+  disqualifyReason String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+
+  @@unique([giveawayId, igUserId])
+  @@index([giveawayId, status])
+  @@index([contactId])
+}
+
+model GiveawayDraw {
+  id                String             @id @default(cuid())
+  giveawayId        String
+  workspaceId       String
+  sequence          Int
+  algorithm         String
+  seedCommitment    String
+  seedRevealed      String
+  // sha256 of the sorted eligible igUserId list.
+  entrantsHash      String
+  entrantsCount     Int
+  winnersCount      Int
+  winnerEntryIds    String[]           @default([])
+  backupEntryIds    String[]           @default([])
+  // One line anyone can recompute.
+  verification      String
+  status            GiveawayDrawStatus @default(DRAWN)
+  drawnAt           DateTime           @default(now())
+  confirmedAt       DateTime?
+  confirmedByUserId String?
+  voidedAt          DateTime?
+  voidReason        String?
+
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+
+  @@unique([giveawayId, sequence])
+}
+
+/// One winner-outreach attempt per channel.
+model GiveawayNotification {
+  id            String   @id @default(cuid())
+  giveawayId    String
+  entryId       String
+  // DM | PUBLIC_REPLY | TELEGRAM
+  channel       String
+  // PENDING (claimed, sending) | SENT | SKIPPED | FAILED
+  status        String
+  reason        String?
+  sentMessageId String?
+  snapshot      Json?
+  createdAt     DateTime @default(now())
+  // A PENDING claim older than 10 minutes is "unknown" and never resent by itself.
+  updatedAt     DateTime @updatedAt
+
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+
+  // Claim-first idempotency: one row per winner and channel (Telegram: entryId "draw:<seq>").
+  @@unique([giveawayId, entryId, channel])
+}
+
+model ReferralProgram {
+  id                 String            @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String            @unique
+  name               String
+  active             Boolean           @default(false)
+  qualifier          ReferralQualifier @default(FIRST_MESSAGE)
+  // { tagSlug?, points?, telegramOwner, dmTemplate?, refereeDmTemplate? }
+  rewardRules        Json              @default("{}")
+  burstLimitPerDay   Int               @default(10)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  codes            ReferralCode[]
+  events           ReferralEvent[]
+
+  @@index([workspaceId])
+}
+
+model ReferralCode {
+  id                 String    @id @default(cuid())
+  programId          String
+  workspaceId        String
+  instagramAccountId String
+  contactId          String?
+  // The referrer
+  igUserId           String
+  code               String
+  createdAt          DateTime  @default(now())
+  lastSharedAt       DateTime?
+
+  program ReferralProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  events  ReferralEvent[]
+
+  @@unique([instagramAccountId, code])
+  @@unique([programId, igUserId])
+}
+
+model ReferralEvent {
+  id                String              @id @default(cuid())
+  programId         String
+  workspaceId       String
+  codeId            String
+  referrerIgUserId  String
+  referrerContactId String?
+  refereeIgUserId   String
+  refereeContactId  String?
+  // The InstagramEvent that carried the ref.
+  sourceEventId     String
+  status            ReferralEventStatus @default(PENDING)
+  qualifiedAt       DateTime?
+  qualifiedBy       ReferralQualifier?
+  rewardedAt        DateTime?
+  rewardSnapshot    Json?
+  // SELF_REFERRAL | SAME_PHONE | BURST | ALREADY_KNOWN_CONTACT
+  fraudFlags        String[]            @default([])
+  reviewedAt        DateTime?
+  reviewedByUserId  String?
+  rejectReason      String?
+  createdAt         DateTime            @default(now())
+
+  program ReferralProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  code    ReferralCode    @relation(fields: [codeId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, refereeIgUserId])
+  @@index([programId, status])
+  @@index([referrerIgUserId, createdAt])
+}
+
+/// Points per reason and badge thresholds (defaults live in code).
+model EngagementSettings {
+  workspaceId String   @id
+  pointsRules Json     @default("{}")
+  badgeRules  Json     @default("[]")
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model EngagementPoint {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contactId   String
+  points      Int
+  reason      String
+  sourceTable String
+  sourceId    String
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceTable, sourceId, reason])
+  @@index([workspaceId, contactId])
+  @@index([workspaceId, occurredAt])
+}
+
+model EngagementBadge {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contactId   String
+  badgeKey    String
+  awardedAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, badgeKey])
+  @@index([workspaceId])
 }
