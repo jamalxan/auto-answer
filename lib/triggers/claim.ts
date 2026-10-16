@@ -28,6 +28,8 @@
 
 import { prisma } from "@/lib/db/client";
 import type { InstagramEventType, Prisma } from "@/app/generated/prisma/client";
+import { FLOW_OWNS_THREAD_REASON, flowOwnsThread } from "@/lib/flows/bridge";
+import { flowKindFilter, isFlowPayload } from "@/lib/flows/config";
 import { isTriggerEngineEnabled } from "./config";
 import { STOP_ON_REPLY_REASON } from "./lead-capture";
 import {
@@ -65,6 +67,8 @@ async function loadCampaigns(accountKey: string): Promise<CommentMatchableCampai
     where: {
       triggerType: "COMMENT",
       active: true,
+      // Flow proxy campaigns (ETAP 6) claim comments too; invisible with FLOWS_DISABLED=1.
+      ...flowKindFilter(),
       OR: [{ instagramAccountId: accountKey }, { instagramAccount: { instagramId: accountKey } }],
     },
     select: {
@@ -112,7 +116,7 @@ export async function isCommentClaimedByCommentEngine(
  * findClaimedC2Messages in ingest.ts, which applies this to a whole payload).
  */
 export function isClaimedC2Payload(payload: string | null | undefined): boolean {
-  return isTriggerEngineEnabled() && isC2Payload(payload);
+  return isTriggerEngineEnabled() && (isC2Payload(payload) || isFlowPayload(payload));
 }
 
 /// ─── DM-side triggers (ETAP 3) ────────────────────────────────────────────────
@@ -139,7 +143,7 @@ export type TriggerDb = Prisma.TransactionClient;
 
 export async function loadDmTriggerCampaigns(accountId: string, type: DmTriggerEventType, db: TriggerDb = prisma) {
   return db.triggerCampaign.findMany({
-    where: { instagramAccountId: accountId, triggerType: type, active: true },
+    where: { instagramAccountId: accountId, triggerType: type, active: true, ...flowKindFilter() },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -269,6 +273,8 @@ export async function decideDmTrigger(
       db
     );
     if (owners.length > 0) return none(COMMENT_OWNS_THREAD_REASON);
+    // A live flow run (ETAP 6) owns the thread: no second bot starts talking.
+    if (await flowOwnsThread(query.accountId, query.senderId, db)) return none(FLOW_OWNS_THREAD_REASON);
   }
 
   const person = { instagramAccountId: query.accountId, senderId: query.senderId };

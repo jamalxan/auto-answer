@@ -19,6 +19,8 @@
 
 import { prisma } from "@/lib/db/client";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { findConsumingRun } from "@/lib/flows/bridge";
+import { isFlowPayload, isFlowsEnabled } from "@/lib/flows/config";
 import { isTriggerEngineEnabled } from "./config";
 import { selectCampaign } from "./matching";
 import {
@@ -79,9 +81,13 @@ async function loadAccountGate(instagramId: string): Promise<AccountGate | null>
     where: { instagramId },
     select: { id: true, workspaceId: true, _count: { select: { triggerCampaigns: true } } },
   });
-  const value = account
-    ? { id: account.id, workspaceId: account.workspaceId, engaged: account._count.triggerCampaigns > 0 }
-    : null;
+  // With flows off their hidden proxy campaigns (kind FLOW) must not engage the account.
+  const engaged = account
+    ? isFlowsEnabled()
+      ? account._count.triggerCampaigns > 0
+      : (await prisma.triggerCampaign.count({ where: { instagramAccountId: account.id, kind: "CAMPAIGN" } })) > 0
+    : false;
+  const value = account ? { id: account.id, workspaceId: account.workspaceId, engaged } : null;
   gateCache.set(instagramId, { value, expires: Date.now() + GATE_TTL_MS });
   return value;
 }
@@ -399,7 +405,7 @@ export function findClaimedC2Messages(payload: unknown): Set<string> {
   const claimed = new Set<string>();
   if (!isTriggerEngineEnabled()) return claimed;
   for (const event of normalizeWebhookPayload(payload as RawWebhookPayload)) {
-    if (event.type === "DIRECT_MESSAGE" && isC2Payload(event.payload)) {
+    if (event.type === "DIRECT_MESSAGE" && (isC2Payload(event.payload) || isFlowPayload(event.payload))) {
       claimed.add(storyReplyKey(event.instagramAccountId, event.messageId));
     }
   }
@@ -421,7 +427,7 @@ export async function findClaimedLeadPhoneMessages(payload: unknown, now: Date =
   if (!isTriggerEngineEnabled()) return claimed;
   try {
     for (const event of normalizeWebhookPayload(payload as RawWebhookPayload)) {
-      if (event.type !== "DIRECT_MESSAGE" || isC2Payload(event.payload) || !phoneFromText(event.text)) continue;
+      if (event.type !== "DIRECT_MESSAGE" || isC2Payload(event.payload) || isFlowPayload(event.payload) || !phoneFromText(event.text)) continue;
       const gate = await loadAccountGate(event.instagramAccountId);
       if (!gate || !gate.engaged) continue;
       if (await findPendingLeadExecution(gate, event.senderId, now)) {
@@ -431,6 +437,38 @@ export async function findClaimedLeadPhoneMessages(payload: unknown, now: Date =
   } catch (error) {
     console.error(
       "[Trigger Engine] lead phone claim check failed, nothing claimed:",
+      error instanceof Error ? error.message : error
+    );
+    return new Set();
+  }
+  return claimed;
+}
+
+/**
+ * Plain DMs from someone whose flow run waits for an answer (ETAP 6: an AI
+ * ask, a button node's chips, a reopen wait), as storyReplyKey()s. The flow
+ * handler answers them (bridge.ts handleFlowInbound uses the same
+ * `findConsumingRun`), so the webhook route keeps them away from the DM
+ * keyword path and the assistant — claim and handler agree, or the message
+ * gets two answers or none. Cheap: plain DMs only, only on accounts with a
+ * campaign or flow (cached gate). Never throws: on any error nothing is
+ * claimed and those paths run as before.
+ */
+export async function findClaimedFlowMessages(payload: unknown): Promise<Set<string>> {
+  const claimed = new Set<string>();
+  if (!isTriggerEngineEnabled() || !isFlowsEnabled()) return claimed;
+  try {
+    for (const event of normalizeWebhookPayload(payload as RawWebhookPayload)) {
+      if (event.type !== "DIRECT_MESSAGE" || event.payload) continue;
+      const gate = await loadAccountGate(event.instagramAccountId);
+      if (!gate || !gate.engaged) continue;
+      if (await findConsumingRun(gate.id, event.senderId)) {
+        claimed.add(storyReplyKey(event.instagramAccountId, event.messageId));
+      }
+    }
+  } catch (error) {
+    console.error(
+      "[Trigger Engine] flow claim check failed, nothing claimed:",
       error instanceof Error ? error.message : error
     );
     return new Set();

@@ -86,7 +86,7 @@ export class AmoClient {
   }
 
   async request<T>(
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "PATCH",
     path: string,
     body?: unknown,
     attempt = 0
@@ -160,6 +160,32 @@ export class AmoClient {
       name: f.name,
       type: f.type,
     }));
+  }
+
+  /** Lead custom fields (ETAP 8 enrichment: pick the "score" field). */
+  async listLeadFields() {
+    const data = await this.request<{
+      _embedded?: { custom_fields: Array<{ id: number; name: string; type: string }> };
+    }>("GET", "/api/v4/leads/custom_fields");
+    return (data?._embedded?.custom_fields ?? []).map((f) => ({
+      id: f.id,
+      name: f.name,
+      type: f.type,
+    }));
+  }
+
+  /** A lead with its tags (ETAP 8 enrichment merges tags: a PATCH replaces the whole set). */
+  getLead(leadId: number) {
+    return this.request<{
+      id: number;
+      status_id?: number;
+      pipeline_id?: number;
+      _embedded?: { tags?: Array<{ id?: number; name: string }> };
+    }>("GET", `/api/v4/leads/${leadId}`);
+  }
+
+  updateLead(leadId: number, patch: Record<string, unknown>) {
+    return this.request("PATCH", `/api/v4/leads/${leadId}`, patch);
   }
 
   addNote(leadId: number, text: string) {

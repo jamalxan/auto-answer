@@ -19,6 +19,8 @@
  */
 
 import { prisma } from "@/lib/db/client";
+import { startFlowFromCampaign } from "@/lib/flows/bridge";
+import { flowKindFilter } from "@/lib/flows/config";
 import { sendPrivateReply, sendPrivateReplyWithButton } from "@/lib/meta/client";
 import { openPayload } from "./comment-handler";
 import { enrichContact, recordInteraction, storeMessage } from "./contacts";
@@ -74,13 +76,15 @@ export async function handleLiveComment(event: EventWithAccount): Promise<Handle
   }
 
   const campaigns = await prisma.triggerCampaign.findMany({
-    where: { instagramAccountId: account.id, triggerType: "LIVE_COMMENT", active: true },
+    where: { instagramAccountId: account.id, triggerType: "LIVE_COMMENT", active: true, ...flowKindFilter() },
     orderBy: { createdAt: "asc" },
   });
   const selection = selectCommentCampaign(campaigns, { mediaId: event.mediaId, text: event.text, eventType: "LIVE_COMMENT" });
   if (!selection.campaign) return { status: "IGNORED", error: selection.ignoredReason };
   const campaign = selection.campaign;
   const matchedKeyword = describeCommentMatch(selection);
+  // ETAP 6: a published flow answers instead of the campaign's own message.
+  if (campaign.kind === "FLOW") return startFlowFromCampaign(event, campaign, interaction, matchedKeyword);
   const tooOld = isLiveCommentTooOld(event.timestamp);
 
   const start = await beginExecution(event, campaign.id, async () => {

@@ -21,6 +21,7 @@ export const JAVOBAI_USAGE_KINDS = [
   "javobai_stt",
   "javobai_vision",
   "javobai_sandbox",
+  "javobai_flowbuilder",
 ] as const;
 export type JavobAiUsageKind = (typeof JAVOBAI_USAGE_KINDS)[number];
 
@@ -31,6 +32,7 @@ export const JAVOBAI_USAGE_KIND_LABELS: Record<JavobAiUsageKind, string> = {
   javobai_stt: "Ovozli xabarlar (STT)",
   javobai_vision: "Rasmlar (vision)",
   javobai_sandbox: "Sandbox",
+  javobai_flowbuilder: "Flow Builder (AI)",
 };
 
 export function isJavobAiKind(kind: string): boolean {

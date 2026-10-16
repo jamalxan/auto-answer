@@ -20,6 +20,8 @@
  */
 
 import { prisma } from "@/lib/db/client";
+import { startFlowFromCampaign } from "@/lib/flows/bridge";
+import { flowKindFilter } from "@/lib/flows/config";
 import { sendCommentReply, sendPrivateReply, sendPrivateReplyWithButton } from "@/lib/meta/client";
 import type { TriggerCampaign, TriggerExecution } from "@/app/generated/prisma/client";
 import { enrichContact, recordInteraction, storeMessage } from "./contacts";
@@ -87,7 +89,7 @@ async function loadCommentCampaigns(accountId: string, backtrackRunId: string | 
     campaignId = run?.campaignId ?? "__none__";
   }
   return prisma.triggerCampaign.findMany({
-    where: { instagramAccountId: accountId, triggerType: "COMMENT", active: true, ...(campaignId ? { id: campaignId } : {}) },
+    where: { instagramAccountId: accountId, triggerType: "COMMENT", active: true, ...flowKindFilter(), ...(campaignId ? { id: campaignId } : {}) },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -162,6 +164,8 @@ export async function handleComment(event: EventWithAccount): Promise<HandlerRes
   if (!selection.campaign) return { status: "IGNORED", error: selection.ignoredReason };
   const campaign = selection.campaign;
   const matchedKeyword = describeCommentMatch(selection);
+  // ETAP 6: a published flow answers instead of the campaign's own message.
+  if (campaign.kind === "FLOW") return startFlowFromCampaign(event, campaign, interaction, matchedKeyword);
   const expired = isPrivateReplyExpired(event.timestamp);
 
   let publicText: string | null = null;
@@ -263,6 +267,7 @@ export async function simulateComment(
       workspaceId,
       triggerType: eventType,
       active: true,
+      kind: "CAMPAIGN",
       OR: [{ instagramAccountId: input.instagramAccountId }, { instagramAccount: { instagramId: input.instagramAccountId } }],
     },
     orderBy: { createdAt: "asc" },

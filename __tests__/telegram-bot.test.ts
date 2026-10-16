@@ -634,8 +634,9 @@ describe("management commands", () => {
     seedLinkedOwner();
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "x");
     const profile = db.seed("assistantProfile", { id: "p1", workspaceId: "w1", companyName: "M", description: "x", enabled: true, approvedAt: new Date(), pricePolicy: "EXACT" });
-    const product = db.seed("assistantProduct", { profileId: "p1", name: "Milan", price: 4_500_000, priceUpdatedAt: new Date(Date.now() - 40 * 86_400_000) });
     const tashkent11 = new Date("2026-10-06T06:00:00Z"); // 11:00 in Tashkent
+    // Stale relative to the fixed reminder time, not to today's clock.
+    const product = db.seed("assistantProduct", { profileId: "p1", name: "Milan", price: 4_500_000, priceUpdatedAt: new Date(tashkent11.getTime() - 40 * 86_400_000) });
 
     expect(await runPriceReminders(new Date("2026-10-06T10:00:00Z"))).toBe(0); // wrong hour
     expect(await runPriceReminders(tashkent11)).toBe(1);

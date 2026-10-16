@@ -42,6 +42,7 @@ last_slot=""
 last_daily=""
 last_tokencheck=""
 last_hourly=""
+last_analytics=""
 
 while true; do
   now=$(date -u '+%Y-%m-%d %H:%M')
@@ -89,6 +90,22 @@ while true; do
     last_hourly="$today-$hour"
     call owner-notifications
   fi
+
+  # Analytics (ETAP 10): the trailing-3-day rollup at 00:15 Asia/Tashkent
+  # (= 19:15 UTC), and the monitoring alerts every 5 minutes from the web
+  # process, because a dead worker cannot report itself.
+  if [ "$hhmm" = "19:15" ] && [ "$last_analytics" != "$today" ]; then
+    last_analytics="$today"
+    call analytics-rollup
+  fi
+  case "$minute" in
+    02|07|12|17|22|27|32|37|42|47|52|57)
+      if [ "${last_alerts:-}" != "$hhmm" ]; then
+        last_alerts="$hhmm"
+        call "analytics-rollup?task=alerts"
+      fi
+      ;;
+  esac
 
   # Half a minute: short enough never to skip a slot, long enough to stay idle.
   sleep 30

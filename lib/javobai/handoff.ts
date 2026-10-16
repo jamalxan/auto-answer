@@ -20,6 +20,7 @@ import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email";
 import { getBaseUrl } from "@/lib/env";
+import { emitHandoffOpened } from "@/lib/integrations2/emit";
 import { esc } from "@/lib/telegram/api";
 import { notifyWorkspaceChats } from "@/lib/telegram/notify";
 import { handoffReasonLabel, type HandoffReason } from "./config";
@@ -101,7 +102,8 @@ export async function openHandoff(conversationId: string, input: OpenHandoffInpu
     select: { id: true },
   });
   if (!open) {
-    await prisma.aiHandoff.create({ data: { conversationId, reason: input.reason, status: "OPEN" } });
+    const created = await prisma.aiHandoff.create({ data: { conversationId, reason: input.reason, status: "OPEN" } });
+    void emitHandoffOpened(created.id, conversationId);
   }
   await prisma.aiConversationState.update({ where: { id: state.id }, data: { handoffState: "HANDOFF_PENDING" } });
   await prisma.conversation.update({ where: { id: conversationId }, data: { assistantState: "HANDED_OFF" } });

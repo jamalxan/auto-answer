@@ -15,6 +15,7 @@ import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { routeAssistantEcho, routeAssistantInbound } from "@/lib/javobai/gate";
 import {
   findClaimedC2Messages,
+  findClaimedFlowMessages,
   findClaimedLeadPhoneMessages,
   findClaimedStoryReplies,
   ingestWebhookPayload,
@@ -214,6 +215,9 @@ export async function POST(request: NextRequest) {
       // A phone shared from a Comment 2.0 lead chip may come back without the
       // "c2:" payload; it belongs to that campaign too. Never throws.
       for (const key of await findClaimedLeadPhoneMessages(payload)) claimedStoryReplies.add(key);
+      // A plain DM from someone whose flow run waits for an answer (ETAP 6)
+      // belongs to that flow. Never throws.
+      for (const key of await findClaimedFlowMessages(payload)) claimedStoryReplies.add(key);
     } catch (claimError) {
       console.error(
         "[Webhook] Trigger engine story-reply check failed:",

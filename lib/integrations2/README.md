@@ -149,3 +149,21 @@ cached ~50 min. First append per tab reads row 1; if it is not
 `SHEET_HEADERS` the tab is created (`buildAddSheetRequest`) and the header
 row written (`buildHeaderWriteRequest`). Rows are RAW strings, dates in
 `+05:00`, booleans `ha` / `yo'q`, tags joined by `, `.
+
+## DB / worker layer (ETAP 8, built on the pure modules above)
+
+| File | Role |
+|---|---|
+| `emit.ts` | `emitOutbound` (fire-and-forget, dedupe, kill switch) + the hook-site helpers `emitLeadCreated` / `emitLeadHot` / `emitHandoffOpened` / `emitContactTagged` / `emitBroadcastCompleted`. |
+| `queue.ts` / `worker.ts` | BullMQ queue `integrations` (materialize + deliver jobs, deterministic ids), `createIntegrationsWorker`, `runIntegrationsMaintenance` (due sweep, lost materialise jobs, hourly retention). |
+| `materialize.ts` | Loads the subject, builds + freezes the payload, matches subscriptions, creates `OutboundDelivery` rows; the lead.hot rule. |
+| `deliver.ts` | Lease-claim, retry schedule, DEAD, alert throttle, rate limit, redeliver per delivery / event / all DEAD, BROKEN hold + resume. |
+| `connectors/` | `index.ts` registry; `webhook.ts` (WEBHOOK / MAKE / ZAPIER), `sheets.ts`, `telegram-hot.ts`, `enrich-amo.ts` / `enrich-bitrix.ts` (+ `enrichment.ts`), contract in `types.ts`. |
+| `crm-listener.ts` | `registerCrmListener` for `score.becameHot` → lead.hot and `stage_changed` → deal.stage_changed (registered by the worker). |
+| `service.ts` | The developer API's rules (create / edit / test / subscriptions / enrichment / deliveries); routes in `app/api/developer/integrations`. |
+| `secrets.ts` / `kv.ts` | Encrypted credentials + rotation overlap; Redis key/value with a memory fallback (token cache, rate window, alert throttle). |
+
+Hook sites in production code (each one `void emit…(…)` line): `lib/leads/service.ts` (lead.created, also the test lead),
+`lib/javobai/handoff.ts openHandoff`, `lib/crm/tags.ts addTag`, `lib/crm/broadcast.ts` (COMPLETED). Production guards:
+`enqueueLeadDeliveries` uses `LEAD_PIPELINE_TYPES`; `checkIntegration` sends bus-only types to the connector registry;
+`/api/integrations` and the assistant overview list only the lead-pipeline types.

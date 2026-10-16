@@ -15,6 +15,8 @@ import {
 } from "./bitrix24";
 import { decryptCredentials, encryptCredentials, maskSecret } from "./crypto";
 import { IntegrationAuthError } from "./errors";
+import { checkBusIntegration, isBusOnlyType } from "@/lib/integrations2/connectors";
+import { resumeOutboundIntegration } from "@/lib/integrations2/deliver";
 
 export const AMO_ZONES: AmoZone[] = ["amocrm.ru", "kommo.com", "amocrm.com"];
 
@@ -45,6 +47,8 @@ export interface ConnectionCheck {
 
 /** Real API call against the provider. */
 export async function checkIntegration(integration: Integration): Promise<ConnectionCheck> {
+  // ETAP 8: bus-only types (WEBHOOK / GOOGLE_SHEETS / MAKE / ZAPIER) have their own connector check.
+  if (isBusOnlyType(integration.type)) return checkBusIntegration(integration);
   try {
     if (integration.type === "AMOCRM") {
       await amoClientFromIntegration(integration).checkConnection();
@@ -83,7 +87,10 @@ export async function runConnectionCheck(integrationId: string) {
         lastError: null,
       },
     });
-    if (wasBroken) await resumeIntegration(integration.id);
+    if (wasBroken) {
+      await resumeIntegration(integration.id);
+      await resumeOutboundIntegration(integration.id).catch(() => 0);
+    }
   } else {
     await prisma.integration.update({
       where: { id: integration.id },

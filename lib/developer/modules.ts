@@ -71,7 +71,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 6,
     title: "Flow Builder",
     summary: "Vizual builder: shartlar, harakatlar, delay, tarmoqlar, Simple va Advanced Mode.",
-    status: "BUILDING",
+    status: "TESTING",
     href: "/developer/flows",
   },
   {
@@ -79,14 +79,16 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 7,
     title: "AI Flow Builder",
     summary: "Matndan flow yaratish, preview, AI audit, policy va spam tekshiruvi.",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/flows?tab=ai",
   },
   {
     key: "integrations",
     etap: 8,
     title: "Integrations",
     summary: "Telegram, Google Sheets, Webhook, amoCRM, Bitrix24, Make, Zapier.",
-    status: "PLANNED",
+    status: "TESTING",
+    href: "/developer/integrations",
   },
   {
     key: "engagement",
@@ -98,9 +100,10 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
   {
     key: "content-analytics",
     etap: 10,
-    title: "Content + Analytics",
-    summary: "Post/Reels scheduler, kontent kalendar, kampaniya, AI va sotuv analitikasi, funnel.",
-    status: "PLANNED",
+    title: "Analitika",
+    summary: "Kampaniya, AI va sotuv analitikasi, funnel, KPI va ogohlantirishlar. Scheduler Meta publishing ruxsatigacha kechiktirilgan.",
+    status: "TESTING",
+    href: "/developer/analytics",
   },
   {
     key: "migration",

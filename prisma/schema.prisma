@@ -111,7 +111,12 @@ model Workspace {
   triggerFollowUpRuns  TriggerFollowUpRun[]
   triggerBacktrackRuns TriggerBacktrackRun[]
 
-    // Flow Builder (developer area, ETAP 6/7)
+      // Integrations 2.0 (ETAP 8) and Analytics (ETAP 10), developer area
+  outboundEvents      OutboundEvent[]
+  analyticsDaily      AnalyticsDaily[]
+  analyticsAlertStates AnalyticsAlertState[]
+
+  // Flow Builder (developer area, ETAP 6/7)
   flows               Flow[]
   flowRuns            FlowRun[]
   flowTemplates       FlowTemplate[]
@@ -520,6 +525,11 @@ enum IntegrationType {
   TELEGRAM
   AMOCRM
   BITRIX24
+  // ETAP 8 (developer area): outbound event bus connectors.
+  WEBHOOK
+  GOOGLE_SHEETS
+  MAKE
+  ZAPIER
 }
 
 enum IntegrationStatus {
@@ -627,6 +637,10 @@ model Integration {
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   telegramChats TelegramChat[]
   deliveries    LeadDelivery[]
+
+  // ETAP 8 outbound bus
+  subscriptions      IntegrationSubscription[]
+  outboundDeliveries OutboundDelivery[]
 
   @@index([workspaceId, type])
 }
@@ -1300,7 +1314,9 @@ model TriggerExecution {
   openedAt          DateTime?
   // Last message from the person in this thread; the 24h window runs from it.
   lastInboundAt     DateTime?
-  leadCapturedAt    DateTime?
+    leadCapturedAt    DateTime?
+  // First message from the person after the trigger (analytics: replies).
+  firstInboundAt    DateTime?
   handedOffAt       DateTime?
   // Why follow-ups stopped (reply, lead, handoff, manual cancel).
   stoppedAt         DateTime?
@@ -2339,4 +2355,122 @@ model FlowTemplate {
   createdAt     DateTime @default(now())
 
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// --- Integrations 2.0 outbound event bus (developer area, ETAP 8) ------------
+// LeadDelivery keeps serving Telegram / amoCRM / Bitrix24 lead push; the bus
+// serves the new connector types plus enrichment. See etap-8-integrations.md.
+
+enum OutboundDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  DEAD
+  SKIPPED
+}
+
+model OutboundEvent {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  type               String
+  version            Int       @default(1)
+  subjectType        String
+  subjectId          String
+  instagramAccountId String?
+  isTest             Boolean   @default(false)
+  // Frozen at materialisation; redeliveries reuse it.
+  payload            Json?
+  materializedAt     DateTime?
+  dedupeKey          String
+  occurredAt         DateTime
+  createdAt          DateTime  @default(now())
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries OutboundDelivery[]
+
+  @@unique([workspaceId, dedupeKey])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, type, createdAt])
+  @@index([materializedAt])
+}
+
+model OutboundDelivery {
+  id              String                 @id @default(cuid())
+  eventId         String
+  integrationId   String
+  subscriptionId  String?
+  status          OutboundDeliveryStatus @default(PENDING)
+  attempts        Int                    @default(0)
+  nextAttemptAt   DateTime?
+  lastError       String?
+  responseCode    Int?
+  // <= 300 chars, phones masked.
+  responseSnippet String?
+  signature       String?
+  externalId      String?
+  externalUrl     String?
+  durationMs      Int?
+  sentAt          DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  event       OutboundEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  integration Integration   @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, integrationId])
+  @@index([status, nextAttemptAt])
+  @@index([integrationId, status, createdAt])
+}
+
+model IntegrationSubscription {
+  id            String   @id @default(cuid())
+  integrationId String
+  eventType     String
+  // lib/integrations2/subscriptions.ts filter DSL
+  filter        Json     @default("{}")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, eventType])
+}
+
+// --- Analytics rollups and alert state (developer area, ETAP 10) -------------
+
+/// Pre-aggregated daily metric. Sums and counts only; rates are derived at
+/// read time. Tashkent calendar day. Recomputing a day replaces its rows.
+model AnalyticsDaily {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  // "" = workspace-wide (no FK on purpose, avoids NULL in the unique key).
+  instagramAccountId String   @default("")
+  day                DateTime @db.Date
+  metric             String
+  // "" | automation | trigger_campaign | broadcast | reason | kind | pipeline | member
+  dimKind            String   @default("")
+  dimId              String   @default("")
+  value              Decimal  @default(0) @db.Decimal(18, 6)
+  computedAt         DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, instagramAccountId, day, metric, dimKind, dimId])
+  @@index([workspaceId, metric, day])
+  @@index([workspaceId, day])
+}
+
+/// Cooldown bookkeeping for monitoring alerts (DB, not a Redis TTL, so a
+/// Redis flush does not re-alert).
+model AnalyticsAlertState {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  rule          String
+  lastAlertedAt DateTime
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, rule])
 }

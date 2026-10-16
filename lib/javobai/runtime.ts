@@ -50,6 +50,7 @@ import { decryptToken } from "@/lib/meta/oauth";
 import { markTokenBroken } from "@/lib/meta/token-health";
 import { getRedisConnection } from "@/lib/queue/client";
 import { CONVERSATION_EVENT_TYPES, findActiveConversations } from "@/lib/triggers/claim";
+import { findConsumingRun } from "@/lib/flows/bridge";
 import { findPendingLeadExecution } from "@/lib/triggers/lead-capture";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
 import {
@@ -337,6 +338,12 @@ export async function handleJavobAiInbound(job: JavobAiInboundJob): Promise<void
     const pendingLead = await findPendingLeadExecution({ id: account.id }, job.senderId).catch(() => null);
     if (pendingLead) {
       await logEvent(account.workspaceId, conversation.id, "trigger_owns_thread", { executionId: pendingLead.id, reason: "lead_capture" });
+      return;
+    }
+    // A flow run (ETAP 6) waiting for this person's answer owns the thread.
+    const flowRun = await findConsumingRun(account.id, job.senderId).catch(() => null);
+    if (flowRun) {
+      await logEvent(account.workspaceId, conversation.id, "trigger_owns_thread", { runId: flowRun.id, reason: "flow" });
       return;
     }
   }

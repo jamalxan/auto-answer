@@ -2,6 +2,7 @@ import { jsonOk, requireWorkspace } from "@/lib/api-auth";
 import { canManageWorkspace } from "@/lib/workspace-access";
 import { prisma } from "@/lib/db/client";
 import { serializeIntegration } from "@/lib/integrations/service";
+import { LEAD_PIPELINE_TYPES } from "@/lib/integrations2/config";
 import { getBotUsername, isTelegramConfigured } from "@/lib/telegram/api";
 import { isFeatureEnabled } from "@/lib/assistant/profile";
 
@@ -13,7 +14,8 @@ export async function GET() {
 
   const [integrations, accounts, pending, dead] = await Promise.all([
     prisma.integration.findMany({
-      where: { workspaceId: auth.ctx.workspaceId },
+      // Bus-only types (Webhook / Sheets / Make / Zapier) live in /developer/integrations.
+      where: { workspaceId: auth.ctx.workspaceId, type: { in: [...LEAD_PIPELINE_TYPES] } },
       include: { telegramChats: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "asc" },
     }),

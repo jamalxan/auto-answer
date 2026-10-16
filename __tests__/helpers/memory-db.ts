@@ -45,6 +45,19 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   },
   integration: {
     telegramChats: { model: "telegramChat", fk: "integrationId", kind: "many" },
+    subscriptions: { model: "integrationSubscription", fk: "integrationId", kind: "many" },
+    outboundDeliveries: { model: "outboundDelivery", fk: "integrationId", kind: "many" },
+  },
+  // Integrations 2.0 (ETAP 8)
+  outboundEvent: {
+    deliveries: { model: "outboundDelivery", fk: "eventId", kind: "many" },
+  },
+  outboundDelivery: {
+    event: { model: "outboundEvent", fk: "eventId", kind: "one" },
+    integration: { model: "integration", fk: "integrationId", kind: "one" },
+  },
+  integrationSubscription: {
+    integration: { model: "integration", fk: "integrationId", kind: "one" },
   },
   telegramChat: {
     integration: { model: "integration", fk: "integrationId", kind: "one" },
@@ -67,6 +80,8 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   },
   triggerCampaign: {
     instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+    flow: { model: "flow", fk: "proxyCampaignId", kind: "one", inverse: true },
+    replyVariants: { model: "triggerReplyVariant", fk: "campaignId", kind: "many" },
     quickReplies: { model: "triggerQuickReply", fk: "campaignId", kind: "many" },
     followUpSteps: { model: "triggerFollowUpStep", fk: "campaignId", kind: "many" },
   },
@@ -91,6 +106,9 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   },
   aiHandoff: {
     conversation: { model: "conversation", fk: "conversationId", kind: "one" },
+  },
+  aiLeadInsight: {
+    lead: { model: "lead", fk: "leadId", kind: "one" },
   },
   // CRM (ETAP 5)
   crmContact: {
@@ -142,6 +160,25 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     broadcast: { model: "crmBroadcast", fk: "broadcastId", kind: "one" },
     contact: { model: "crmContact", fk: "contactId", kind: "one" },
   },
+  // Flow Builder (ETAP 6)
+  flow: {
+    versions: { model: "flowVersion", fk: "flowId", kind: "many" },
+    runs: { model: "flowRun", fk: "flowId", kind: "many" },
+    proxyCampaign: { model: "triggerCampaign", fk: "proxyCampaignId", kind: "one" },
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+  },
+  flowVersion: {
+    flow: { model: "flow", fk: "flowId", kind: "one" },
+    runs: { model: "flowRun", fk: "versionId", kind: "many" },
+  },
+  flowRun: {
+    flow: { model: "flow", fk: "flowId", kind: "one" },
+    version: { model: "flowVersion", fk: "versionId", kind: "one" },
+    steps: { model: "flowRunStep", fk: "runId", kind: "many" },
+  },
+  flowRunStep: {
+    run: { model: "flowRun", fk: "runId", kind: "one" },
+  },
 };
 
 /**
@@ -170,6 +207,18 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   crmActivity: [["sourceTable", "sourceId", "type"]],
   crmSyncCursor: [["source"]],
   crmBroadcastRecipient: [["broadcastId", "contactId"]],
+  // Integrations 2.0 (ETAP 8)
+  outboundEvent: [["workspaceId", "dedupeKey"]],
+  outboundDelivery: [["eventId", "integrationId"]],
+  integrationSubscription: [["integrationId", "eventType"]],
+  // Flow Builder (ETAP 6)
+  flowVersion: [["flowId", "version"]],
+  flowRun: [["executionId"]],
+  flowRunStep: [["runId", "seq"]],
+  flow: [["proxyCampaignId"], ["publishedVersionId"], ["draftVersionId"]],
+  // Analytics (ETAP 10)
+  analyticsDaily: [["workspaceId", "instagramAccountId", "day", "metric", "dimKind", "dimId"]],
+  analyticsAlertState: [["workspaceId", "rule"]],
 };
 
 const DEFAULTS: Record<string, () => Row> = {
@@ -208,7 +257,7 @@ const DEFAULTS: Record<string, () => Row> = {
     processedAt: null, contactId: null, conversationId: null, storyId: null, storyUrl: null, mediaId: null,
     senderUsername: null, text: "", claimedCampaignId: null,
   }),
-  triggerCampaign: () => ({ storyScope: "ALL", storyIds: [], keywords: [], matchingMode: "EVERY", responseType: "SEND_MESSAGE", active: true }),
+  triggerCampaign: () => ({ storyScope: "ALL", storyIds: [], keywords: [], matchingMode: "EVERY", responseType: "SEND_MESSAGE", active: true, kind: "CAMPAIGN" }),
   triggerExecution: () => ({
     status: "PENDING", matchedKeyword: null, sentMessageId: null, attempts: 0, error: null, errorDetail: null,
     nextRetryAt: null, sentAt: null,
@@ -230,6 +279,11 @@ const DEFAULTS: Record<string, () => Row> = {
   aiShadowTurn: () => ({ conversationId: null, productionReply: null, aiReply: null, intent: null, confidence: null, score: null, handoff: null, costUsd: 0, error: null }),
   llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
   triggerFollowUpRun: () => ({ status: "SCHEDULED", sentAt: null, reason: null }),
+  // Analytics (ETAP 10)
+  analyticsDaily: () => ({ instagramAccountId: "", dimKind: "", dimId: "", value: 0 }),
+  analyticsAlertState: () => ({}),
+  assistantEvent: () => ({ conversationId: null, payload: null }),
+  linkClick: () => ({}),
   // CRM (ETAP 5)
   crmContact: () => ({
     username: null, name: null, phoneE164: null, email: null, language: null, source: "UNKNOWN", status: "NEW",
@@ -252,6 +306,25 @@ const DEFAULTS: Record<string, () => Row> = {
     throttlePerHour: 100, frequencyCapHours: 24, replyWindowHours: 48, conversionWindowDays: 7, totalCount: 0,
     eligibleCount: 0, sentCount: 0, skippedCount: 0, failedCount: 0, repliedCount: 0, convertedCount: 0, lastError: null, tickSeq: 0, nextTickAt: null, createdByUserId: null,
   }),
+  // Flow Builder (ETAP 6)
+  flow: () => ({ mode: "SIMPLE", status: "DRAFT", draftVersionId: null, publishedVersionId: null, proxyCampaignId: null, createdByUserId: null, archivedAt: null }),
+  flowVersion: () => ({
+    schemaVersion: 1, source: "MANUAL", prompt: null, changeNote: null, auditResult: null, policyResult: null, testedAt: null,
+    approvedAt: null, approvedByUserId: null, publishedAt: null, publishedByUserId: null, retiredAt: null,
+  }),
+  flowRun: () => ({
+    contactId: null, conversationId: null, executionId: null, status: "ACTIVE", currentNodeId: null, seq: 0, variables: {},
+    waitNodeId: null, waitUntil: null, waitKind: null, sendsSinceInbound: 0, isTest: false, endReason: null, lastError: null,
+    startedAt: new Date(), finishedAt: null,
+  }),
+  flowRunStep: () => ({ input: null, output: null, reason: null, startedAt: new Date(), finishedAt: null }),
+  // Integrations 2.0 (ETAP 8)
+  outboundEvent: () => ({ version: 1, isTest: false, payload: null, materializedAt: null, instagramAccountId: null }),
+  outboundDelivery: () => ({
+    status: "PENDING", attempts: 0, nextAttemptAt: null, lastError: null, responseCode: null, responseSnippet: null,
+    signature: null, externalId: null, externalUrl: null, durationMs: null, sentAt: null, subscriptionId: null,
+  }),
+  integrationSubscription: () => ({ filter: {}, active: true }),
   crmBroadcastRecipient: () => ({
     ineligibleReason: null, status: "PENDING", attempts: 0, sentMessageId: null, sentAt: null, error: null,
     repliedAt: null, replyMessageId: null, convertedAt: null, conversionDealId: null,
@@ -334,6 +407,7 @@ export class MemoryDb {
         case "gt": return (actual as Date | number) > (expected as Date | number);
         case "gte": return (actual as Date | number) >= (expected as Date | number);
         case "contains": return String(actual ?? "").toLowerCase().includes(String(expected).toLowerCase());
+        case "startsWith": return String(actual ?? "").startsWith(String(expected));
         case "has": return Array.isArray(actual) && actual.includes(expected);
         case "mode": return true;
         default: return true;

@@ -3,6 +3,7 @@ import type { Lead } from "@/app/generated/prisma/client";
 import { crmTouch } from "@/lib/crm/hooks";
 import { prisma } from "@/lib/db/client";
 import { maskPhone } from "@/lib/integrations/crypto";
+import { emitLeadCreated } from "@/lib/integrations2/emit";
 import { enqueueDelivery, enqueueNotify } from "@/lib/queue/assistant-queue";
 import { enqueueLeadDeliveries } from "./delivery";
 import { buildTranscript } from "./transcript";
@@ -170,6 +171,7 @@ export async function createLeadForConversation(
   }
 
   await enqueueLeadDeliveries(lead, original ? "repeat" : "new");
+  void emitLeadCreated(lead);
   void crmTouch({ kind: "lead_created", leadId: lead.id, conversationId: conversation.id });
   console.log(
     `[Leads] lead ${lead.id} created for ${conversation.instagramAccountId} phone=${maskPhone(phone)} repeat=${Boolean(original)}`
@@ -226,6 +228,8 @@ export async function sendTestLead(integrationId: string): Promise<string | null
     data: { leadId: lead.id, integrationId, kind: "new", nextAttemptAt: new Date() },
   });
   await enqueueDelivery(delivery.id);
+  // The bus gets the test lead too, flagged is_test (only subscriptions with include_test receive it).
+  void emitLeadCreated(lead);
   return lead.id;
 }
 

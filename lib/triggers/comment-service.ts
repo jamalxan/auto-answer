@@ -209,28 +209,33 @@ export const simulateInputSchema = z.object({
 
 const COMMENT_TYPES = typeWhere(COMMENT_TRIGGER_TYPES);
 
+// A published flow's hidden proxy row (kind FLOW, ETAP 6) is never listed or editable here (see isProxy).
+const isProxy = (row: { kind?: string | null } | null | undefined) => row?.kind === "FLOW";
+
 function campaignWhere(workspaceId: string, id: string): Prisma.TriggerCampaignWhereInput {
   return { id, workspaceId, triggerType: COMMENT_TYPES };
 }
 
 async function findCampaign(workspaceId: string, id: string) {
-  return prisma.triggerCampaign.findFirst({
+  const row = await prisma.triggerCampaign.findFirst({
     where: campaignWhere(workspaceId, id),
     select: {
       id: true,
+      kind: true,
       triggerType: true,
       openingButtonLabel: true,
       instagramAccount: { select: { instagramId: true } },
       _count: { select: { quickReplies: true, followUpSteps: true } },
     },
   });
+  return isProxy(row) ? null : row;
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 /** Comment campaigns (post and live) with what the TZ calls "queue visibility": where every comment is right now. */
 export async function listCommentCampaigns(workspaceId: string) {
-  const campaigns = await prisma.triggerCampaign.findMany({
+  const found = await prisma.triggerCampaign.findMany({
     where: { workspaceId, triggerType: COMMENT_TYPES },
     orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "desc" }],
     include: {
@@ -239,6 +244,7 @@ export async function listCommentCampaigns(workspaceId: string) {
       _count: { select: { quickReplies: true, followUpSteps: true } },
     },
   });
+  const campaigns = found.filter((c) => !isProxy(c));
   if (campaigns.length === 0) return [];
   const ids = campaigns.map((c) => c.id);
 
@@ -290,7 +296,7 @@ export async function listCommentCampaigns(workspaceId: string) {
 }
 
 export async function getCommentCampaign(workspaceId: string, id: string) {
-  return prisma.triggerCampaign.findFirst({
+  const row = await prisma.triggerCampaign.findFirst({
     where: campaignWhere(workspaceId, id),
     include: {
       instagramAccount: { select: { username: true, tokenStatus: true } },
@@ -300,6 +306,7 @@ export async function getCommentCampaign(workspaceId: string, id: string) {
       backtrackRuns: { orderBy: { startedAt: "desc" }, take: 10 },
     },
   });
+  return isProxy(row) ? null : row;
 }
 
 export async function createCommentCampaign(

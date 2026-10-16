@@ -213,21 +213,25 @@ export const dmSimulateInputSchema = z.object({
 
 const DM_TYPES = typeWhere(DM_TRIGGER_KINDS);
 
+// A published flow's hidden proxy row (kind FLOW, ETAP 6) is never listed or editable here.
+const isProxy = (row: { kind?: string | null } | null | undefined) => row?.kind === "FLOW";
+
 function campaignWhere(workspaceId: string, id: string): Prisma.TriggerCampaignWhereInput {
   return { id, workspaceId, triggerType: DM_TYPES };
 }
 
 async function findCampaign(workspaceId: string, id: string) {
-  return prisma.triggerCampaign.findFirst({
+  const row = await prisma.triggerCampaign.findFirst({
     where: campaignWhere(workspaceId, id),
-    select: { id: true, triggerType: true, instagramAccount: { select: { instagramId: true } } },
+    select: { id: true, kind: true, triggerType: true, instagramAccount: { select: { instagramId: true } } },
   });
+  return isProxy(row) ? null : row;
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 export async function listDmCampaigns(workspaceId: string) {
-  const campaigns = await prisma.triggerCampaign.findMany({
+  const found = await prisma.triggerCampaign.findMany({
     where: { workspaceId, triggerType: DM_TYPES },
     orderBy: [{ active: "desc" }, { priority: "desc" }, { createdAt: "desc" }],
     include: {
@@ -236,6 +240,7 @@ export async function listDmCampaigns(workspaceId: string) {
       _count: { select: { quickReplies: true, followUpSteps: true } },
     },
   });
+  const campaigns = found.filter((c) => !isProxy(c));
   const stats = await executionStats(
     workspaceId,
     campaigns.map((c) => c.id)
@@ -251,7 +256,7 @@ export async function listDmCampaigns(workspaceId: string) {
 }
 
 export async function getDmCampaign(workspaceId: string, id: string) {
-  return prisma.triggerCampaign.findFirst({
+  const row = await prisma.triggerCampaign.findFirst({
     where: campaignWhere(workspaceId, id),
     include: {
       instagramAccount: { select: { username: true, tokenStatus: true } },
@@ -260,6 +265,7 @@ export async function getDmCampaign(workspaceId: string, id: string) {
       followUpSteps: { orderBy: { sort: "asc" } },
     },
   });
+  return isProxy(row) ? null : row;
 }
 
 /** What a DM campaign row always holds besides the input: none of the comment-only settings. */
@@ -411,7 +417,7 @@ const ETAP3_TYPES: InstagramEventType[] = ["DIRECT_MESSAGE", "STORY_MENTION", "S
 /** Every ETAP 3 campaign in one list: kind, account, status, the condition in short, and stats. */
 export async function listAutomations(workspaceId: string) {
   const campaigns = await prisma.triggerCampaign.findMany({
-    where: { workspaceId, triggerType: { in: ETAP3_TYPES } },
+    where: { workspaceId, triggerType: { in: ETAP3_TYPES }, kind: "CAMPAIGN" },
     orderBy: [{ active: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,

@@ -46,7 +46,7 @@ export async function GET() {
       },
     }),
     prisma.integration.findMany({
-      where: { workspaceId },
+      where: { workspaceId, type: { in: ["TELEGRAM", "AMOCRM", "BITRIX24"] } },
       select: { id: true, name: true, type: true, status: true, lastError: true, lastCheckedAt: true },
       orderBy: { createdAt: "asc" },
     }),

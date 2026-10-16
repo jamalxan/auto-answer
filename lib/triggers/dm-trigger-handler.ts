@@ -34,6 +34,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { sendDirectMessage, sendDirectMessageWithQuickReplies } from "@/lib/meta/client";
+import { startFlowFromCampaign } from "@/lib/flows/bridge";
 import { readDmClaimNote } from "./claim";
 import { enrichContact, recordInteraction, storeMessage, type RecordedInteraction } from "./contacts";
 import {
@@ -116,6 +117,9 @@ export async function runDmTrigger(
     return { status: "IGNORED", error: CLAIMED_CAMPAIGN_GONE_REASON };
   }
 
+  // ETAP 6: a published flow answers instead of the campaign's own message.
+  if (campaign.kind === "FLOW") return startFlowFromCampaign(event, campaign, interaction, note?.matchedKeyword ?? null);
+
   const start = await beginExecution(event, campaign.id, async () => {
     const chosen = await chooseReplies(campaign, await loadApprovedVariants(campaign.id));
     return { matchedKeyword: note?.matchedKeyword ?? null, responseText: chosen.dm.text, variantId: chosen.dm.variantId };
@@ -128,7 +132,7 @@ export async function runDmTrigger(
   if (!execution.openedAt) {
     execution = await prisma.triggerExecution.update({
       where: { id: execution.id },
-      data: { openedAt: event.timestamp, lastInboundAt: event.timestamp },
+      data: { openedAt: event.timestamp, lastInboundAt: event.timestamp, firstInboundAt: execution.firstInboundAt ?? event.timestamp },
     });
   }
   if (!isWindowOpen(execution, now)) {
@@ -232,6 +236,7 @@ export async function simulateDmTrigger(
       workspaceId,
       triggerType: input.eventType,
       active: true,
+      kind: "CAMPAIGN",
       OR: [{ instagramAccountId: input.instagramAccountId }, { instagramAccount: { instagramId: input.instagramAccountId } }],
     },
     orderBy: { createdAt: "asc" },

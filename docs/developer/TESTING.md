@@ -135,3 +135,83 @@ Broadcast qoidalari (testda shunday bo'lishi kerak, xato emas):
 - Soatiga N: har 5 daqiqada floor(N/12) ta; akkauntning 750/soat limiti tugasa bir soat kutiladi, hech kim o'tkazilmaydi.
 - "To'xtatish" keyingi yuborishdan oldin ishlaydi; "Bekor qilish" navbatdagilarni "O'tkazildi" qiladi.
 - Worker yuborish o'rtasida o'lsa (10 daqiqadan eski "Yuborilmoqda") — "Xato: jarayon uzildi", qayta yuborilmaydi.
+
+## ETAP 6/7 — Flow Builder + AI Flow Builder (`/developer/flows`)
+
+Flow'lar `FLOWS_DISABLED` qo'yilmagan bo'lsagina ishlaydi (web va worker'da). Ishga tushirilgan oqim
+yashirin "proxy" kampaniya orqali Comment 2.0 / Direct kampaniyalar bilan bir xil egalik qoidasidan o'tadi
+(bitta xabarga bitta egasi). Qarorlar: faqat **AI yaratgan** versiya tasdiqsiz ishga tushmaydi (qo'lda
+qurilgan oqim to'g'ridan-to'g'ri chiqadi); Story Reply V1 oqimlarga kirmaydi. AI qoralama soatiga 10 tagacha
+(workspace bo'yicha), `JAVOBAI_MODEL_SMART` bilan, AI byudjetiga hisoblanadi (`javobai_flowbuilder`).
+Haqiqiy sinov uchun test Instagram akkaunt sizga oxirgi 24 soat ichida yozgan bo'lishi kerak.
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| F1 | "Shablonlar" → "Komment → narx → telefon → lead" → Ko'rish → Nusxa olish | Yangi oqim "Qoralama"; bloklar ro'yxati va telefon ko'rinishi shablondagidek; Audit tabida 0 xato; CRM'da shablonning teglari bor; asl shablon o'zgarmagan |
+| F2 | Komment oqimining birinchi xabaridan tugmani olib tashlang va undan keyin yana xabar qo'shing → Saqlash → Audit / Nashr | Policy BLOCKED ("birinchi xabarda tugma yo'q"), sababi o'zbekcha, blok id'si bosilsa o'sha blokka o'tadi; "Ishga tushirish" tugmasi o'chiq; API ham 422 qaytaradi |
+| F3 | "AI bilan yaratish": TZ §39 so'rovi ("narx" kommentiga javob, telefon so'rash, lead + Telegram) → Yaratish → Qoralama sifatida saqlash → Test → Nashr tabida tasdiqlash → Ishga tushirish | Oldin preview + PASS/WARNING; saqlangach Test va tasdiq bo'lmaguncha "Ishga tushirish" yopiq ("AI yaratgan versiya tasdiqsiz ishga tushmaydi"); matnni o'zgartirsangiz test va tasdiq bekor bo'ladi; tasdiqlangach versiya ishga tushadi, holat "Ishlayapti" |
+| F4 | Haqiqiy akkauntda: ishga tushirilgan oqim → postga "narx" komment → Direct'dagi tugmani bosing → telefon yuboring | Komment ostida ochiq javob + shaxsiy xabar tugma bilan; tugmadan keyin keyingi xabar; telefon → Lead (Telegram'ga xabar, CRM'da bitim); "Ishga tushishlar"da bitta yozuv "Tugadi", qadamlari to'liq |
+| F5 | Delay 25 soat + undan keyin xabar bo'lgan oqim; Test'da "oyna yopiq"; haqiqiyda tugmani bosib 24 soat kuting | Test: oqim `end` bilan tugaydi, xabar yuborilmaydi; haqiqiyda 24 soatdan keyin hech narsa ketmaydi, run "Tugadi" (sabab: oyna yopilgan) |
+| F6 | v1 ishga tushgan, kutayotgan mijoz bor → v1'ni tahrirlab saqlang (v2 ochiladi) → v2'ni ishga tushiring | Kutayotgan mijoz v1 bo'yicha tugaydi; yangi mijozlar v2 bo'yicha; "Versiyalar"da v1 "Eski", v2 "Ishlayapti"; "Solishtirish" o'zgargan matnni eski → yangi ko'rsatadi; v1'ni "Qoralama sifatida tiklash" yangi qoralamani ochadi |
+| F7 | Kutayotgan (tugma kutilmoqda) run bor oqimni "To'xtatish (qoralamaga)" | Inline tasdiq kutayotganlar sonini aytadi; oqim "Qoralama"; kutayotgan runlar keyingi sweep'da "Bekor qilindi"; shu mijoz tugmani bossa javob ketmaydi; Comment 2.0 kampaniyasi avvalgidek ishlaydi |
+| F8 | "Kengaytirilgan" rejim: Shart bloki (masalan: teg HOT bo'lsa → lead, bo'lmasa → operator), bloklarni sudrang, "Avto-joylash", chiqish nuqtasini bosib maqsad blokni bosing, bog'lanishni tanlab o'chiring → Saqlash → Nashr | Tarmoqlar kanvasda ko'rinadi, joylashuv saqlanadi (sahifani yangilang — joyida); "Oddiy" rejimga o'tganda graf bir xil; Test'da shart ikki holatda ham to'g'ri tarmoqqa boradi; oqim ishga tushadi |
+| F9 | Webhook blokida manzil: `http://…`, `https://localhost/…`, `https://10.0.0.5/…` | Audit/Policy: BLOCKED ("faqat https", "ichki manzil"), Nashr yopiq; haqiqiy https manzil — nashr mumkin; ruxsat ro'yxati yo'qligi ogohlantirish (ETAP 8 gacha) |
+| F10 | Serverda `FLOWS_DISABLED=1`, web va worker'ni qayta ishga tushiring | /developer/flows ochiladi, qizil ogohlantirish; "Ishga tushirish" 503; yangi komment / xabar oqimlarni boshlamaydi, Comment 2.0, Direct va JavobAI avvalgidek; qaytarib qayta ishga tushirsangiz hammasi qaytadi |
+
+Eslatmalar:
+- Test konsoli — sandbox: Instagram'ga hech narsa yuborilmaydi, lead / teg yaratilmaydi; "Haqiqiy ishda nima bo'lardi" bo'limi faqat ko'rsatadi.
+- Saqlash qoralamani joyida yangilaydi; ishga tushirilgan versiyadan keyingi saqlash yangi versiya ochadi. Faqat joylashuv (kanvasda sudrash) o'zgarsa, sinov va tasdiq bekor bo'lmaydi.
+- AI ikki urinishdan keyin ham yaroqli oqim bermasa 422 va tavsiya matni chiqadi; AI sozlanmagan bo'lsa 503; byudjet tugagan yoki soatiga 10 tadan oshsa 429.
+- Faqat qoralama yoki arxivdagi, ishga tushish tarixi yo'q oqimni o'chirish mumkin (aks holda 422).
+
+## ETAP 8 — Integrations 2.0 (`/developer/integrations`)
+
+Hodisa shinasi (webhook, Google Sheets, Make, Zapier, Telegram HOT karta, amoCRM /
+Bitrix24 boyitish). Eski lead yetkazish (Telegram / amoCRM / Bitrix24) o'zgarmagan:
+WEBHOOK / SHEETS / MAKE / ZAPIER ulanishlari hech qachon `LeadDelivery` olmaydi.
+Hodisalar lead yaratilgandan 3 soniya keyin tayyorlanadi (score yozilishi uchun).
+`INTEGRATIONS_BUS_DISABLED=1` — favqulodda o'chirish. Qabul qiluvchi uchun
+webhook.site yoki oddiy Node serveri (https kerak — ngrok / cloudflared) yetadi;
+ichki manzillar (localhost, 10.x) ataylab rad etiladi.
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| I1 | "Ulanish qo'shish → Webhook": https manzil, hodisa `lead.created`; kalit ko'rsatiladi, nusxalang; kartada "Sinash" | Qabul qiluvchida POST, `X-SocialAuto-Signature` Qo'llanmadagi Node/PHP kod bilan tasdiqlanadi; payload `is_test: true`; kartada "Yuborildi · HTTP 200"; kalit qayta ko'rsatilmaydi (faqat `••••abcd`) |
+| I2 | URL: `http://…`, `https://localhost/…`, `https://10.0.0.5/…`, `https://user:pass@…` | Har biri saqlanmaydi, sababi o'zbekcha ("Faqat https://…", "Ichki yoki lokal manzillarga…") |
+| I3 | Qabul qiluvchi 500 qaytaradi; "Yetkazishlar"ni kuzating | Holat "Qayta uriniladi", urinishlar 30 s / 2 daq / 10 daq / 1 soat / 6 soat; 6-urinishdan keyin DEAD + workspace Telegram'ida bitta ogohlantirish (soatiga bir marta); qabul qiluvchini tuzatib "Qayta yuborish" → Yuborildi |
+| I4 | Qabul qiluvchi 410 qaytaradi | Yetkazish DEAD, ulanishdagi obuna "o'chirilgan"; 400 → darhol DEAD (qayta urinilmaydi); ketma-ket 5 ta DEAD ham obunani o'chiradi |
+| I5 | Haqiqiy lead yarating (komment → telefon): `lead.created` + (HOT bo'lsa) `lead.hot` obunalari | Webhook'ga 3 soniyadan keyin bitta hodisa (payloadda score, source, teglar); takror yuborishda ham `X-SocialAuto-Event-Id` bir xil; lead sahifasidagi yetkazishlar (Telegram / amoCRM) avvalgidek |
+| I6 | "Google Sheets" ulang (service account JSON + jadval havolasi), jadvalni ulashmasdan "Test qator qo'shish" | Integratsiya "To'xtagan", xabarda `client_email` bilan "Share → Editor" ko'rsatmasi; ulashib "Ulanishni tekshirish" → Faol, kutgan hodisalar o'zi ketadi; varaq yaratilgan, 1-qatorda sarlavhalar, 2-qatorda test qator (`is_test = ha`) |
+| I7 | Make: Custom webhook; Zapier: Catch Hook — "Sinash" | Ikkalasida maydonlar tanildi (`lead.name`, `score.value` …); bitta hodisa — bitta ishga tushish; Make/Zapier turlari alohida kartalar |
+| I8 | Telegram kartasida "HOT lead kartasi"ni yoqing; HOT lead yarating | Workspace chatida alohida karta (ism, telefon, mahsulot, ball, manba, suhbatga havola); oddiy lead kartasi ham avvalgidek; sovuq lead uchun HOT karta kelmaydi |
+| I9 | amoCRM kartasida "CRM boyitish"ni yoqing (ball maydoni, bosqich → status); lead yarating, keyin CRM'da bitimni boshqa bosqichga ko'chiring | amoCRM leadida ball izohi, `hot`/`warm` teg, ball maydoni; bosqich o'zgarganda status ham o'zgaradi; boyitish lead amoCRM'ga yetgunicha kutadi (yangi lead yaratmaydi); Bitrix24'da izoh + UF maydon + STATUS_ID |
+| I10 | "Kalitni almashtirish"; keyin 24 soat ichida "Sinash"; VIEWER bilan kiring | Sarlavhada ikkita `v1=` (eski va yangi kalit), ikkalasi bilan ham tasdiqlanadi; 24 soatdan keyin bitta; VIEWER hammasini ko'radi, lekin tugmalar yo'q (403), payload ko'rinmaydi |
+
+Eslatmalar:
+- "Test hodisa yuborish" (Hodisalar tabi) faqat "Test hodisalar ham" yoqilgan obunalarga boradi; kartadagi "Sinash" esa shu ulanishga to'g'ridan-to'g'ri yuboradi.
+- Tezlik limiti (standart 60/daqiqa) oshsa yetkazish 1 daqiqaga surilib, urinish hisoblanmaydi.
+- Hodisalar va yetkazishlar 30 kundan keyin o'chiriladi (payloadda to'liq telefon bor).
+
+## ETAP 10 — Analitika + Observability (`/developer/analytics`)
+
+Kampaniya / AI / Sotuv / Funnel / KPI. Hamma raqam `AnalyticsDaily` rollup'laridan
+o'qiladi (Asia/Tashkent kunlari); bugun va kecha har ~10 daqiqada worker'da yangilanadi,
+kechasi 00:15 da oxirgi 3 kun qayta hisoblanadi. Eski kunlar uchun KPI tabidagi
+"Backfill (90 kun)". `ANALYTICS_DISABLED=1` — favqulodda o'chirish. Content scheduler
+bu bosqichga kirmagan (Meta publishing ruxsatigacha kechiktirilgan).
+
+| # | Ssenariy | Kutilgan natija |
+|---|---|---|
+| N1 | KPI tabida "Backfill (90 kun)", 1–2 daqiqadan keyin Kampaniya tabini "30 kun" bilan oching | Backfill navbatga qo'yiladi (202), ikkinchi bosish "allaqachon navbatda"; 30 kunlik grafik tarixiy kunlar bilan to'ladi, bo'sh kunlar nol |
+| N2 | Bitta comment kampaniyani tanlang: "7 kun" yuborilgan/bosishlar; xuddi shu kampaniyaning ochiq hisobotini (share link) oching | Taqsimotdagi "Yuborildi" va "Bosishlar" hisobotning 7 kunlik yig'indisi bilan teng |
+| N3 | "Bugun" / "7 kun" / "30 kun" / "Maxsus" (o'tgan hafta) + "Oldingi davr bilan" | Bugun va 7/30 kunda "kun hali tugamagan" ogohlantirishi; maxsus o'tgan oraliqda yo'q; kartalarda oldingi davr va ±% farq; 366 kundan uzun oraliq xato beradi |
+| N4 | Tashkent yarim tunida (19:00 UTC) yuborilgan DM'ni kuzating (yoki test yozuv: `createdAt` 19:30Z) | Yozuv keyingi Toshkent kuniga tushadi, UTC kuniga emas |
+| N5 | Test lead yarating (sandbox) va haqiqiy lead; "Bugunni qayta hisoblash" (KPI tabi) | Faqat haqiqiy lead "Lidlar"da; test lead va boshqa workspace hisoblanmaydi; qayta hisoblash ikki marta bosilsa raqamlar ikki baravar bo'lmaydi |
+| N6 | Funnel tabi: "Davr" va "Kogorta" rejimlari | Davr: Kommentlar → DM → Javoblar → Lidlar → Hot → Sotuvlar, bosqich orasida yo'qolish %; sarlavhada "SocialAuto ko'rgan kommentlar"; qo'lda "Mijoz" qilinganlar alohida qator. Kogorta: aynan shu odamlar bosqichma-bosqich (har bosqich oldingisining qismi) |
+| N7 | KPI tabi: Redis'ni to'xtating (yoki worker'ni) va sahifani yangilang | Sahifa ochiladi; Redis'ga bog'liq kartalar "yuklab bo'lmadi", qolganlari ishlaydi; navbat chuqurligi "butun platforma" deb belgilangan; worker kartasi "To'xtagan" |
+| N8 | Worker'ni 3 daqiqa to'xtating (web ishlab tursin) | `scripts/cron.sh` har 5 daqiqada `analytics-rollup?task=alerts` chaqiradi → Telegram'da "Worker ishlamayapti" (6 soatda bir marta); Meta xatosi >20% (≥10 urinish/15 daq), DM navbati >60 daq, webhook kechikishi >5 daq, AI xatosi >30% (≥5 chaqiruv) ham shunday; qoidalar ro'yxatida "Oxirgi: …" ko'rinadi |
+
+Eslatmalar:
+- "Qabul qilindi (Meta)" v1 da "Yuborildi" bilan teng (Meta yetkazib berish kvitansiyasini alohida bermaydi).
+- "AI hal qildi" qat'iy: lid yig'ilgan va suhbatda hech qachon operatorga topshirish bo'lmagan.
+- "Javoblar": trigger'larda mijozning birinchi xabari (`firstInboundAt`); bu maydon qo'shilishidan oldingi yozuvlarda "ochilgan" vaqti ishlatiladi.

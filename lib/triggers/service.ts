@@ -335,7 +335,7 @@ export async function getEngineOverview(workspaceId: string) {
       where: { workspaceId, createdAt: { gte: since } },
       _count: { _all: true },
     }),
-    prisma.triggerCampaign.count({ where: { workspaceId, active: true } }),
+    prisma.triggerCampaign.count({ where: { workspaceId, active: true, kind: "CAMPAIGN" } }),
     prisma.instagramContact.count({ where: { workspaceId } }),
   ]);
   const sent = await prisma.triggerExecution.count({

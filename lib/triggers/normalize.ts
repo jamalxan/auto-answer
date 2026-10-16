@@ -34,8 +34,14 @@
  * they carry Comment 2.0's own "c2:" payload — "reveal:" / "followcheck:"
  * belong to the production comment campaigns (lib/queue/dm-worker.ts).
  *
+ * A flow's own "fl:<run>:<node>:<button>" postbacks / quick replies (ETAP 6,
+ * lib/flows) are accepted exactly like "c2:" ones; with FLOWS_DISABLED=1 they
+ * are not ours and stay with production.
+ *
  * Pure: no database, no network — so it is cheap to test against fixtures.
  */
+
+import { isFlowPayload } from "@/lib/flows/config";
 
 export type NormalizedEventType =
   | "STORY_REPLY"
@@ -194,7 +200,7 @@ function normalizeMessaging(
   }
 
   const quickReplyPayload = message.quick_reply?.payload;
-  if (isC2Payload(quickReplyPayload)) {
+  if (isC2Payload(quickReplyPayload) || isFlowPayload(quickReplyPayload)) {
     return { ...base, type: "DIRECT_MESSAGE", payload: quickReplyPayload };
   }
 
@@ -285,7 +291,7 @@ function normalizeReaction(
   };
 }
 
-/** Comment 2.0's own button / quick-reply payloads all start with "c2:". */
+/** Comment 2.0's own button / quick-reply payloads all start with "c2:"; a flow's with "fl:" (lib/flows/config.ts). */
 export const C2_PAYLOAD_PREFIX = "c2:";
 
 export function isC2Payload(payload: string | null | undefined): payload is string {
@@ -303,7 +309,7 @@ function normalizePostback(
   fallbackTime: Date
 ): NormalizedInstagramEvent | null {
   const postback = item.postback;
-  if (!postback || !isC2Payload(postback.payload)) return null;
+  if (!postback || !(isC2Payload(postback.payload) || isFlowPayload(postback.payload))) return null;
   const senderId = item.sender?.id;
   const accountId = entryId || item.recipient?.id;
   if (!senderId || !accountId || senderId === accountId) return null;

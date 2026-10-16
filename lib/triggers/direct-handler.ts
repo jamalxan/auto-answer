@@ -48,6 +48,8 @@ import { getJavobAiMode } from "@/lib/javobai/gate";
 import { captureTriggerLead } from "@/lib/javobai/leads";
 import { handJavobAiThread } from "@/lib/javobai/runtime";
 import { loadAccountConfig, loadScoringConfig } from "@/lib/javobai/state";
+import { handleFlowInbound, handleFlowTap } from "@/lib/flows/bridge";
+import { isFlowPayload } from "@/lib/flows/config";
 import { alertWorkspace } from "@/lib/telegram/notify";
 import type { TriggerCampaign, TriggerExecution, TriggerQuickReply } from "@/app/generated/prisma/client";
 import { COMMENT_OWNS_THREAD_REASON, CONVERSATION_EVENT_TYPES, findActiveConversations } from "./claim";
@@ -219,7 +221,8 @@ async function touchInbound(
 ) {
   const lastInboundAt =
     execution.lastInboundAt && execution.lastInboundAt.getTime() > at.getTime() ? execution.lastInboundAt : at;
-  const data = { lastInboundAt, ...extra };
+  // The first message from the person is kept for analytics (replies); set once.
+  const data = { lastInboundAt, ...(execution.firstInboundAt ? {} : { firstInboundAt: at }), ...extra };
   await prisma.triggerExecution.update({ where: { id: execution.id }, data });
   Object.assign(execution, data);
 }
@@ -363,6 +366,11 @@ export type PlainMessageHook = (interaction: RecordedInteraction) => Promise<Han
 
 async function handlePlainMessage(base: BaseCtx, onPlainMessage?: PlainMessageHook): Promise<HandlerResult> {
   const { event, now } = base;
+  // A flow run waiting for an answer (ETAP 6) takes the message: the handler half
+  // of the webhook's findClaimedFlowMessages, using the same predicate.
+  const flowResult = await handleFlowInbound(event);
+  if (flowResult) return flowResult;
+
   // A phone shared from a LEAD_CAPTURE chip whose payload did not come back.
   // Same rule as the webhook route's claim, so the message is answered here
   // exactly when the keyword path and the assistant were kept away from it.
@@ -437,6 +445,8 @@ export async function handleDirectMessage(
 
 async function routeDirectMessage(base: BaseCtx, onPlainMessage?: PlainMessageHook): Promise<HandlerResult> {
   const { event } = base;
+  // A flow's own button / chip (ETAP 6): resume that run.
+  if (isFlowPayload(event.payload)) return handleFlowTap(event);
   const c2 = parseC2Payload(event.payload);
   // A malformed "c2:" payload is still one of our taps, never a new DM.
   if (!c2) return handlePlainMessage(base, event.payload ? undefined : onPlainMessage);

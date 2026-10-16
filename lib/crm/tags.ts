@@ -22,6 +22,7 @@
 import { z } from "zod";
 import type { CrmActorKind, CrmTagOrigin, Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
+import { emitContactTagged } from "@/lib/integrations2/emit";
 import { recordActivity } from "./activity";
 import { DEFAULT_TAGS, tagSlug } from "./defaults";
 import { isUniqueViolation, notFound, unprocessable } from "./errors";
@@ -218,6 +219,7 @@ export async function addTag(
     title: `Teg qo'shildi: ${tag.name}`,
     payload: { tagId: tag.id, slug: tag.slug, name: tag.name, origin, sourceRef: sourceRef ?? null },
   });
+  void emitContactTagged(workspaceId, contact.id, tag.slug);
   return { changed: true, tag };
 }
 

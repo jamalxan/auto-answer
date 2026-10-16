@@ -19,6 +19,7 @@ import {
   type AmoConfig,
 } from "@/lib/integrations/amocrm";
 import { BitrixClient, type BitrixConfig } from "@/lib/integrations/bitrix24";
+import { LEAD_PIPELINE_TYPES } from "@/lib/integrations2/config";
 import { enqueueDelivery } from "@/lib/queue/assistant-queue";
 import { TelegramApiError, editMessageReplyMarkup } from "@/lib/telegram/api";
 import {
@@ -58,7 +59,13 @@ export async function enqueueLeadDeliveries(
   kind: DeliveryKind
 ): Promise<void> {
   const integrations = await prisma.integration.findMany({
-    where: { workspaceId: lead.workspaceId, status: { in: ["ACTIVE", "BROKEN"] } },
+    // Positive type list (ETAP 8): WEBHOOK / SHEETS / MAKE / ZAPIER integrations
+    // live on the outbound bus and must never get a LeadDelivery.
+    where: {
+      workspaceId: lead.workspaceId,
+      status: { in: ["ACTIVE", "BROKEN"] },
+      type: { in: [...LEAD_PIPELINE_TYPES] },
+    },
   });
 
   for (const integration of integrations) {

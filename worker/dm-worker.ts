@@ -8,6 +8,10 @@ import { isJavobAiEnabled } from "@/lib/javobai/config";
 import { createJavobAiWorker, runJavobAiMaintenance } from "@/lib/javobai/worker";
 import { createCrmWorker, isCrmEnabled, runCrmMaintenance } from "@/lib/crm/worker";
 import { registerBroadcastModule } from "@/lib/crm/broadcast-worker";
+import { isOutboundBusEnabled } from "@/lib/integrations2/config";
+import { createIntegrationsWorker, runIntegrationsMaintenance } from "@/lib/integrations2/worker";
+import { createFlowsWorker, isFlowsEnabled, runFlowsMaintenance } from "@/lib/flows/worker";
+import { createAnalyticsWorker, isAnalyticsEnabled, runAnalyticsMaintenance } from "@/lib/analytics/worker";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -21,6 +25,12 @@ const javobAiWorker = isJavobAiEnabled() ? createJavobAiWorker() : null;
 // CRM (dev, ETAP 5): the "crm" queue (contact sync + broadcast jobs), opt-in with CRM_ENABLED=1, CRM_DISABLED=1 wins.
 if (isCrmEnabled()) registerBroadcastModule();
 const crmWorker = isCrmEnabled() ? createCrmWorker() : null;
+// Analytics (dev, ETAP 10): the "analytics" queue (backfills) plus the rollup/alert maintenance, off with ANALYTICS_DISABLED=1.
+const analyticsWorker = isAnalyticsEnabled() ? createAnalyticsWorker() : null;
+// Flow Builder (dev, ETAP 6): the "flows" queue (delayed resumes) plus the sweep, off with FLOWS_DISABLED=1.
+const flowsWorker = isFlowsEnabled() ? createFlowsWorker() : null;
+// Integrations 2.0 (dev, ETAP 8): the outbound event bus ("integrations" queue), off with INTEGRATIONS_BUS_DISABLED=1.
+const integrationsWorker = isOutboundBusEnabled() ? createIntegrationsWorker() : null;
 const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because
@@ -67,6 +77,11 @@ const maintenanceTimer = setInterval(() => {
   if (javobAiWorker) void runJavobAiMaintenance();
   // Reconciler every 5 min (self-throttled) plus the registered tasks (broadcast) every minute.
   if (crmWorker) void runCrmMaintenance();
+  if (integrationsWorker) void runIntegrationsMaintenance();
+  // Due Delay / timeout / retry wake-ups, stuck and expired runs, retention.
+  if (flowsWorker) void runFlowsMaintenance();
+  // Rollups every 10 min and alerts every 5 min (both self-throttled).
+  if (analyticsWorker) void runAnalyticsMaintenance();
 }, 60_000);
 
 async function shutdown(signal: string) {
@@ -79,6 +94,9 @@ async function shutdown(signal: string) {
   await triggerWorker?.close();
   await javobAiWorker?.close();
   await crmWorker?.close();
+  await integrationsWorker?.close();
+  await flowsWorker?.close();
+  await analyticsWorker?.close();
   process.exit(0);
 }
 

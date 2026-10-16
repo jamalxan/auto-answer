@@ -54,6 +54,7 @@ import {
   isCrmEnabled,
   removeBroadcastJobs,
 } from "./broadcast-queue";
+import { emitBroadcastCompleted } from "@/lib/integrations2/emit";
 import { DEFAULT_BROADCAST } from "./defaults";
 import { registerCrmListener, type CrmEvent } from "./hooks";
 import { done, fail, isUniqueViolation, type ServiceResult } from "./result";
@@ -874,6 +875,7 @@ export async function startBroadcast(broadcastId: string, now = new Date()): Pro
       },
     });
     if (eligible > 0) await scheduleTick(broadcastId, 0, now);
+    else void emitBroadcastCompleted(broadcastId);
     return { started: true, total: fresh.length, eligible, skipped };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -1081,7 +1083,8 @@ export async function runBroadcastBatch(broadcastId: string, now = new Date(), t
     return { ...result, outcome: "rate_limited" };
   }
   if (result.remaining === 0) {
-    await prisma.crmBroadcast.updateMany({ where: { id: broadcastId, status: "RUNNING" }, data: { status: "COMPLETED", completedAt: new Date() } });
+    const completed = await prisma.crmBroadcast.updateMany({ where: { id: broadcastId, status: "RUNNING" }, data: { status: "COMPLETED", completedAt: new Date() } });
+    if (completed.count === 1) void emitBroadcastCompleted(broadcastId);
     return { ...result, outcome: "completed" };
   }
   await scheduleTick(broadcastId, BROADCAST_BATCH_INTERVAL_MS, now, mySeq);
