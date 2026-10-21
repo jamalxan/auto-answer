@@ -232,7 +232,7 @@ describe("D(b) Instagram token thresholds", () => {
     expect(acc.tokenStatus).toBe("ACTIVE");
   });
 
-  it("a failed refresh at 1 day left leaves a visible error event (the only Instagram expiry alert)", async () => {
+  it("a failed refresh at 1 day left leaves an error event plus the 1-day expiry warning", async () => {
     db.seed("workspace", { id: "w1", name: "T", usagePeriodStart: new Date(NOW.getTime()) });
     db.seed("instagramAccount", {
       id: "a1", workspaceId: "w1", username: "shop", instagramId: "ig1",
@@ -242,8 +242,10 @@ describe("D(b) Instagram token thresholds", () => {
     mocks.refreshLongLivedToken.mockRejectedValue(new Error("network down"));
     await refreshTokensCron(new NextRequest("http://localhost/api/cron/refresh-tokens"));
     const events = db.rows("operationalEvent");
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ level: "ERROR", source: "TOKEN_REFRESH" });
+    expect(events).toHaveLength(2);
+    expect(events.find((e) => e.level === "ERROR")).toMatchObject({ source: "TOKEN_REFRESH" });
+    expect(events.find((e) => e.level === "WARNING")).toMatchObject({ source: "TOKEN_REFRESH" });
+    expect(mocks.alertWorkspace).toHaveBeenCalledTimes(1);
   });
 });
 

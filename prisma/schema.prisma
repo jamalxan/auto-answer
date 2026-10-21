@@ -217,6 +217,8 @@ model InstagramAccount {
   tokenLastError    String?
   tokenBrokenAt     DateTime?
   tokenAlertedAt    DateTime?
+  // Last 7-day / 1-day expiry warning sent (lib/meta/token-expiry); reset on a successful refresh.
+  tokenWarnedAt     DateTime?
   // Per-account hourly outbound DM cap; null = DM_HOURLY_LIMIT_DEFAULT (200).
   dmHourlyLimit     Int?
   connectedAt       DateTime    @default(now())
