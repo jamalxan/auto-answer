@@ -444,6 +444,7 @@ async function readImages(workspaceId: string, images: Array<{ mediaType: string
   };
   let usage = { inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, model: provider.model };
   let ok = false;
+  const started = Date.now();
   try {
     const response = await provider.complete(request);
     usage = {
@@ -462,7 +463,7 @@ async function readImages(workspaceId: string, images: Array<{ mediaType: string
     console.error("[Migration] screenshot read failed:", describeProviderError(error));
     throw new MigrationServiceError(502, "AI skrinshotni o'qiy olmadi — birozdan keyin qayta urinib ko'ring yoki matnni qo'lda kiriting");
   } finally {
-    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_MIGRATION, model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, latencyMs: usage.latencyMs, ok });
+    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_MIGRATION, model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, latencyMs: usage.latencyMs || Date.now() - started, ok });
   }
 }
 

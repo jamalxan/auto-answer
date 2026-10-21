@@ -9,7 +9,7 @@
  */
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
 import Icon, { type IconName } from "@/components/icons";
 import { Wordmark } from "@/components/logo-mark";
@@ -34,6 +34,7 @@ export default function Sidebar({
   isAdmin = false,
 }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useLanguage();
 
   // Groups are separated by space only, so no extra translated headings.
@@ -111,6 +112,12 @@ export default function Sidebar({
                     <li key={item.href}>
                       <Link
                         href={item.href}
+                        // Every section is dynamic: auto-prefetching all 11 on each page view
+                        // fired ~22 RSC requests (several DB queries each) and nginx answered
+                        // part of the burst with 503. Prefetch only the link the user aims at.
+                        prefetch={false}
+                        onMouseEnter={() => router.prefetch(item.href)}
+                        onFocus={() => router.prefetch(item.href)}
                         onClick={onClose}
                         aria-current={isActive ? "page" : undefined}
                         className={`group flex items-center gap-3 rounded-full px-3.5 py-2.5 text-[15px] font-medium ${

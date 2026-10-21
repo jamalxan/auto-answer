@@ -22,6 +22,7 @@ import {
   storyReplyKey,
 } from "@/lib/triggers/ingest";
 import { Prisma } from "@/app/generated/prisma/client";
+import { openingDmReadWhere } from "@/lib/campaigns/read-fallback";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
@@ -318,17 +319,8 @@ export async function POST(request: NextRequest) {
 
     for (const event of readEvents) {
       const openingLogs = await prisma.dmLog.findMany({
-        where: {
-          commenterId: event.userId,
-          status: "SENT",
-          automation: {
-            isActive: true,
-            openingDmEnabled: true,
-            instagramAccount: {
-              instagramId: event.instagramAccountId,
-            },
-          },
-        },
+        // Only opening DMs of the last 24 h: a read receipt does not name the message read.
+        where: openingDmReadWhere(event.instagramAccountId, event.userId),
         select: {
           automation: {
             select: {

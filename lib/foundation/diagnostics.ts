@@ -9,7 +9,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { getLlmProvider } from "@/lib/assistant/llm/provider";
-import { isLlmErrorRateHigh, loadLlmStats, LLM_ERROR_WARN_RATE } from "@/lib/assistant/llm/stats";
+import { isLlmErrorRateHigh, loadLlmStatsByAudience, LLM_ERROR_WARN_RATE } from "@/lib/assistant/llm/stats";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
 import { isTelegramConfigured } from "@/lib/telegram/api";
 import type { ConnectionStatus } from "./connection-status";
@@ -445,7 +445,14 @@ export interface AiInput {
   model: string | null;
   templateOnlyUntil: Date | string | null;
   /** LLM call outcomes over `windowDays` (llm_usage, the shared source). */
-  llm?: { calls: number; failures: number; windowDays: number; p95LatencyMs?: number | null } | null;
+  llm?: {
+    calls: number;
+    failures: number;
+    windowDays: number;
+    p95LatencyMs?: number | null;
+    /** Developer-tool calls (sandbox, AI Flow Builder, migration, shadow): shown, never judged. */
+    tooling?: { calls: number; failures: number } | null;
+  } | null;
 }
 
 export function buildAiCheck(input: AiInput, now: Date): DiagnosticItem {
@@ -487,7 +494,8 @@ export function buildAiCheck(input: AiInput, now: Date): DiagnosticItem {
   }
   const okValue = input.model ? `Ishlayapti · ${input.model}` : "Ishlayapti";
   const detail = llm && llm.calls > 0 ? ` · ${llm.failures}/${llm.calls} xato (${llm.windowDays} kun)` : "";
-  return { ...base, status: "ok", value: okValue + detail, issue: null, action: null };
+  const tooling = llm?.tooling && llm.tooling.failures > 0 ? ` · developer vositalari: ${llm.tooling.failures}/${llm.tooling.calls} xato` : "";
+  return { ...base, status: "ok", value: okValue + detail + tooling, issue: null, action: null };
 }
 
 export interface CrmInput {
@@ -602,7 +610,7 @@ function loadAi(workspaceId: string) {
   const since = new Date(Date.now() - LLM_WINDOW_DAYS * DAY_MS);
   return Promise.all([
     prisma.workspace.findUnique({ where: { id: workspaceId }, select: { assistantTemplateOnlyUntil: true } }),
-    loadLlmStats(workspaceId, since).catch(() => null),
+    loadLlmStatsByAudience(workspaceId, since).catch(() => null),
   ])
     .then(([workspace, stats]) => {
       let provider: ReturnType<typeof getLlmProvider> = null;
@@ -615,7 +623,16 @@ function loadAi(workspaceId: string) {
         configured: Boolean(provider),
         model: provider?.model ?? null,
         templateOnlyUntil: workspace?.assistantTemplateOnlyUntil ?? null,
-        llm: stats ? { calls: stats.calls, failures: stats.failures, windowDays: LLM_WINDOW_DAYS, p95LatencyMs: stats.p95LatencyMs } : null,
+        // Customers only receive what the customer-facing kinds produce: that is the rate judged.
+        llm: stats
+          ? {
+              calls: stats.customer.calls,
+              failures: stats.customer.failures,
+              windowDays: LLM_WINDOW_DAYS,
+              p95LatencyMs: stats.customer.p95LatencyMs,
+              tooling: { calls: stats.tooling.calls, failures: stats.tooling.failures },
+            }
+          : null,
       };
     });
 }

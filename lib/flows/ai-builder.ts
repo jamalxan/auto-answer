@@ -104,6 +104,7 @@ export async function generateFlowFromPrompt(workspaceId: string, input: Generat
   let latencyMs = 0;
   let usedModel = provider.model;
   let ok = false;
+  const started = Date.now();
 
   const call = async (userMessage: string): Promise<unknown> => {
     const req: LlmRequest = {
@@ -147,7 +148,8 @@ export async function generateFlowFromPrompt(workspaceId: string, input: Generat
     console.warn("[flow-builder] LLM call failed:", error instanceof Error ? error.message.slice(0, 200) : "unknown");
     throw new FlowServiceError(502, describeLlmFailure(error));
   } finally {
-    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_FLOWBUILDER, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs, ok });
+    // A failed call has no response latency: record the wall time spent (a timeout is 45 s, not 0).
+    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_FLOWBUILDER, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok });
   }
 
   const trigger = parsed.graph.nodes.find((n) => n.type === "trigger");
