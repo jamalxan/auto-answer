@@ -1,7 +1,8 @@
 # lib/mcp — ETAP 12 MCP / AI control layer
 
 Design, tools, auth, confirmation flow and limits: `docs/developer/etap-12-mcp.md`.
-Endpoint: `app/api/mcp/route.ts` -> `http.ts`. Kill switch: `MCP_DISABLED=1` (`.env.example`).
+Endpoint: `app/api/mcp/route.ts` -> `http.ts`. OAuth: `app/.well-known/*`, `app/api/mcp/oauth/*`,
+`app/developer/(consent)/mcp/authorize`. Kill switch: `MCP_DISABLED=1` (`.env.example`).
 
 | File | Job |
 |---|---|
@@ -9,7 +10,10 @@ Endpoint: `app/api/mcp/route.ts` -> `http.ts`. Kill switch: `MCP_DISABLED=1` (`.
 | `http.ts` | HTTP edge: kill switch -> cheap size check -> auth -> streamed body cap -> JSON-RPC |
 | `protocol.ts` | JSON-RPC 2.0 handler: initialize, notifications, ping, tools/list, tools/call |
 | `auth.ts` | bearer token -> workspace + scope; hash lookup, constant-time compare, revoked / expired, 60 req/min |
-| `tokens.ts` | create (raw value returned once), list, revoke (developer area) |
+| `tokens.ts` | create (raw value returned once), list (with `source` OAUTH / MANUAL), revoke (developer area; also clears the refresh token) |
+| `oauth.ts` | OAuth 2.1 for MCP clients: RFC 9728 / 8414 metadata, RFC 7591 registration, PKCE authorization codes (single use, replay revokes), token + refresh rotation, per-IP throttles |
+| `oauth-http.ts` | HTTP side of `/api/mcp/oauth/register`, `/api/mcp/oauth/token` and the `/.well-known` documents (CORS on metadata only) |
+| `oauth-actions.ts` | the consent screen's approve / deny server actions (`/developer/mcp/authorize`): developer login + app session + OWNER / ADMIN |
 | `tools.ts` | registry: zod input schema (-> JSON Schema), scope, `run` or `propose` + `execute` |
 | `confirm.ts` | cheap pre-checks (pending cap, AI-builder budget), propose -> confirm -> execute, human approval (`requireHumanApproval`, `approveActionAsDeveloper`), single-use code + 5-attempt cap, atomic claim, pruning, audit log reader |
 | `service.ts` | workspace-scoped data layer over existing services (read views, previews, executors) |

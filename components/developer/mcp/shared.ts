@@ -11,6 +11,8 @@ export const MCP_API = "/api/developer/mcp";
 export interface McpMeta {
   enabled: boolean;
   endpoint: string;
+  /** OAuth discovery documents and the consent screen (how AI clients connect without a pasted token). */
+  oauth?: { authorizationServer: string; protectedResource: string; authorize: string };
   workspace: { id: string; name: string } | null;
   limits: { ratePerMin: number; maxBodyBytes: number; confirmMinutes: number; maxTokens: number; tokenPrefix: string };
   tools: Array<{ name: string; scope: "READ" | "WRITE"; kind: "read" | "write" | "control"; description: string }>;
@@ -27,6 +29,8 @@ export interface TokenRow {
   revokedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
+  /** OAUTH: an AI client connected through the consent screen; MANUAL: created here by hand. */
+  source?: "OAUTH" | "MANUAL";
 }
 
 export interface CreatedToken {
@@ -65,10 +69,11 @@ export function tokenState(token: TokenRow, now = Date.now()): { label: string; 
   return { label: "Faol", tone: "success" };
 }
 
-/** The commands a person pastes into their AI client. */
+/** The commands a person pastes into their AI client when they prefer a hand-made token over OAuth. */
 export function connectionSnippets(endpoint: string, token: string) {
   return {
     claudeCode: `claude mcp add --transport http socialauto ${endpoint} --header "Authorization: Bearer ${token}"`,
+    claudeCodeOauth: `claude mcp add --transport http socialauto ${endpoint}`,
     claudeDesktop: JSON.stringify(
       { mcpServers: { socialauto: { command: "npx", args: ["-y", "mcp-remote", endpoint, "--header", `Authorization: Bearer ${token}`] } } },
       null,

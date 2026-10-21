@@ -20,7 +20,7 @@
  */
 
 import { z } from "zod";
-import { type LlmRequest, getLlmProviderFor, llmTimeoutMs } from "@/lib/assistant/llm/provider";
+import { type LlmRequest, getLlmProviderFor, llmLongTimeoutMs } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { done, firstIssue, type ServiceResult } from "@/lib/crm/result";
 import { tagSlug } from "@/lib/crm/defaults";
@@ -439,7 +439,7 @@ async function readImages(workspaceId: string, images: Array<{ mediaType: string
     schemaName: "flow_text",
     temperature: 0,
     maxTokens: 4000,
-    timeoutMs: llmTimeoutMs(60_000),
+    timeoutMs: llmLongTimeoutMs(60_000),
     images,
   };
   let usage = { inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, model: provider.model };

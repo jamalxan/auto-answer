@@ -21,10 +21,49 @@ No MCP SDK is installed and none was added: the minimal protocol is implemented 
 JSON-RPC batches are refused (-32600), `id: null` is refused (-32600), and a JSON-RPC *response*
 object (no `method`, with `result` / `error`) is acknowledged with an empty 202. `GET` and `DELETE` answer 405 JSON.
 
-## Auth
+## Connecting directly (OAuth 2.1)
 
-- Bearer token `sa_mcp_<32 random chars>` (`Authorization: Bearer ...`), created only in
-  `/developer/mcp` by a workspace OWNER / ADMIN. Scope `READ` or `WRITE` (WRITE includes READ).
+An MCP client needs only the server URL (`https://socialauto.uz/api/mcp`). Claude.ai / Claude Desktop
+("Add custom connector"), ChatGPT (Developer mode connector), Claude Code (`claude mcp add --transport
+http socialauto <url>` + `/mcp` → Authenticate), Cursor and any other client that speaks the MCP
+authorization spec connect like this (`lib/mcp/oauth.ts`):
+
+1. The client POSTs to `/api/mcp` without a token → 401 with
+   `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"` (RFC 9728).
+2. It reads `/.well-known/oauth-protected-resource` (also the path-suffixed
+   `/.well-known/oauth-protected-resource/api/mcp`) and `/.well-known/oauth-authorization-server` (RFC 8414).
+3. It registers itself: `POST /api/mcp/oauth/register` (RFC 7591 dynamic client registration; public
+   client + PKCE by default, `client_secret_post` / `client_secret_basic` also accepted). Redirect URIs must be
+   https or loopback http, without fragments; 20 registrations per IP per minute.
+4. It sends the person to `/developer/mcp/authorize?...` (response_type=code, PKCE **S256 mandatory**,
+   optional `scope` `read` / `read write`, `state`, `resource`). The page needs the **developer login**
+   (`/developer/login?next=…` keeps the request) and the **app session** (`proxy.ts` keeps the query in
+   `callbackUrl`), and only a workspace **OWNER / ADMIN** can approve. The consent screen shows the client
+   name, the workspace, a READ / WRITE choice (pre-selected from `scope`) and the human-approval checkbox
+   (WRITE only; READ grants always carry `requireHumanApproval=true`). Approve → one-time code (5 min,
+   sha256 stored, bound to client + redirect_uri + workspace + scope) back to `redirect_uri` with `state`;
+   deny → `error=access_denied`. Unknown client / unregistered redirect_uri are shown on our page, never
+   redirected; other errors go back to the client (RFC 6749 §4.1.2.1).
+5. `POST /api/mcp/oauth/token` (`grant_type=authorization_code`, form-urlencoded or JSON): client auth,
+   redirect_uri match, PKCE verify, **atomic single use** (a replayed code revokes the token it produced),
+   then a normal `McpToken` is created: name `<client> (OAuth)`, the chosen scope, `oauthClientId`,
+   access token valid 30 days, refresh token (`sa_mcpr_…`, 90 days, sha256 stored on the same row).
+   At the 10-token cap a re-connect of the same client replaces its oldest token.
+6. `grant_type=refresh_token` rotates **in place** (new token hash + hint, new refresh hash, extended
+   expiry): the old pair stops working at once, the audit log stays on one row. Failures at the token
+   endpoint are throttled per IP (30 / minute).
+
+Everything after that is identical to a hand-made token: the same hash lookup, scope and human-approval
+rules in `auth.ts` / `confirm.ts`, the same list and **revoke** (which also clears the refresh token) in
+`/developer/mcp`. The "Ulanish" tab shows the URL, per-client steps and the connected clients; tokens
+from OAuth are marked `OAUTH`. New tables: `McpOAuthClient`, `McpAuthCode`; `McpToken` gained
+`oauthClientId`, `refreshTokenHash`, `refreshExpiresAt` (migration `20261029100000_mcp_oauth`, additive).
+Protocol revisions negotiated at `initialize`: `2025-06-18` (default), `2025-03-26`, `2024-11-05`.
+
+## Auth (bearer tokens)
+
+- Bearer token `sa_mcp_<32 random chars>` (`Authorization: Bearer ...`), created in `/developer/mcp` by a
+  workspace OWNER / ADMIN, or issued by the OAuth flow above. Scope `READ` or `WRITE` (WRITE includes READ).
 - Only `sha256(token)` and the last 4 characters are stored (`McpToken`). The raw token is in the
   creation answer once, never in a list, log or later response.
 - Lookup is by the unique hash (the secret itself is never compared), then the stored hash is
@@ -158,9 +197,10 @@ FAILED, confirmCodeHash, expiresAt, result, error, `failedAttempts`, `approvedBy
 
 ## Developer UI (`/developer/mcp`)
 
-Tokens (create with name / scope / expiry, raw token shown once with copy buttons and the connection
-snippets for Claude Code, Claude Desktop (via `mcp-remote`) and ChatGPT-style clients; list with last
-4 characters, last used, revoke with inline confirmation), action log with status and tool filters,
+"Ulanish" (server URL + copy, step-by-step for Claude.ai / Claude Desktop, Claude Code, ChatGPT and
+other clients, the connected OAuth clients), tokens (create with name / scope / expiry, raw token shown
+once with copy buttons and the snippets for Claude Code and `mcp-remote`; list with last 4 characters,
+source OAUTH / MANUAL, last used, revoke with inline confirmation), action log with status and tool filters,
 Approve / reject buttons on PROPOSED rows (OWNER / ADMIN), "try it" (a real `tools/list` call to `/api/mcp` with a pasted token), and the tool list. Tokens are
 bound to the workspace you are signed in to; switch workspace in the app to manage another one.
 Creating and revoking need OWNER / ADMIN; every role can read.
@@ -173,8 +213,9 @@ Creating and revoking need OWNER / ADMIN; every role can read.
   (that exists for flows). The MCP "publish" therefore applies the account-connection check plus the
   campaign service's own validation (Meta length limits, keyword rules) and warns about keyword
   overlap with other active campaigns. Flow publishing stays in the Flows screen.
-- **ChatGPT:** clients that only support OAuth (remote MCP connectors that require OAuth discovery)
-  cannot connect with a static bearer token. OAuth is not implemented in this etap.
+- **OAuth** is implemented (see "Connecting directly"); hand-made tokens remain for scripts and clients
+  without OAuth. There is no OpenID / userinfo endpoint and no cross-workspace client: one approval = one
+  workspace token.
 - Rate limit and the pending counter are per server process (documented above).
 - Instagram login / OAuth flows, token-less access and cross-workspace "agency" tokens are out of
   scope: one token = one workspace.

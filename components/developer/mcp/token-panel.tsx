@@ -97,9 +97,9 @@ export default function TokenPanel({
             <CopyButton text={snippets.claudeDesktop} />
           </div>
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted">ChatGPT va boshqalar (MCP server URL + Authorization sarlavhasi)</p>
+            <p className="text-xs font-semibold text-muted">Boshqa mijozlar (MCP server URL + Authorization sarlavhasi)</p>
             <p className="text-xs text-muted">
-              URL: <code>{snippets.url}</code>. Sarlavha: <code>Authorization: Bearer …</code>. ChatGPT&apos;ning custom connector&apos;i faqat OAuth&apos;ni qo&apos;llashi mumkin — u holda token bilan ulanmaydi (README&apos;ga qarang).
+              URL: <code>{snippets.url}</code>. Sarlavha: <code>Authorization: Bearer …</code>. Claude.ai va ChatGPT connector&apos;lari sarlavha qabul qilmaydi — ular uchun &quot;Ulanish&quot; bo&apos;limidagi OAuth yo&apos;lini ishlating.
             </p>
             <CopyButton text={snippets.url} label="URL'ni nusxalash" />
           </div>
@@ -111,8 +111,11 @@ export default function TokenPanel({
 
       <section className="panel space-y-4 rounded-xl p-4 sm:p-5" aria-labelledby="mcp-new">
         <h2 id="mcp-new" className="text-sm font-semibold text-foreground">
-          Yangi token
+          Yangi token (qo&apos;lda)
         </h2>
+        <p className="text-xs text-muted">
+          Claude, ChatGPT va Claude Code &quot;Ulanish&quot; bo&apos;limidagi manzil bilan o&apos;zi ulanadi (OAuth). Qo&apos;lda token faqat OAuth&apos;ni qo&apos;llamaydigan mijozlar va skriptlar uchun.
+        </p>
         {!meta.me.canManage && <Notice tone="warning">Token yaratish uchun workspace egasi yoki administrator bo&apos;lish kerak.</Notice>}
         <form onSubmit={create} className="space-y-4" autoComplete="off">
           <Field label="Nomi" hint="Masalan: Claude Desktop (Jamol)">
@@ -181,6 +184,7 @@ export default function TokenPanel({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">
                       {t.name} <span className="label-mono ml-1 text-[10px] text-muted">{t.scope}</span>
+                      {t.source === "OAUTH" && <span className="label-mono ml-1 text-[10px] text-accent">OAUTH</span>}
                       {t.scope === "WRITE" && <span className="label-mono ml-1 text-[10px] text-muted">{t.requireHumanApproval ? "INSON TASDIG'I" : "AI O'ZI TASDIQLAYDI"}</span>}
                     </p>
                     <p className="text-xs text-muted">

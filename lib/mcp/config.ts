@@ -31,10 +31,10 @@ export const MAX_RESULT_CHARS = 60_000;
 /** Rows a list tool may return. */
 export const MAX_LIST_LIMIT = 50;
 
-export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-03-26", "2024-11-05"] as const;
+export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"] as const;
 export const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
 
-export const SERVER_INFO = { name: "socialauto", version: "0.1.0" } as const;
+export const SERVER_INFO = { name: "socialauto", title: "SocialAuto", version: "0.2.0" } as const;
 
 export const MCP_OFF_MESSAGE = "MCP o'chirilgan (MCP_DISABLED). Yechim: serverda MCP_DISABLED ni olib tashlab, web'ni qayta ishga tushiring.";
 

@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { describeLlmFailure, getLlmProvider, LlmError, llmTimeoutMs } from "@/lib/assistant/llm/provider";
+import { describeLlmFailure, getLlmProvider, LlmError, llmLongTimeoutMs } from "@/lib/assistant/llm/provider";
 import { COMMENT_LIMITS as L } from "./comment-limits";
 
 export const AI_TONES = ["friendly", "professional", "playful"] as const;
@@ -210,7 +210,7 @@ export async function generateVariantDrafts(
       temperature: 0.8,
       maxTokens: input.kind === "DM" ? 300 * input.count + 200 : 120 * input.count + 200,
       // The adapter retries transient failures itself (15 s each by default).
-      timeoutMs: llmTimeoutMs(20_000),
+      timeoutMs: llmLongTimeoutMs(20_000),
       usage: context.workspaceId ? { workspaceId: context.workspaceId, kind: "comment_variants" } : undefined,
     });
     json = response.json;

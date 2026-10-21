@@ -11,11 +11,13 @@ import { ServerOffNotice } from "@/components/developer/server-off";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DevBadge, Pill, secondaryButton } from "@/components/developer/ui";
 import ActionsLog from "./actions-log";
+import ConnectPanel from "./connect-panel";
 import { MCP_API, requestJson, type McpMeta, type TokenRow } from "./shared";
 import TokenPanel from "./token-panel";
 import TryPanel from "./try-panel";
 
 const TABS = [
+  { key: "connect", label: "Ulanish" },
   { key: "tokens", label: "Tokenlar" },
   { key: "log", label: "Amallar jurnali" },
   { key: "try", label: "Sinab ko'rish" },
@@ -26,7 +28,7 @@ type TabKey = (typeof TABS)[number]["key"];
 export default function McpDashboard() {
   const [meta, setMeta] = useState<McpMeta | null>(null);
   const [tokens, setTokens] = useState<TokenRow[]>([]);
-  const [tab, setTab] = useState<TabKey>("tokens");
+  const [tab, setTab] = useState<TabKey>("connect");
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
   const [freshToken, setFreshToken] = useState("");
@@ -67,7 +69,7 @@ export default function McpDashboard() {
             <DevBadge />
           </div>
           <p className="mt-1 text-sm text-muted">
-            Claude yoki ChatGPT orqali SocialAuto&apos;ni boshqaring. O&apos;qish darhol ishlaydi; har bir yozish avval ko&apos;rinish (preview) va bir martalik kod bilan tasdiqlanadi. Flow nashr qilish bu yerda yo&apos;q.
+            Claude yoki ChatGPT orqali SocialAuto&apos;ni boshqaring: AI mijozga server manzilini bering, u OAuth orqali o&apos;zi ulanadi. O&apos;qish darhol ishlaydi; har bir yozish avval ko&apos;rinish (preview) bilan tasdiqlanadi. Flow nashr qilish bu yerda yo&apos;q.
           </p>
           {meta?.workspace && (
             <p className="mt-1 text-xs text-muted">
@@ -120,6 +122,8 @@ export default function McpDashboard() {
 
       {!meta ? (
         loading ? <p className="py-10 text-center text-sm text-muted">Yuklanmoqda…</p> : null
+      ) : tab === "connect" ? (
+        <ConnectPanel meta={meta} tokens={tokens} onManage={() => setTab("tokens")} />
       ) : tab === "tokens" ? (
         <TokenPanel meta={meta} tokens={tokens} onChanged={() => void load()} onCreated={setFreshToken} />
       ) : tab === "log" ? (

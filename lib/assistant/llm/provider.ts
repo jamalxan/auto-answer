@@ -165,6 +165,17 @@ export function llmTimeoutMs(fallback = 15_000): number {
 }
 
 /**
+ * Timeout for long generations (AI Flow Builder, ManyChat conversion, reply
+ * variants). LLM_TIMEOUT_MS is tuned for chat turns (a few seconds); applied as
+ * a ceiling it made every big JSON generation fail with "AI vaqtida javob
+ * bermadi". So here the env value is a floor, never a cap: the job gets at least
+ * `minimum` ms, more when the owner configured more.
+ */
+export function llmLongTimeoutMs(minimum: number): number {
+  return Math.max(llmTimeoutMs(minimum), minimum);
+}
+
+/**
  * `LLM_PRICES='{"gemini-3.1-flash-lite":[0.25,1.5]}'` — per-model USD per 1M tokens
  * (input, output), matched by substring. Wins over the built-in table; lets the
  * owner correct a price without a deploy.

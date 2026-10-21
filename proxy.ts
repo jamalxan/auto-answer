@@ -32,7 +32,8 @@ export function proxy(request: NextRequest) {
 
   if (isProtected && !isAuthenticated) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    // Path + query: the MCP consent screen (/developer/mcp/authorize?...) must survive the login round trip.
+    loginUrl.searchParams.set("callbackUrl", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
   }
 

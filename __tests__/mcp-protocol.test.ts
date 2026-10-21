@@ -45,10 +45,11 @@ describe("initialize", () => {
     expect(json.result.serverInfo.name).toBe("socialauto");
   });
 
-  it("answers the latest version for 2025-03-26 and for an unknown request", async () => {
+  it("echoes a supported version and answers the latest (2025-06-18) for an unknown or missing one", async () => {
+    expect((await rpc(read, "initialize", { protocolVersion: "2025-06-18" })).json.result.protocolVersion).toBe("2025-06-18");
     expect((await rpc(read, "initialize", { protocolVersion: "2025-03-26" })).json.result.protocolVersion).toBe("2025-03-26");
-    expect((await rpc(read, "initialize", { protocolVersion: "1999-01-01" })).json.result.protocolVersion).toBe("2025-03-26");
-    expect((await rpc(read, "initialize")).json.result.protocolVersion).toBe("2025-03-26");
+    expect((await rpc(read, "initialize", { protocolVersion: "1999-01-01" })).json.result.protocolVersion).toBe("2025-06-18");
+    expect((await rpc(read, "initialize")).json.result.protocolVersion).toBe("2025-06-18");
   });
 
   it("keeps the request id (string and number)", async () => {
@@ -120,11 +121,11 @@ describe("tools/call errors", () => {
 });
 
 describe("HTTP edge", () => {
-  it("GET and DELETE answer 405 JSON with Allow: POST", async () => {
+  it("GET and DELETE answer 405 JSON with Allow: POST (no server-initiated stream)", async () => {
     for (const handler of [routeGet, routeDelete]) {
       const res = await handler();
       expect(res.status).toBe(405);
-      expect(res.headers.get("allow")).toBe("POST");
+      expect(res.headers.get("allow")).toMatch(/^POST/);
       expect((await res.json()).success).toBe(false);
     }
   });

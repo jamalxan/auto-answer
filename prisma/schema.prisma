@@ -2914,11 +2914,65 @@ model McpToken {
   revokedAt            DateTime?
   expiresAt            DateTime?
   createdAt            DateTime  @default(now())
+  // Set when the token was issued by the OAuth flow (Claude.ai / Claude Desktop /
+  // ChatGPT connectors); null = created by hand in /developer/mcp.
+  oauthClientId        String?
+  // sha256 of the OAuth refresh token; rotated on every refresh. Null for manual tokens.
+  refreshTokenHash     String?   @unique
+  refreshExpiresAt     DateTime?
 
-  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  actions   McpAction[]
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actions     McpAction[]
+  oauthClient McpOAuthClient? @relation(fields: [oauthClientId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, createdAt])
+}
+
+/// An MCP client registered through OAuth 2.1 dynamic client registration
+/// (RFC 7591): Claude.ai, Claude Desktop, ChatGPT, Claude Code, ... Platform-wide
+/// (registration happens before anyone is signed in); a client only ever gets a
+/// token for the workspace whose owner approved it on the consent screen.
+model McpOAuthClient {
+  id                      String    @id @default(cuid())
+  clientName              String
+  redirectUris            String[]
+  // "none" (public client + PKCE, the MCP default) or "client_secret_post".
+  tokenEndpointAuthMethod String    @default("none")
+  clientSecretHash        String?
+  clientUri               String?
+  createdAt               DateTime  @default(now())
+  lastUsedAt              DateTime?
+
+  tokens McpToken[]
+  codes  McpAuthCode[]
+
+  @@index([createdAt])
+}
+
+/// A one-time OAuth authorization code: the consent screen writes it, the
+/// token endpoint burns it (atomically) and issues the McpToken.
+model McpAuthCode {
+  id                   String    @id @default(cuid())
+  codeHash             String    @unique
+  clientId             String
+  redirectUri          String
+  codeChallenge        String
+  codeChallengeMethod  String    @default("S256")
+  scope                McpScope  @default(READ)
+  requireHumanApproval Boolean   @default(true)
+  workspaceId          String
+  userId               String
+  resource             String?
+  expiresAt            DateTime
+  usedAt               DateTime?
+  // The token issued from this code (so a replayed code can revoke it, RFC 6749 4.1.2).
+  issuedTokenId        String?
+  createdAt            DateTime  @default(now())
+
+  client McpOAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@index([expiresAt])
 }
 
 /// A write proposed over MCP: the audit log and the confirmation store. Nothing

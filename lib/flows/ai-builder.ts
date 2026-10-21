@@ -14,7 +14,7 @@
  * drops to the default (cheap) model.
  */
 
-import { describeLlmFailure, getLlmProviderFor, llmTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
+import { describeLlmFailure, getLlmProviderFor, llmLongTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { enforceBudgetBeforeCall } from "@/lib/javobai/budget";
 import { javobAiModel, javobAiSmartModel } from "@/lib/javobai/config";
@@ -113,7 +113,7 @@ export async function generateFlowFromPrompt(workspaceId: string, input: Generat
       schemaName: prompt.schemaName,
       temperature: 0.2,
       maxTokens: 4000,
-      timeoutMs: llmTimeoutMs(45_000),
+      timeoutMs: llmLongTimeoutMs(45_000),
     };
     const response: LlmResponse = await provider.complete(req);
     inputTokens += response.inputTokens;

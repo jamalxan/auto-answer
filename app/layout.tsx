@@ -87,7 +87,7 @@ export default async function RootLayout({
   const locale = await getServerUiLocale();
 
   return (
-    <html lang={locale} className={`h-full ${unbounded.variable} ${inter.variable}`}>
+    <html lang={locale} data-scroll-behavior="smooth" className={`h-full ${unbounded.variable} ${inter.variable}`}>
       <body
         // overflow-x-hidden: one wide/unbreakable child (a long localized
         // word, a decorative mockup) is enough to drag the entire page

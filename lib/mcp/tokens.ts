@@ -48,9 +48,11 @@ export interface TokenView {
   revokedAt: Date | null;
   expiresAt: Date | null;
   createdAt: Date;
+  /** OAUTH: issued by the consent screen to an AI client (refreshes itself); MANUAL: created by hand here. */
+  source: "OAUTH" | "MANUAL";
 }
 
-type TokenRow = TokenView & { workspaceId: string; tokenHash: string; createdByUserId: string | null };
+type TokenRow = Omit<TokenView, "source"> & { workspaceId: string; tokenHash: string; createdByUserId: string | null; oauthClientId?: string | null };
 
 /** Whitelist: the hash never leaves this layer. */
 function view(row: TokenRow): TokenView {
@@ -64,6 +66,7 @@ function view(row: TokenRow): TokenView {
     revokedAt: row.revokedAt,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
+    source: row.oauthClientId ? "OAUTH" : "MANUAL",
   };
 }
 
@@ -100,7 +103,7 @@ export async function listTokens(workspaceId: string): Promise<TokenView[]> {
 
 /** Revokes the token and withdraws what it had proposed but nobody confirmed yet. */
 export async function revokeToken(workspaceId: string, tokenId: string, now: Date = new Date()): Promise<void> {
-  const revoked = await prisma.mcpToken.updateMany({ where: { id: tokenId, workspaceId, revokedAt: null }, data: { revokedAt: now } });
+  const revoked = await prisma.mcpToken.updateMany({ where: { id: tokenId, workspaceId, revokedAt: null }, data: { revokedAt: now, refreshTokenHash: null } });
   if (revoked.count === 0) {
     const exists = await prisma.mcpToken.findFirst({ where: { id: tokenId, workspaceId }, select: { id: true } });
     if (!exists) throw notFound(TOKEN_NOT_FOUND);

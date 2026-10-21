@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getDeveloperSession, isDeveloperAreaConfigured } from "@/lib/developer/auth";
 import { developerLoginAction } from "@/lib/developer/actions";
+import { safeDeveloperNext } from "@/lib/developer/safe-next";
 
 export const metadata: Metadata = { title: "Kirish" };
 
@@ -19,11 +20,12 @@ const inputClass =
 export default async function DeveloperLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  if (await getDeveloperSession()) redirect("/developer");
-
   const params = await searchParams;
+  const next = safeDeveloperNext(params.next);
+  if (await getDeveloperSession()) redirect(next ?? "/developer");
+
   const errorMessage = params.error ? ERROR_MESSAGES[params.error] : null;
   const configured = isDeveloperAreaConfigured();
 
@@ -54,6 +56,7 @@ export default async function DeveloperLoginPage({
         )}
 
         <form action={developerLoginAction} className="mt-6 space-y-4">
+          {next && <input type="hidden" name="next" value={next} />}
           <label className="block text-sm">
             <span className="text-muted">Email</span>
             <input name="email" type="email" autoComplete="username" required className={inputClass} />

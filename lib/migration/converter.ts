@@ -17,7 +17,7 @@
  * every `vars.<key>` the graph uses, then audit + policy. Nothing is saved.
  */
 
-import { getLlmProviderFor, llmTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
+import { getLlmProviderFor, llmLongTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { type AuditResult, auditGraph } from "@/lib/flows/audit";
 import { buildFlowBuilderPrompt, buildFlowBuilderSystemPrompt, buildRepairPrompt, isFlowParseFailure, parseGraphFromLlm, type ParsedFlowFromLlm } from "@/lib/flows/ai-builder-prompt";
@@ -371,7 +371,7 @@ export async function convertFlowText(input: ConvertInput): Promise<ConvertedFlo
       schemaName: prompt.schemaName,
       temperature: 0.2,
       maxTokens: 6000,
-      timeoutMs: llmTimeoutMs(60_000),
+      timeoutMs: llmLongTimeoutMs(60_000),
     };
     const response: LlmResponse = await provider.complete(req);
     inputTokens += response.inputTokens;

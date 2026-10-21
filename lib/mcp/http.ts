@@ -8,8 +8,9 @@
  * /api/mcp needs no exemption (same as /api/webhooks).
  */
 
-import { authenticateMcp } from "./auth";
+import { authenticateMcp, MISSING_TOKEN } from "./auth";
 import { isMcpEnabled, MAX_BODY_BYTES, MCP_OFF_MESSAGE } from "./config";
+import { publicOrigin, wwwAuthenticate } from "./oauth";
 import { handleRpc, RPC } from "./protocol";
 import { declaredTooLarge, readLimitedJson } from "@/lib/utils/limited-body";
 
@@ -26,7 +27,8 @@ function rpcFailure(status: number, code: number, message: string): Response {
 export const TOO_LARGE = `So'rov juda katta (${MAX_BODY_BYTES / 1024} KB dan oshmasin)`;
 
 export function methodNotAllowed(): Response {
-  return error(405, "Faqat POST qo'llab-quvvatlanadi (MCP Streamable HTTP, JSON javob)", { Allow: "POST" });
+  // Streamable HTTP lets a server refuse the GET stream with 405 (no server-initiated messages here).
+  return error(405, "Faqat POST qo'llab-quvvatlanadi (MCP Streamable HTTP, JSON javob)", { Allow: "POST, OPTIONS" });
 }
 
 /** Best-effort client address (first X-Forwarded-For hop / X-Real-IP); only used to throttle bad token guesses. */
@@ -41,7 +43,12 @@ export async function handleMcpPost(request: Request): Promise<Response> {
 
   const auth = await authenticateMcp(request.headers.get("authorization"), new Date(), clientIpOf(request));
   if (!auth.ok) {
-    const headers: Record<string, string> = auth.status === 401 ? { "WWW-Authenticate": 'Bearer realm="socialauto"' } : { "Retry-After": String(auth.retryAfterSec ?? 60) };
+    // A 401 names the protected-resource metadata, which is how an MCP client
+    // (Claude.ai / Claude Desktop connectors, ChatGPT, Claude Code) finds the OAuth flow.
+    const headers: Record<string, string> =
+      auth.status === 401
+        ? { "WWW-Authenticate": wwwAuthenticate(publicOrigin(request), auth.error === MISSING_TOKEN ? undefined : "invalid_token") }
+        : { "Retry-After": String(auth.retryAfterSec ?? 60) };
     return error(auth.status, auth.error, headers);
   }
 
