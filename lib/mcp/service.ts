@@ -29,6 +29,8 @@ import { evaluatePolicy, type PolicyResult } from "@/lib/flows/policy";
 import { FLOW_TRIGGER_TYPES, flowGraphDraftSchema, sendText, type FlowGraph } from "@/lib/flows/schema";
 import { countFlows, createFlow, getFlow, listFlows } from "@/lib/flows/service";
 import { loadKnowledgeBlock } from "@/lib/javobai/knowledge";
+import { rankByQuery } from "@/lib/javobai/retrieval";
+import { isCrmEnabled } from "@/lib/crm/queue";
 import { findProfile } from "@/lib/assistant/profile";
 import { accountInWorkspace } from "@/lib/triggers/campaign-editing";
 import {
@@ -38,6 +40,7 @@ import {
   deleteCommentCampaign,
   getCommentCampaign,
   listCommentCampaigns,
+  listLegacyAutomations,
   saveVariants,
   setCommentCampaignActive,
   updateCommentCampaign,
@@ -49,6 +52,9 @@ export const CAMPAIGN_NOT_FOUND = "Kampaniya topilmadi";
 export const FLOW_NOT_FOUND = "Oqim topilmadi";
 export const LEAD_NOT_FOUND = "Lead topilmadi";
 export const ACCOUNT_NOT_FOUND = "Instagram akkaunt topilmadi";
+export const LEGACY_NOTE = "Eski (production) dvigatel kampaniyasi: faqat o'qish uchun. MCP orqali o'zgartirib yoki to'xtatib bo'lmaydi — SocialAuto ilovasida boshqariladi.";
+export const CRM_OFF_NOTE = "CRM moduli yoqilmagan (CRM_ENABLED): kontaktlar yig'ilmaydi, shuning uchun ro'yxat bo'sh. Lid tool'lari CRM yoqilgandan va backfill'dan keyin ishlaydi.";
+export const KB_NO_MATCH = "So'rovga mos ma'lumot topilmadi";
 
 const clip = (text: string | null | undefined, max: number): string | null => {
   if (!text) return null;
@@ -127,13 +133,28 @@ function metricRows(data: AnalyticsResult) {
   }));
 }
 
+function funnelRows(funnel: NonNullable<AnalyticsResult["funnel"]>) {
+  return funnel.stages.map((s) => ({
+    key: `funnel.${s.key}`,
+    label: s.label,
+    value: s.value,
+    formatted: formatMetric(s.value, "int"),
+    previous: s.compare,
+    deltaPct: s.deltaPct,
+    pctOfFirst: s.pctOfFirst,
+    dropOffPct: s.dropOffPct,
+  }));
+}
+
 export async function analyticsView(workspaceId: string, input: { tab: AnalyticsTab; period: Period; accountId?: string | null }) {
   const data = await readTab(workspaceId, input.tab, input.period, input.accountId ?? null);
   return {
     tab: data.tab,
     range: data.range,
     compareWith: data.compare?.label ?? null,
-    metrics: metricRows(data),
+    // The funnel tab has no tiles: its numbers are the stages (data.funnel), so they are the metrics here.
+    metrics: data.funnel ? funnelRows(data.funnel) : metricRows(data),
+    ...(data.funnel ? { funnelNote: data.funnel.note, customerMarked: data.funnel.customerMarked ?? null } : {}),
     topBreakdown: data.breakdown.slice(0, 10).map((row) => ({ kind: row.dimKind, label: row.label, metrics: row.metrics })),
     notes: data.notes,
   };
@@ -165,9 +186,28 @@ export async function reportText(workspaceId: string, input: { period: Period; a
 
 export async function listCampaignsView(workspaceId: string, input: { status: "all" | "active" | "paused"; limit: number }) {
   const active = input.status === "all" ? undefined : input.status === "active";
-  const [rows, total] = await Promise.all([listCommentCampaigns(workspaceId, { active, take: input.limit }), countCommentCampaigns(workspaceId, { active })]);
+  const [rows, total, legacy] = await Promise.all([
+    listCommentCampaigns(workspaceId, { active, take: input.limit }),
+    countCommentCampaigns(workspaceId, { active }),
+    listLegacyAutomations(workspaceId),
+  ]);
+  // B-34 for MCP: the production (legacy `Automation`) engine answers comments too.
+  // Without these rows an AI client sees "nothing is active" while a live campaign sends DMs.
+  const legacyRows = legacy.filter((a) => active === undefined || a.isActive === active).slice(0, input.limit);
   return {
     total,
+    legacyCampaigns: legacyRows.map((a) => ({
+      id: a.id,
+      name: a.name,
+      status: a.isActive ? "ACTIVE" : "PAUSED",
+      account: a.instagramAccount?.username ?? null,
+      keywords: a.keywords,
+      anyWord: a.matchAnyWord,
+      anyPost: a.matchAnyPost,
+      stats: a.stats,
+      readOnly: true,
+      note: LEGACY_NOTE,
+    })),
     campaigns: rows.map((c) => ({
       id: c.id,
       name: c.name,
@@ -334,6 +374,8 @@ export async function listLeadsView(workspaceId: string, input: ListLeadsInput) 
   return {
     total: page.total,
     nextCursor: page.nextCursor,
+    // An empty list because the CRM never ran is not "no leads": say so, or the client reports zero sales.
+    ...(page.total === 0 && !isCrmEnabled() ? { note: CRM_OFF_NOTE } : {}),
     leads: page.items.map((c) => ({
       id: c.id,
       // Names and usernames are typed by end users: data, not instructions.
@@ -357,7 +399,12 @@ export async function searchKnowledge(workspaceId: string, input: { accountId?: 
   if (!profile) return { found: false, untrusted: { lines: [] as Array<{ kind: string; text: string }> }, note: "Bilimlar bazasi hali to'ldirilmagan" };
   const block = await loadKnowledgeBlock(profile.id, input.query);
   if (!block) return { found: false, untrusted: { lines: [] }, note: "Bilimlar bazasi topilmadi" };
-  return { found: block.lines.length > 0, untrusted: { lines: block.lines.slice(0, 20).map((l) => ({ kind: l.kind, text: clip(l.text, 400) ?? "" })) } };
+  // The block is the prompt's "everything the AI may state": profile facts always, the rest
+  // padded to the cap. A search must return only what matches, or every query "finds" something.
+  const byId = new Map(block.lines.map((l) => [l.id, l]));
+  const hits = rankByQuery(input.query, block.lines, 20).map((r) => byId.get(r.id)!);
+  if (hits.length === 0) return { found: false, untrusted: { lines: [] }, note: KB_NO_MATCH };
+  return { found: true, untrusted: { lines: hits.map((l) => ({ kind: l.kind, text: clip(l.text, 400) ?? "" })) } };
 }
 
 // ─── WRITE: previews (no side effects) ────────────────────────────────────────

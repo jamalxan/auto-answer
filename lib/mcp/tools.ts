@@ -75,7 +75,8 @@ export const TOOLS: McpTool[] = [
   // ── READ ────────────────────────────────────────────────────────────────────
   read({
     name: "list_campaigns",
-    description: "List comment-to-DM campaigns (keyword campaigns on posts / reels / live) of this workspace with status and basic stats.",
+    description:
+      "List comment-to-DM campaigns (keyword campaigns on posts / reels / live) of this workspace with status and basic stats. `legacyCampaigns` are campaigns of the older production engine: they are live too when ACTIVE, but read-only over MCP (get_campaign / update / pause do not apply to them).",
     input: z.object({ status: z.enum(["all", "active", "paused"]).default("all"), limit }),
     run: (ctx, input) => svc.listCampaignsView(ctx.workspaceId, input),
   }),
@@ -99,7 +100,7 @@ export const TOOLS: McpTool[] = [
   }),
   read({
     name: "list_leads",
-    description: `List leads (CRM contacts) with minimal fields: name, Instagram username (both under \`untrusted\`), stage (NEW, ACTIVE, CUSTOMER, LOST, ARCHIVED), tags, last activity time. Phone numbers and e-mails are never returned. Use nextCursor to page.${UNTRUSTED}`,
+    description: `List leads (CRM contacts) with minimal fields: name, Instagram username (both under \`untrusted\`), stage (NEW, ACTIVE, CUSTOMER, LOST, ARCHIVED), tags, last activity time. Phone numbers and e-mails are never returned. Use nextCursor to page. A \`note\` explains an empty list caused by the CRM module being off (then the analytics "Lidlar" count can be non-zero while this list is empty).${UNTRUSTED}`,
     input: z.object({
       stage: z.enum(svc.LEAD_STAGES).optional(),
       tag: z.string().trim().min(1).max(40).optional().describe("Tag name or slug."),

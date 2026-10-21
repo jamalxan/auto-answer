@@ -88,8 +88,13 @@ const BLOCKLIST: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\b(davolaydi|shifo\s+beradi|излечивает|вылечивает)\b/iu, label: "tibbiy da'vo" },
 ];
 
+/**
+ * Drops `{{key}}` references but KEEPS a `{{key|fallback}}` fallback: when the
+ * variable is empty the fallback is what the customer receives, so a foreign
+ * URL or phone number in it must be checked like any other message text.
+ */
 function withoutTemplates(text: string): string {
-  return text.replace(/\{\{[^{}]*\}\}/g, " ");
+  return text.replace(/\{\{[^{}|]*(?:\|([^{}]*))?\}\}/g, (_match, fallback: string | undefined) => ` ${fallback ?? ""} `);
 }
 
 export function findPhoneNumbers(text: string): string[] {
