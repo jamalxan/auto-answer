@@ -1107,6 +1107,7 @@ async function persistTurn(
   const update = buildSummaryUpdate({ previousSummary: state.summary, memoryNote: result.memoryNote });
   let summary = update.summary;
   const summaryLlm = providerFor("summary", options.budgetStatus);
+  const compactionStarted = Date.now();
   const compaction = update.changed
     ? await compactSummaryIfNeeded(summary, summaryLlm, { maxChars: Math.floor(SUMMARY_MAX_CHARS * 0.9) })
     : { summary, compacted: false, inputTokens: 0, outputTokens: 0, model: null, error: null };
@@ -1123,7 +1124,7 @@ async function persistTurn(
       inputTokens: compaction.inputTokens,
       outputTokens: compaction.outputTokens,
       costUsd: summaryLlm.costUsd(compaction.inputTokens, compaction.outputTokens, model),
-      latencyMs: 0,
+      latencyMs: Date.now() - compactionStarted,
       ok: compaction.compacted,
     });
   }

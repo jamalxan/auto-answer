@@ -362,6 +362,7 @@ export async function convertFlowText(input: ConvertInput): Promise<ConvertedFlo
   let latencyMs = 0;
   let usedModel = provider.model;
   let ok = false;
+  const started = Date.now();
 
   const call = async (userMessage: string): Promise<unknown> => {
     const req: LlmRequest = {
@@ -405,7 +406,7 @@ export async function convertFlowText(input: ConvertInput): Promise<ConvertedFlo
     console.error("[Migration] conversion failed:", describeProviderError(error));
     throw new MigrationServiceError(502, "AI javob bermadi — birozdan keyin qayta urinib ko'ring");
   } finally {
-    await recordJavobAiUsage({ workspaceId: input.workspaceId, kind: USAGE_KIND_MIGRATION, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs, ok });
+    await recordJavobAiUsage({ workspaceId: input.workspaceId, kind: USAGE_KIND_MIGRATION, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok });
   }
 
   const processed = postProcessGraph(parsed.graph, { customFields: input.customFields, botVars: input.botVars });

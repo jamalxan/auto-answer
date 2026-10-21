@@ -55,6 +55,7 @@ export const ACCOUNT_NOT_FOUND = "Instagram akkaunt topilmadi";
 export const LEGACY_NOTE = "Eski (production) dvigatel kampaniyasi: faqat o'qish uchun. MCP orqali o'zgartirib yoki to'xtatib bo'lmaydi — SocialAuto ilovasida boshqariladi.";
 export const CRM_OFF_NOTE = "CRM moduli yoqilmagan (CRM_ENABLED): kontaktlar yig'ilmaydi, shuning uchun ro'yxat bo'sh. Lid tool'lari CRM yoqilgandan va backfill'dan keyin ishlaydi.";
 export const KB_NO_MATCH = "So'rovga mos ma'lumot topilmadi";
+export const ALREADY_PAUSED = "Kampaniya allaqachon to'xtatilgan — hech narsa qilish shart emas.";
 
 const clip = (text: string | null | undefined, max: number): string | null => {
   if (!text) return null;
@@ -517,10 +518,12 @@ export async function previewUpdateCampaign(workspaceId: string, input: UpdateCa
 export async function previewPauseCampaign(workspaceId: string, input: z.infer<typeof pauseCampaignInput>): Promise<Preview> {
   const campaign = await getCommentCampaign(workspaceId, input.campaignId);
   if (!campaign) throw notFound(CAMPAIGN_NOT_FOUND);
+  // Nothing to do: a no-op proposal would only take one of the token's few pending slots.
+  if (!campaign.active) throw badRequest(ALREADY_PAUSED);
   return {
     summary: `${quote(campaign.name)} kampaniyasi to'xtatiladi`,
-    details: { campaignId: campaign.id, from: campaign.active ? "ACTIVE" : "PAUSED", to: "PAUSED" },
-    warnings: campaign.active ? [] : ["Kampaniya allaqachon to'xtatilgan"],
+    details: { campaignId: campaign.id, from: "ACTIVE", to: "PAUSED" },
+    warnings: [],
   };
 }
 

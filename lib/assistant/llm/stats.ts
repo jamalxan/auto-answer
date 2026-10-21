@@ -46,10 +46,33 @@ export function isLlmErrorRateHigh(stats: Pick<LlmStats, "calls" | "failures">):
   return stats.calls >= LLM_MIN_CALLS_FOR_RATE && stats.failures / stats.calls >= LLM_ERROR_WARN_RATE;
 }
 
+/**
+ * Calls that never answer a customer: developer tools (sandbox, AI Flow Builder,
+ * ManyChat migration) and shadow replies (computed, never sent). Their failures
+ * are real but say nothing about what customers receive.
+ */
+export const TOOLING_LLM_KINDS = ["javobai_sandbox", "javobai_flowbuilder", "javobai_migration", "javobai_shadow"] as const;
+
+export function isToolingLlmKind(kind: string | null | undefined): boolean {
+  return (TOOLING_LLM_KINDS as readonly string[]).includes(kind ?? "");
+}
+
 export async function loadLlmStats(workspaceId: string, since: Date, until?: Date): Promise<LlmStats> {
   const rows = (await prisma.llmUsage.findMany({
     where: { workspaceId, createdAt: until ? { gte: since, lt: until } : { gte: since } },
     select: { ok: true, latencyMs: true },
   })) as unknown as Array<{ ok: boolean; latencyMs: number }>;
   return summarizeLlmRows(rows);
+}
+
+/** The same window split into customer-facing calls and developer-tool calls (see TOOLING_LLM_KINDS). */
+export async function loadLlmStatsByAudience(workspaceId: string, since: Date): Promise<{ customer: LlmStats; tooling: LlmStats }> {
+  const rows = (await prisma.llmUsage.findMany({
+    where: { workspaceId, createdAt: { gte: since } },
+    select: { ok: true, latencyMs: true, kind: true },
+  })) as unknown as Array<{ ok: boolean; latencyMs: number; kind: string | null }>;
+  return {
+    customer: summarizeLlmRows(rows.filter((r) => !isToolingLlmKind(r.kind))),
+    tooling: summarizeLlmRows(rows.filter((r) => isToolingLlmKind(r.kind))),
+  };
 }
