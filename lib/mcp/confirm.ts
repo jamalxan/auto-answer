@@ -26,6 +26,7 @@ export const ACTION_NOT_FOUND = "Amal topilmadi (id noto'g'ri yoki boshqa token 
 export const WRONG_CODE = "Tasdiqlash kodi noto'g'ri. Kodni preview javobidan aynan nusxalang.";
 export const EXPIRED_ACTION = "Amal muddati tugagan (10 daqiqa). Yechim: amalni qaytadan so'rang.";
 export const ALREADY_DONE = "Bu amal allaqachon bajarilgan yoki yopilgan — qayta tasdiqlab bo'lmaydi.";
+export const ALREADY_CLOSED = "Bu amal allaqachon bajarilgan yoki yopilgan — uni bekor qilib bo'lmaydi.";
 export const TOO_MANY_PENDING = `Tasdiq kutayotgan amallar ko'p (${MAX_PENDING_ACTIONS}). Yechim: avvalgilarini tasdiqlang yoki reject_action bilan bekor qiling.`;
 export const HUMAN_APPROVAL_REQUIRED = "inson tasdig'i kerak: /developer/mcp da tasdiqlang";
 export const TOO_MANY_WRONG_CODES = `Tasdiqlash kodi ${MAX_CODE_ATTEMPTS} marta noto'g'ri kiritildi — amal rad etildi. Yechim: amalni qaytadan so'rang.`;
@@ -310,7 +311,7 @@ export async function rejectActionAsDeveloper(workspaceId: string, actionId: str
     where: { id: action.id, workspaceId, status: "PROPOSED" },
     data: { status: "REJECTED", confirmCodeHash: null, error: "Odam rad etdi", resolvedAt: now },
   });
-  if (closed.count !== 1) throw conflict(ALREADY_DONE);
+  if (closed.count !== 1) throw conflict(ALREADY_CLOSED);
   return { status: "REJECTED", actionId: action.id };
 }
 
@@ -321,7 +322,7 @@ export async function rejectAction(ctx: McpTokenContext, params: { actionId: str
     where: { id: action.id, workspaceId: ctx.workspaceId, tokenId: ctx.tokenId, status: "PROPOSED" },
     data: { status: "REJECTED", confirmCodeHash: null, resolvedAt: now },
   });
-  if (closed.count !== 1) throw conflict(ALREADY_DONE);
+  if (closed.count !== 1) throw conflict(ALREADY_CLOSED);
   return { status: "REJECTED", actionId: action.id };
 }
 
