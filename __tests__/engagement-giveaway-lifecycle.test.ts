@@ -394,7 +394,19 @@ describe("notifyWinners", () => {
 
   it("a crash between the send and the settle (stale PENDING) is never resent automatically", async () => {
     await drawnAndConfirmed();
-    const winnerId = (rows("giveawayDraw")[0].winnerEntryIds as string[])[0];
+    // All four entrants win (winnersCount 4), but their order comes from the
+    // random seed. Pin the entrant whose window is open (6000): only a DM
+    // candidate is held back by a stale DM claim; an entrant with no window
+    // would legitimately get the public reply and make this test flaky.
+    const winnerId = entryOf("6000").id as string;
+    // The draw is random: make sure this winner's DM window is open, otherwise
+    // the DM claim is skipped and the test depends on who won.
+    const drawn = rows("giveawayEntry").find((e) => e.id === winnerId)!;
+    const known = rows("crmContact").find((c) => c.igUserId === drawn.igUserId);
+    if (known) {
+      known.lastInboundAt = new Date(NOW.getTime() - 3600_000);
+      known.optedOutAt = null;
+    } else db.seed("crmContact", { workspaceId: WS, instagramAccountId: account.id, igUserId: drawn.igUserId, lastInboundAt: new Date(NOW.getTime() - 3600_000) });
     db.seed("giveawayNotification", {
       giveawayId, entryId: winnerId, channel: "DM", status: "PENDING", snapshot: { sequence: 1 }, updatedAt: new Date(NOW.getTime() - 20 * 60_000),
     });
