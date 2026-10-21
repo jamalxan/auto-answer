@@ -36,7 +36,7 @@ Order (night, after approval):
 > merge is `developer-etap9` (not `developer-etap6`). One more additive
 > migration: `20261021100000_engagement_etap9`. Switch: `ENGAGEMENT_DISABLED`.
 
-Server: AWS `ubuntu@32.199.91.62` (nginx on the host, Docker compose project
+Server: Azure `azureuser@48.217.83.167` (migrated from AWS 32.199.91.62 on 2026-10-21; nginx on the host, Docker compose project
 `socialauto` in `~/socialauto`). CI/CD already exists: a push to `master`
 runs `.github/workflows/deploy.yml` (typecheck + tests → image to GHCR →
 `docker compose pull/up` on the server → `/api/health` check).

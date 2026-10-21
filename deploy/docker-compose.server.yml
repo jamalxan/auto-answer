@@ -1,9 +1,9 @@
-# SocialAuto — production stack for the nginx-fronted AWS box (32.199.91.62).
+# SocialAuto — production stack for the nginx-fronted Azure box (48.217.83.167, azureuser).
 #
 # Unlike docker-compose.prod.yml (Caddy + build on the host) this stack never
 # builds: GitHub Actions builds the image (.github/workflows/deploy.yml), pushes
-# it to GHCR and the server only pulls it. The server has 2 GB of RAM shared
-# with other apps, so compiling Next.js there is not safe.
+# it to GHCR and the server only pulls it. Building on the server is avoided
+# on purpose: deploys stay reproducible and fast.
 #
 # nginx on the host terminates TLS and proxies to 127.0.0.1:3000.
 # Volumes keep the names of the original stack (socialauto_pgdata/redisdata).
