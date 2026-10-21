@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Unbounded, Manrope, JetBrains_Mono } from "next/font/google";
+import { DomTranslator } from "@/components/dom-translator";
 import { LanguageProvider } from "@/components/language-provider";
-import { getServerLocale } from "@/lib/i18n/get-locale";
+import { getServerUiLocale } from "@/lib/i18n/get-locale";
 import "./globals.css";
 
 const unbounded = Unbounded({
@@ -81,7 +82,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = await getServerLocale();
+  const locale = await getServerUiLocale();
 
   return (
     <html
@@ -99,7 +100,10 @@ export default async function RootLayout({
         // Clears the home indicator when installed; 0 everywhere else.
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <LanguageProvider initialLocale={locale}>{children}</LanguageProvider>
+        <LanguageProvider initialLocale={locale}>
+          <DomTranslator />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

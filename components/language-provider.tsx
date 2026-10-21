@@ -9,13 +9,16 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
+import { baseLocale, LOCALE_COOKIE, type Locale, type UiLocale } from "@/lib/i18n/config";
 import { dictionaries } from "@/lib/i18n/translations";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
 interface LanguageContextValue {
+  /** Content locale (uz-Cyrl renders the Uzbek content). */
   locale: Locale;
-  setLocale: (locale: Locale) => void;
+  /** What the user picked, including the Cyrillic Uzbek script. */
+  uiLocale: UiLocale;
+  setLocale: (locale: UiLocale) => void;
   t: Dictionary;
 }
 
@@ -25,14 +28,14 @@ export function LanguageProvider({
   initialLocale,
   children,
 }: {
-  initialLocale: Locale;
+  initialLocale: UiLocale;
   children: React.ReactNode;
 }) {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+  const [locale, setLocaleState] = useState<UiLocale>(initialLocale);
   const router = useRouter();
 
   const setLocale = useCallback(
-    (next: Locale) => {
+    (next: UiLocale) => {
       setLocaleState(next);
       // A year — this is a plain preference, not a session artifact.
       document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; SameSite=Lax`;
@@ -44,7 +47,7 @@ export function LanguageProvider({
   );
 
   const value = useMemo<LanguageContextValue>(
-    () => ({ locale, setLocale, t: dictionaries[locale] }),
+    () => ({ locale: baseLocale(locale), uiLocale: locale, setLocale, t: dictionaries[baseLocale(locale)] }),
     [locale, setLocale]
   );
 
