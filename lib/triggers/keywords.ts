@@ -46,8 +46,15 @@ const CYRILLIC_VOWELS = new Set(["а", "е", "ё", "и", "о", "у", "ы", "э",
 function transliterateCyrillic(lower: string): string {
   let out = "";
   let prev = "";
-  for (const char of lower) {
-    if (char === "е") {
+  const chars = [...lower];
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i];
+    if (char === "д" && chars[i + 1] === "ж") {
+      // "дж" is one sound: менеджер → menejer, same as the Latin spelling.
+      out += "j";
+      prev = "ж";
+      i += 1;
+    } else if (char === "е") {
       const wordStart = !prev || !/\p{L}/u.test(prev);
       out += wordStart || CYRILLIC_VOWELS.has(prev) || prev === "ъ" || prev === "ь" ? "ye" : "e";
     } else {
@@ -205,11 +212,18 @@ export interface IntentHit {
 }
 
 /** First of `intentKeys` (in the given order) that the text expresses. */
+// Bare question words that are only a price question without a time/hours
+// context ("qancha vaqt", "сколько времени", "во сколько вы работаете").
+const BARE_PRICE_WORDS = new Set(["qancha", "kancha", "skolko"]);
+const NOT_PRICE_STEMS = ["vaqt", "soat", "vrem", "rabot", "ishla"];
+
 export function findIntent(text: string, intentKeys: string[]): IntentHit | null {
   const normalizedText = normalizeForMatch(text);
   if (!normalizedText) return null;
+  const timeContext = NOT_PRICE_STEMS.some((stem) => normalizedText.includes(stem));
   for (const key of intentKeys) {
     for (const variant of intentVariants(key)) {
+      if (key === "PRICE" && timeContext && BARE_PRICE_WORDS.has(variant.normalized)) continue;
       if (containsWords(normalizedText, variant.normalized)) return { intent: key, example: variant.example };
     }
   }

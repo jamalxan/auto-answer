@@ -40,6 +40,30 @@ export async function getDashboardStats(opts: {
     };
   };
 
+  // Trigger-engine DMs (comment 2.0, story replies, ...) live in
+  // TriggerExecution, not DmLog. Analytics counts both, so the Panel must too.
+  const execSentWhere = (range?: { gte: Date; lt?: Date }) => ({
+    workspaceId,
+    status: "SENT" as const,
+    ...(range ? { OR: [{ sentAt: range }, { sentAt: null, createdAt: range }] } : {}),
+    ...(selectedAccountId ? { campaign: { instagramAccountId: selectedAccountId } } : {}),
+  });
+  const countDmsSent = async (from: Date, to?: Date) => {
+    const range = to ? { gte: from, lt: to } : { gte: from };
+    const [legacy, engine] = await Promise.all([
+      prisma.dmLog.count({ where: sentSince(from, to) }),
+      prisma.triggerExecution.count({ where: execSentWhere(range) }),
+    ]);
+    return legacy + engine;
+  };
+  const countTotalDmsSent = async () => {
+    const [legacy, engine] = await Promise.all([
+      prisma.dmLog.count({ where: { workspaceId, status: "SENT", ...accountFilter } }),
+      prisma.triggerExecution.count({ where: execSentWhere() }),
+    ]);
+    return legacy + engine;
+  };
+
   // The seven daily buckets of the chart, counted together with everything
   // else instead of one query after another.
   const days = Array.from({ length: 7 }, (_, index) => {
@@ -103,10 +127,10 @@ export async function getDashboardStats(opts: {
     }),
     prisma.automation.count({ where: { workspaceId, ...accountFilter } }),
     prisma.automation.count({ where: { workspaceId, isActive: true, ...accountFilter } }),
-    prisma.dmLog.count({ where: sentSince(todayStart) }),
-    prisma.dmLog.count({ where: sentSince(weekStart) }),
-    prisma.dmLog.count({ where: sentSince(monthStart) }),
-    prisma.dmLog.count({ where: { workspaceId, status: "SENT", ...accountFilter } }),
+    countDmsSent(todayStart),
+    countDmsSent(weekStart),
+    countDmsSent(monthStart),
+    countTotalDmsSent(),
     prisma.dmLog.groupBy({
       by: ["status"],
       where: { workspaceId, createdAt: { gte: monthStart }, ...accountFilter },
@@ -141,7 +165,7 @@ export async function getDashboardStats(opts: {
     }),
     Promise.all(
       days.map(({ dayStart, dayEnd }) =>
-        prisma.dmLog.count({ where: sentSince(dayStart, dayEnd) })
+        countDmsSent(dayStart, dayEnd)
       )
     ),
   ]);
