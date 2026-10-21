@@ -24,7 +24,9 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 bg-midnight">
-      <div className="mx-auto flex h-[4.5rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
+      {/* Wider than the page sections (max-w-7xl): on large screens the lockup and the
+          actions sit near the edges instead of being squeezed into the middle. */}
+      <div className="mx-auto flex h-[4.5rem] w-full max-w-[1760px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12 2xl:px-16">
         <Link href="/" className="flex shrink-0 items-center" aria-label="SocialAuto">
           <Wordmark markClassName="h-8 w-8" textClassName="text-[1.2rem]" />
         </Link>
