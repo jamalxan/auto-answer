@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import LogoMark from "@/components/logo-mark";
+import { Wordmark } from "@/components/logo-mark";
 import { useLanguage } from "@/components/language-provider";
 import LanguageSwitcher from "@/components/language-switcher";
 
@@ -9,6 +9,7 @@ interface PublicSiteHeaderProps {
   active?: "home" | "templates";
 }
 
+/** A plain bar: lockup, a few links, one action. Solid midnight, no glass. */
 export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
   const { t } = useLanguage();
 
@@ -22,24 +23,19 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="SocialAuto home">
-          <LogoMark />
-          <span className="hidden font-display text-base font-extrabold tracking-tight text-foreground min-[400px]:inline sm:text-lg">
-            SocialAuto
-          </span>
+    <header className="sticky top-0 z-40 bg-midnight">
+      <div className="mx-auto flex h-[4.5rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
+        <Link href="/" className="flex shrink-0 items-center" aria-label="SocialAuto">
+          <Wordmark markClassName="h-8 w-8" textClassName="text-[1.2rem]" />
         </Link>
 
-        <nav className="hidden items-center gap-7 md:flex">
+        <nav className="hidden items-center gap-8 md:flex">
           {navLinks.map((link) => (
             <Link
               key={link.key}
               href={link.href}
-              className={`label-mono text-xs transition ${
-                active === link.key
-                  ? "text-accent"
-                  : "text-muted hover:text-foreground"
+              className={`text-[15px] font-medium ${
+                active === link.key ? "text-lime" : "text-cloud/80 hover:text-white"
               }`}
             >
               {link.label}
@@ -47,18 +43,15 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
           <LanguageSwitcher />
           <Link
             href="/login"
-            className="label-mono hidden px-4 py-2 text-xs font-semibold text-muted transition hover:text-foreground sm:inline-flex"
+            className="hidden px-3 py-2 text-[15px] font-medium text-cloud/80 hover:text-white sm:inline-flex"
           >
             {t.publicSite.signIn}
           </Link>
-          <Link
-            href="/login"
-            className="label-mono inline-flex items-center justify-center whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-[11px] font-bold text-background transition hover:bg-accent-hover sm:px-4 sm:text-xs"
-          >
+          <Link href="/login" className="btn btn-primary !px-5 !py-2.5 !text-[15px]">
             {t.publicSite.startFree}
           </Link>
         </div>

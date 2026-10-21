@@ -3,7 +3,8 @@
 /**
  * Top Bar
  *
- * Page title, mobile hamburger, and connection status.
+ * Page title, mobile hamburger, and connection status. Solid midnight; the
+ * sidebar's surface tone is the only separator it needs.
  */
 
 import { useEffect } from "react";
@@ -43,11 +44,8 @@ export default function TopBar({
     "/integrations": t.assistant.nav.integrations,
   };
   // Dynamic/nested routes (/campaigns/<id>, /campaigns/<id>/edit, ...) have
-  // no exact entry above, so without this the header fell back straight to
-  // "Dashboard" — a campaign's own edit screen, inbox thread, etc. all read
-  // "Dashboard" in the header no matter what the sidebar had selected. Each
-  // page still renders its own specific heading below this bar; this only
-  // has to get the *section* right.
+  // no exact entry above; this only has to get the *section* right. Each
+  // page still renders its own specific heading below this bar.
   const sectionFallbacks: Array<[string, string]> = [
     ["/campaigns/", t.nav.campaigns],
     ["/automations/", t.nav.campaigns],
@@ -74,12 +72,11 @@ export default function TopBar({
 
   return (
     <header
-      className="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 lg:px-8 border-b border-border bg-background/60 backdrop-blur-xl"
+      className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-midnight px-4 lg:px-8"
       // Installed to the home screen the app starts at the very top of the
       // display, so without this the title sits under the clock and battery.
-      // The inset is 0 in a browser tab and on desktop.
       style={{
-        height: "calc(4rem + env(safe-area-inset-top))",
+        height: "calc(4.25rem + env(safe-area-inset-top))",
         paddingTop: "env(safe-area-inset-top)",
       }}
     >
@@ -87,35 +84,30 @@ export default function TopBar({
         <button
           onClick={onMenuClick}
           type="button"
-          className="lg:hidden grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted hover:border-border-hover hover:bg-surface-hover hover:text-foreground"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface text-muted hover:bg-surface-hover hover:text-white lg:hidden"
           aria-label={t.nav.menu}
         >
           <Icon name="menu" className="h-[18px] w-[18px]" />
         </button>
-        <h1 className="truncate font-display text-base font-extrabold tracking-tight sm:text-lg">
-          {title}
-        </h1>
+        <h1 className="display truncate text-[1.15rem] sm:text-[1.35rem]">{title}</h1>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         {instagramAccountCount > 0 ? (
-          <div className="hidden min-w-0 items-center gap-2 rounded-full border border-border bg-surface/60 py-1 pl-1 pr-3 sm:flex">
-            <span className="relative grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white">
+          <div className="hidden min-w-0 items-center gap-2.5 rounded-full bg-surface py-1.5 pl-1.5 pr-4 sm:flex">
+            <span className="relative grid h-7 w-7 place-items-center rounded-full bg-violet text-white">
               <Icon name="instagram" className="h-3.5 w-3.5" />
-              <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-accent ring-2 ring-background" />
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-lime ring-2 ring-surface" />
             </span>
-            <span className="truncate text-sm font-medium text-foreground">
+            <span className="truncate text-sm font-medium text-white">
               {instagramAccountCount > 1
                 ? t.topbar.accountsCount(instagramAccountCount)
                 : `@${instagramUsername}`}
             </span>
           </div>
         ) : (
-          <a
-            href="/api/instagram/connect"
-            className="label-mono inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-bold px-3 py-2 rounded-lg bg-accent text-background hover:bg-accent-hover"
-          >
-            <Icon name="instagram" className="h-3.5 w-3.5" />
+          <a href="/api/instagram/connect" className="btn btn-primary !px-4 !py-2.5 !text-sm">
+            <Icon name="instagram" className="h-4 w-4" />
             {/* Full label needs more room than a 360px header has to spare. */}
             <span className="sm:hidden">{t.topbar.connect}</span>
             <span className="hidden sm:inline">{t.topbar.connectInstagram}</span>

@@ -62,6 +62,9 @@ export interface Dictionary {
     checkEmailTitle: string;
     checkEmailBody: string;
     backToSignIn: string;
+    heroTitle: string;
+    heroBody: string;
+    noPassword: string;
   };
   settings: {
     instagramConnection: string;
@@ -695,6 +698,18 @@ export interface Dictionary {
     pricingTitle: string;
     pricingBody: string;
     pricingMostPopular: string;
+    demo: {
+      username: string;
+      keyword: string;
+      typeHint: string;
+      waiting: string;
+      matched: string;
+      reply: string;
+      sentIn: string;
+      via: string;
+      now: string;
+    };
+    factsLine: string;
     faqEyebrow: string;
     faqTitle: string;
     faqs: { question: string; answer: string }[];

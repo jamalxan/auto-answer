@@ -263,3 +263,11 @@ export async function getAllPricingPlans(): Promise<PricingPlan[]> {
     sortOrder: p.sortOrder,
   }));
 }
+
+/**
+ * The seeded defaults, for pages that must render even when Postgres is
+ * unreachable (the public landing page must never 500 over a pricing query).
+ */
+export function getDefaultPricingPlans(): PricingPlan[] {
+  return DEFAULT_PLANS.map((plan) => ({ id: plan.slug, ...plan }));
+}

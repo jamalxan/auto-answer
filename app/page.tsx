@@ -3,9 +3,15 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 import PublicSiteHeader from "@/components/public-site-header";
 import SiteFooter from "@/components/site-footer";
-import { getActivePricingPlans } from "@/lib/pricing";
+import HeroDemo from "@/components/brand/hero-demo";
+import Reveal from "@/components/brand/reveal";
+import Tilt from "@/components/brand/tilt";
+import { CommentSolid, DmSolid, TriggerSolid } from "@/components/brand/shapes";
+import { Wordmark } from "@/components/logo-mark";
+import { getActivePricingPlans, getDefaultPricingPlans } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: { absolute: "SocialAuto - Instagram comment-to-DM automation" },
@@ -27,157 +33,16 @@ const structuredData = {
     "Turn Instagram keyword comments into automatic private replies using the official Meta API.",
 };
 
-/* Static, faithful copies of the real Overview and Dashboard screens, built in
-   the app's own design tokens so what visitors see is what the app looks like. */
-
-function AppWindow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background shadow-2xl shadow-black/50">
-      <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-border" />
-        <span className="h-2.5 w-2.5 rounded-full bg-border" />
-        <span className="h-2.5 w-2.5 rounded-full bg-border" />
-        <span className="label-mono ml-2 text-[11px] text-muted">{label}</span>
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
-  );
+function Container({ className = "", children }: { className?: string; children: ReactNode }) {
+  return <div className={`mx-auto w-full max-w-7xl px-5 sm:px-8 ${className}`}>{children}</div>;
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    // min-w-0: a grid item's min-width is "auto" (its content's intrinsic
-    // width) by default, so a single unbreakable token like "847.2K" was
-    // forcing this column wider than its 1/3 share and spilling into the
-    // next card. min-w-0 + truncate are the safety net; text-lg (down from
-    // text-2xl) is the actual fit — at ~115px per card this is as small as
-    // "847.2K" goes before truncate has to start eating characters.
-    <div className="panel min-w-0 rounded px-2.5 py-3">
-      <p className="label-mono text-[11px] text-muted">{label}</p>
-      <p className="mt-1 truncate font-display text-lg font-extrabold text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
+/* Section heading scale: one display size for every chapter. */
+const h2 = "display text-[2rem] sm:text-[2.75rem] lg:text-[3.4rem]";
+const h3 = "display text-[1.7rem] sm:text-[2.1rem] lg:text-[2.4rem]";
 
-const overviewStats = [
-  ["Views", "847.2K"],
-  ["Reach", "612.4K"],
-  ["Likes", "38.1K"],
-  ["Comments", "4,204"],
-  ["Saved", "9,712"],
-  ["Shares", "2,340"],
-];
-
-const overviewPosts = [
-  ["Spring drop reel", "214.8K", "9.1K", "Apr 3"],
-  ["Restock haul", "88.4K", "5.2K", "Mar 28"],
-  ["Behind the studio", "51.3K", "3.4K", "Mar 21"],
-];
-
-function OverviewPreview() {
-  return (
-    <AppWindow label="app / overview">
-      <div className="flex items-end justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-foreground">Overview</h3>
-          <p className="mt-1 text-xs text-muted">
-            Recent — 24 posts from @studio.store
-          </p>
-        </div>
-        <span className="rounded border border-border px-2 py-1 text-xs text-muted">
-          Last 50
-        </span>
-      </div>
-
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        {overviewStats.map(([label, value]) => (
-          <Stat key={label} label={label} value={value} />
-        ))}
-      </div>
-
-      <div className="mt-4 rounded border border-border bg-surface p-4">
-        <div className="flex items-baseline justify-between">
-          <p className="text-sm font-semibold text-foreground">
-            Followers over time
-          </p>
-          <p className="text-xs text-muted">
-            48,210 <span className="text-success">+1,240</span> · 30d
-          </p>
-        </div>
-        <svg
-          viewBox="0 0 300 64"
-          preserveAspectRatio="none"
-          className="mt-3 h-16 w-full"
-          aria-hidden="true"
-        >
-          <polyline
-            points="0,54 43,49 86,51 129,40 171,36 214,26 257,20 300,9"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-            className="text-accent"
-          />
-        </svg>
-      </div>
-
-      <div className="mt-4 rounded border border-border bg-surface p-4">
-        <p className="text-sm font-semibold text-foreground">Posts</p>
-        <table className="mt-3 w-full text-sm">
-          <thead>
-            <tr className="label-mono border-b border-border text-left text-[11px] text-muted">
-              <th className="pb-2 pr-3 font-medium">Post</th>
-              <th className="pb-2 px-3 text-right font-medium">Views</th>
-              <th className="pb-2 px-3 text-right font-medium">Likes</th>
-              <th className="pb-2 pl-3 text-right font-medium">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {overviewPosts.map(([post, views, likes, date]) => (
-              <tr key={post} className="border-b border-border last:border-0">
-                <td className="py-2 pr-3 text-foreground">{post}</td>
-                <td className="py-2 px-3 text-right text-muted">{views}</td>
-                <td className="py-2 px-3 text-right text-muted">{likes}</td>
-                <td className="py-2 pl-3 text-right text-muted">{date}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </AppWindow>
-  );
-}
-
-function MatchedCommentCard() {
-  return (
-    <div className="w-64 rounded-lg border border-border bg-surface p-4 shadow-2xl shadow-black/50">
-      <p className="text-xs text-muted">New comment</p>
-      <p className="mt-1 text-sm font-semibold text-foreground">@maya.co</p>
-      <p className="mt-1 text-sm text-muted">LINK please</p>
-      <div className="mt-3 border-t border-border pt-3">
-        <p className="text-xs text-muted">
-          Matched <span className="text-accent">GUIDE</span>
-        </p>
-        <p className="mt-1 text-sm font-medium text-success">
-          Queued private reply
-        </p>
-      </div>
-    </div>
-  );
-}
-
-const dashboardStats = [
-  ["Active Campaigns", "8"],
-  ["DMs Sent", "1,284"],
-  ["Skipped", "42"],
-  ["Failed", "3"],
-  ["Clicks", "356"],
-  ["CTR", "27.7%"],
-];
+/* A faithful, static copy of the real Dashboard screen in the app's own
+   tokens, so what visitors see is what the app looks like. */
 
 const dashboardChart: [string, number][] = [
   ["Mon", 42],
@@ -189,81 +54,98 @@ const dashboardChart: [string, number][] = [
   ["Sun", 73],
 ];
 
-const dashboardActivity = [
-  ["@maya.co", "Product guide reply", "Sent", "text-success"],
-  ["@founder.ray", "Price request", "Sent", "text-success"],
-  ["@shop.ava", "Lead magnet", "Queued", "text-warning"],
-];
-
-function DashboardPreview() {
+function DashboardPreview({ t, username }: { t: Dictionary; username: string }) {
+  const d = t.dashboard;
+  const stats: [string, string][] = [
+    [d.statActiveCampaigns, "8"],
+    [d.statDmsSent, "1 284"],
+    [d.statSkipped, "42"],
+    [d.statFailed, "3"],
+    [d.statClicks, "356"],
+    [d.statCtr, "27.7%"],
+  ];
+  const activity: [string, string, "lime" | "warning"][] = [
+    ["@maya.co", "Sent", "lime"],
+    ["@founder.ray", "Sent", "lime"],
+    ["@shop.ava", "Queued", "warning"],
+  ];
   const maxDM = Math.max(...dashboardChart.map(([, n]) => n));
+
   return (
-    <AppWindow label="app / dashboard">
-      <h3 className="text-base font-semibold text-foreground">Hello, Maya!</h3>
-      <p className="mt-1 text-xs text-muted">2 connected accounts · 340 contacts</p>
-
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        {dashboardStats.map(([label, value]) => (
-          <Stat key={label} label={label} value={value} />
-        ))}
+    <div className="overflow-hidden rounded-3xl bg-surface text-white shadow-float">
+      <div className="flex items-center justify-between gap-3 bg-surface-hover px-5 py-3.5">
+        <Wordmark markClassName="h-6 w-6" textClassName="text-[0.95rem]" />
+        <span className="flex items-center gap-2 rounded-full bg-midnight px-3 py-1 text-xs font-medium">
+          <span className="h-2 w-2 rounded-full bg-lime" />@{username}
+        </span>
       </div>
+      <div className="p-5 sm:p-6">
+        <p className="display text-[1.2rem]">{d.greeting("Maya")}</p>
+        <p className="mt-1 text-sm text-muted">
+          {d.connectedAccount(2)} · {d.contact(340)}
+        </p>
 
-      <div className="mt-4 rounded border border-border bg-surface p-4">
-        <p className="text-sm font-semibold text-foreground">DMs — Last 7 Days</p>
-        <div className="mt-4 flex h-32 items-end gap-2">
-          {dashboardChart.map(([day, n]) => (
-            <div key={day} className="flex flex-1 flex-col items-center gap-2">
-              <span className="text-[10px] text-muted">{n}</span>
-              <div
-                className="w-full rounded-sm bg-accent"
-                style={{ height: `${Math.max((n / maxDM) * 100, 4)}%` }}
-              />
-              <span className="text-[10px] text-muted">{day}</span>
+        <div className="mt-5 grid grid-cols-3 gap-2.5">
+          {stats.map(([label, value]) => (
+            <div key={label} className="min-w-0 rounded-2xl bg-surface-hover px-3 py-3">
+              <p className="truncate text-[11px] font-medium text-muted">{label}</p>
+              <p className="display mt-1.5 truncate text-[1.15rem] tabular-nums">{value}</p>
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="mt-4 rounded border border-border bg-surface p-4">
-        <p className="text-sm font-semibold text-foreground">Recent Activity</p>
-        <div className="mt-3 space-y-2">
-          {dashboardActivity.map(([user, automation, status, color]) => (
-            <div
-              key={user}
-              className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm last:border-0"
-            >
-              <span className="truncate text-foreground">{user}</span>
-              <span className="truncate text-muted">{automation}</span>
-              <span className={`text-sm ${color}`}>{status}</span>
-            </div>
-          ))}
+        <div className="mt-4 rounded-2xl bg-surface-hover p-4">
+          <p className="text-sm font-semibold">{d.chartTitle}</p>
+          <div className="mt-4 flex h-28 items-end gap-2">
+            {dashboardChart.map(([day, n]) => (
+              <div key={day} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                <div
+                  className="w-full rounded-t-md bg-lime"
+                  style={{ height: `${Math.max((n / maxDM) * 100, 6)}%` }}
+                />
+                <span className="text-[10px] text-muted">{day}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-surface-hover p-4">
+          <p className="text-sm font-semibold">{d.recentActivity}</p>
+          <div className="mt-2">
+            {activity.map(([user, status, tone]) => (
+              <div key={user} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="truncate">{user}</span>
+                <span className={tone === "lime" ? "text-lime" : "text-warning"}>{status}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </AppWindow>
+    </div>
   );
 }
 
 export default async function Home() {
   const [locale, pricingPlans] = await Promise.all([
     getServerLocale(),
-    getActivePricingPlans(),
+    // The landing page must render even when Postgres is unreachable: fall
+    // back to the seeded plans rather than failing the whole page.
+    getActivePricingPlans().catch((error: unknown) => {
+      console.error("[home] pricing plans unavailable, rendering defaults", error);
+      return getDefaultPricingPlans();
+    }),
   ]);
   const t = dictionaries[locale];
+  const h = t.home;
 
-  const heroStats = [
-    { value: t.home.statMonitoring, label: t.home.statMonitoringLabel },
-    { value: t.home.statOnePerComment, label: t.home.statOnePerCommentLabel },
-    { value: t.home.statZeroScraping, label: t.home.statZeroScrapingLabel },
-  ];
-
-  const flowSteps = [
-    { eyebrow: t.home.step1Eyebrow, title: t.home.step1Title, description: t.home.step1Body },
-    { eyebrow: t.home.step2Eyebrow, title: t.home.step2Title, description: t.home.step2Body },
-    { eyebrow: t.home.step3Eyebrow, title: t.home.step3Title, description: t.home.step3Body },
+  const steps = [
+    { title: h.step1Title, body: h.step1Body },
+    { title: h.step2Title, body: h.step2Body },
+    { title: h.step3Title, body: h.step3Body },
   ];
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-screen bg-midnight text-white">
       {/* Static, hand-authored JSON — not user input. */}
       <script
         type="application/ld+json"
@@ -271,255 +153,266 @@ export default async function Home() {
       />
       <PublicSiteHeader active="home" />
 
-      {/* min-w-0 on both grid items: below `lg` this collapses to one implicit
-          column, and without it a grid item's min-width defaults to its
-          content's intrinsic width — the OverviewPreview mockup (a dense
-          table + stat grid, never designed to shrink below ~440px) was
-          forcing the whole section wider than the viewport, dragging the
-          entire page into horizontal scroll on every phone. */}
-      <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 sm:px-6 sm:pt-18 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-24">
-        <div className="min-w-0 max-w-3xl">
-          <div className="label-mono inline-flex items-center gap-2 rounded border border-border bg-surface px-3 py-2 text-xs font-semibold text-muted">
-            {t.home.officialApi}
-          </div>
-
-          <h1 className="mt-7 wrap-anywhere text-balance font-display text-[2.15rem] font-extrabold leading-[1.04] tracking-tight text-foreground sm:text-5xl lg:text-6xl xl:text-7xl">
-            {t.home.heroTitle}
+      {/* ---------- Hero: the product, live, in the shape of its logo ---------- */}
+      <section className="overflow-hidden">
+        <Container className="pb-24 pt-12 sm:pt-16 lg:pb-32 lg:pt-20">
+          <h1 className="display text-[2.15rem] sm:text-[3.4rem] lg:text-[4.3rem] xl:text-[4.75rem]">
+            {h.heroTitle}
           </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-            {t.home.heroSubtitle}
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/login"
-              className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
-            >
-              {t.home.getStarted}
-            </Link>
-            <a
-              href="#how"
-              className="label-mono inline-flex items-center justify-center rounded border border-border bg-transparent px-6 py-3 text-xs font-bold text-foreground transition hover:border-border-hover hover:bg-surface-hover"
-            >
-              {t.home.seeHowItWorks}
-            </a>
-          </div>
-
-          <dl className="mt-10 grid max-w-xl grid-cols-3 gap-2 sm:gap-3">
-            {heroStats.map((stat) => (
-              <div key={stat.label} className="panel min-w-0 rounded-xl p-3 sm:p-4">
-                <dt className="whitespace-nowrap font-display text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
-                  {stat.value}
-                </dt>
-                <dd className="mt-1 text-xs leading-5 text-muted">{stat.label}</dd>
+          <div className="mt-10 grid gap-12 lg:mt-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start lg:gap-16">
+            <div className="min-w-0 lg:pt-10">
+              <p className="max-w-xl text-xl leading-9 text-cloud/90">{h.heroSubtitle}</p>
+              <div className="mt-9 flex flex-wrap gap-3">
+                <Link href="/login" className="btn btn-primary">
+                  {h.getStarted}
+                </Link>
+                <a href="#how" className="btn btn-ghost">
+                  {h.seeHowItWorks}
+                </a>
               </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="relative min-w-0">
-          <OverviewPreview />
-          <div className="absolute -bottom-8 -left-6 hidden lg:block">
-            <MatchedCommentCard />
-          </div>
-        </div>
-      </section>
-
-      <section id="how" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
-          <div>
-            <p className="label-mono text-sm font-bold text-accent">
-              {t.home.howItWorksEyebrow}
-            </p>
-            <h2 className="mt-3 wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
-              {t.home.howItWorksTitle}
-            </h2>
-            <p className="mt-5 text-base leading-8 text-muted">{t.home.howItWorksBody}</p>
-          </div>
-
-          <div className="grid gap-4">
-            {flowSteps.map((step) => (
-              <article
-                key={step.title}
-                className="panel grid gap-4 rounded p-5 sm:grid-cols-[120px_1fr]"
-              >
-                <p className="label-mono text-xs font-bold text-accent">
-                  {step.eyebrow}
-                </p>
-                <div>
-                  <h3 className="text-xl font-bold text-foreground">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted">{step.description}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-border bg-surface py-20">
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:items-center">
-          <DashboardPreview />
-
-          <div>
-            <p className="label-mono text-sm font-bold text-accent">
-              {t.home.dashboardEyebrow}
-            </p>
-            <h2 className="mt-3 wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
-              {t.home.dashboardTitle}
-            </h2>
-            <p className="mt-5 text-base leading-8 text-muted">{t.home.dashboardBody}</p>
-          </div>
-        </div>
-      </section>
-
-      <section id="features" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
-        <div className="max-w-2xl">
-          <p className="label-mono text-sm font-bold text-gold">
-            {t.home.featuresEyebrow}
-          </p>
-          <h2 className="mt-3 wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
-            {t.home.featuresTitle}
-          </h2>
-          <p className="mt-5 text-base leading-8 text-muted">{t.home.featuresBody}</p>
-        </div>
-
-        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {t.home.features.map((feature) => (
-            <div key={feature} className="panel rounded-xl p-4 text-sm font-semibold text-foreground">
-              {feature}
+              <p className="mt-8 max-w-md text-base leading-7 text-muted">{h.factsLine}</p>
             </div>
-          ))}
+
+            <div className="min-w-0 py-6 lg:py-0">
+              <HeroDemo
+                copy={{
+                  ...h.demo,
+                  triggerLabel: t.publicSite.triggerLabel,
+                  replyLabel: t.publicSite.privateReplyLabel,
+                }}
+              />
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      {/* ---------- How it works: three chapters, three colours of the mark ---------- */}
+      <section id="how" className="scroll-mt-20">
+        <Container className="pb-16 pt-8 lg:pb-24 lg:pt-12">
+          <Reveal>
+            <h2 className={`${h2} max-w-4xl`}>{h.howItWorksTitle}</h2>
+          </Reveal>
+          <Reveal delay={90}>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-cloud/85">{h.howItWorksBody}</p>
+          </Reveal>
+        </Container>
+
+        {/* Chapter: connect — Electric Violet, the comment arrives */}
+        <div className="bg-violet text-white">
+          <Container className="grid gap-12 py-24 lg:grid-cols-2 lg:items-center lg:py-32">
+            <Reveal>
+              <h3 className={h3}>{steps[0].title}</h3>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-white/85">{steps[0].body}</p>
+            </Reveal>
+            <Reveal delay={120} className="flex lg:justify-end">
+              <CommentSolid />
+            </Reveal>
+          </Container>
+        </div>
+
+        {/* Chapter: create — Signal Lime, the keyword is the trigger */}
+        <div className="bg-lime text-midnight">
+          <Container className="grid gap-12 py-24 lg:grid-cols-2 lg:items-center lg:py-32">
+            <Reveal delay={120} className="order-2 flex lg:order-1">
+              <TriggerSolid keyword={h.demo.keyword} />
+            </Reveal>
+            <Reveal className="order-1 lg:order-2">
+              <h3 className={h3}>{steps[1].title}</h3>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-midnight/80">{steps[1].body}</p>
+            </Reveal>
+          </Container>
+        </div>
+
+        {/* Chapter: deliver — Cloud, the DM goes out */}
+        <div className="bg-cloud text-midnight">
+          <Container className="py-24 lg:py-32">
+            <Reveal>
+              <h3 className={`${h3} max-w-3xl`}>{steps[2].title}</h3>
+            </Reveal>
+            <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end">
+              <Reveal delay={90}>
+                <p className="max-w-2xl text-lg leading-8 text-slate">{steps[2].body}</p>
+              </Reveal>
+              <Reveal delay={160} className="flex lg:justify-end">
+                <DmSolid />
+              </Reveal>
+            </div>
+          </Container>
         </div>
       </section>
 
-      <section className="border-y border-border bg-surface py-20">
-        <div className="mx-auto w-full max-w-6xl px-5 sm:px-6 lg:px-8">
-          <div className="max-w-2xl">
-            <p className="label-mono text-sm font-bold text-accent">
-              {t.home.trustEyebrow}
-            </p>
-            <h2 className="mt-3 wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
-              {t.home.trustTitle}
-            </h2>
-            <p className="mt-5 text-base leading-8 text-muted">{t.home.trustBody}</p>
+      {/* ---------- Dashboard proof ---------- */}
+      <section>
+        <Container className="py-24 lg:py-36">
+          <Reveal>
+            <h2 className={`${h2} max-w-5xl`}>{h.dashboardTitle}</h2>
+          </Reveal>
+          <div className="mt-10 grid gap-14 lg:mt-14 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start lg:gap-20">
+            <Reveal delay={90}>
+              <p className="max-w-xl text-lg leading-8 text-cloud/85">{h.dashboardBody}</p>
+            </Reveal>
+            <Reveal delay={160} className="min-w-0">
+              <Tilt>
+                <DashboardPreview t={t} username={h.demo.username} />
+              </Tilt>
+            </Reveal>
           </div>
+        </Container>
+      </section>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {t.home.trustPoints.map((point) => (
-              <div key={point.title} className="panel rounded-xl p-5">
-                <h3 className="text-base font-bold text-foreground">{point.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">{point.body}</p>
-              </div>
+      {/* ---------- Trust ---------- */}
+      <section className="bg-surface">
+        <Container className="py-24 lg:py-36">
+          <Reveal>
+            <h2 className={`${h2} max-w-5xl`}>{h.trustTitle}</h2>
+          </Reveal>
+          <Reveal delay={90}>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-cloud/85">{h.trustBody}</p>
+          </Reveal>
+          <div className="mt-16 grid gap-x-12 gap-y-12 sm:grid-cols-2 lg:mt-24">
+            {h.trustPoints.map((point, i) => (
+              <Reveal key={point.title} delay={i * 80}>
+                <h3 className="display text-[1.3rem] sm:text-[1.5rem]">{point.title}</h3>
+                <p className="mt-4 max-w-md text-lg leading-8 text-cloud/80">{point.body}</p>
+              </Reveal>
             ))}
           </div>
-        </div>
+        </Container>
       </section>
 
-      {pricingPlans.length > 0 && (
-        <section id="pricing" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
-          <div className="max-w-2xl">
-            <p className="label-mono text-sm font-bold text-gold">
-              {t.home.pricingEyebrow}
-            </p>
-            <h2 className="mt-3 wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
-              {t.home.pricingTitle}
-            </h2>
-            <p className="mt-5 text-base leading-8 text-muted">{t.home.pricingBody}</p>
+      {/* ---------- Features ---------- */}
+      <section id="features">
+        <Container className="py-24 lg:py-36">
+          <Reveal>
+            <h2 className={`${h2} max-w-5xl`}>{h.featuresTitle}</h2>
+          </Reveal>
+          <div className="mt-10 grid gap-12 lg:mt-14 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-20">
+          <Reveal delay={90}>
+            <p className="max-w-md text-lg leading-8 text-cloud/85">{h.featuresBody}</p>
+          </Reveal>
+          <Reveal delay={160}>
+            <ul className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
+              {h.features.map((feature) => (
+                <li key={feature} className="flex items-start gap-4 text-lg leading-8">
+                  <span aria-hidden="true" className="mt-3 h-2.5 w-2.5 shrink-0 bg-lime" />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+          </Reveal>
           </div>
+        </Container>
+      </section>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {pricingPlans.map((plan) => {
-              const copy = plan.content[locale];
-              return (
-                <div
-                  key={plan.id}
-                  className={`rounded border p-6 ${
-                    plan.isFeatured
-                      ? "border-accent bg-accent/5"
-                      : "panel"
-                  }`}
-                >
-                  {plan.isFeatured && (
-                    <span className="label-mono inline-flex rounded border border-accent bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
-                      {t.home.pricingMostPopular}
-                    </span>
-                  )}
-                  <h3 className="mt-3 font-display text-xl font-extrabold text-foreground">
-                    {copy.name}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted">{copy.description}</p>
-                  <p className="mt-5 font-display text-3xl font-extrabold text-foreground">
-                    {plan.priceAmount === 0
-                      ? plan.priceCurrency + "0"
-                      : `${plan.priceCurrency}${plan.priceAmount}`}
-                    <span className="text-sm font-semibold text-muted">
-                      {plan.priceSuffix}
-                    </span>
-                  </p>
-                  <ul className="mt-5 space-y-2">
-                    {copy.features.map((feature) => (
-                      <li
-                        key={feature}
-                        className="flex items-start gap-2 text-sm text-foreground"
+      {/* ---------- Pricing: real plans, light field ---------- */}
+      {pricingPlans.length > 0 && (
+        <section id="pricing" className="scroll-mt-20 bg-cloud text-midnight">
+          <Container className="py-24 lg:py-36">
+            <Reveal>
+              <h2 className={`${h2} max-w-5xl`}>{h.pricingTitle}</h2>
+            </Reveal>
+            <Reveal delay={90}>
+              <p className="mt-7 max-w-2xl text-lg leading-8 text-slate">{h.pricingBody}</p>
+            </Reveal>
+
+            <div className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {pricingPlans.map((plan, i) => {
+                const copy = plan.content[locale];
+                const featured = plan.isFeatured;
+                return (
+                  <Reveal key={plan.id} delay={i * 90} className="flex">
+                    <div
+                      className={`flex w-full flex-col rounded-3xl p-8 ${
+                        featured ? "bg-violet text-white" : "bg-white text-midnight"
+                      }`}
+                    >
+                      <h3 className="display text-[1.5rem]">{copy.name}</h3>
+                      <p
+                        className={`mt-3 text-base leading-7 ${
+                          featured ? "text-white/85" : "text-slate"
+                        }`}
                       >
-                        <span aria-hidden className="mt-1 text-accent">
-                          ✓
+                        {copy.description}
+                      </p>
+                      <p className="display mt-8 text-[2.75rem] tabular-nums">
+                        {plan.priceCurrency}
+                        {plan.priceAmount}
+                        <span
+                          className={`ml-1 font-sans text-base font-medium tracking-normal ${
+                            featured ? "text-white/80" : "text-slate"
+                          }`}
+                        >
+                          {plan.priceSuffix}
                         </span>
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    href="/login"
-                    className={`label-mono mt-6 inline-flex w-full items-center justify-center gap-2 rounded px-5 py-2.5 text-xs font-bold transition ${
-                      plan.isFeatured
-                        ? "bg-accent text-background hover:bg-accent-hover"
-                        : "border border-border text-foreground hover:border-border-hover hover:bg-surface-hover"
-                    }`}
-                  >
-                    {t.home.getStarted}
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
+                      </p>
+                      {featured && (
+                        <p className="mt-2 text-sm font-semibold text-lime">
+                          {h.pricingMostPopular}
+                        </p>
+                      )}
+                      <ul className="mt-8 space-y-3">
+                        {copy.features.map((feature) => (
+                          <li key={feature} className="flex items-start gap-3 text-base leading-7">
+                            <span
+                              aria-hidden="true"
+                              className={`mt-2.5 h-2 w-2 shrink-0 ${
+                                featured ? "bg-lime" : "bg-violet"
+                              }`}
+                            />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                      <Link
+                        href="/login"
+                        className={`btn mt-10 w-full ${featured ? "btn-lime" : "btn-primary"}`}
+                      >
+                        {h.getStarted}
+                      </Link>
+                    </div>
+                  </Reveal>
+                );
+              })}
+            </div>
+          </Container>
         </section>
       )}
 
-      <section id="faq" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-6 lg:px-8">
-        <div className="max-w-2xl">
-          <p className="label-mono text-sm font-bold text-accent">{t.home.faqEyebrow}</p>
-          <h2 className="mt-3 wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
-            {t.home.faqTitle}
-          </h2>
-        </div>
-
-        <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          {t.home.faqs.map((faq) => (
-            <article key={faq.question} className="panel rounded-xl p-5">
-              <h3 className="text-base font-bold text-foreground">{faq.question}</h3>
-              <p className="mt-2 text-sm leading-6 text-muted">{faq.answer}</p>
-            </article>
-          ))}
-        </div>
+      {/* ---------- FAQ ---------- */}
+      <section id="faq">
+        <Container className="py-24 lg:py-36">
+          <Reveal>
+            <h2 className={`${h2} max-w-5xl`}>{h.faqTitle}</h2>
+          </Reveal>
+          <div className="mt-14 grid gap-x-16 gap-y-12 lg:mt-20 lg:grid-cols-2">
+            {h.faqs.map((faq, i) => (
+              <Reveal key={faq.question} delay={i * 60}>
+                <h3 className="display text-[1.25rem] sm:text-[1.45rem]">{faq.question}</h3>
+                <p className="mt-4 max-w-xl text-lg leading-8 text-cloud/80">{faq.answer}</p>
+              </Reveal>
+            ))}
+          </div>
+        </Container>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-6 lg:px-8">
-        <div className="grid gap-8 rounded border border-accent/30 bg-accent/10 p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <h2 className="max-w-3xl wrap-anywhere font-display text-3xl font-extrabold leading-tight text-foreground sm:text-5xl tracking-tight">
-              {t.home.ctaTitle}
+      {/* ---------- Close: Electric Violet field ---------- */}
+      <section className="bg-violet text-white">
+        <Container className="py-24 lg:py-36">
+          <Reveal>
+            <h2 className="display max-w-5xl text-[2.2rem] sm:text-[3.25rem] lg:text-[4.25rem]">
+              {h.ctaTitle}
             </h2>
-            <p className="mt-4 text-base text-muted">{t.home.ctaBody}</p>
-          </div>
-          <Link
-            href="/login"
-            className="label-mono inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3 text-xs font-bold text-background transition hover:bg-accent-hover"
-          >
-            {t.home.getStarted}
-          </Link>
-        </div>
+          </Reveal>
+          <Reveal delay={90}>
+            <p className="mt-7 max-w-2xl text-xl leading-9 text-white/85">{h.ctaBody}</p>
+          </Reveal>
+          <Reveal delay={160}>
+            <Link href="/login" className="btn btn-lime mt-10 !px-8 !py-4 !text-lg">
+              {h.getStarted}
+            </Link>
+          </Reveal>
+        </Container>
       </section>
 
       <SiteFooter />

@@ -4,6 +4,7 @@ import Link from "next/link";
 import LogoMark from "@/components/logo-mark";
 import { useLanguage } from "@/components/language-provider";
 
+/** The designed close: links, then the name returns at full width. */
 export default function SiteFooter() {
   const { t } = useLanguage();
   const year = new Date().getFullYear();
@@ -19,29 +20,27 @@ export default function SiteFooter() {
     { label: t.footer.linkPrivacy, href: "/privacy" },
     { label: t.footer.linkTerms, href: "/terms" },
     { label: t.footer.linkDataDeletion, href: "/data-deletion" },
+    { label: t.footer.linkSignIn, href: "/login" },
   ];
 
   return (
-    <footer className="border-t border-border">
-      <div className="mx-auto w-full max-w-7xl px-5 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-10 sm:grid-cols-[1.2fr_1fr_1fr]">
+    <footer className="bg-midnight text-white">
+      <div className="mx-auto w-full max-w-7xl px-5 pb-10 pt-24 sm:px-8 lg:pt-32">
+        <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
-            <Link href="/" className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-foreground">
-              <LogoMark />
-              SocialAuto
+            <LogoMark className="h-12 w-12" title="SocialAuto" />
+            <p className="mt-6 max-w-sm text-lg leading-8 text-cloud/85">{t.footer.tagline}</p>
+            <Link href="/login" className="btn btn-primary mt-8">
+              {t.publicSite.startFree}
             </Link>
-            <p className="mt-3 max-w-xs text-sm leading-6 text-muted">{t.footer.tagline}</p>
           </div>
 
           <div>
-            <p className="label-mono text-[11px] font-bold text-muted">{t.footer.product}</p>
-            <ul className="mt-4 space-y-2">
+            <p className="text-base font-semibold">{t.footer.product}</p>
+            <ul className="mt-5 space-y-3">
               {productLinks.map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted transition hover:text-foreground"
-                  >
+                  <Link href={link.href} className="text-base text-cloud/75 hover:text-lime">
                     {link.label}
                   </Link>
                 </li>
@@ -50,33 +49,30 @@ export default function SiteFooter() {
           </div>
 
           <div>
-            <p className="label-mono text-[11px] font-bold text-muted">{t.footer.legal}</p>
-            <ul className="mt-4 space-y-2">
+            <p className="text-base font-semibold">{t.footer.legal}</p>
+            <ul className="mt-5 space-y-3">
               {legalLinks.map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted transition hover:text-foreground"
-                  >
+                  <Link href={link.href} className="text-base text-cloud/75 hover:text-lime">
                     {link.label}
                   </Link>
                 </li>
               ))}
-              <li>
-                <Link
-                  href="/login"
-                  className="text-sm text-muted transition hover:text-foreground"
-                >
-                  {t.footer.linkSignIn}
-                </Link>
-              </li>
             </ul>
           </div>
         </div>
 
-        <p className="mt-10 border-t border-border pt-6 text-xs text-muted">
-          {t.footer.rights(year)}
+        <p
+          aria-hidden="true"
+          className="display mt-24 overflow-hidden whitespace-nowrap text-[clamp(2.6rem,11vw,9.5rem)] leading-[0.95] tracking-[-0.04em] lg:mt-32"
+        >
+          Social<span className="text-lime">Auto</span>
         </p>
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm text-muted">
+          <p>{t.footer.rights(year)}</p>
+          <p>socialauto.uz</p>
+        </div>
       </div>
     </footer>
   );

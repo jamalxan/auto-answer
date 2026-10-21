@@ -60,6 +60,9 @@ export const uz = {
     checkEmailBody:
       "Sizga xavfsiz kirish havolasi yuborildi. Davom etish uchun uni shu qurilmada oching.",
     backToSignIn: "Kirishga qaytish",
+    heroTitle: "Izoh yozildi. DM ketdi.",
+    heroBody: "Instagram professional akkauntingizni ulang: kalit so'zli har bir izohga DM bir soniyada, rasmiy Meta API orqali yetib boradi.",
+    noPassword: "Parol kerak emas. Xavfsiz kirish havolasi emailingizga keladi.",
   },
   settings: {
     instagramConnection: "Instagram ulanishi",
@@ -777,6 +780,18 @@ export const uz = {
     pricingBody:
       "Hech qanday funksiya rejaga qulflanmagan — narx faqat ulangan Instagram akkauntlar soniga bog'liq.",
     pricingMostPopular: "Eng ommabop",
+    demo: {
+      username: "dilnoza.shop",
+      keyword: "narx",
+      typeHint: "Izohga kalit so'zni yozib ko'ring",
+      waiting: "Kalit so'z kutilmoqda",
+      matched: "Kalit so'z topildi",
+      reply: "Salom! Narxlar ro'yxatini yubordim. Savollar bo'lsa, shu yerda yozing.",
+      sentIn: "DM 1 soniyada yetib bordi",
+      via: "Rasmiy Meta API",
+      now: "hozir",
+    },
+    factsLine: "Izohlar 24/7 kuzatiladi. Mos izohga bitta DM. Skraping yo'q.",
     faqEyebrow: "Savol-javob",
     faqTitle: "Akkaunt ulashdan oldin ko'p so'raladigan savollar",
     faqs: [

@@ -59,6 +59,9 @@ export const en = {
     checkEmailBody:
       "We sent you a secure sign-in link. Open it on this device to continue.",
     backToSignIn: "Back to sign in",
+    heroTitle: "Comment in. DM out.",
+    heroBody: "Connect your Instagram professional account: every keyword comment gets a DM within a second, through the official Meta API.",
+    noPassword: "No password. A secure sign-in link lands in your inbox.",
   },
   settings: {
     instagramConnection: "Instagram Connection",
@@ -780,6 +783,18 @@ export const en = {
     pricingBody:
       "No feature is locked behind a plan — pricing only reflects how many Instagram accounts you connect.",
     pricingMostPopular: "Most popular",
+    demo: {
+      username: "maya.studio",
+      keyword: "price",
+      typeHint: "Type the keyword as a comment",
+      waiting: "Waiting for the keyword",
+      matched: "Keyword matched",
+      reply: "Hi! Here is the price list. Reply here if you have questions.",
+      sentIn: "DM delivered in 1 second",
+      via: "Official Meta API",
+      now: "now",
+    },
+    factsLine: "Comments watched 24/7. One DM per matched comment. No scraping.",
     faqEyebrow: "FAQ",
     faqTitle: "Questions people ask before connecting an account",
     faqs: [

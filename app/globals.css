@@ -1,42 +1,61 @@
 @import "tailwindcss";
 
-/* SocialAuto — Design System
-   Modern take on the socialauto.uz brand: deep indigo canvas, cream text,
-   mint/gold accents. Hairline borders, soft radii, layered surfaces and
-   subtle glows instead of the old thick-bordered flat panels. Every page
-   styles itself with these tokens, so a change here reaches all of them. */
+/* SocialAuto — Design System (Brend kitobi v1.0, oktabr 2026)
+
+   Palette:  Midnight #0A0B2E (60%)  ·  Electric Violet #6C4BFF (30%)
+             Signal Lime #D4FF3A (10%)  ·  Cloud #F4F4FA  ·  Slate #5B5E7A
+   Type:     Unbounded 600 for headlines and numbers, Inter for everything else.
+   Material: flat fields of colour separated by a tone step, never a hairline
+             or a gradient. Shadows only under things that float (the 3D
+             bubbles). Pills everywhere, like the logo's own bubbles.
+
+   Every page styles itself from these tokens, so the brand reaches all of
+   them from here. */
 
 @theme inline {
+  /* Brand roles */
+  --color-midnight: #0a0b2e;
+  --color-violet: #6c4bff;
+  --color-violet-deep: #5035dd;
+  --color-lime: #d4ff3a;
+  --color-lime-deep: #b4de1a;
+  --color-cloud: #f4f4fa;
+  --color-slate: #5b5e7a;
+
+  /* Semantic roles (dark app ground) */
   --color-background: #0a0b2e;
-  --color-foreground: #f4ecdd;
-  --color-surface: #11123c;
-  --color-surface-hover: #1a1b4e;
-  --color-border: rgba(180, 182, 255, 0.11);
-  --color-border-hover: rgba(180, 182, 255, 0.22);
-  --color-muted: #a19fca;
-  --color-accent: #00f0b5;
-  --color-accent-hover: #3cf5c8;
-  --color-gold: #ffb01f;
-  --color-alert: #e23d2c;
-  --color-success: #00f0b5;
+  --color-foreground: #ffffff;
+  --color-surface: #13143d;
+  --color-surface-hover: #1c1d4d;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-hover: rgba(255, 255, 255, 0.16);
+  --color-muted: #a7aacb;
+  --color-primary: #6c4bff;
+  --color-primary-hover: #7f62ff;
+  --color-accent: #d4ff3a;
+  --color-accent-hover: #e3ff78;
+  --color-gold: #d4ff3a;
+  --color-alert: #ff5d4d;
+  --color-success: #d4ff3a;
   --color-error: #ff5d4d;
   --color-warning: #ffb01f;
-  --font-sans: var(--font-manrope), system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: var(--font-unbounded), var(--font-sans);
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
 
-  /* `rounded` (the most used radius here) reads --radius. Softer radii
-     across the board are most of what makes the UI feel current. */
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --radius-sm: 0.5rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
-  --radius-3xl: 1.75rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
 
-  --shadow-lg: 0 12px 32px -12px rgb(0 0 0 / 0.6), 0 2px 6px -2px rgb(0 0 0 / 0.35);
-  --shadow-glow: 0 0 0 1px rgb(0 240 181 / 0.25), 0 8px 24px -8px rgb(0 240 181 / 0.45);
+  --shadow-lg: 0 18px 40px -18px rgb(0 0 0 / 0.6);
+  --shadow-float: 0 30px 60px -24px rgb(0 0 0 / 0.65), 0 12px 24px -12px rgb(0 0 0 / 0.4);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
   --animate-fade-in: fade-in 0.35s ease-out both;
@@ -64,34 +83,28 @@
 
 html {
   color-scheme: dark;
+  scroll-behavior: smooth;
 }
 
 body {
-  /* Two faint brand-colored glows behind everything; fixed so they don't
-     scroll away on long pages. */
-  background:
-    radial-gradient(60rem 40rem at 85% -10%, rgb(0 240 181 / 0.07), transparent 60%),
-    radial-gradient(50rem 40rem at -10% 110%, rgb(110 90 255 / 0.12), transparent 60%),
-    var(--color-background);
-  background-attachment: fixed;
+  background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv11";
+  font-feature-settings: "cv11", "ss01";
+  caret-color: var(--color-lime);
   /* User-supplied strings (an email-style name, a URL, a long Uzbek word)
-     must wrap instead of running off a phone screen. Only breaks a word
-     that cannot fit on its own line, so normal text is unaffected. */
+     must wrap instead of running off a phone screen. */
   overflow-wrap: break-word;
 }
 
 ::selection {
-  background: rgb(0 240 181 / 0.3);
-  color: var(--color-foreground);
+  background: var(--color-lime);
+  color: var(--color-midnight);
 }
 
-/* Thin, quiet scrollbars instead of the chunky OS default on Windows. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(180 182 255 / 0.18) transparent;
+  scrollbar-color: rgb(108 75 255 / 0.55) transparent;
 }
 
 @layer base {
@@ -107,54 +120,61 @@ body {
     cursor: not-allowed;
   }
 
-  /* Smooth hover/focus changes everywhere without adding `transition` to
-     every element by hand. A `transition-*` utility still overrides this. */
   a,
   button,
   input,
   select,
   textarea,
   summary {
-    transition-property: color, background-color, border-color, box-shadow, opacity;
-    transition-duration: 150ms;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   input::placeholder,
   textarea::placeholder {
-    color: rgb(161 159 202 / 0.7);
+    color: rgb(167 170 203 / 0.75);
   }
 
-  /* Fields already have a border, so swap the outline for an accent border
-     and a soft glow — the focus state reads clearly without jumping. */
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
   textarea:focus-visible,
   select:focus-visible {
     outline: none;
-    border-color: rgb(0 240 181 / 0.6);
-    box-shadow: 0 0 0 3px rgb(0 240 181 / 0.15);
+    border-color: var(--color-violet);
+    box-shadow: 0 0 0 3px rgb(108 75 255 / 0.3);
   }
 
   input[type="checkbox"],
   input[type="radio"] {
-    accent-color: var(--color-accent);
+    accent-color: var(--color-violet);
   }
 
   select option {
     background: var(--color-surface);
     color: var(--color-foreground);
   }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    text-wrap: balance;
+  }
+
+  /* Numbers line up in tables and stat tiles. */
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-/* Focus ring — visible, for keyboard users. */
+/* Keyboard focus ring — the trigger colour, offset from the control. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--color-lime);
+  outline-offset: 3px;
 }
 
-/* iOS Safari zooms the whole page in when a focused field's text is under 16px,
-   and never zooms back out. Fields are text-sm (14px) throughout, so raise them
-   to 16px on phones and leave the desktop sizing alone. */
+/* iOS Safari zooms in when a focused field's text is under 16px. */
 @media (max-width: 640px) {
   input,
   textarea,
@@ -164,41 +184,203 @@ body {
 }
 
 @layer components {
-  /* Panel — the base card look site-wide: a layered surface with a hairline
-     border, a faint top highlight and a soft drop shadow. In the components
-     layer so a utility (border-red-500/40, bg-surface-hover…) still wins. */
+  /* Panel — the base card surface site-wide: one tone step up from the
+     ground, no hairline. The transparent border keeps utility overrides
+     like `border-red-500/40` working on alerts. */
   .panel {
-    background:
-      linear-gradient(180deg, rgb(255 255 255 / 0.03), rgb(255 255 255 / 0) 55%),
-      var(--color-surface);
-    border: 1px solid var(--color-border);
-    box-shadow:
-      inset 0 1px 0 0 rgb(255 255 255 / 0.04),
-      0 10px 30px -18px rgb(0 0 0 / 0.7);
+    background: var(--color-surface);
+    border: 1px solid transparent;
   }
 
-  /* Uppercase, tracked-out mono label — stat labels, section eyebrows, CTAs. */
+  /* Legacy label class (220 call sites): now a plain Inter semibold label,
+     sentence case. The name stays so no page needs touching. */
   .label-mono {
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
   }
 
-  /* Gradient text for display headlines. */
-  .text-gradient {
-    background: linear-gradient(100deg, var(--color-foreground) 20%, var(--color-accent) 120%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  /* Buttons — pills like the logo's bubbles. One fill, flat, square-footed. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.25;
+    padding: 0.9rem 1.6rem;
+    white-space: nowrap;
+    transition:
+      background-color 180ms var(--ease-out-expo),
+      color 180ms var(--ease-out-expo),
+      transform 180ms var(--ease-out-expo);
+  }
+
+  .btn:active {
+    transform: translateY(1px) scale(0.985);
+  }
+
+  .btn-primary {
+    background: var(--color-violet);
+    color: #fff;
+  }
+
+  .btn-primary:hover {
+    background: var(--color-primary-hover);
+  }
+
+  .btn-lime {
+    background: var(--color-lime);
+    color: var(--color-midnight);
+  }
+
+  .btn-lime:hover {
+    background: var(--color-accent-hover);
+  }
+
+  .btn-ghost {
+    background: rgb(255 255 255 / 0.08);
+    color: #fff;
+  }
+
+  .btn-ghost:hover {
+    background: rgb(255 255 255 / 0.14);
+  }
+
+  .btn-ghost-ink {
+    background: rgb(10 11 46 / 0.08);
+    color: var(--color-midnight);
+  }
+
+  .btn-ghost-ink:hover {
+    background: rgb(10 11 46 / 0.14);
+  }
+
+  /* Display type — Unbounded 600, tight tracking, the brand's headline voice. */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  /* The logo's bubble geometry as a CSS shape: three round corners and one
+     sharp one. `.bubble-comment` points bottom-right, `.bubble-dm` top-left. */
+  .bubble-comment {
+    border-radius: 9999px 9999px 0 9999px;
+  }
+
+  .bubble-dm {
+    border-radius: 0 9999px 9999px 9999px;
   }
 }
 
-/* Accent CTAs get a soft mint glow on hover — the one flourish that makes the
-   primary action feel alive. */
-@media (hover: hover) {
-  a.bg-accent:hover,
-  button.bg-accent:not(:disabled):hover {
-    box-shadow: var(--shadow-glow);
+/* ---------- Motion ---------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Scroll reveal: visible by default, so nothing stays hidden without script.
+   The client component sets data-state only after mount. */
+.reveal[data-state="pending"] {
+  opacity: 0;
+  transform: translate3d(0, 28px, 0);
+}
+
+.reveal[data-state="in"] {
+  animation: rise 0.9s var(--ease-out-expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Hero scene: the mark assembling itself. */
+@keyframes bubble-in-top {
+  from {
+    opacity: 0;
+    transform: translate3d(-48px, -56px, 40px) rotate(-6deg) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 40px) rotate(0) scale(1);
+  }
+}
+
+@keyframes bubble-in-bottom {
+  from {
+    opacity: 0;
+    transform: translate3d(40px, 64px, 120px) rotate(4deg) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 120px) rotate(0) scale(1);
+  }
+}
+
+/* `scale` rather than `transform`, so the element keeps its own depth. */
+@keyframes trigger-pop {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+  }
+  60% {
+    opacity: 1;
+    scale: 1.12;
+  }
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+@keyframes drift-3d {
+  0%,
+  100% {
+    transform: rotateX(8deg) rotateY(-10deg);
+  }
+  50% {
+    transform: rotateX(-6deg) rotateY(10deg);
+  }
+}
+
+/* Scroll-linked unfold for the app window: lies back, then stands up as it
+   enters. Only where the browser can drive animation from scroll. */
+@supports (animation-timeline: view()) {
+  .unfold {
+    animation: unfold linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 40%;
+  }
+}
+
+@keyframes unfold {
+  from {
+    transform: perspective(1600px) rotateX(16deg) translate3d(0, 48px, -80px);
+    opacity: 0.6;
+  }
+  to {
+    transform: perspective(1600px) rotateX(0) translate3d(0, 0, 0);
+    opacity: 1;
   }
 }
 
@@ -208,5 +390,14 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .reveal[data-state="pending"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .unfold {
+    animation: none;
   }
 }

@@ -4,13 +4,15 @@
  * Sidebar Navigation
  *
  * Icon + label nav, grouped by area, with active state and workspace footer.
+ * One solid surface, a tone step up from the canvas; the active item is a
+ * filled violet pill.
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
 import Icon, { type IconName } from "@/components/icons";
-import LogoMark from "@/components/logo-mark";
+import { Wordmark } from "@/components/logo-mark";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -34,7 +36,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const { t } = useLanguage();
 
-  // Groups are separated visually only, so no extra translated headings.
+  // Groups are separated by space only, so no extra translated headings.
   const navGroups: NavItem[][] = [
     [
       { label: t.nav.dashboard, href: "/dashboard", icon: "home" },
@@ -63,7 +65,7 @@ export default function Sidebar({
     <>
       {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 lg:hidden ${
+        className={`fixed inset-0 z-40 bg-midnight/75 transition-opacity duration-200 lg:hidden ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
@@ -73,28 +75,25 @@ export default function Sidebar({
       <aside
         className={`
           fixed top-0 left-0 z-50 h-dvh w-64 max-w-[85vw] shrink-0 flex flex-col
-          border-r border-border bg-surface/95 backdrop-blur-xl lg:bg-surface/60
+          bg-surface
           transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
           lg:h-full lg:translate-x-0 lg:static lg:z-auto
-          ${isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
+          ${isOpen ? "translate-x-0 shadow-float" : "-translate-x-full"}
         `}
       >
-        {/* Same reason as the top bar: the drawer is full height, so the
-            wordmark would otherwise land under the status bar. */}
+        {/* The drawer is full height, so the lockup would otherwise land
+            under the status bar. */}
         <div
-          className="flex items-center justify-between gap-2 px-5 pb-4"
+          className="flex items-center justify-between gap-2 px-5 pb-5"
           style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top))" }}
         >
-          <Link href="/dashboard" className="group flex items-center gap-2.5">
-            <LogoMark />
-            <span className="font-display text-base font-extrabold tracking-tight text-foreground">
-              SocialAuto
-            </span>
+          <Link href="/dashboard" className="inline-flex" aria-label="SocialAuto">
+            <Wordmark markClassName="h-8 w-8" textClassName="text-[1.15rem]" />
           </Link>
           <button
             type="button"
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-hover hover:text-foreground lg:hidden"
+            className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-surface-hover hover:text-white lg:hidden"
             aria-label="Close menu"
           >
             <Icon name="close" />
@@ -103,11 +102,8 @@ export default function Sidebar({
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           {navGroups.map((group, i) => (
-            <div
-              key={i}
-              className={i > 0 ? "mt-3 border-t border-border pt-3" : ""}
-            >
-              <ul className="space-y-0.5">
+            <div key={i} className={i > 0 ? "mt-6" : ""}>
+              <ul className="space-y-1">
                 {group.map((item) => {
                   const isActive =
                     pathname === item.href || pathname.startsWith(item.href + "/");
@@ -117,19 +113,16 @@ export default function Sidebar({
                         href={item.href}
                         onClick={onClose}
                         aria-current={isActive ? "page" : undefined}
-                        className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
+                        className={`group flex items-center gap-3 rounded-full px-3.5 py-2.5 text-[15px] font-medium ${
                           isActive
-                            ? "bg-accent/10 text-foreground"
-                            : "text-muted hover:bg-surface-hover hover:text-foreground"
+                            ? "bg-violet text-white"
+                            : "text-muted hover:bg-surface-hover hover:text-white"
                         }`}
                       >
-                        {isActive && (
-                          <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-accent" />
-                        )}
                         <Icon
                           name={item.icon}
                           className={`h-[18px] w-[18px] shrink-0 ${
-                            isActive ? "text-accent" : "text-muted group-hover:text-foreground"
+                            isActive ? "text-white" : "text-muted group-hover:text-white"
                           }`}
                         />
                         <span className="truncate">{item.label}</span>
@@ -142,12 +135,12 @@ export default function Sidebar({
           ))}
         </nav>
 
-        <div className="border-t border-border p-3">
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-hover text-sm font-bold text-foreground ring-1 ring-border">
+        <div className="p-3">
+          <div className="flex items-center gap-3 rounded-full bg-midnight px-2 py-2">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet font-display text-sm font-semibold text-white">
               {initial}
             </span>
-            <p className="min-w-0 truncate text-sm font-medium text-foreground">
+            <p className="min-w-0 truncate pr-2 text-sm font-medium text-white">
               {workspaceName}
             </p>
           </div>
