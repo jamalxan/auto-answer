@@ -27,6 +27,8 @@ export interface Dictionary {
     settings: string;
     diagnostics: string;
     menu: string;
+    accountMenu: string;
+    logout: string;
   };
   topbar: {
     connectInstagram: string;
