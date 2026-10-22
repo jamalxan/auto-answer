@@ -246,6 +246,102 @@ function hintsFromIssues(issues: string[], raw: Record<string, unknown>): string
   return [...hints];
 }
 
+// ─── Deterministic repair: the comment 24h-window rule ────────────────────────
+
+type RawNode = Record<string, unknown> & { id?: unknown; type?: unknown };
+type RawEdge = { from?: unknown; to?: unknown; handle?: unknown };
+type RawGraph = Record<string, unknown> & { nodes?: unknown; edges?: unknown };
+
+const OPEN_BUTTON_LABEL = "Davom etish";
+const OPEN_MESSAGE_TEXT = "Salom! Davom etish uchun tugmani bosing 👇";
+const PASS_THROUGH_TYPES = new Set(["tag", "crm", "action", "webhook"]);
+const WINDOW_TYPES = new Set(["button", "ai", "lead", "delay"]);
+
+function freshId(nodes: RawNode[], base: string): string {
+  const used = new Set(nodes.map((n) => String(n.id ?? "")));
+  if (!used.has(base)) return base;
+  for (let i = 2; i < 100; i += 1) if (!used.has(`${base}${i}`)) return `${base}${i}`;
+  return `${base}_${Date.now().toString(36)}`;
+}
+
+/**
+ * Models keep sending a quick-reply block, an ai question or a second message
+ * straight after a COMMENT trigger — forbidden, because the 24h window only
+ * opens when the private reply's button is tapped. Rather than spend a repair
+ * round on it, rewrite the start of the graph: the first send becomes (or is
+ * preceded by) a message with an opening button, and the rest hangs off its
+ * `tap`. Pure, defensive on raw input; returns the fixes made (Uzbek, for the
+ * warnings list) so the merchant knows what to review.
+ */
+export function repairCommentOpening(graph: RawGraph): { graph: RawGraph; fixes: string[] } {
+  const fixes: string[] = [];
+  if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) return { graph, fixes };
+  const nodes = (graph.nodes as unknown[]).map((n) => (n && typeof n === "object" ? { ...(n as RawNode) } : n)) as RawNode[];
+  const edges = (graph.edges as unknown[]).map((e) => (e && typeof e === "object" ? { ...(e as RawEdge) } : e)) as RawEdge[];
+  const trigger = nodes.find((n) => n?.type === "trigger");
+  if (!trigger || (trigger.triggerType !== "COMMENT" && trigger.triggerType !== "LIVE_COMMENT")) return { graph, fixes };
+
+  const byId = new Map<string, RawNode>();
+  for (const n of nodes) if (n && typeof n.id === "string") byId.set(n.id, n);
+  const outOf = (id: string, handle: string) => edges.find((e) => e.from === id && e.handle === handle);
+
+  // Walk trigger → (pass-through blocks) → the first block that sends or needs the window.
+  let incoming = outOf(String(trigger.id), "next");
+  let first = incoming ? byId.get(String(incoming.to)) : undefined;
+  const seen = new Set<string>();
+  while (first && PASS_THROUGH_TYPES.has(String(first.type)) && !seen.has(String(first.id))) {
+    seen.add(String(first.id));
+    incoming = outOf(String(first.id), "next");
+    first = incoming ? byId.get(String(incoming.to)) : undefined;
+  }
+  if (!first || !incoming) return { graph, fixes };
+  const id = String(first.id);
+  const label = (s: unknown) => (typeof s === "string" && s.trim() ? s.trim().slice(0, FLOW_LIMITS.buttonLabelLength) : OPEN_BUTTON_LABEL);
+
+  const insertOpener = (text: string, buttonLabel: string, note: string) => {
+    const openerId = freshId(nodes, "m_open");
+    nodes.splice(nodes.indexOf(first!), 0, { id: openerId, type: "message", text, button: { id: "open", label: buttonLabel } });
+    incoming!.to = openerId;
+    edges.push({ from: openerId, to: id, handle: "tap" });
+    fixes.push(`AI oqimi avtomatik tuzatildi: «${id}» oldiga «${openerId}» ochuvchi tugmali xabar qo'shildi — ${note}`);
+  };
+
+  if (first.type === "message") {
+    const next = outOf(id, "next");
+    if (first.button && typeof first.button === "object") {
+      if (next && !outOf(id, "tap")) {
+        next.handle = "tap";
+        fixes.push(`AI oqimi avtomatik tuzatildi: «${id}» tugmali xabardan keyingi chiqish "tap" qilindi (tugma bosilguncha davom etilmaydi)`);
+      }
+    } else if (next) {
+      first.button = { id: "open", label: OPEN_BUTTON_LABEL };
+      next.handle = "tap";
+      fixes.push(`AI oqimi avtomatik tuzatildi: «${id}» xabariga «${OPEN_BUTTON_LABEL}» tugmasi qo'shildi — komment oqimida keyingi xabarlar faqat tugma bosilgach yuboriladi; tugma nomini o'zgartiring`);
+    }
+  } else if (first.type === "button") {
+    const buttons = Array.isArray(first.buttons) ? (first.buttons as RawNode[]) : [];
+    const only = buttons.length === 1 ? buttons[0] : undefined;
+    const plain = only && (only.kind === undefined || only.kind === "text") && !only.saveAs && !first.timeoutMinutes;
+    if (only && plain) {
+      const tapEdge = outOf(id, `tap:${String(only.id)}`);
+      for (let i = edges.length - 1; i >= 0; i -= 1) if (edges[i].from === id && edges[i] !== tapEdge) edges.splice(i, 1);
+      if (tapEdge) tapEdge.handle = "tap";
+      first.type = "message";
+      first.button = { id: typeof only.id === "string" ? only.id : "open", label: label(only.label) };
+      delete first.buttons;
+      delete first.onText;
+      delete first.timeoutMinutes;
+      fixes.push(`AI oqimi avtomatik tuzatildi: «${id}» tugmalar bloki ochuvchi tugmali xabarga aylantirildi (komment oqimi qoidasi)`);
+    } else {
+      insertOpener(typeof first.text === "string" && first.text.trim() ? first.text : OPEN_MESSAGE_TEXT, OPEN_BUTTON_LABEL, "komment oqimida tugmalar faqat oyna ochilgach ishlaydi; matnini tekshiring");
+    }
+  } else if (WINDOW_TYPES.has(String(first.type))) {
+    insertOpener(OPEN_MESSAGE_TEXT, OPEN_BUTTON_LABEL, "bu blok oyna ochilmasdan ishlamaydi; ochuvchi xabar matnini o'zingiz yozing");
+  }
+
+  return { graph: fixes.length ? { ...graph, nodes, edges } : graph, fixes };
+}
+
 /** Everything a model might return: raw text (fenced or not), a JSON string, or the parsed object. */
 export function parseGraphFromLlm(raw: unknown): ParsedFlowFromLlm | FlowParseFailure {
   let value: unknown = raw;
@@ -258,13 +354,14 @@ export function parseGraphFromLlm(raw: unknown): ParsedFlowFromLlm | FlowParseFa
   if (!value || typeof value !== "object") return { error: "not_json", hints: ["JSON obyekt kutilgan edi"] };
   const wrapper = value as Record<string, unknown>;
   const rawGraph = (wrapper.graph && typeof wrapper.graph === "object" ? wrapper.graph : wrapper) as Record<string, unknown>;
-  const candidate = { v: 1, variables: [], ...rawGraph, edges: normaliseEdges(rawGraph.edges ?? []) };
+  const repaired = repairCommentOpening({ v: 1, variables: [], ...rawGraph, edges: normaliseEdges(rawGraph.edges ?? []) });
+  const candidate = repaired.graph;
   const parsed = flowGraphSchema.safeParse(candidate);
   if (!parsed.success) {
     return { error: "invalid_graph", hints: hintsFromIssues(formatIssues(parsed.error), candidate) };
   }
   const graph = parsed.data;
-  const warnings: string[] = [];
+  const warnings: string[] = [...repaired.fixes];
   const declared = new Set(graph.variables.map((v) => v.key));
   for (const node of graph.nodes) {
     if (node.type === "button") node.buttons.forEach((b) => b.saveAs && declared.add(b.saveAs));
