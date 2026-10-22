@@ -72,6 +72,27 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   onboardingSession: {},
   instagramAccount: {
     triggerCampaigns: { model: "triggerCampaign", fk: "instagramAccountId", kind: "many" },
+    scheduledPosts: { model: "scheduledPost", fk: "instagramAccountId", kind: "many" },
+  },
+  // Content Scheduler (ETAP 13)
+  scheduledPost: {
+    media: { model: "scheduledPostMedia", fk: "postId", kind: "many" },
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+    attemptsLog: { model: "publishAttempt", fk: "postId", kind: "many" },
+    automations: { model: "automation", fk: "scheduledPostId", kind: "many" },
+    triggerCampaigns: { model: "triggerCampaign", fk: "scheduledPostId", kind: "many" },
+  },
+  scheduledPostMedia: {
+    media: { model: "mediaAsset", fk: "mediaId", kind: "one" },
+    post: { model: "scheduledPost", fk: "postId", kind: "one" },
+  },
+  mediaAsset: {
+    usages: { model: "scheduledPostMedia", fk: "mediaId", kind: "many" },
+    workspace: { model: "workspace", fk: "workspaceId", kind: "one" },
+  },
+  publishAttempt: {
+    post: { model: "scheduledPost", fk: "postId", kind: "one" },
   },
   instagramEvent: {
     instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
@@ -314,8 +335,24 @@ const DEFAULTS: Record<string, () => Row> = {
   }),
   assistantProduct: () => ({ note: null, price: null, priceIsFrom: false, currency: "UZS", unit: null, priceUpdatedAt: new Date(), sort: 0 }),
   assistantFaq: () => ({ source: "OWNER", sort: 0 }),
-  workspace: () => ({ aiConversationsThisPeriod: 0, aiConversationsLimit: null, assistantTemplateOnlyUntil: null }),
-  instagramAccount: () => ({ tokenStatus: "ACTIVE", accessToken: "" }),
+  workspace: () => ({ aiConversationsThisPeriod: 0, aiConversationsLimit: null, assistantTemplateOnlyUntil: null, timezone: "Asia/Tashkent", mediaStorageBytes: BigInt(0) }),
+  instagramAccount: () => ({ tokenStatus: "ACTIVE", accessToken: "", canPublish: false, grantedScopes: [], publishQuotaUsed: null, publishQuotaCheckedAt: null }),
+  // Content Scheduler (ETAP 13)
+  scheduledPost: () => ({
+    status: "DRAFT", version: 1, attempts: 0, collaborators: [], labels: [], shareToFeed: true, autoPublish: true,
+    isAiGenerated: false, timezone: "Asia/Tashkent", deletedAt: null, caption: null, firstComment: null,
+    coverMediaId: null, thumbOffsetMs: null, trialStrategy: null, audioName: null, locationId: null,
+    manualReason: null, scheduledAt: null, seriesId: null, seriesIndex: null, containerId: null,
+    containerStatus: null, containerCreatedAt: null, igMediaId: null, permalink: null, publishedAt: null,
+    firstCommentId: null, firstCommentStatus: null, lastErrorCode: null, lastErrorMessage: null,
+    reviewRule: null, reviewSubmittedAt: null, createdById: null,
+  }),
+  scheduledPostMedia: () => ({ altText: null, userTags: [], cropRect: null, containerId: null }),
+  mediaAsset: () => ({
+    status: "UPLOADING", tags: [], preparedKey: null, thumbKey: null, width: null, height: null,
+    durationMs: null, codec: null, fps: null, error: null, uploadedById: null,
+  }),
+  publishAttempt: () => ({ metaCode: null, metaSubcode: null, fbTraceId: null, message: null, durationMs: null }),
   knowledgeGap: () => ({ status: "OPEN", hits: 1, examples: [] }),
   onboardingSession: () => ({ step: 0, answers: {}, fsm: {}, status: "ACTIVE", language: "uz", igAccountId: null, reminderSentAt: null }),
   telegramUser: () => ({ language: "uz" }),
