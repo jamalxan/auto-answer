@@ -18,6 +18,10 @@ x-app: &app
     # verified in Resend on 2026-10-22; pinned here (overrides .env) so the
     # sandbox-era onboarding@resend.dev address can never come back.
     EMAIL_FROM: "SocialAuto <login@socialauto.uz>"
+    # ETAP 5 CRM is opt-in in code (lib/crm/queue.ts). The developer area is the
+    # only UI for it, and the owner wants every /developer module live, so it is
+    # pinned on here for web + worker + cron. CRM_DISABLED=1 in .env still wins.
+    CRM_ENABLED: "1"
   depends_on:
     postgres:
       condition: service_healthy
