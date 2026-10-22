@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import type { AccountOption } from "@/components/account-select";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
 import { useLanguage } from "@/components/language-provider";
+import { Card } from "@/components/ui/page";
 
 interface SettingsData {
   workspace: {
@@ -161,7 +162,7 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-    return <div className="panel rounded-xl p-8 h-64" />;
+    return <div className="panel h-64 animate-pulse rounded-3xl" />;
   }
 
   const accounts = data?.instagramAccounts ?? [];
@@ -171,7 +172,7 @@ export default function SettingsPage() {
     membersData?.currentUserRole === "ADMIN";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <div className="mx-auto max-w-3xl space-y-6">
       {/* Surfaces the ?instagram= code the OAuth routes redirect back with.
           Needs a Suspense boundary: useSearchParams in a prerendered client
           page fails the production build without one. */}
@@ -179,22 +180,20 @@ export default function SettingsPage() {
         <InstagramConnectNotice />
       </Suspense>
 
-      <section className="panel rounded-xl p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">{t.settings.instagramConnection}</h2>
-
+      <Card title={t.settings.instagramConnection}>
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">{t.settings.status}</p>
-              <p className="text-xs text-muted mt-0.5">{t.settings.statusHelp}</p>
+              <p className="text-sm font-medium text-white">{t.settings.status}</p>
+              <p className="mt-0.5 text-xs text-muted">{t.settings.statusHelp}</p>
             </div>
             <span
-              className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
                 accounts.length > 0 && !hasBrokenToken
-                  ? "bg-success/10 text-success"
+                  ? "bg-lime/15 text-lime"
                   : hasBrokenToken
-                    ? "bg-error/10 text-error"
-                    : "bg-warning/10 text-warning"
+                    ? "bg-error/15 text-error"
+                    : "bg-warning/15 text-warning"
               }`}
             >
               {hasBrokenToken
@@ -205,10 +204,10 @@ export default function SettingsPage() {
             </span>
           </div>
 
-          <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">{t.settings.accounts}</p>
-              <p className="text-xs text-muted mt-0.5">
+              <p className="text-sm font-medium text-white">{t.settings.accounts}</p>
+              <p className="mt-0.5 text-xs text-muted">
                 {t.settings.accountsHelp(accounts.length)}
               </p>
             </div>
@@ -219,7 +218,7 @@ export default function SettingsPage() {
             </span>
           </div>
 
-          <div className="space-y-3 py-3">
+          <div className="space-y-2">
             {accounts.length === 0 && (
               <p className="text-sm text-muted">{t.settings.connectPrompt}</p>
             )}
@@ -237,10 +236,10 @@ export default function SettingsPage() {
               return (
                 <div
                   key={account.id}
-                  className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="inset flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-foreground">
+                    <p className="text-sm font-semibold text-white">
                       @{account.username}
                     </p>
                     <p className="mt-1 text-xs text-muted">
@@ -268,7 +267,7 @@ export default function SettingsPage() {
                   <button
                     onClick={() => disconnectInstagram(account.id)}
                     disabled={busy === `disconnect:${account.id}`}
-                    className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
+                    className="btn btn-sm btn-danger shrink-0"
                   >
                     {busy === `disconnect:${account.id}`
                       ? t.settings.disconnecting
@@ -280,19 +279,15 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-border flex gap-3">
-          <a
-            href="/api/instagram/connect"
-            className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-background hover:bg-accent-hover"
-          >
+        <div className="mt-6 flex gap-3">
+          <a href="/api/instagram/connect" className="btn btn-sm btn-lime">
             {accounts.length > 0 ? t.settings.connectAnother : t.settings.connectInstagram}
           </a>
         </div>
-      </section>
+      </Card>
 
-      <section className="panel rounded-xl p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">{t.settings.team}</h2>
-        <div className="space-y-3">
+      <Card title={t.settings.team}>
+        <div className="space-y-2">
           {membersData?.members.map((member) => {
             // Owners aren't editable — canManageWorkspace already blocks the
             // API from touching an OWNER row, so there's nothing to offer here.
@@ -314,17 +309,17 @@ export default function SettingsPage() {
                         ? t.settings.roleViewer
                         : t.settings.roleMember;
             const roleBadge = (
-              <span className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted">
+              <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-muted">
                 {roleLabel}
               </span>
             );
             return (
               <div
                 key={member.id}
-                className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-0"
+                className="inset flex items-center justify-between gap-4 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">
+                  <p className="truncate text-sm font-medium text-white">
                     {member.user.name ?? member.user.email ?? t.settings.unknownMember}
                   </p>
                   <p className="truncate text-xs text-muted">{member.user.email}</p>
@@ -341,7 +336,7 @@ export default function SettingsPage() {
                             e.target.value as "ADMIN" | "MEMBER"
                           )
                         }
-                        className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-foreground disabled:opacity-50"
+                        className="input !w-auto bg-surface py-1.5 text-xs font-semibold"
                       >
                         <option value="ADMIN">{t.settings.roleAdmin}</option>
                         <option value="MEMBER">{t.settings.roleMember}</option>
@@ -353,7 +348,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => void removeMember(member.id)}
                       disabled={busy === `member:${member.id}`}
-                      className="rounded-lg border border-error/20 px-3 py-1.5 text-xs font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-50"
+                      className="btn btn-sm btn-danger"
                     >
                       {busy === `member:${member.id}`
                         ? t.settings.removingMember
@@ -369,18 +364,18 @@ export default function SettingsPage() {
         </div>
 
         {membersData?.invitations.length ? (
-          <div className="mt-6 border-t border-border pt-4">
-            <p className="label-mono mb-3 text-[11px] font-semibold text-muted">
+          <div className="mt-6">
+            <p className="mb-3 text-xs font-semibold text-muted">
               {t.settings.pendingInvites}
             </p>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {membersData.invitations.map((invitation) => (
                 <div
                   key={invitation.id}
-                  className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="inset flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">
+                    <p className="truncate text-sm font-medium text-white">
                       {invitation.email}
                     </p>
                     <p className="truncate text-xs text-muted">
@@ -390,14 +385,14 @@ export default function SettingsPage() {
                       {invitation.inviteUrl && <> · {invitation.inviteUrl}</>}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 gap-2">
                     {invitation.inviteUrl && (
                       <button
                         type="button"
                         onClick={() =>
                           void navigator.clipboard?.writeText(invitation.inviteUrl!)
                         }
-                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
+                        className="btn btn-sm btn-ghost"
                       >
                         {t.common.copy}
                       </button>
@@ -406,7 +401,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => removeInvitation(invitation.id)}
                       disabled={busy === `invite:${invitation.id}`}
-                      className="rounded-lg border border-error/20 px-3 py-1.5 text-xs font-medium text-error transition-colors hover:bg-error/10 disabled:opacity-50"
+                      className="btn btn-sm btn-danger"
                     >
                       {t.settings.revoke}
                     </button>
@@ -420,14 +415,14 @@ export default function SettingsPage() {
         {canManageMembers && (
           <form
             onSubmit={inviteMember}
-            className="mt-6 grid gap-3 border-t border-border pt-4 sm:grid-cols-[1fr_140px_auto]"
+            className="mt-6 grid gap-3 sm:grid-cols-[1fr_140px_auto]"
           >
             <input
               type="email"
               value={inviteEmail}
               onChange={(event) => setInviteEmail(event.target.value)}
               placeholder={t.settings.teammateEmailPlaceholder}
-              className="rounded border border-border bg-surface px-4 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
+              className="input"
               required
             />
             <select
@@ -435,7 +430,7 @@ export default function SettingsPage() {
               onChange={(event) =>
                 setInviteRole(event.target.value as "ADMIN" | "MEMBER")
               }
-              className="rounded border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
+              className="input"
             >
               <option value="MEMBER">{t.settings.roleMember}</option>
               <option value="ADMIN">{t.settings.roleAdmin}</option>
@@ -443,42 +438,43 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={busy === "invite"}
-              className="rounded bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-50"
+              className="btn btn-sm btn-primary"
             >
               {busy === "invite" ? t.settings.inviting : t.settings.invite}
             </button>
             {memberError && (
-              <p className="sm:col-span-3 text-sm text-error">{memberError}</p>
+              <p className="text-sm text-error sm:col-span-3">{memberError}</p>
             )}
           </form>
         )}
-      </section>
+      </Card>
 
-      <section className="panel rounded-xl p-4 sm:p-6">
-        <h2 className="text-base font-semibold mb-6">{t.settings.usage}</h2>
-        <div className="flex items-center justify-between gap-3 py-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              {t.settings.dmsSentThisMonth}
-            </p>
-            <p className="text-xs text-muted mt-0.5">{t.settings.noPlanLimits}</p>
+      <Card title={t.settings.usage}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-white">
+                {t.settings.dmsSentThisMonth}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">{t.settings.noPlanLimits}</p>
+            </div>
+            <span className="text-sm font-semibold text-white">
+              {data?.workspace.dmsSentThisPeriod ?? 0}
+            </span>
           </div>
-          <span className="text-sm font-semibold text-foreground">
-            {data?.workspace.dmsSentThisPeriod ?? 0}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-3 border-t border-border py-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              {t.assistant.usage.aiConversations}
-            </p>
-            <p className="text-xs text-muted mt-0.5">{t.assistant.usage.aiConversationsHelp}</p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-white">
+                {t.assistant.usage.aiConversations}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">{t.assistant.usage.aiConversationsHelp}</p>
+            </div>
+            <span className="text-sm font-semibold text-white">
+              {data?.workspace.aiConversationsThisPeriod ?? 0} / {data?.workspace.aiConversationsLimit ?? "—"}
+            </span>
           </div>
-          <span className="text-sm font-semibold text-foreground">
-            {data?.workspace.aiConversationsThisPeriod ?? 0} / {data?.workspace.aiConversationsLimit ?? "—"}
-          </span>
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import StatusBadge from "@/components/status-badge";
 import { useLanguage } from "@/components/language-provider";
 import AssistantDiagnostics from "@/components/assistant-diagnostics";
+import { PageHeader } from "@/components/ui/page";
 
 interface DiagnosticsData {
   canClearFailed?: boolean;
@@ -58,9 +59,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="panel rounded-xl p-4 sm:p-6">
-      <h2 className="text-base font-semibold text-foreground">{title}</h2>
-      <div className="mt-4">{children}</div>
+    <section className="panel rounded-3xl p-5 sm:p-6">
+      <h2 className="text-base font-bold text-white">{title}</h2>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
@@ -110,7 +111,7 @@ export default function DiagnosticsPage() {
   }, []);
 
   if (loading && !data) {
-    return <div className="panel rounded-xl p-8 h-64" />;
+    return <div className="panel h-64 animate-pulse rounded-3xl p-8" />;
   }
 
   const workerAgeSeconds =
@@ -119,33 +120,33 @@ export default function DiagnosticsPage() {
       : Math.round(data.workerHealth.ageMs / 1000);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.diagnostics.title}</h1>
-          <p className="mt-1 text-sm text-muted">{t.diagnostics.subtitle}</p>
-        </div>
-        <button
-          onClick={() => void refreshDiagnostics()}
-          className="rounded border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground transition hover:border-border-hover"
-        >
-          {t.diagnostics.refresh}
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        description={t.diagnostics.subtitle}
+        actions={
+          <button
+            type="button"
+            onClick={() => void refreshDiagnostics()}
+            className="btn btn-sm btn-ghost"
+          >
+            {t.diagnostics.refresh}
+          </button>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
-        <div className="panel rounded-xl p-4 sm:p-5">
-          <p className="text-xs font-semibold uppercase text-muted">
+        <div className="panel rounded-2xl p-4 sm:p-5">
+          <p className="break-words text-xs font-semibold leading-snug text-muted">
             {t.diagnostics.workerHealth}
           </p>
           <p
-            className={`mt-3 text-2xl font-bold ${
-              data?.workerHealth.healthy ? "text-success" : "text-warning"
+            className={`display wrap-anywhere mt-3 text-xl leading-tight sm:text-2xl ${
+              data?.workerHealth.healthy ? "text-lime" : "text-warning"
             }`}
           >
             {data?.workerHealth.healthy ? t.diagnostics.healthy : t.diagnostics.needsAttention}
           </p>
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-3 text-xs leading-5 text-muted">
             {workerAgeSeconds == null
               ? t.diagnostics.noHeartbeat
               : t.diagnostics.lastHeartbeat(workerAgeSeconds)}
@@ -159,9 +160,9 @@ export default function DiagnosticsPage() {
             ["failed", t.diagnostics.queueFailed],
           ] as const
         ).map(([key, label]) => (
-          <div key={key} className="panel rounded-xl p-4 sm:p-5">
-            <p className="text-xs font-semibold uppercase text-muted">{label}</p>
-            <p className="mt-3 text-2xl font-bold text-foreground">
+          <div key={key} className="panel rounded-2xl p-4 sm:p-5">
+            <p className="break-words text-xs font-semibold leading-snug text-muted">{label}</p>
+            <p className="display mt-3 text-2xl tabular-nums text-white sm:text-[1.75rem]">
               {data?.queueCounts[key] ?? 0}
             </p>
             {key === "failed" &&
@@ -171,7 +172,7 @@ export default function DiagnosticsPage() {
                   type="button"
                   onClick={clearFailedJobs}
                   disabled={clearing}
-                  className="mt-3 text-xs text-accent hover:underline disabled:opacity-50"
+                  className="btn btn-sm btn-danger mt-3"
                 >
                   {clearing ? t.diagnostics.clearingFailed : t.diagnostics.clearFailed}
                 </button>
@@ -183,11 +184,11 @@ export default function DiagnosticsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title={t.diagnostics.campaignDmFailures}>
           {data?.dmFailures.length ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {data.dmFailures.map((item) => (
-                <div key={item.id} className="border-b border-border pb-3 last:border-0">
+                <div key={item.id} className="inset px-4 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
                       {item.automation.name}
                     </p>
                     <StatusBadge status={item.status} />
@@ -208,10 +209,10 @@ export default function DiagnosticsPage() {
 
         <Section title={t.diagnostics.webhookFailures}>
           {data?.webhookFailures.length ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {data.webhookFailures.map((event) => (
-                <div key={event.id} className="border-b border-border pb-3 last:border-0">
-                  <p className="text-sm font-semibold text-foreground">
+                <div key={event.id} className="inset px-4 py-3">
+                  <p className="text-sm font-semibold text-white">
                     {event.object ?? t.diagnostics.instagramWebhookFallback}
                   </p>
                   <p className="mt-1 text-xs text-error">
@@ -232,10 +233,10 @@ export default function DiagnosticsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title={t.diagnostics.tokenRefreshFailures}>
           {data?.tokenRefreshFailures.length ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {data.tokenRefreshFailures.map((event) => (
-                <div key={event.id} className="border-b border-border pb-3 last:border-0">
-                  <p className="text-sm font-semibold text-foreground">
+                <div key={event.id} className="inset px-4 py-3">
+                  <p className="text-sm font-semibold text-white">
                     {event.message}
                   </p>
                   <p className="mt-1 text-xs text-muted">
@@ -255,11 +256,11 @@ export default function DiagnosticsPage() {
 
       <Section title={t.diagnostics.operationalEventTimeline}>
         {data?.operationalEvents.length ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {data.operationalEvents.map((event) => (
-              <div key={event.id} className="grid gap-2 border-b border-border pb-3 last:border-0 sm:grid-cols-[140px_1fr_auto]">
+              <div key={event.id} className="inset grid gap-2 px-4 py-3 sm:grid-cols-[140px_1fr_auto]">
                 <p className="text-xs font-semibold text-muted">{event.source}</p>
-                <p className="text-sm text-foreground">{event.message}</p>
+                <p className="text-sm text-white">{event.message}</p>
                 <p className="text-xs text-muted">{formatDate(event.createdAt)}</p>
               </div>
             ))}

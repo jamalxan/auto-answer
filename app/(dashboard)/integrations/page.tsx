@@ -16,6 +16,7 @@ import {
   inputClass,
 } from "@/components/assistant-ui";
 import { useLanguage } from "@/components/language-provider";
+import { PageHeader } from "@/components/ui/page";
 import { formatShortMonthDayTime } from "@/lib/i18n/format-date";
 
 type IntegrationType = "TELEGRAM" | "AMOCRM" | "BITRIX24";
@@ -108,7 +109,7 @@ export default function IntegrationsPage() {
     return map;
   }, [data]);
 
-  if (loading) return <div className="panel h-64 rounded" />;
+  if (loading) return <div className="panel h-64 animate-pulse rounded-3xl" />;
   if (loadError || !data) return <Notice tone="error">{t.assistant.common.loadError}</Notice>;
 
   const broken = data.integrations.filter((i) => i.status === "BROKEN");
@@ -125,10 +126,7 @@ export default function IntegrationsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-foreground">{I.title}</h1>
-        <p className="mt-1 text-sm text-muted">{I.subtitle}</p>
-      </div>
+      <PageHeader description={I.subtitle} />
 
       {!data.canManage && <Notice tone="warning">{I.memberReadOnly}</Notice>}
       {broken.map((b) => (
@@ -160,8 +158,8 @@ interface CardProps {
 function Steps({ steps }: { steps: string[] }) {
   const { t } = useLanguage();
   return (
-    <details className="rounded border border-border p-3">
-      <summary className="cursor-pointer text-sm font-medium text-foreground">
+    <details className="inset p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-white">
         {t.assistant.integrations.steps}
       </summary>
       <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
@@ -216,7 +214,7 @@ function AccountFilter({
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-foreground">{I.accountFilter}</p>
+      <p className="text-sm font-semibold text-white">{I.accountFilter}</p>
       <div className="flex flex-wrap gap-2">
         {accounts.map((a) => {
           const on = integration.igAccountFilter.includes(a.id);
@@ -226,9 +224,7 @@ function AccountFilter({
               type="button"
               disabled={disabled}
               onClick={() => void toggle(a.id)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
-                on ? "border-accent/40 bg-accent/15 text-accent" : "border-border text-muted hover:text-foreground"
-              }`}
+              className={`chip disabled:opacity-50 ${on ? "chip-active" : "bg-midnight hover:bg-surface-hover"}`}
             >
               @{a.username}
             </button>
@@ -357,12 +353,12 @@ function TelegramCard({
     <Section title={I.telegram.name} description={I.telegram.desc} action={<StatusHeader integration={integration} />}>
       {!botConfigured && <Notice tone="warning">{I.botNotConfigured}</Notice>}
       <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">{I.telegram.chats}</p>
+        <p className="text-sm font-semibold text-white">{I.telegram.chats}</p>
         {integration && integration.chats.length > 0 ? (
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {integration.chats.map((chat) => (
-              <li key={chat.id} className="flex items-center justify-between gap-2 rounded border border-border px-3 py-2 text-sm">
-                <span className="truncate text-foreground">{chat.title ?? chat.chatId}</span>
+              <li key={chat.id} className="inset flex items-center justify-between gap-2 px-4 py-3 text-sm">
+                <span className="truncate text-white">{chat.title ?? chat.chatId}</span>
                 <Badge tone={chat.active ? "success" : "muted"}>{chat.type}</Badge>
               </li>
             ))}
@@ -373,7 +369,7 @@ function TelegramCard({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button disabled={!canManage || !botConfigured || busy} onClick={() => void link("privateUrl")}>
+        <Button tone="lime" disabled={!canManage || !botConfigured || busy} onClick={() => void link("privateUrl")}>
           {I.telegram.privateBtn}
         </Button>
         <Button tone="ghost" disabled={!canManage || !botConfigured || busy} onClick={() => void link("groupUrl")}>
@@ -515,20 +511,20 @@ function AmoCard({ integration, accounts, canManage, reload }: CardProps & { int
           <Field label={A.tokenExpiresAt} help={A.tokenExpiresHelp}>
             <input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} className={inputClass} disabled={!canManage} />
           </Field>
-          <Button disabled={!canManage || busy || !subdomain.trim() || token.trim().length < 20} onClick={() => void connect()}>
+          <Button tone="lime" disabled={!canManage || busy || !subdomain.trim() || token.trim().length < 20} onClick={() => void connect()}>
             {I.connect}
           </Button>
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="font-mono text-xs text-muted">
+          <p className="text-xs text-muted">
             {A.token}: {integration.secretHint}
             {integration.tokenExpiresAt ? ` · ${I.tokenExpires(integration.tokenExpiresAt.slice(0, 10))}` : ""}
           </p>
 
-          <div className="space-y-3 rounded border border-border p-3">
+          <div className="inset space-y-3 p-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-sm font-semibold text-white">
                 {A.pipeline} / {A.responsible}
               </p>
               <Button tone="ghost" disabled={!canManage || busy} onClick={() => void loadOptions()}>
@@ -599,7 +595,7 @@ function AmoCard({ integration, accounts, canManage, reload }: CardProps & { int
           </div>
 
           {integration.status === "BROKEN" && (
-            <div className="space-y-2 rounded border border-error/30 p-3">
+            <div className="space-y-2 rounded-2xl bg-error/12 p-4 text-sm text-error">
               <Field label={A.token}>
                 <textarea value={newToken} onChange={(e) => setNewToken(e.target.value)} rows={2} className={`${inputClass} font-mono text-xs`} disabled={!canManage} autoComplete="off" spellCheck={false} />
               </Field>
@@ -692,18 +688,18 @@ function BitrixCard({ integration, accounts, canManage, reload }: CardProps & { 
           <Field label={B.webhookUrl} help={B.webhookHelp}>
             <input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} className={`${inputClass} font-mono text-xs`} disabled={!canManage} autoComplete="off" spellCheck={false} />
           </Field>
-          <Button disabled={!canManage || busy || !webhookUrl.trim()} onClick={() => void connect()}>
+          <Button tone="lime" disabled={!canManage || busy || !webhookUrl.trim()} onClick={() => void connect()}>
             {I.connect}
           </Button>
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="font-mono text-xs text-muted">
+          <p className="text-xs text-muted">
             {B.webhookUrl}: {integration.secretHint}
           </p>
-          <div className="space-y-3 rounded border border-border p-3">
+          <div className="inset space-y-3 p-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-sm font-semibold text-white">
                 {B.responsible} / {B.source}
               </p>
               <Button tone="ghost" disabled={!canManage || busy} onClick={() => void loadOptions()}>
@@ -740,7 +736,7 @@ function BitrixCard({ integration, accounts, canManage, reload }: CardProps & { 
           </div>
 
           {integration.status === "BROKEN" && (
-            <div className="space-y-2 rounded border border-error/30 p-3">
+            <div className="space-y-2 rounded-2xl bg-error/12 p-4 text-sm text-error">
               <Field label={B.webhookUrl} help={B.webhookHelp}>
                 <input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} className={`${inputClass} font-mono text-xs`} disabled={!canManage} />
               </Field>

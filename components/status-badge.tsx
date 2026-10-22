@@ -14,7 +14,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
   const { t } = useLanguage();
 
   const statusConfig: Record<string, { text: string; label: string }> = {
-    SENT: { text: "text-success", label: t.status.sent },
+    SENT: { text: "text-lime", label: t.status.sent },
     FAILED: { text: "text-error", label: t.status.failed },
     PENDING: { text: "text-warning", label: t.status.pending },
     SKIPPED_DEDUP: { text: "text-muted", label: t.status.dedup },
@@ -28,7 +28,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-current/10 px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ring-current/20 ${config.text}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-current/12 px-2.5 py-1 text-xs font-semibold ${config.text}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
       {config.label}

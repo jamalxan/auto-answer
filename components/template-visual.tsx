@@ -14,46 +14,44 @@ export default function TemplateVisual({
 }: TemplateVisualProps) {
   const { t } = useLanguage();
   return (
-    <div className="rounded border border-border p-4">
-      <div className="rounded border border-border bg-surface p-4">
-        <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
-          <div>
-            <p className="label-mono text-[11px] font-semibold text-muted">
-              {t.publicSite.triggerLabel}
-            </p>
-            <p className="mt-1 text-sm font-bold text-foreground">
-              {template.triggerExample}
-            </p>
-          </div>
-          <span className="rounded border border-border bg-background px-3 py-1 text-xs font-semibold text-muted">
-            {template.category}
-          </span>
+    <div className="panel rounded-3xl p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-muted">
+            {t.publicSite.triggerLabel}
+          </p>
+          <p className="mt-1 text-sm font-bold text-white">
+            {template.triggerExample}
+          </p>
         </div>
+        <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-muted">
+          {template.category}
+        </span>
+      </div>
 
-        <div className={`grid gap-3 pt-4 ${compact ? "" : "sm:grid-cols-2"}`}>
-          <div className="rounded border border-border bg-background p-3">
-            <p className="label-mono text-[11px] font-semibold text-muted">
-              {t.publicSite.keywordsLabel}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {template.keywords.map((keyword) => (
-                <span
-                  key={keyword}
-                  className="rounded border border-border bg-surface-hover px-2 py-1 text-xs font-bold text-foreground"
-                >
-                  {keyword}
-                </span>
-              ))}
-            </div>
+      <div className={`mt-4 grid gap-3 ${compact ? "" : "sm:grid-cols-2"}`}>
+        <div className="inset p-4">
+          <p className="text-xs font-semibold text-muted">
+            {t.publicSite.keywordsLabel}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {template.keywords.map((keyword) => (
+              <span
+                key={keyword}
+                className="rounded-full bg-lime/12 px-2.5 py-1 text-xs font-semibold text-lime"
+              >
+                {keyword}
+              </span>
+            ))}
           </div>
-          <div className="rounded border border-border bg-background p-3">
-            <p className="label-mono text-[11px] font-semibold text-muted">
-              {t.publicSite.privateReplyLabel}
-            </p>
-            <p className="mt-3 text-sm leading-6 text-foreground">
-              {template.privateReplyPreview}
-            </p>
-          </div>
+        </div>
+        <div className="inset p-4">
+          <p className="text-xs font-semibold text-muted">
+            {t.publicSite.privateReplyLabel}
+          </p>
+          <p className="mt-3 text-sm leading-6 text-white">
+            {template.privateReplyPreview}
+          </p>
         </div>
       </div>
     </div>

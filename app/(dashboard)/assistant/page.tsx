@@ -17,6 +17,7 @@ import {
   ToggleRow,
   inputClass,
 } from "@/components/assistant-ui";
+import { PageHeader } from "@/components/ui/page";
 import { useLanguage } from "@/components/language-provider";
 import { parsePrice } from "@/lib/assistant/price";
 import { formatShortMonthDayTime } from "@/lib/i18n/format-date";
@@ -342,7 +343,7 @@ export default function AssistantPage() {
     await load();
   }
 
-  if (loading) return <div className="panel h-64 rounded" />;
+  if (loading) return <div className="panel h-64 animate-pulse rounded-3xl" />;
   if (loadError) return <Notice tone="error">{C.loadError}</Notice>;
 
   const status = !profile?.approvedAt ? "draft" : profile.enabled ? "on" : "off";
@@ -350,14 +351,11 @@ export default function AssistantPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-foreground">{A.title}</h1>
-        <p className="mt-1 text-sm text-muted">{A.subtitle}</p>
-      </div>
+      <PageHeader description={A.subtitle} />
 
       {!canManage && <Notice tone="warning">{C.readOnly}</Notice>}
 
-      <section className="panel flex flex-col gap-3 rounded p-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="panel flex flex-col gap-3 rounded-3xl p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={status === "on" ? "success" : status === "draft" ? "warning" : "muted"}>
@@ -380,7 +378,7 @@ export default function AssistantPage() {
                 setLoading(true);
                 setScope(e.target.value);
               }}
-              className={`${inputClass} w-auto`}
+              className={`${inputClass} !w-auto`}
               aria-label={A.accountScope}
             >
               <option value="all">{A.allAccounts}</option>
@@ -397,7 +395,7 @@ export default function AssistantPage() {
             </Button>
           )}
           {status === "off" && (
-            <Button disabled={disabled || busy !== null} onClick={() => void setEnabled(true)}>
+            <Button tone="lime" disabled={disabled || busy !== null} onClick={() => void setEnabled(true)}>
               {A.enable}
             </Button>
           )}
@@ -412,9 +410,7 @@ export default function AssistantPage() {
             role="tab"
             aria-selected={step === s}
             onClick={() => setStep(s)}
-            className={`whitespace-nowrap rounded-lg border px-4 py-2 text-sm font-medium ${
-              step === s ? "border-accent/30 bg-accent/15 text-accent" : "border-border text-muted hover:text-foreground"
-            }`}
+            className={`chip ${step === s ? "chip-active" : ""}`}
           >
             {A.steps[s]}
           </button>
@@ -453,7 +449,7 @@ export default function AssistantPage() {
             <Button disabled={disabled || busy !== null || overLimit} onClick={() => void save()}>
               {busy === "save" ? C.saving : C.save}
             </Button>
-            <Button tone="ghost" disabled={disabled || busy !== null || overLimit || !form.companyName.trim()} onClick={() => void approve()}>
+            <Button tone="lime" disabled={disabled || busy !== null || overLimit || !form.companyName.trim()} onClick={() => void approve()}>
               {busy === "approve" ? A.approving : A.approve}
             </Button>
             {dirty && <span className="text-xs text-warning">●</span>}
@@ -703,7 +699,7 @@ function ProfileEditor({
           <span className="text-xs text-muted">{form.products.length}/200</span>
         </div>
         <Field label={P.bulkTitle}>
-          <textarea value={bulk} rows={4} onChange={(e) => setBulk(e.target.value)} placeholder={P.bulkPlaceholder} className={`${inputClass} font-mono text-xs`} disabled={disabled} />
+          <textarea value={bulk} rows={4} onChange={(e) => setBulk(e.target.value)} placeholder={P.bulkPlaceholder} className={inputClass} disabled={disabled} />
         </Field>
         <Button tone="ghost" disabled={disabled || bulkBusy || !bulk.trim()} onClick={() => void applyBulk()}>
           {P.bulkApply}
@@ -719,7 +715,7 @@ function ProfileEditor({
               ["EXACT", P.policyExact],
             ] as const
           ).map(([value, label]) => (
-            <label key={value} className="flex items-center gap-2 text-sm text-foreground">
+            <label key={value} className={`inset flex items-center gap-3 px-4 py-3 text-sm text-white ${form.pricePolicy === value ? "ring-2 ring-violet" : ""}`}>
               <input type="radio" name="pricePolicy" checked={form.pricePolicy === value} onChange={() => patch({ pricePolicy: value })} disabled={disabled} />
               {label}
             </label>
@@ -814,7 +810,7 @@ function RulesEditor({
       </div>
       <ToggleRow label={R.hoursFilter} help={R.hoursFilterHelp} on={form.hoursEnabled} onToggle={() => patch({ hoursEnabled: !form.hoursEnabled })} disabled={disabled} />
       {form.hoursEnabled && (
-        <div className="space-y-3 rounded border border-border p-3">
+        <div className="inset space-y-3 p-4">
           <div className="flex flex-wrap gap-2">
             {R.days.map((day, index) => {
               const on = form.hoursDays.includes(index);
@@ -824,7 +820,7 @@ function RulesEditor({
                   type="button"
                   disabled={disabled}
                   onClick={() => patch({ hoursDays: on ? form.hoursDays.filter((d) => d !== index) : [...form.hoursDays, index].sort() })}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${on ? "border-accent/40 bg-accent/15 text-accent" : "border-border text-muted"}`}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${on ? "bg-violet text-white" : "bg-white/10 text-muted hover:text-white"}`}
                 >
                   {day}
                 </button>
@@ -911,16 +907,16 @@ function SandboxStep({
   return (
     <Section title={S.title} description={S.help} action={<Button tone="ghost" onClick={reset}>{S.reset}</Button>}>
       {!hasProfile && <Notice tone="warning">{S.saveFirst}</Notice>}
-      <div className="mx-auto w-full max-w-sm rounded-[2rem] border-4 border-border bg-background p-2">
+      <div className="mx-auto w-full max-w-sm rounded-[2rem] bg-midnight p-2">
         <div className="flex h-[26rem] flex-col overflow-hidden rounded-[1.5rem] bg-surface">
-          <div className="border-b border-border px-4 py-2.5 text-center text-xs font-semibold text-foreground">Instagram · {S.title}</div>
+          <div className="px-4 py-2.5 text-center text-xs font-semibold text-white">Instagram · {S.title}</div>
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
             {messages.length === 0 && <p className="pt-8 text-center text-xs text-muted">{S.empty}</p>}
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                    m.role === "user" ? "bg-accent text-background" : "border border-border bg-surface-hover text-foreground"
+                    m.role === "user" ? "bg-violet text-white" : "bg-white/10 text-white"
                   }`}
                 >
                   {m.text}
@@ -931,7 +927,7 @@ function SandboxStep({
             {busy && <p className="text-xs italic text-muted">{S.thinking}</p>}
             <div ref={endRef} />
           </div>
-          <div className="flex gap-2 border-t border-border p-2">
+          <div className="flex gap-2 p-2">
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -940,7 +936,7 @@ function SandboxStep({
               }}
               placeholder={S.placeholder}
               maxLength={1000}
-              className={`${inputClass} rounded-full`}
+              className={`${inputClass} min-w-0 flex-1`}
             />
             <Button disabled={busy || !draft.trim()} onClick={() => void send()}>
               {S.send}
@@ -1078,25 +1074,25 @@ function LearningStep({
             />
           </Field>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">{L.examplesTitle}</p>
+            <p className="text-sm font-medium text-white">{L.examplesTitle}</p>
             <p className="text-xs text-muted">{L.examplesHelp}</p>
             {examples.length === 0 && <p className="text-sm text-muted">{L.noExamples}</p>}
             {examples.map((example, index) => (
-              <div key={`${index}:${example.reply.slice(0, 20)}`} className="rounded-lg border border-border p-3 text-sm">
+              <div key={`${index}:${example.reply.slice(0, 20)}`} className="inset p-4 text-sm">
                 <p className="text-muted">
-                  <span className="font-medium text-foreground">{L.customer}:</span> {example.customer}
+                  <span className="font-medium text-white">{L.customer}:</span> {example.customer}
                 </p>
-                <p className="mt-1 text-foreground">
+                <p className="mt-1 text-white">
                   <span className="font-medium text-accent">{L.manager}:</span> {example.reply}
                 </p>
-                <button
-                  type="button"
+                <Button
+                  tone="danger"
+                  className="mt-3"
                   onClick={() => setExamples((prev) => prev.filter((_, i) => i !== index))}
                   disabled={locked}
-                  className="mt-2 text-xs text-muted hover:text-error"
                 >
                   {L.remove}
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -1149,17 +1145,17 @@ function GapsSection({ canManage }: { canManage: boolean }) {
       ) : (
         <ul className="space-y-3">
           {gaps.map((gap) => (
-            <li key={gap.id} className="space-y-2 rounded border border-border p-3">
-              <p className="text-sm text-foreground">
+            <li key={gap.id} className="inset space-y-2 p-4">
+              <p className="text-sm text-white">
                 {gap.question} <span className="text-xs text-muted">({G.hits(gap.hits)})</span>
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={answers[gap.id] ?? ""}
                   onChange={(e) => setAnswers((prev) => ({ ...prev, [gap.id]: e.target.value }))}
                   placeholder={G.answerPlaceholder}
                   maxLength={400}
-                  className={inputClass}
+                  className={`${inputClass} min-w-0 flex-1`}
                   disabled={!canManage}
                 />
                 <Button disabled={!canManage || !answers[gap.id]?.trim()} onClick={() => void answer(gap.id)}>
@@ -1193,8 +1189,8 @@ function ChangesSection({ accountId }: { accountId: string | null }) {
   }, [accountId]);
 
   return (
-    <details className="panel rounded-xl p-4">
-      <summary className="cursor-pointer text-sm font-semibold text-foreground">{H.title}</summary>
+    <details className="panel rounded-3xl p-5">
+      <summary className="cursor-pointer text-sm font-semibold text-white">{H.title}</summary>
       <div className="mt-3">
         {!changes || changes.length === 0 ? (
           <p className="text-sm text-muted">{H.empty}</p>

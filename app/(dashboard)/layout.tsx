@@ -44,6 +44,7 @@ export default async function DashboardLayout({
   return (
     <DashboardShell
       workspaceName={workspace.name}
+      userEmail={session.user.email ?? null}
       instagramUsername={accounts[0]?.username ?? null}
       instagramAccountCount={accounts.length}
       isAdmin={isAdminEmail(session.user.email)}

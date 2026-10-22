@@ -7,7 +7,7 @@
 export default function Skeleton({ className = "" }: { className?: string }) {
   return (
     <div
-      className={`animate-shimmer rounded bg-surface-hover bg-[length:200%_100%] bg-[linear-gradient(90deg,transparent_25%,rgb(255_255_255/0.06)_50%,transparent_75%)] ${className}`}
+      className={`animate-shimmer rounded-2xl bg-surface-hover bg-[length:200%_100%] bg-[linear-gradient(90deg,transparent_25%,rgb(255_255_255/0.06)_50%,transparent_75%)] ${className}`}
     />
   );
 }

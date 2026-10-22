@@ -112,9 +112,9 @@ export default function PostPicker({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="aspect-square rounded bg-surface" />
+          <div key={i} className="aspect-square animate-pulse rounded-xl bg-surface" />
         ))}
       </div>
     );
@@ -122,16 +122,16 @@ export default function PostPicker({
 
   if (error) {
     return (
-      <div className="text-center py-8">
-        <p className="text-sm text-muted">{error}</p>
-        <p className="text-xs text-muted mt-1">{t.postPicker.connectFirst}</p>
+      <div className="rounded-2xl bg-error/12 p-4 text-center text-sm leading-6 text-error">
+        <p>{error}</p>
+        <p className="mt-1 text-xs opacity-80">{t.postPicker.connectFirst}</p>
       </div>
     );
   }
 
   if (posts.length === 0) {
     return (
-      <div className="text-center py-8">
+      <div className="py-8 text-center">
         <p className="text-sm text-muted">{t.postPicker.noPostsFound}</p>
       </div>
     );
@@ -159,7 +159,7 @@ export default function PostPicker({
             setShown(PAGE_SIZE);
           }}
           placeholder={t.postPicker.searchPlaceholder}
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+          className="input"
         />
         <span className="shrink-0 text-xs text-muted">{posts.length}</span>
       </div>
@@ -171,7 +171,7 @@ export default function PostPicker({
         <>
           {usedPostIds && Object.keys(usedPostIds).length > 0 && (
             <p className="flex items-center gap-1.5 px-1 text-[11px] text-muted">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm border border-warning/50" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warning/60" />
               {t.postPicker.alreadyUsed}
             </p>
           )}
@@ -201,13 +201,13 @@ export default function PostPicker({
             aria-pressed={isSelected}
             title={isUsed ? t.postPicker.alreadyUsedByTooltip(usedByName ?? "") : undefined}
             className={`
-              relative aspect-square rounded overflow-hidden border-2 bg-surface
+              relative aspect-square overflow-hidden rounded-xl bg-surface
               ${
                 isSelected
-                  ? "border-accent"
+                  ? "ring-2 ring-violet"
                   : isUsed
-                    ? "border-warning/40 hover:border-warning/60"
-                    : "border-border hover:border-border-hover"
+                    ? "ring-2 ring-warning/50"
+                    : "hover:ring-2 hover:ring-white/20"
               }
             `}
           >
@@ -220,10 +220,10 @@ export default function PostPicker({
                 onError={() =>
                   setFailedThumbIds((prev) => new Set(prev).add(post.id))
                 }
-                className={`w-full h-full object-cover ${isUsed ? "opacity-75" : ""}`}
+                className={`h-full w-full object-cover ${isUsed ? "opacity-75" : ""}`}
               />
             ) : (
-              <div className="w-full h-full bg-surface flex items-center justify-center">
+              <div className="flex h-full w-full items-center justify-center bg-surface">
                 <span className="text-xs text-muted">{t.postPicker.noImage}</span>
               </div>
             )}
@@ -242,7 +242,7 @@ export default function PostPicker({
               />
             )}
             {isSelected && (
-              <span className="absolute bottom-0 inset-x-0 bg-accent text-background text-xs py-1">
+              <span className="absolute inset-x-0 bottom-0 bg-violet py-1 text-xs font-semibold text-white">
                 {t.postPicker.selected}
               </span>
             )}
@@ -254,7 +254,7 @@ export default function PostPicker({
             <button
               type="button"
               onClick={() => setShown((n) => n + PAGE_SIZE)}
-              className="w-full rounded-lg border border-border py-2 text-sm text-muted hover:text-foreground"
+              className="btn btn-sm btn-ghost w-full"
             >
               {t.postPicker.showMore(Math.min(PAGE_SIZE, remaining))}
             </button>

@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import AccountSelect from "@/components/account-select";
 import StatCard from "@/components/stat-card";
 import FollowerChart from "@/components/follower-chart";
+import { EmptyState, PageHeader } from "@/components/ui/page";
 import type { OverviewResponse } from "@/app/api/instagram/overview/route";
 import { useLanguage } from "@/components/language-provider";
 import { formatShortMonthDay } from "@/lib/i18n/format-date";
@@ -86,9 +87,9 @@ export default function OverviewPage() {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="panel rounded-xl p-4 h-24 sm:p-5">
-            <div className="h-4 w-16 bg-surface-hover rounded" />
-            <div className="mt-3 h-6 w-20 bg-surface-hover/60 rounded" />
+          <div key={i} className="panel h-24 animate-pulse rounded-2xl p-4 sm:p-5">
+            <div className="h-4 w-16 rounded-full bg-surface-hover" />
+            <div className="mt-3 h-6 w-20 rounded-full bg-surface-hover/60" />
           </div>
         ))}
       </div>
@@ -97,13 +98,10 @@ export default function OverviewPage() {
 
   if (error) {
     return (
-      <div className="panel rounded-xl p-8 text-center">
+      <div className="panel rounded-3xl p-8 text-center">
         <p className="text-sm text-error">{error}</p>
         {needsConnect && (
-          <a
-            href="/api/instagram/connect"
-            className="mt-4 inline-block text-sm text-accent hover:underline"
-          >
+          <a href="/api/instagram/connect" className="btn btn-sm btn-primary mt-4">
             {t.overview.connectInstagram}
           </a>
         )}
@@ -117,62 +115,58 @@ export default function OverviewPage() {
     data;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-foreground">{t.overview.title}</h1>
-          <p className="text-sm text-muted mt-1">
+    <div className="space-y-6">
+      <PageHeader
+        description={
+          <>
             {data.requestedCount === "all" ? t.overview.allTime : t.overview.recent} —{" "}
             {t.overview.postCount(totals.posts)} from @{data.account.username}
             {data.truncated ? t.overview.cappedAt(totals.posts) : ""}
-          </p>
-          {followers !== null && (
-            // Kept out of the tile row below: that row sums the selected posts,
-            // whereas this is a current account-level total.
-            <p className="mt-1 text-sm text-muted">
-              {t.overview.followersCount(followers.toLocaleString())}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="label-mono text-[11px] font-semibold text-muted">
-              {t.overview.range}
-            </span>
-            <select
-              value={count}
-              onChange={(e) => handleCountChange(e.target.value)}
-              className="border-0 bg-transparent py-2 pr-1 text-sm text-foreground outline-none"
-            >
-              {COUNT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {accounts.length > 1 && (
-            <AccountSelect
-              accounts={accounts.map((a) => ({
-                id: a.id,
-                username: a.username,
-                instagramId: a.id,
-              }))}
-              value={selectedAccountId}
-              onChange={handleAccountChange}
-            />
-          )}
-        </div>
-      </div>
+            {followers !== null && (
+              // Kept out of the tile row below: that row sums the selected posts,
+              // whereas this is a current account-level total.
+              <span className="mt-1 block">
+                {t.overview.followersCount(followers.toLocaleString())}
+              </span>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <label className="flex flex-col gap-2 text-sm">
+              <span className="text-xs font-semibold text-muted">{t.overview.range}</span>
+              <select
+                value={count}
+                onChange={(e) => handleCountChange(e.target.value)}
+                className="input !w-auto"
+              >
+                {COUNT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {accounts.length > 1 && (
+              <AccountSelect
+                accounts={accounts.map((a) => ({
+                  id: a.id,
+                  username: a.username,
+                  instagramId: a.id,
+                }))}
+                value={selectedAccountId}
+                onChange={handleAccountChange}
+              />
+            )}
+          </>
+        }
+      />
 
       {!insightsAvailable && (
-        <div className="panel rounded-xl p-4 border border-border">
-          <p className="text-sm text-foreground">{t.overview.insightsNeeded}</p>
-          <p className="text-sm text-muted mt-1">{t.overview.insightsNeededBody}</p>
-          <a
-            href="/api/instagram/connect"
-            className="mt-3 inline-block text-sm text-accent hover:underline"
-          >
+        <div className="panel rounded-3xl p-5 sm:p-6">
+          <p className="text-sm font-semibold text-white">{t.overview.insightsNeeded}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">{t.overview.insightsNeededBody}</p>
+          <a href="/api/instagram/connect" className="btn btn-sm btn-primary mt-4">
             {t.overview.reconnectInstagram}
           </a>
         </div>
@@ -192,47 +186,44 @@ export default function OverviewPage() {
       <FollowerChart data={followerHistory} followers={followers} />
 
       {/* Per-post table */}
-      <div className="panel rounded-xl p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-foreground mb-4">
+      <div className="panel rounded-3xl p-5 sm:p-6">
+        <h2 className="mb-5 text-base font-bold text-white">
           {t.overview.postsTableTitle}
         </h2>
         {posts.length === 0 ? (
-          <p className="text-sm text-muted py-8 text-center">{t.overview.noPostsFound}</p>
+          <EmptyState title={t.overview.noPostsFound} />
         ) : (
           // Eight metric columns can't compress into a phone; let the table keep
           // its natural width and scroll inside the panel instead.
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="label-mono text-left text-[11px] text-muted border-b border-border">
-                  <th className="py-2 pr-4 font-medium">{t.overview.colPost}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t.overview.views}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t.overview.reach}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t.overview.likes}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t.overview.comments}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t.overview.saved}</th>
-                  <th className="py-2 px-3 font-medium text-right">{t.overview.shares}</th>
-                  <th className="py-2 pl-3 font-medium text-right">{t.overview.colDate}</th>
+                <tr className="text-left text-xs font-semibold text-muted">
+                  <th className="py-2 pr-4 font-semibold">{t.overview.colPost}</th>
+                  <th className="py-2 px-3 font-semibold text-right">{t.overview.views}</th>
+                  <th className="py-2 px-3 font-semibold text-right">{t.overview.reach}</th>
+                  <th className="py-2 px-3 font-semibold text-right">{t.overview.likes}</th>
+                  <th className="py-2 px-3 font-semibold text-right">{t.overview.comments}</th>
+                  <th className="py-2 px-3 font-semibold text-right">{t.overview.saved}</th>
+                  <th className="py-2 px-3 font-semibold text-right">{t.overview.shares}</th>
+                  <th className="py-2 pl-3 font-semibold text-right">{t.overview.colDate}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="[&>tr:nth-child(even)]:bg-midnight/40">
                 {posts.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="border-b border-border last:border-0"
-                  >
+                  <tr key={p.id}>
                     <td className="py-3 pr-4 max-w-xs">
                       {p.permalink ? (
                         <a
                           href={p.permalink}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-foreground hover:text-accent truncate block"
+                          className="text-white hover:text-lime truncate block"
                         >
                           {p.caption || `${p.mediaType} post`}
                         </a>
                       ) : (
-                        <span className="text-foreground truncate block">
+                        <span className="text-white truncate block">
                           {p.caption || `${p.mediaType} post`}
                         </span>
                       )}

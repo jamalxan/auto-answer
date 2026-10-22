@@ -20,6 +20,8 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceName: string;
+  /** Shown in the account menu so the user knows which login they end. */
+  userEmail?: string | null;
   isAdmin?: boolean;
 }
 
@@ -33,6 +35,7 @@ export default function Sidebar({
   isOpen,
   onClose,
   workspaceName,
+  userEmail = null,
   isAdmin = false,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -169,8 +172,12 @@ export default function Sidebar({
               id="account-menu"
               role="menu"
               aria-label={t.nav.accountMenu}
-              className="absolute inset-x-3 bottom-full mb-2 overflow-hidden rounded-2xl bg-midnight p-1.5 shadow-float ring-1 ring-inset ring-border"
+              className="absolute inset-x-3 bottom-full mb-2 overflow-hidden rounded-2xl bg-midnight p-1.5 shadow-float"
             >
+              <div className="px-3 py-2">
+                <p className="truncate text-sm font-semibold text-white">{workspaceName}</p>
+                {userEmail && <p className="mt-0.5 truncate text-xs text-muted">{userEmail}</p>}
+              </div>
               <Link
                 href="/settings"
                 role="menuitem"

@@ -78,19 +78,19 @@ export default function DashboardView({
   const connectedCount = stats?.instagramAccounts.length ?? 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Greeting header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="wrap-anywhere font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+        <div className="min-w-0">
+          <h1 className="display wrap-anywhere text-2xl text-white sm:text-3xl">
             {t.dashboard.greeting(stats?.userName ?? t.dashboard.guestName)}
           </h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-2 text-sm text-muted">
             {t.dashboard.connectedAccount(connectedCount)}
             {" · "}
             {t.dashboard.contact(stats?.contactsCount ?? 0)}
             {" · "}
-            <a href="/logs" className="text-accent hover:underline">
+            <a href="/logs" className="text-lime hover:underline">
               {t.dashboard.seeActivity}
             </a>
           </p>
@@ -122,8 +122,8 @@ export default function DashboardView({
       {/* Chart + Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">
         {/* 7-Day Chart */}
-        <div className="lg:col-span-3 panel rounded-xl p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-6">
+        <div className="lg:col-span-3 panel rounded-3xl p-5 sm:p-6">
+          <h2 className="mb-6 text-base font-bold text-white">
             {t.dashboard.chartTitle}
           </h2>
           <div className="flex items-stretch gap-1.5 h-48 sm:gap-2">
@@ -132,11 +132,11 @@ export default function DashboardView({
                 {/* The bar's % height needs a parent with a definite height:
                     this flex-1 track is the column minus the two labels. */}
                 <div className="flex w-full flex-1 flex-col items-center justify-end gap-1.5">
-                  <span className="text-xs text-muted font-medium tabular-nums group-hover:text-foreground">
+                  <span className="text-xs text-muted font-medium tabular-nums group-hover:text-white">
                     {day.count}
                   </span>
                   <div
-                    className="w-full rounded-t-md rounded-b-sm bg-gradient-to-t from-accent/40 to-accent min-h-[4px] opacity-90 transition-opacity group-hover:opacity-100"
+                    className="w-full rounded-t-lg bg-lime min-h-[4px] opacity-85 transition-opacity group-hover:opacity-100"
                     style={{ height: `${Math.max((day.count / maxDM) * 80, 3)}%` }}
                   />
                 </div>
@@ -150,8 +150,8 @@ export default function DashboardView({
         </div>
 
         {/* Top Keywords */}
-        <div className="lg:col-span-1 panel rounded-xl p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-4">
+        <div className="lg:col-span-1 panel rounded-3xl p-5 sm:p-6">
+          <h2 className="mb-4 text-base font-bold text-white">
             {t.dashboard.topKeywords}
           </h2>
           <div className="space-y-3">
@@ -160,7 +160,7 @@ export default function DashboardView({
             )}
             {stats?.topKeywords.map((keyword) => (
               <div key={keyword.keyword} className="flex items-center justify-between gap-3">
-                <span className="truncate text-sm font-medium text-foreground">
+                <span className="truncate text-sm font-medium text-white">
                   {keyword.keyword}
                 </span>
                 <span className="text-xs text-muted">{keyword.count}</span>
@@ -170,24 +170,24 @@ export default function DashboardView({
         </div>
 
         {/* Recent Activity */}
-        <div className="lg:col-span-2 panel rounded-xl p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-4">
+        <div className="lg:col-span-2 panel rounded-3xl p-5 sm:p-6">
+          <h2 className="mb-4 text-base font-bold text-white">
             {t.dashboard.recentActivity}
           </h2>
           {/* pr-2: without this, a status like "Yuborildi" sitting flush
               against the right edge gets its last characters covered by the
               scrollbar that appears once content exceeds max-h-60. */}
-          <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
             {stats?.recentLogs.length === 0 && (
               <p className="text-sm text-muted text-center py-8">{t.dashboard.noActivity}</p>
             )}
             {stats?.recentLogs.map((log) => (
               <div
                 key={log.id}
-                className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0"
+                className="inset flex items-center justify-between gap-3 px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">
+                  <p className="text-sm font-medium text-white truncate">
                     @{log.commenterName ?? t.common.unknown}
                   </p>
                   <p className="text-xs text-muted truncate">
@@ -210,23 +210,23 @@ export default function DashboardView({
 /** Placeholder with the dashboard's shape, also shown while the page renders. */
 export function DashboardSkeleton() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="space-y-2">
-        <Skeleton className="h-8 w-64 max-w-full" />
-        <Skeleton className="h-4 w-80 max-w-full" />
+        <Skeleton className="h-8 w-64 max-w-full rounded-full" />
+        <Skeleton className="h-4 w-80 max-w-full rounded-full" />
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="panel rounded-xl p-5 h-28">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="mt-4 h-7 w-14" />
+          <div key={i} className="panel rounded-2xl p-4 h-28 sm:p-5">
+            <Skeleton className="h-3 w-20 rounded-full" />
+            <Skeleton className="mt-4 h-7 w-14 rounded-full" />
           </div>
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">
-        <Skeleton className="h-64 rounded-xl lg:col-span-3" />
-        <Skeleton className="h-64 rounded-xl lg:col-span-1" />
-        <Skeleton className="h-64 rounded-xl lg:col-span-2" />
+        <Skeleton className="h-64 rounded-3xl lg:col-span-3" />
+        <Skeleton className="h-64 rounded-3xl lg:col-span-1" />
+        <Skeleton className="h-64 rounded-3xl lg:col-span-2" />
       </div>
     </div>
   );

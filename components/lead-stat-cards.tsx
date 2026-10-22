@@ -35,25 +35,36 @@ export default function LeadStatCards({ initial = null }: { initial?: LeadCards 
 
   if (!cards) return null;
 
+  const hasUndelivered = cards.undelivered > 0;
+
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-      <div className="panel rounded-xl p-4">
-        <p className="label-mono text-[11px] text-muted">
+      <div className="panel rounded-2xl p-4 sm:p-5">
+        <p className="break-words text-xs font-semibold leading-snug text-muted">
           {D.leadsPeriod} · {D.last30}
         </p>
-        <p className="font-display mt-1 text-2xl font-extrabold text-foreground">{cards.leads30}</p>
+        <p className="display mt-3 text-2xl tabular-nums text-white sm:text-[1.75rem]">
+          {cards.leads30}
+        </p>
       </div>
-      <div className="panel rounded-xl p-4" title={D.conversionHelp}>
-        <p className="label-mono text-[11px] text-muted">{D.conversion}</p>
-        <p className="font-display mt-1 text-2xl font-extrabold text-foreground">{cards.conversionPct}%</p>
-        <p className="mt-1 text-xs text-muted">{D.conversionHelp}</p>
+      <div className="panel rounded-2xl p-4 sm:p-5" title={D.conversionHelp}>
+        <p className="break-words text-xs font-semibold leading-snug text-muted">{D.conversion}</p>
+        <p className="display mt-3 text-2xl tabular-nums text-white sm:text-[1.75rem]">
+          {cards.conversionPct}%
+        </p>
+        <p className="mt-3 text-xs leading-5 text-muted">{D.conversionHelp}</p>
       </div>
-      <div className={`panel rounded-xl p-4 ${cards.undelivered > 0 ? "border-error/60" : ""}`}>
-        <p className="label-mono text-[11px] text-muted">{D.undelivered}</p>
-        <p className={`font-display mt-1 text-2xl font-extrabold ${cards.undelivered > 0 ? "text-error" : "text-foreground"}`}>
+      {/* A filled error tint instead of the old red hairline when leads are stuck. */}
+      <div className={`panel rounded-2xl p-4 sm:p-5 ${hasUndelivered ? "bg-error/12" : ""}`}>
+        <p className="break-words text-xs font-semibold leading-snug text-muted">{D.undelivered}</p>
+        <p
+          className={`display mt-3 text-2xl tabular-nums sm:text-[1.75rem] ${
+            hasUndelivered ? "text-error" : "text-white"
+          }`}
+        >
           {cards.undelivered}
         </p>
-        <p className="mt-1 text-xs text-muted">{D.undeliveredHelp}</p>
+        <p className="mt-3 text-xs leading-5 text-muted">{D.undeliveredHelp}</p>
       </div>
     </div>
   );

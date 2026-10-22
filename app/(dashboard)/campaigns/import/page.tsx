@@ -14,10 +14,16 @@ import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { parseCsv } from "@/lib/utils/csv";
 import { IMPORT_QUEUE_KEY, IMPORT_ACCOUNT_KEY } from "@/lib/import-queue";
 import { useLanguage } from "@/components/language-provider";
+import { PageHeader } from "@/components/ui/page";
 
 const SAMPLE = `keywords,dm_message,public_reply,tracked_url,opening_dm,opening_dm_button
 "yc","here it is: {link}","sent. check dms","https://events.ycombinator.com/startup-school-2026","hey! click below for the referral","send link"
 "LINK,SHOP","grab it here: {link}","dmed u",,,`;
+
+/** Column name inside the description: lime emphasis, same face as the text. */
+function Col({ children }: { children: string }) {
+  return <code className="font-sans font-semibold text-lime">{children}</code>;
+}
 
 export default function ImportCampaignsPage() {
   const router = useRouter();
@@ -85,47 +91,39 @@ export default function ImportCampaignsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">{t.campaignImport.title}</h1>
-        <p className="text-sm text-muted mt-1">
-          {t.campaignImport.description}{" "}
-          {t.campaignImport.requiredColumnsLabel}{" "}
-          <code className="text-accent">keywords</code>,{" "}
-          <code className="text-accent">dm_message</code>.{" "}
-          {t.campaignImport.optionalColumnsLabel}{" "}
-          <code className="text-accent">name</code>,{" "}
-          <code className="text-accent">public_reply</code>,{" "}
-          <code className="text-accent">tracked_url</code>,{" "}
-          <code className="text-accent">opening_dm</code>,{" "}
-          <code className="text-accent">opening_dm_button</code>.{" "}
-          {t.campaignImport.keywordsNote}
-        </p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-6">
+      {/* The top bar shows the page title; only the description lives here. */}
+      <PageHeader
+        description={
+          <>
+            {t.campaignImport.description}{" "}
+            {t.campaignImport.requiredColumnsLabel} <Col>keywords</Col>,{" "}
+            <Col>dm_message</Col>. {t.campaignImport.optionalColumnsLabel}{" "}
+            <Col>name</Col>, <Col>public_reply</Col>, <Col>tracked_url</Col>,{" "}
+            <Col>opening_dm</Col>, <Col>opening_dm_button</Col>.{" "}
+            {t.campaignImport.keywordsNote}
+          </>
+        }
+      />
 
       {error && (
-        <div className="p-4 rounded bg-error/10 border border-error/20 text-error text-sm">
+        <div className="rounded-2xl bg-error/12 p-4 text-sm leading-6 text-error">
           {error}
         </div>
       )}
 
       {accounts.length > 1 && (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-foreground">
-            {t.campaignImport.accountLabel}
-          </label>
-          <AccountSelect
-            accounts={accounts}
-            value={selectedAccountId}
-            onChange={setSelectedAccountId}
-            includeAll={false}
-            label={t.campaignImport.accountLabel}
-          />
-        </div>
+        <AccountSelect
+          accounts={accounts}
+          value={selectedAccountId}
+          onChange={setSelectedAccountId}
+          includeAll={false}
+          label={t.campaignImport.accountLabel}
+        />
       )}
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-foreground">
+        <label className="block text-sm font-semibold text-white">
           {t.campaignImport.csvLabel}
         </label>
         <textarea
@@ -133,28 +131,22 @@ export default function ImportCampaignsPage() {
           onChange={(e) => setCsv(e.target.value)}
           placeholder={SAMPLE}
           rows={10}
-          className="w-full px-4 py-3 rounded bg-surface border border-border text-sm font-mono text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none resize-y"
+          className="input min-h-56 font-mono text-sm"
         />
         <button
           type="button"
           onClick={() => setCsv(SAMPLE)}
-          className="text-xs text-muted hover:text-foreground"
+          className="text-xs font-semibold text-muted hover:text-white"
         >
           {t.campaignImport.fillSample}
         </button>
       </div>
 
-      <div className="flex items-center gap-4">
-        <button
-          onClick={startImport}
-          className="px-5 py-2 rounded bg-accent text-sm font-medium text-background hover:bg-accent-hover"
-        >
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={startImport} className="btn btn-lime">
           {t.campaignImport.reviewAndImport}
         </button>
-        <button
-          onClick={() => router.push("/campaigns")}
-          className="px-5 py-2 rounded text-sm text-muted hover:text-foreground border border-border"
-        >
+        <button onClick={() => router.push("/campaigns")} className="btn btn-ghost">
           {t.campaignImport.cancel}
         </button>
       </div>

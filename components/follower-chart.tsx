@@ -32,11 +32,13 @@ export interface FollowerChartPoint {
   delta: number | null;
 }
 
-// Colors read against the light chart surface (#ffffff): the accent line clears
-// 3:1 contrast and grid/axis text match the muted/border tokens. See globals.css.
-const SERIES_COLOR = "#00f0b5";
-const GRID_COLOR = "#e4e4e7";
-const AXIS_TEXT = "#9c9bc4";
+// Colors read against the panel surface (#13143d): the lime series line is the
+// brand accent, the grid is a faint white step and axis text is the muted
+// token. See globals.css.
+const SERIES_COLOR = "#d4ff3a";
+const GRID_COLOR = "rgba(255, 255, 255, 0.1)";
+const AXIS_TEXT = "#a7aacb";
+const SURFACE = "#13143d";
 
 function formatCompact(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -64,13 +66,13 @@ function ChartTooltip({
   const point = payload[0].payload;
 
   return (
-    <div className="rounded border border-border bg-surface px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-2xl bg-midnight px-3 py-2 text-xs shadow-lg">
       <p className="text-muted">{formatDay(point.date, locale)}</p>
-      <p className="mt-1 font-semibold text-foreground">
+      <p className="mt-1 font-semibold text-white">
         {point.followers.toLocaleString()} {t.followerChart.tooltipFollowersSuffix}
       </p>
       {point.delta !== null && point.delta !== 0 && (
-        <p className={point.delta > 0 ? "text-success" : "text-error"}>
+        <p className={point.delta > 0 ? "text-lime" : "text-error"}>
           {formatSigned(point.delta)} {t.followerChart.tooltipThatDay}
         </p>
       )}
@@ -96,10 +98,10 @@ export default function FollowerChart({
     data.length > 1 ? data[data.length - 1].followers - data[0].followers : null;
 
   return (
-    <div className="panel rounded-xl p-4 sm:p-6">
+    <div className="panel rounded-3xl p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-base font-bold text-white">
             {t.followerChart.title}
           </h2>
           <p className="mt-1 text-sm text-muted">
@@ -109,7 +111,7 @@ export default function FollowerChart({
             {net !== null && (
               <>
                 {" · "}
-                <span className={net >= 0 ? "text-success" : "text-error"}>
+                <span className={net >= 0 ? "text-lime" : "text-error"}>
                   {formatSigned(net)}
                 </span>{" "}
                 {t.followerChart.overDays(data.length)}
@@ -121,7 +123,7 @@ export default function FollowerChart({
           <button
             type="button"
             onClick={() => setShowTable((v) => !v)}
-            className="rounded border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
+            className="btn btn-sm btn-ghost"
           >
             {showTable ? t.followerChart.showChart : t.followerChart.showTable}
           </button>
@@ -129,8 +131,8 @@ export default function FollowerChart({
       </div>
 
       {data.length < 2 ? (
-        <div className="mt-6 rounded border border-border bg-surface/60 p-6 text-center">
-          <p className="text-sm text-foreground">{t.followerChart.collecting}</p>
+        <div className="inset mt-6 p-6 text-center">
+          <p className="text-sm font-semibold text-white">{t.followerChart.collecting}</p>
           <p className="mt-1 text-sm text-muted">
             {data.length === 0
               ? t.followerChart.noSnapshots
@@ -142,16 +144,16 @@ export default function FollowerChart({
         <div className="mt-4 max-h-72 overflow-y-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="label-mono border-b border-border text-left text-[11px] text-muted">
-                <th className="py-2 pr-4 font-medium">{t.followerChart.colDate}</th>
-                <th className="py-2 px-3 font-medium text-right">{t.followerChart.colFollowers}</th>
-                <th className="py-2 pl-3 font-medium text-right">{t.followerChart.colChange}</th>
+              <tr className="text-left text-xs font-semibold text-muted">
+                <th className="py-2 pr-4 font-semibold">{t.followerChart.colDate}</th>
+                <th className="py-2 px-3 font-semibold text-right">{t.followerChart.colFollowers}</th>
+                <th className="py-2 pl-3 font-semibold text-right">{t.followerChart.colChange}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="[&>tr:nth-child(even)]:bg-midnight/40">
               {[...data].reverse().map((p) => (
-                <tr key={p.date} className="border-b border-border last:border-0">
-                  <td className="py-2 pr-4 text-foreground">
+                <tr key={p.date}>
+                  <td className="py-2 pr-4 text-white">
                     {formatDay(p.date, locale)}
                   </td>
                   <td className="py-2 px-3 text-right text-muted">
@@ -205,7 +207,7 @@ export default function FollowerChart({
                 stroke={SERIES_COLOR}
                 strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 4, fill: SERIES_COLOR, stroke: "#ffffff", strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: SERIES_COLOR, stroke: SURFACE, strokeWidth: 2 }}
                 isAnimationActive={false}
               />
             </LineChart>

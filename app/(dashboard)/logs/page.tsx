@@ -126,15 +126,9 @@ export default function LogsPage() {
           {STATUS_FILTERS.map((status) => (
             <button
               key={status}
+              type="button"
               onClick={() => handleFilterChange(status)}
-              className={`
-                px-3 py-1.5 rounded-lg text-xs font-medium transition-all
-                ${
-                  statusFilter === status
-                    ? "bg-accent/15 text-accent border border-accent/20"
-                    : "bg-surface text-muted border border-border hover:border-border-hover hover:text-foreground"
-                }
-              `}
+              className={`chip ${statusFilter === status ? "chip-active" : ""}`}
             >
               {status === "ALL"
                 ? t.logs.statusAll
@@ -162,28 +156,28 @@ export default function LogsPage() {
       </div>
 
       {/* Table */}
-      <div className="panel rounded-xl overflow-hidden">
+      <div className="panel rounded-3xl overflow-hidden">
         {/* Six columns don't fit a phone; the table keeps its width and scrolls
             horizontally inside the panel rather than crushing every cell. */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">{t.logs.colCommenter}</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">{t.logs.colComment}</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">{t.logs.colCampaign}</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">{t.logs.colAccount}</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">{t.logs.colStatus}</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">{t.logs.colTime}</th>
+              <tr className="text-left">
+                <th className="px-4 py-4 text-xs font-semibold text-muted sm:px-6">{t.logs.colCommenter}</th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted sm:px-6">{t.logs.colComment}</th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted sm:px-6">{t.logs.colCampaign}</th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted sm:px-6">{t.logs.colAccount}</th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted sm:px-6">{t.logs.colStatus}</th>
+                <th className="px-4 py-4 text-xs font-semibold text-muted sm:px-6">{t.logs.colTime}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="[&>tr:nth-child(even)]:bg-midnight/40">
               {loading && (
                 <>
                   {[...Array(5)].map((_, i) => (
                     <tr key={i}>
                       <td colSpan={6} className="px-4 py-4 sm:px-6">
-                        <div className="h-4 bg-surface-hover rounded" />
+                        <div className="h-4 animate-pulse rounded-full bg-surface-hover" />
                       </td>
                     </tr>
                   ))}
@@ -200,7 +194,7 @@ export default function LogsPage() {
                 logs.map((log) => (
                   <tr key={log.id} className="hover:bg-surface-hover/50 transition-colors">
                     <td className="px-4 py-4 whitespace-nowrap sm:px-6">
-                      <span className="font-medium text-foreground">
+                      <span className="font-medium text-white">
                         @{log.commenterName ?? log.commenterId.slice(0, 8)}
                       </span>
                     </td>
@@ -232,7 +226,7 @@ export default function LogsPage() {
 
         {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-t border-border sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
             <p className="text-xs text-muted">
               {t.logs.showingRange(
                 (pagination.page - 1) * pagination.limit + 1,
@@ -242,12 +236,13 @@ export default function LogsPage() {
             </p>
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 disabled={page <= 1}
                 onClick={() => {
                   setLoading(true);
                   setPage(page - 1);
                 }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
+                className="btn btn-sm btn-ghost disabled:pointer-events-none"
               >
                 {t.logs.previous}
               </button>
@@ -255,12 +250,13 @@ export default function LogsPage() {
                 {t.logs.pageOf(page, pagination.totalPages)}
               </span>
               <button
+                type="button"
                 disabled={page >= pagination.totalPages}
                 onClick={() => {
                   setLoading(true);
                   setPage(page + 1);
                 }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
+                className="btn btn-sm btn-ghost disabled:pointer-events-none"
               >
                 {t.logs.next}
               </button>
