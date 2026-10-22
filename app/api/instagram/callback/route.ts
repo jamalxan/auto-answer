@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { getBaseUrl } from "@/lib/env";
 import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
 import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } from "@/lib/meta/client";
+import { canPublishFromScopes } from "@/lib/content/permissions";
 import {
   encryptToken,
   exchangeCodeForToken,
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const redirectUri = `${baseUrl}/api/instagram/callback`;
-    const { accessToken: shortLivedToken } = await exchangeCodeForToken(
+    const { accessToken: shortLivedToken, permissions } = await exchangeCodeForToken(
       code,
       redirectUri
     );
@@ -94,6 +95,8 @@ export async function GET(request: NextRequest) {
         accessToken: encryptedToken,
         tokenExpiresAt,
         webhookSubscribed,
+        grantedScopes: permissions,
+        canPublish: canPublishFromScopes(permissions),
       },
       update: {
         workspaceId: state.workspaceId,
@@ -102,6 +105,8 @@ export async function GET(request: NextRequest) {
         accessToken: encryptedToken,
         tokenExpiresAt,
         webhookSubscribed,
+        grantedScopes: permissions,
+        canPublish: canPublishFromScopes(permissions),
         // A fresh token from Meta: stop showing "disconnected" right away
         // instead of waiting for the next 6-hourly health check.
         tokenStatus: "ACTIVE",
