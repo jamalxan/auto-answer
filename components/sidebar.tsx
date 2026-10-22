@@ -10,6 +10,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { signOutAction } from "@/lib/auth-actions";
 import { useLanguage } from "@/components/language-provider";
 import Icon, { type IconName } from "@/components/icons";
 import { Wordmark } from "@/components/logo-mark";
@@ -36,6 +38,25 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLanguage();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
+
+  // The account menu closes on an outside click, on Escape and when its link is used.
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [accountOpen]);
 
   // Groups are separated by space only, so no extra translated headings.
   const navGroups: NavItem[][] = [
@@ -52,7 +73,7 @@ export default function Sidebar({
     ],
     [
       { label: t.nav.dmLogs, href: "/logs", icon: "list" },
-      { label: t.nav.settings, href: "/settings", icon: "settings" },
+      // Settings lives in the account menu (bottom of the sidebar), next to Log out.
       { label: t.nav.diagnostics, href: "/diagnostics", icon: "activity" },
       ...(isAdmin
         ? [{ label: t.admin.navLabel, href: "/admin", icon: "shield" as const }]
@@ -142,15 +163,61 @@ export default function Sidebar({
           ))}
         </nav>
 
-        <div className="p-3">
-          <div className="flex items-center gap-3 rounded-full bg-midnight px-2 py-2">
+        <div ref={accountRef} className="relative p-3">
+          {accountOpen && (
+            <div
+              id="account-menu"
+              role="menu"
+              aria-label={t.nav.accountMenu}
+              className="absolute inset-x-3 bottom-full mb-2 overflow-hidden rounded-2xl bg-midnight p-1.5 shadow-float ring-1 ring-inset ring-border"
+            >
+              <Link
+                href="/settings"
+                role="menuitem"
+                prefetch={false}
+                onClick={() => {
+                  setAccountOpen(false);
+                  onClose();
+                }}
+                aria-current={pathname === "/settings" || pathname.startsWith("/settings/") ? "page" : undefined}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-cloud/85 hover:bg-surface-hover hover:text-white"
+              >
+                <Icon name="settings" className="h-[18px] w-[18px] shrink-0" />
+                {t.nav.settings}
+              </Link>
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] font-medium text-error hover:bg-error/12"
+                >
+                  <Icon name="logout" className="h-[18px] w-[18px] shrink-0" />
+                  {t.nav.logout}
+                </button>
+              </form>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setAccountOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            aria-controls="account-menu"
+            className={`flex w-full items-center gap-3 rounded-full px-2 py-2 text-left transition-colors ${
+              accountOpen ? "bg-surface-hover" : "bg-midnight hover:bg-surface-hover"
+            }`}
+          >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet font-display text-sm font-semibold text-white">
               {initial}
             </span>
-            <p className="min-w-0 truncate pr-2 text-sm font-medium text-white">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">
               {workspaceName}
             </p>
-          </div>
+            <Icon
+              name="chevronUp"
+              className={`mr-2 h-4 w-4 shrink-0 text-muted transition-transform ${accountOpen ? "" : "rotate-180"}`}
+            />
+          </button>
         </div>
       </aside>
     </>
