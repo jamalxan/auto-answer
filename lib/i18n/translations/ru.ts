@@ -23,6 +23,8 @@ export const ru = {
     settings: "Настройки",
     diagnostics: "Диагностика",
     menu: "Меню",
+    account: "Аккаунт",
+    logout: "Выйти",
   },
   topbar: {
     connectInstagram: "Подключить Instagram",

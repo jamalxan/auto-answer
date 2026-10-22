@@ -21,7 +21,8 @@ export type IconName =
   | "close"
   | "alert"
   | "instagram"
-  | "arrowRight";
+  | "arrowRight"
+  | "logout";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: (
@@ -121,6 +122,13 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <path d="M5 12h14" />
       <path d="m12 5 7 7-7 7" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
     </>
   ),
 };

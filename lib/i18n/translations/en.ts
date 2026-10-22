@@ -23,6 +23,8 @@ export const en = {
     settings: "Settings",
     diagnostics: "Diagnostics",
     menu: "Menu",
+    account: "Account",
+    logout: "Log out",
   },
   topbar: {
     connectInstagram: "Connect Instagram",

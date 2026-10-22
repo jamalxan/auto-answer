@@ -64,6 +64,8 @@ function TelegramBanner({ title, body, cta }: { title: string; body: string; cta
 interface DashboardShellProps {
   children: React.ReactNode;
   workspaceName: string;
+  /** Shown in the account menu so the user knows which login they end. */
+  userEmail?: string | null;
   instagramUsername: string | null;
   instagramAccountCount: number;
   isAdmin?: boolean;
@@ -76,6 +78,7 @@ interface DashboardShellProps {
 export default function DashboardShell({
   children,
   workspaceName,
+  userEmail = null,
   instagramUsername,
   instagramAccountCount,
   isAdmin = false,
@@ -93,6 +96,7 @@ export default function DashboardShell({
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         workspaceName={workspaceName}
+        userEmail={userEmail}
         isAdmin={isAdmin}
       />
 

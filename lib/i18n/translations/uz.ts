@@ -23,6 +23,8 @@ export const uz = {
     settings: "Sozlamalar",
     diagnostics: "Diagnostika",
     menu: "Menyu",
+    account: "Akkaunt",
+    logout: "Chiqish",
   },
   topbar: {
     connectInstagram: "Instagram ulash",
