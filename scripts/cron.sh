@@ -39,6 +39,7 @@ call() {
 echo "[cron] scheduler started, target $BASE_URL"
 
 last_slot=""
+last_content=""
 last_daily=""
 last_tokencheck=""
 last_hourly=""
@@ -62,6 +63,13 @@ while true; do
       fi
       ;;
   esac
+
+  # Content Scheduler (ETAP 13): every minute, re-queue due posts whose job
+  # was lost, fail posts past the late window, send manual-publish notices.
+  if [ "$last_content" != "$hhmm" ]; then
+    last_content="$hhmm"
+    call content-sweep
+  fi
 
   # Once a day, early: the token refresh has a 10-day window before expiry, so
   # the exact hour does not matter — only that it happens every day.

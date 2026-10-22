@@ -121,6 +121,48 @@ export async function sendMessage(
   });
 }
 
+/** A photo by public URL (Telegram fetches it); optional HTML caption and buttons. */
+export async function sendPhoto(
+  chatId: string | number,
+  photo: string,
+  options: SendOptions & { caption?: string } = {}
+): Promise<{ message_id: number }> {
+  return tgCall("sendPhoto", {
+    chat_id: chatId,
+    photo,
+    caption: options.caption,
+    parse_mode: options.caption && options.parseMode !== null ? "HTML" : undefined,
+    reply_markup: buildMarkup(options),
+  });
+}
+
+/** A video by public URL (≤ 20 MB for URL uploads is a Telegram rule; larger files arrive as a link). */
+export async function sendVideo(
+  chatId: string | number,
+  video: string,
+  options: SendOptions & { caption?: string } = {}
+): Promise<{ message_id: number }> {
+  return tgCall("sendVideo", {
+    chat_id: chatId,
+    video,
+    caption: options.caption,
+    parse_mode: options.caption && options.parseMode !== null ? "HTML" : undefined,
+    supports_streaming: true,
+    reply_markup: buildMarkup(options),
+  });
+}
+
+export interface MediaGroupItem {
+  type: "photo" | "video";
+  media: string;
+  caption?: string;
+}
+
+/** Up to 10 photos / videos as one album (no buttons: Telegram does not allow them on albums). */
+export async function sendMediaGroup(chatId: string | number, media: MediaGroupItem[]): Promise<Array<{ message_id: number }>> {
+  return tgCall("sendMediaGroup", { chat_id: chatId, media: media.slice(0, 10) });
+}
+
 export async function editMessageText(
   chatId: string | number,
   messageId: number,
