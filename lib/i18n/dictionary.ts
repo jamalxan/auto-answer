@@ -27,7 +27,7 @@ export interface Dictionary {
     settings: string;
     diagnostics: string;
     menu: string;
-    account: string;
+    accountMenu: string;
     logout: string;
   };
   topbar: {

@@ -9,17 +9,18 @@
  */
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { signOutAction } from "@/lib/auth-actions";
 import { useLanguage } from "@/components/language-provider";
 import Icon, { type IconName } from "@/components/icons";
 import { Wordmark } from "@/components/logo-mark";
-import { signOutAction } from "@/lib/auth-actions";
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceName: string;
+  /** Shown in the account menu so the user knows which login they end. */
   userEmail?: string | null;
   isAdmin?: boolean;
 }
@@ -42,24 +43,21 @@ export default function Sidebar({
   const { t } = useLanguage();
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
-  const accountMenuId = useId();
 
-  // The account menu is the only popover in the shell, so a small local
-  // outside-click / Escape handler beats pulling in a menu library. A tap on
-  // any nav link counts as an outside click, so navigating also closes it.
+  // The account menu closes on an outside click, on Escape and when its link is used.
   useEffect(() => {
     if (!accountOpen) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!accountRef.current?.contains(e.target as Node)) setAccountOpen(false);
+    const onPointer = (event: PointerEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setAccountOpen(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountOpen(false);
     };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
     };
   }, [accountOpen]);
 
@@ -78,7 +76,7 @@ export default function Sidebar({
     ],
     [
       { label: t.nav.dmLogs, href: "/logs", icon: "list" },
-      { label: t.nav.settings, href: "/settings", icon: "settings" },
+      // Settings lives in the account menu (bottom of the sidebar), next to Log out.
       { label: t.nav.diagnostics, href: "/diagnostics", icon: "activity" },
       ...(isAdmin
         ? [{ label: t.admin.navLabel, href: "/admin", icon: "shield" as const }]
@@ -171,25 +169,37 @@ export default function Sidebar({
         <div ref={accountRef} className="relative p-3">
           {accountOpen && (
             <div
-              id={accountMenuId}
+              id="account-menu"
               role="menu"
-              aria-label={t.nav.account}
-              className="absolute inset-x-3 bottom-[calc(100%-0.25rem)] overflow-hidden rounded-2xl bg-midnight p-1.5 shadow-float ring-1 ring-white/10"
+              aria-label={t.nav.accountMenu}
+              className="absolute inset-x-3 bottom-full mb-2 overflow-hidden rounded-2xl bg-midnight p-1.5 shadow-float"
             >
               <div className="px-3 py-2">
                 <p className="truncate text-sm font-semibold text-white">{workspaceName}</p>
-                {userEmail && (
-                  <p className="mt-0.5 truncate text-xs text-muted">{userEmail}</p>
-                )}
+                {userEmail && <p className="mt-0.5 truncate text-xs text-muted">{userEmail}</p>}
               </div>
+              <Link
+                href="/settings"
+                role="menuitem"
+                prefetch={false}
+                onClick={() => {
+                  setAccountOpen(false);
+                  onClose();
+                }}
+                aria-current={pathname === "/settings" || pathname.startsWith("/settings/") ? "page" : undefined}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-cloud/85 hover:bg-surface-hover hover:text-white"
+              >
+                <Icon name="settings" className="h-[18px] w-[18px] shrink-0" />
+                {t.nav.settings}
+              </Link>
               <form action={signOutAction}>
                 <button
                   type="submit"
                   role="menuitem"
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-muted hover:bg-surface-hover hover:text-white"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] font-medium text-error hover:bg-error/12"
                 >
                   <Icon name="logout" className="h-[18px] w-[18px] shrink-0" />
-                  <span>{t.nav.logout}</span>
+                  {t.nav.logout}
                 </button>
               </form>
             </div>
@@ -199,8 +209,7 @@ export default function Sidebar({
             onClick={() => setAccountOpen((open) => !open)}
             aria-haspopup="menu"
             aria-expanded={accountOpen}
-            aria-controls={accountOpen ? accountMenuId : undefined}
-            aria-label={t.nav.account}
+            aria-controls="account-menu"
             className={`flex w-full items-center gap-3 rounded-full px-2 py-2 text-left transition-colors ${
               accountOpen ? "bg-surface-hover" : "bg-midnight hover:bg-surface-hover"
             }`}
@@ -208,14 +217,12 @@ export default function Sidebar({
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet font-display text-sm font-semibold text-white">
               {initial}
             </span>
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">
               {workspaceName}
-            </span>
+            </p>
             <Icon
-              name="arrowRight"
-              className={`mr-1 h-4 w-4 shrink-0 text-muted transition-transform ${
-                accountOpen ? "rotate-90" : "-rotate-90"
-              }`}
+              name="chevronUp"
+              className={`mr-2 h-4 w-4 shrink-0 text-muted transition-transform ${accountOpen ? "" : "rotate-180"}`}
             />
           </button>
         </div>

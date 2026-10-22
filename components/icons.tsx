@@ -22,7 +22,8 @@ export type IconName =
   | "alert"
   | "instagram"
   | "arrowRight"
-  | "logout";
+  | "logout"
+  | "chevronUp";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: (
@@ -131,6 +132,7 @@ const paths: Record<IconName, React.ReactNode> = {
       <path d="M21 12H9" />
     </>
   ),
+  chevronUp: <path d="m18 15-6-6-6 6" />,
 };
 
 export default function Icon({

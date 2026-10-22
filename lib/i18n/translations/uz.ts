@@ -23,7 +23,7 @@ export const uz = {
     settings: "Sozlamalar",
     diagnostics: "Diagnostika",
     menu: "Menyu",
-    account: "Akkaunt",
+    accountMenu: "Akkaunt menyusi",
     logout: "Chiqish",
   },
   topbar: {

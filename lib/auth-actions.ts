@@ -2,10 +2,7 @@
 
 import { signOut } from "@/lib/auth";
 
-/**
- * Ends the customer session (NextAuth database session + cookie) and lands
- * on the login page. Used by the account menu in the dashboard sidebar.
- */
+/** Ends the app session (deletes the database session row and its cookie) and goes to the login page. */
 export async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: "/login" });
 }

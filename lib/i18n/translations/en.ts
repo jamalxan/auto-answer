@@ -23,7 +23,7 @@ export const en = {
     settings: "Settings",
     diagnostics: "Diagnostics",
     menu: "Menu",
-    account: "Account",
+    accountMenu: "Account menu",
     logout: "Log out",
   },
   topbar: {
