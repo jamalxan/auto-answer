@@ -39,11 +39,11 @@ async function processPublishJob(job: Job<PublishJob>): Promise<unknown> {
   const pipeline = await import("./publish");
   switch (job.name) {
     case PREPARE_JOB:
-      return pipeline.preparePost(job.data.postId, job.data.attempt);
+      return pipeline.preparePost(job.data.postId, job.data.attempt, {}, job.data.retryNo ?? 0);
     case PUBLISH_JOB:
-      return pipeline.publishPost(job.data.postId, job.data.attempt);
+      return pipeline.publishPost(job.data.postId, job.data.attempt, {}, job.data.retryNo ?? 0);
     case FIRST_COMMENT_JOB:
-      return pipeline.postFirstComment(job.data.postId);
+      return pipeline.postFirstComment(job.data.postId, {}, job.data.retryNo ?? 0);
     case MANUAL_NOTIFY_JOB: {
       const manual = await import("./manual");
       return manual.sendManualNotice(job.data.postId);

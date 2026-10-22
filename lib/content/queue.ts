@@ -30,6 +30,8 @@ export const MEDIA_PROCESS_JOB = "media-process";
 export interface PublishJob {
   postId: string;
   attempt: number;
+  /** Which retry of one step this is (the pipeline counts its own backoff). */
+  retryNo?: number;
 }
 
 export interface MediaProcessJob {
@@ -102,11 +104,11 @@ export async function schedulePublish(postId: string, attempt: number, at: Date)
 
 /** A retry of one step after a transient Meta error, under a fresh id so BullMQ accepts it. */
 export async function scheduleRetry(name: string, postId: string, attempt: number, retryNo: number, delayMs: number): Promise<void> {
-  await addPublish(name, { postId, attempt }, { jobId: publishJobId(postId, attempt, `${name}_r${retryNo}`), delay: delayMs });
+  await addPublish(name, { postId, attempt, retryNo }, { jobId: publishJobId(postId, attempt, `${name}_r${retryNo}`), delay: delayMs });
 }
 
 export async function scheduleFirstComment(postId: string, delayMs: number, retryNo = 0): Promise<void> {
-  await addPublish(FIRST_COMMENT_JOB, { postId, attempt: 0 }, { jobId: publishJobId(postId, 0, `comment_${retryNo}`), delay: delayMs });
+  await addPublish(FIRST_COMMENT_JOB, { postId, attempt: 0, retryNo }, { jobId: publishJobId(postId, 0, `comment_${retryNo}`), delay: delayMs });
 }
 
 /** The Telegram "publish it yourself" notice at the slot (FR-N2). */

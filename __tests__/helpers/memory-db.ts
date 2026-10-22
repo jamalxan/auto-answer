@@ -291,6 +291,9 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   integrationSubscription: [["integrationId", "eventType"]],
   // Flow Builder (ETAP 6)
   flowVersion: [["flowId", "version"]],
+  // Content Scheduler (ETAP 13)
+  scheduledPost: [["igMediaId"]],
+  scheduledPostMedia: [["postId", "position"]],
   flowRun: [["executionId"]],
   flowRunStep: [["runId", "seq"]],
   flow: [["proxyCampaignId"], ["publishedVersionId"], ["draftVersionId"]],
