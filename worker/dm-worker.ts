@@ -15,6 +15,7 @@ import { createAnalyticsWorker, isAnalyticsEnabled, runAnalyticsMaintenance } fr
 import { createEngagementWorker, isEngagementEnabled, runEngagementMaintenance } from "@/lib/engagement/worker";
 import { registerEngagementReferralModule } from "@/lib/engagement/referral/module";
 import { runIntegrationHealthMaintenance } from "@/lib/integrations/health";
+import { createContentWorkers, isContentSchedulerEnabled, runContentMaintenance } from "@/lib/content/worker";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -37,6 +38,8 @@ const integrationsWorker = isOutboundBusEnabled() ? createIntegrationsWorker() :
 // Engagement (dev, ETAP 9): giveaway backfill / notify jobs plus the collector tick, off with ENGAGEMENT_DISABLED=1.
 if (isEngagementEnabled()) registerEngagementReferralModule();
 const engagementWorker = isEngagementEnabled() ? createEngagementWorker() : null;
+// Content Scheduler (dev, ETAP 13): "content-publish" + "media-process" queues plus the minute sweeper, off with CONTENT_SCHEDULER_DISABLED=1.
+const contentWorkers = isContentSchedulerEnabled() ? createContentWorkers() : null;
 const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because
@@ -92,6 +95,8 @@ const maintenanceTimer = setInterval(() => {
   if (analyticsWorker) void runAnalyticsMaintenance();
   // Giveaway collector and the registered engagement tasks (self-throttled).
   if (engagementWorker) void runEngagementMaintenance();
+  // Lost publish jobs, late posts, manual-publish notices (self-throttled to a minute).
+  if (contentWorkers) void runContentMaintenance();
 }, 60_000);
 
 async function shutdown(signal: string) {
@@ -108,6 +113,7 @@ async function shutdown(signal: string) {
   await flowsWorker?.close();
   await analyticsWorker?.close();
   await engagementWorker?.close();
+  await contentWorkers?.close();
   process.exit(0);
 }
 
