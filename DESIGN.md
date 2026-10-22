@@ -74,3 +74,30 @@ and OG image in `public/`. Clear space: one bubble height. Minimum: mark
   Midnight form side.
 - **App shell** (`components/sidebar.tsx`, `top-bar.tsx`,
   `dashboard-shell.tsx`): solid surfaces, violet active pill, lime status dot.
+
+## App pages (dashboard)
+
+Every page inside the shell is built from the same few pieces, so nothing
+needs its own styling:
+
+- **Page header**: the top bar owns the section title. A page renders only
+  `PageHeader` (`components/ui/page.tsx`) with its one-line description and
+  the actions on the right; a page-level `h1` exists only when the heading
+  differs from the section (a campaign's name).
+- **Width**: data pages fill the `max-w-7xl` main column; form pages
+  (assistant, integrations, settings, import) sit in `mx-auto max-w-3xl`.
+- **Cards**: `.panel rounded-3xl p-5 sm:p-6` (`Card`), stat tiles
+  `.panel rounded-2xl`. Anything nested inside a card is an `.inset`
+  (Midnight, 1rem radius): list rows, option tiles, sub-forms, code. No
+  hairlines, no dividers; rows are `space-y-2` of insets, table rows are
+  striped with `bg-midnight/40`.
+- **Controls**: `.input` (pill; `textarea.input` soft corners), `.btn` +
+  `btn-primary` (violet, default) / `btn-lime` (the one main CTA of a page) /
+  `btn-ghost` / `btn-danger`, `.btn-sm` inside cards and toolbars, `.chip` /
+  `.chip-active` for filters and tabs. Shared React kit in
+  `components/assistant-ui.tsx` (`Field`, `Toggle`, `ToggleRow`, `Button`,
+  `Badge`, `Section`, `Notice`).
+- **Labels**: `text-xs font-semibold text-muted`, sentence case. Card titles
+  `text-base font-bold text-white`. Big numbers `.display`.
+- **States**: empty → `Card` + `EmptyState`; errors → filled tints
+  (`bg-error/12 text-error`); loading → `panel … animate-pulse`.

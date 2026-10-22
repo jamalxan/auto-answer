@@ -3,7 +3,8 @@
 /**
  * Keyword Input
  *
- * Tag-style input for adding/removing keywords.
+ * Tag-style input for adding/removing keywords: a row of violet chips, each
+ * with a remove button, above a pill input.
  */
 
 import { useState, type KeyboardEvent } from "react";
@@ -42,32 +43,34 @@ export default function KeywordInput({ keywords, onChange, max = 10 }: KeywordIn
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2 p-3 rounded bg-surface border border-border min-h-[48px]">
-        {keywords.map((keyword) => (
-          <span
-            key={keyword}
-            className="inline-flex items-center gap-2 px-2 py-1 rounded border border-border text-xs"
-          >
-            {keyword}
-            <button
-              type="button"
-              onClick={() => removeKeyword(keyword)}
-              aria-label={`Remove ${keyword}`}
-              className="text-muted hover:text-error"
+      {keywords.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {keywords.map((keyword) => (
+            <span
+              key={keyword}
+              className="inline-flex items-center gap-1.5 rounded-full bg-violet/25 px-3 py-1 text-sm text-white"
             >
-              Remove
-            </button>
-          </span>
-        ))}
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={keywords.length === 0 ? "Type keyword and press Enter..." : ""}
-          className="flex-1 min-w-[120px] bg-transparent text-sm text-foreground placeholder:text-muted outline-none"
-        />
-      </div>
+              {keyword}
+              <button
+                type="button"
+                onClick={() => removeKeyword(keyword)}
+                aria-label={`Remove ${keyword}`}
+                className="grid h-5 w-5 place-items-center rounded-full text-white/70 hover:bg-white/15 hover:text-white"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={keywords.length === 0 ? "Type keyword and press Enter..." : ""}
+        className="input"
+      />
       <p className="text-xs text-muted">
         {keywords.length}/{max} keywords · Press Enter or comma to add
       </p>

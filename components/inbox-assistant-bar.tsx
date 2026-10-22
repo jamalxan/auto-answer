@@ -94,7 +94,7 @@ export default function InboxAssistantBar({
   const interest = lead?.productInterest ?? conversation.collected.productInterest;
 
   return (
-    <div className="shrink-0 border-b border-border bg-surface/60 px-4 py-2">
+    <div className="shrink-0 bg-midnight/40 px-4 py-2">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={badge.tone}>{badge.text}</Badge>
         {conversation.botPaused && <span className="text-xs text-muted">{I.pausedNote}</span>}
@@ -105,7 +105,7 @@ export default function InboxAssistantBar({
         )}
         <div className="ml-auto flex items-center gap-3">
           {(name || phone || interest) && (
-            <button type="button" onClick={() => setOpen((v) => !v)} className="text-xs font-medium text-accent hover:underline">
+            <button type="button" onClick={() => setOpen((v) => !v)} className="btn btn-sm btn-ghost">
               {I.leadPanel}
             </button>
           )}
@@ -114,7 +114,7 @@ export default function InboxAssistantBar({
               type="button"
               disabled={busy}
               onClick={() => void toggle(stopped ? "resume" : "pause")}
-              className="rounded-lg border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-surface-hover disabled:opacity-50"
+              className="btn btn-sm btn-primary"
             >
               {stopped ? I.resume : I.pause}
             </button>
@@ -126,20 +126,20 @@ export default function InboxAssistantBar({
         <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
           <div>
             <dt className="text-muted">{I.name}</dt>
-            <dd className="text-foreground">{name ?? "—"}</dd>
+            <dd className="text-white">{name ?? "—"}</dd>
           </div>
           <div>
             <dt className="text-muted">{I.phone}</dt>
-            <dd className="font-mono text-foreground">{phone ?? "—"}</dd>
+            <dd className="text-white">{phone ?? "—"}</dd>
           </div>
           <div>
             <dt className="text-muted">{I.interest}</dt>
-            <dd className="text-foreground">{interest ?? "—"}</dd>
+            <dd className="text-white">{interest ?? "—"}</dd>
           </div>
           {lead?.campaignName && (
             <div>
               <dt className="text-muted">{I.campaign}</dt>
-              <dd className="text-foreground">{lead.campaignName}</dd>
+              <dd className="text-white">{lead.campaignName}</dd>
             </div>
           )}
           {lead && lead.crmLinks.length > 0 && (

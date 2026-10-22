@@ -260,6 +260,84 @@ body {
     background: rgb(10 11 46 / 0.14);
   }
 
+  .btn-danger {
+    background: rgb(255 93 77 / 0.14);
+    color: var(--color-error);
+  }
+
+  .btn-danger:hover {
+    background: rgb(255 93 77 / 0.24);
+  }
+
+  /* Compact button for toolbars, table rows and card actions. */
+  .btn-sm {
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    transform: none;
+  }
+
+  /* Inputs — pills like the buttons, one tone step *down* from the panel
+     they sit in (a filled field, no hairline). Textareas keep soft corners. */
+  .input {
+    width: 100%;
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    background: var(--color-midnight);
+    padding: 0.65rem 1.1rem;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    color: #fff;
+  }
+
+  textarea.input {
+    border-radius: 1.25rem;
+    resize: vertical;
+  }
+
+  select.input {
+    padding-right: 2.25rem;
+  }
+
+  .input:disabled {
+    opacity: 0.6;
+  }
+
+  /* Chips — filter / tab pills. Active is the violet nav pill. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    border-radius: 9999px;
+    background: var(--color-surface);
+    padding: 0.45rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-muted);
+  }
+
+  .chip:hover {
+    background: var(--color-surface-hover);
+    color: #fff;
+  }
+
+  .chip-active,
+  .chip-active:hover {
+    background: var(--color-violet);
+    color: #fff;
+  }
+
+  /* Inset — a block nested inside a panel: list rows, option tiles, code,
+     sub-cards. Tone step down instead of a border. */
+  .inset {
+    background: var(--color-midnight);
+    border-radius: 1rem;
+  }
+
   /* Display type — Unbounded 600, tight tracking, the brand's headline voice. */
   .display {
     font-family: var(--font-display);

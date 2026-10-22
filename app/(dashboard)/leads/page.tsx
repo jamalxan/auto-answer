@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { Badge, Button, Notice, inputClass } from "@/components/assistant-ui";
+import { Card, EmptyState, PageHeader } from "@/components/ui/page";
 import { useLanguage } from "@/components/language-provider";
 import { formatShortMonthDayTime } from "@/lib/i18n/format-date";
 import { readCache, writeCache } from "@/lib/client-cache";
@@ -211,20 +212,16 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">{L.title}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">{L.subtitle}</p>
-        </div>
-        <a
-          href={exportHref}
-          className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-hover"
-        >
-          {L.export}
-        </a>
-      </div>
+      <PageHeader
+        description={L.subtitle}
+        actions={
+          <a href={exportHref} className="btn btn-sm btn-ghost">
+            {L.export}
+          </a>
+        }
+      />
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr_1fr]">
         <input
           value={query}
           onChange={(e) => {
@@ -232,7 +229,7 @@ export default function LeadsPage() {
             setPage(1);
           }}
           placeholder={L.searchPlaceholder}
-          className={`${inputClass} lg:col-span-2`}
+          className={inputClass}
         />
         <select
           value={status}
@@ -303,41 +300,43 @@ export default function LeadsPage() {
       {message && <Notice tone="success">{message}</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
 
-      <div className="panel overflow-hidden rounded">
-        {loading && leads.length === 0 ? (
-          <div className="h-48 animate-pulse bg-surface-hover/40" />
-        ) : leads.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm font-medium text-foreground">{L.empty}</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-muted">{L.emptyHelp}</p>
-            <div className="mt-4">
-              <Link href="/assistant" className="text-sm font-medium text-accent underline">
+      {loading && leads.length === 0 ? (
+        <div className="panel h-48 animate-pulse rounded-3xl" />
+      ) : leads.length === 0 ? (
+        <Card>
+          <EmptyState
+            title={L.empty}
+            body={L.emptyHelp}
+            action={
+              <Link href="/assistant" className="btn btn-sm btn-primary">
                 {t.assistant.nav.assistant}
               </Link>
-            </div>
-          </div>
-        ) : (
+            }
+          />
+        </Card>
+      ) : (
+        <div className="panel overflow-hidden rounded-3xl">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px] text-left text-sm">
               <thead>
-                <tr className="border-b border-border text-xs text-muted">
+                <tr>
                   {[L.columns.date, L.columns.name, L.columns.phone, L.columns.username, L.columns.interest, L.columns.source, L.columns.delivery, L.columns.actions].map(
                     (h) => (
-                      <th key={h} className="label-mono px-3 py-2.5 font-normal">
+                      <th key={h} className="px-3 py-3 text-xs font-semibold text-muted">
                         {h}
                       </th>
                     )
                   )}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="[&>tr:nth-child(even)]:bg-midnight/40">
                 {leads.map((lead) => (
-                  <tr key={lead.id} className="border-b border-border/60 align-top last:border-b-0">
+                  <tr key={lead.id} className="align-top">
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-muted">
                       {formatShortMonthDayTime(new Date(lead.createdAt), locale)}
                     </td>
                     <td className="px-3 py-3">
-                      <p className="font-medium text-foreground">{lead.name ?? "—"}</p>
+                      <p className="font-medium text-white">{lead.name ?? "—"}</p>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {lead.isTest && <Badge tone="muted">{L.test}</Badge>}
                         {lead.isRepeat && <Badge tone="accent">🔁 {L.repeat}</Badge>}
@@ -352,7 +351,7 @@ export default function LeadsPage() {
                           type="button"
                           onClick={() => void copyPhone(lead.phoneE164!)}
                           title={L.copyPhone}
-                          className="font-mono text-xs text-foreground hover:text-accent"
+                          className="text-sm text-white hover:text-accent"
                         >
                           {copied === lead.phoneE164 ? t.assistant.common.copied : lead.phoneE164}
                         </button>
@@ -363,7 +362,7 @@ export default function LeadsPage() {
                     <td className="px-3 py-3 text-muted">
                       {lead.igUsername ? `@${lead.igUsername}` : "—"}
                     </td>
-                    <td className="max-w-[200px] px-3 py-3 text-foreground">
+                    <td className="max-w-[200px] px-3 py-3 text-white">
                       <span className="line-clamp-2">{lead.productInterest ?? "—"}</span>
                     </td>
                     <td className="px-3 py-3 text-xs text-muted">
@@ -388,14 +387,14 @@ export default function LeadsPage() {
                         <button
                           type="button"
                           onClick={() => void openDetail(lead.id)}
-                          className="text-xs font-medium text-accent hover:underline"
+                          className="btn btn-sm btn-ghost"
                         >
                           {L.details}
                         </button>
                         {lead.conversationId && (
                           <Link
                             href={`/inbox?conversation=${lead.conversationId}`}
-                            className="text-xs font-medium text-muted hover:text-foreground"
+                            className="btn btn-sm btn-ghost"
                           >
                             {L.openChat}
                           </Link>
@@ -405,7 +404,7 @@ export default function LeadsPage() {
                             type="button"
                             disabled={busyId === lead.id}
                             onClick={() => void redeliver(lead.id)}
-                            className="text-xs font-medium text-warning hover:underline disabled:opacity-50"
+                            className="btn btn-sm btn-primary"
                           >
                             {busyId === lead.id ? L.redelivering : L.redeliver}
                           </button>
@@ -417,8 +416,8 @@ export default function LeadsPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {pages > 1 && (
         <div className="flex items-center justify-between gap-3">
@@ -434,23 +433,23 @@ export default function LeadsPage() {
 
       {(detail || detailLoading) && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-6"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-midnight/75 p-0 sm:items-center sm:p-6"
           onClick={() => setDetail(null)}
         >
           <div
-            className="panel max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded p-5"
+            className="panel max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-3xl p-5 shadow-float sm:p-6"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
           >
             {detailLoading || !detail ? (
-              <div className="h-40 animate-pulse rounded bg-surface-hover/40" />
+              <div className="inset h-40 animate-pulse" />
             ) : (
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-base font-semibold text-foreground">{detail.name ?? "—"}</h2>
-                    <p className="mt-0.5 font-mono text-xs text-muted">
+                    <h2 className="text-base font-bold text-white">{detail.name ?? "—"}</h2>
+                    <p className="mt-0.5 text-xs text-muted">
                       {detail.phoneE164 ?? L.noPhone}
                       {detail.igUsername ? ` · @${detail.igUsername}` : ""}
                     </p>
@@ -466,26 +465,26 @@ export default function LeadsPage() {
 
                 <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs text-muted">{L.columns.interest}</dt>
-                    <dd>{detail.productInterest ?? "—"}</dd>
+                    <dt className="text-xs font-semibold text-muted">{L.columns.interest}</dt>
+                    <dd className="text-white">{detail.productInterest ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted">{L.columns.source}</dt>
-                    <dd>
+                    <dt className="text-xs font-semibold text-muted">{L.columns.source}</dt>
+                    <dd className="text-white">
                       {L.source[detail.source]}
                       {detail.campaignName ? ` · ${detail.campaignName}` : ""}
                     </dd>
                   </div>
                   {detail.triggerKeyword && (
                     <div>
-                      <dt className="text-xs text-muted">{L.detail.keyword}</dt>
-                      <dd>{detail.triggerKeyword}</dd>
+                      <dt className="text-xs font-semibold text-muted">{L.detail.keyword}</dt>
+                      <dd className="text-white">{detail.triggerKeyword}</dd>
                     </div>
                   )}
                   {detail.trackedLinkClicked && (
                     <div>
-                      <dt className="text-xs text-muted">{L.detail.tracked}</dt>
-                      <dd>{L.detail.trackedYes}</dd>
+                      <dt className="text-xs font-semibold text-muted">{L.detail.tracked}</dt>
+                      <dd className="text-white">{L.detail.trackedYes}</dd>
                     </div>
                   )}
                 </dl>
@@ -493,7 +492,7 @@ export default function LeadsPage() {
                 {detail.summary && (
                   <div>
                     <h3 className="text-xs font-semibold text-muted">{L.detail.summary}</h3>
-                    <p className="mt-1 text-sm text-foreground">{detail.summary}</p>
+                    <p className="mt-1 text-sm text-white">{detail.summary}</p>
                   </div>
                 )}
 
@@ -504,9 +503,9 @@ export default function LeadsPage() {
                   ) : (
                     <ul className="mt-2 space-y-2">
                       {detail.deliveries.map((d) => (
-                        <li key={d.id} className="rounded border border-border p-2.5 text-sm">
+                        <li key={d.id} className="inset p-4 text-sm">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-medium text-foreground">
+                            <span className="font-medium text-white">
                               {d.name}
                               {d.kind === "repeat" ? " 🔁" : ""}
                             </span>
@@ -547,7 +546,7 @@ export default function LeadsPage() {
                 {detail.transcript && (
                   <div>
                     <h3 className="text-xs font-semibold text-muted">{L.detail.transcript}</h3>
-                    <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-surface p-3 text-xs text-foreground">
+                    <pre className="inset mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-xs text-white">
                       {detail.transcript}
                     </pre>
                   </div>

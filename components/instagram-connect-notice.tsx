@@ -6,10 +6,11 @@ import type { Dictionary } from "@/lib/i18n/dictionary";
 
 type Tone = "error" | "warning" | "success";
 
+// Filled tints only, no outline: the tone is the surface.
 const TONE_CLASSES: Record<Tone, string> = {
-  error: "border-error/20 bg-error/10 text-error",
-  warning: "border-warning/20 bg-warning/10 text-warning",
-  success: "border-success/20 bg-success/10 text-success",
+  error: "bg-error/12 text-error",
+  warning: "bg-warning/12 text-warning",
+  success: "bg-lime/12 text-lime",
 };
 
 function getMessages(
@@ -61,6 +62,7 @@ export function InstagramConnectNotice() {
         {missing.length > 0 && (
           <ul className="mt-2 space-y-1">
             {missing.map((name) => (
+              // Environment variable names are code, so they keep the mono face.
               <li key={name} className="font-mono text-xs">
                 {name}
               </li>
@@ -79,7 +81,7 @@ export function InstagramConnectNotice() {
       <Notice tone="error" title={t.instagramNotice.failedTitle}>
         <p>{t.instagramNotice.failedDetail}</p>
         {reason && (
-          <p className="mt-2 font-mono text-xs break-words opacity-80">
+          <p className="mt-2 break-words text-xs opacity-80">
             {reason}
           </p>
         )}
@@ -107,7 +109,7 @@ function Notice({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded border p-4 text-sm ${TONE_CLASSES[tone]}`}>
+    <div className={`rounded-2xl p-4 text-sm leading-6 ${TONE_CLASSES[tone]}`}>
       <p className="font-semibold">{title}</p>
       <div className="mt-1 opacity-90">{children}</div>
     </div>

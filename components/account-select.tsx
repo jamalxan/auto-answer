@@ -27,13 +27,13 @@ export default function AccountSelect({
   const { t } = useLanguage();
   return (
     <label className="flex flex-col gap-2 text-sm">
-      <span className="label-mono text-[11px] font-semibold text-muted">
+      <span className="text-xs font-semibold text-muted">
         {label ?? t.common.instagramAccountLabel}
       </span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-w-52 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent/40"
+        className="input min-w-52 !w-auto"
       >
         {includeAll && <option value="all">{t.common.allAccounts}</option>}
         {accounts.map((account) => (

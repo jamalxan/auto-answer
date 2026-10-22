@@ -15,7 +15,11 @@ export default function LanguageSwitcher({ className = "" }: { className?: strin
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="label-mono flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-border-hover hover:text-foreground"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`grid h-10 min-w-10 place-items-center rounded-full px-2.5 text-xs font-semibold transition-colors ${
+          open ? "bg-surface-hover text-white" : "bg-surface text-muted hover:bg-surface-hover hover:text-white"
+        }`}
         aria-label="Change language"
       >
         {shortLabels[locale]}
@@ -23,19 +27,23 @@ export default function LanguageSwitcher({ className = "" }: { className?: strin
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-32 overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+          <div
+            role="menu"
+            className="panel absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-2xl p-1.5 shadow-float"
+          >
             {uiLocales.map((l) => (
               <button
                 key={l}
                 type="button"
+                role="menuitem"
                 onClick={() => {
                   setLocale(l);
                   setOpen(false);
                 }}
-                className={`block w-full px-3 py-2 text-left text-sm transition-colors ${
+                className={`block w-full rounded-xl px-3 py-2 text-left text-sm transition-colors ${
                   l === locale
-                    ? "bg-surface-hover text-accent font-medium"
-                    : "text-foreground hover:bg-surface-hover"
+                    ? "bg-violet font-semibold text-white"
+                    : "text-muted hover:bg-surface-hover hover:text-white"
                 }`}
               >
                 {uiLocaleLabels[l]}

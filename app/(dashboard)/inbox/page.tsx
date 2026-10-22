@@ -18,6 +18,7 @@ import type { ConversationListItem } from "@/app/api/instagram/conversations/rou
 import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
 import { useLanguage } from "@/components/language-provider";
 import InboxAssistantBar from "@/components/inbox-assistant-bar";
+import { PageHeader } from "@/components/ui/page";
 import { formatShortMonthDay } from "@/lib/i18n/format-date";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -312,27 +313,28 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <h1 className="text-lg font-semibold text-foreground">{t.inbox.title}</h1>
-        {accounts.length > 1 && (
-          <AccountSelect
-            accounts={accounts}
-            value={selectedAccountId}
-            onChange={setSelectedAccountId}
-            includeAll={false}
-          />
-        )}
-      </div>
+      <PageHeader
+        actions={
+          accounts.length > 1 ? (
+            <AccountSelect
+              accounts={accounts}
+              value={selectedAccountId}
+              onChange={setSelectedAccountId}
+              includeAll={false}
+            />
+          ) : undefined
+        }
+      />
 
-      <div className="grid h-[calc(100dvh-11rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[300px_1fr]">
+      <div className="panel grid h-[calc(100dvh-11rem)] grid-cols-1 overflow-hidden rounded-3xl sm:grid-cols-[300px_1fr]">
         {/* Conversation list. On mobile it takes the full pane and is hidden
             once a thread is open (ManyChat-style); on sm+ it is always shown. */}
         <div
-          className={`min-h-0 flex-col border-b border-border sm:flex sm:border-b-0 sm:border-r ${
+          className={`min-h-0 flex-col bg-midnight/40 sm:flex ${
             active ? "hidden" : "flex"
           }`}
         >
-          <div className="shrink-0 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
+          <div className="shrink-0 px-4 py-3 text-sm font-bold text-white">
             {t.inbox.conversations}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -357,12 +359,12 @@ export default function InboxPage() {
                     key={c.id}
                     type="button"
                     onClick={() => openConversation(c.id)}
-                    className={`block w-full border-b border-border px-4 py-3 text-left ${
-                      isActive ? "bg-surface-hover" : "hover:bg-surface-hover"
+                    className={`block w-full px-4 py-3 text-left ${
+                      isActive ? "bg-violet/20" : "hover:bg-white/5"
                     }`}
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">
+                      <span className="truncate text-sm font-medium text-white">
                         @{c.contact.username ?? t.common.unknown}
                       </span>
                       <span className="shrink-0 text-[11px] text-muted">
@@ -393,11 +395,11 @@ export default function InboxPage() {
             </div>
           ) : (
             <>
-              <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
+              <div className="flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-bold text-white">
                 <button
                   type="button"
                   onClick={() => setActiveId(null)}
-                  className="-ml-1 rounded px-2 py-1 text-muted hover:text-foreground sm:hidden"
+                  className="btn btn-sm btn-ghost sm:hidden"
                   aria-label="Back to conversations"
                 >
                   {t.inbox.back}
@@ -433,10 +435,8 @@ export default function InboxPage() {
                       className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
-                          m.fromMe
-                            ? "bg-accent text-background"
-                            : "bg-surface text-foreground border border-border"
+                        className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                          m.fromMe ? "bg-violet text-white" : "bg-white/10 text-white"
                         }`}
                       >
                         {/* Media, story-reply, and reaction messages have no
@@ -453,7 +453,7 @@ export default function InboxPage() {
                         </p>
                         <p
                           className={`mt-1 text-[10px] ${
-                            m.fromMe ? "text-background/70" : "text-muted"
+                            m.fromMe ? "text-white/85" : "text-muted"
                           }`}
                         >
                           {formatTime(m.createdTime, locale)}
@@ -464,7 +464,7 @@ export default function InboxPage() {
                 )}
               </div>
 
-              <div className="shrink-0 border-t border-border p-3">
+              <div className="shrink-0 p-3">
                 {sendError && (
                   <p className="mb-2 text-xs text-error">{sendError}</p>
                 )}
@@ -475,13 +475,13 @@ export default function InboxPage() {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     placeholder={t.inbox.writeReplyPlaceholder}
-                    className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                    className="input max-h-32 min-h-[40px] flex-1 resize-none !rounded-2xl"
                   />
                   <button
                     type="button"
                     onClick={() => void handleSend()}
                     disabled={sending || !draft.trim()}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-background hover:bg-accent-hover disabled:opacity-50"
+                    className="btn btn-sm btn-lime"
                   >
                     {sending ? t.inbox.sending : t.inbox.send}
                   </button>

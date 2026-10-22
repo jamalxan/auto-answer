@@ -24,6 +24,7 @@ import {
   type ImportRow,
 } from "@/lib/import-queue";
 import { useLanguage } from "@/components/language-provider";
+import { Card, EmptyState } from "@/components/ui/page";
 
 type TriggerScope = "specific" | "any" | "next";
 type MatchMode = "specific" | "any";
@@ -70,11 +71,13 @@ function Section({
   title: string;
   children: React.ReactNode;
 }) {
+  // Each step of the builder is its own card; the option tiles and sub-boxes
+  // inside it are insets (a tone step down), never outlined.
   return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <section className="panel space-y-3 rounded-3xl p-5 sm:p-6">
+      <h2 className="text-sm font-semibold text-white">{title}</h2>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -91,18 +94,20 @@ function Radio({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-        checked ? "border-accent bg-accent/5" : "border-border hover:border-border-hover"
+      role="radio"
+      aria-checked={checked}
+      className={`inset flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-shadow ${
+        checked ? "ring-2 ring-violet" : ""
       }`}
     >
       <span
-        className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
-          checked ? "border-accent" : "border-border-hover"
+        className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${
+          checked ? "bg-violet" : "bg-white/15"
         }`}
       >
-        {checked && <span className="h-2 w-2 rounded-full bg-accent" />}
+        {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
       </span>
-      <span className="flex-1 text-foreground">{children}</span>
+      <span className="flex-1 text-white">{children}</span>
     </button>
   );
 }
@@ -118,8 +123,10 @@ function Toggle({
     <button
       type="button"
       onClick={onToggle}
+      role="switch"
+      aria-checked={on}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-        on ? "bg-accent" : "bg-border-hover"
+        on ? "bg-violet" : "bg-white/15"
       }`}
     >
       <span
@@ -539,28 +546,29 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   }
 
   if (loading) {
-    return <div className="panel h-64 rounded" />;
+    return <div className="panel h-64 animate-pulse rounded-3xl" />;
   }
 
   if (notFound) {
     return (
-      <div className="panel rounded-xl p-8 text-center">
-        <p className="text-sm text-muted">{t.builder.notFound}</p>
-        <button
-          onClick={() => router.push("/campaigns")}
-          className="mt-4 rounded border border-border px-4 py-2 text-sm text-muted hover:text-foreground"
-        >
-          {t.builder.backToCampaigns}
-        </button>
-      </div>
+      <Card>
+        <EmptyState
+          title={t.builder.notFound}
+          action={
+            <button onClick={() => router.push("/campaigns")} className="btn btn-ghost">
+              {t.builder.backToCampaigns}
+            </button>
+          }
+        />
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
       {importQueue && (
-        <div className="rounded border border-accent/30 bg-accent/5 px-4 py-3 text-sm">
-          <span className="font-medium text-foreground">
+        <div className="rounded-2xl bg-violet/20 px-4 py-3 text-sm leading-6">
+          <span className="font-semibold text-white">
             {t.builder.importingProgress(
               importTotal - importQueue.length + 1,
               importTotal
@@ -570,33 +578,32 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </div>
       )}
 
-      {/* Top bar */}
+      {/* Action row. The top bar already names the page ("New campaign"), so
+          only an edited campaign shows its own name and status here. */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <div className="flex min-w-0 items-center gap-3">
-          {mode === "edit" ? (
+          {mode === "edit" && (
             <>
-              <span className="truncate text-sm font-semibold text-foreground">
+              <span className="truncate text-sm font-semibold text-white">
                 {name || t.builder.untitledCampaign}
               </span>
               <span
-                className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                  isActive ? "bg-success/15 text-success" : "bg-border text-muted"
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  isActive ? "bg-lime/15 text-lime" : "bg-white/10 text-muted"
                 }`}
               >
                 {isActive ? t.builder.live : t.builder.paused}
               </span>
             </>
-          ) : (
-            <span className="text-sm text-muted">{t.builder.newCampaign}</span>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {importQueue && (
             <button
               type="button"
               onClick={skipRow}
               disabled={saving}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+              className="btn btn-ghost"
             >
               {importQueue.length > 1 ? t.builder.skip : t.builder.skipAndFinish}
             </button>
@@ -607,7 +614,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 type="button"
                 onClick={() => handleSubmit(false)}
                 disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+                className="btn btn-ghost"
               >
                 {t.builder.stop}
               </button>
@@ -616,7 +623,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 type="button"
                 onClick={() => handleSubmit(true)}
                 disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+                className="btn btn-ghost"
               >
                 {t.builder.goLive}
               </button>
@@ -625,7 +632,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             type="button"
             onClick={() => handleSubmit(mode === "new" ? true : isActive)}
             disabled={saving}
-            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-background hover:bg-accent-hover disabled:opacity-50"
+            className="btn btn-lime"
           >
             {saving
               ? t.builder.saving
@@ -638,17 +645,17 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
       {/* min-w-0 on the cells: a grid item defaults to min-width:auto, so a
           long string widens the whole page instead of wrapping. */}
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr] lg:gap-8">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_1fr] lg:gap-8">
       {/* Left: controls */}
-      <div className="space-y-8 min-w-0">
+      <div className="min-w-0 space-y-4">
         {error && (
-          <div className="rounded border border-error/20 bg-error/10 p-3 text-sm text-error">
+          <div className="rounded-2xl bg-error/12 p-4 text-sm leading-6 text-error">
             {error}
           </div>
         )}
 
-        <div className="space-y-3">
-          <label className="text-sm font-semibold text-foreground">
+        <div className="panel space-y-3 rounded-3xl p-5 sm:p-6">
+          <label className="block text-sm font-semibold text-white">
             {t.builder.campaignNameLabel}{" "}
             <span className="font-normal text-muted">{t.builder.optional}</span>
           </label>
@@ -656,7 +663,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t.builder.campaignNamePlaceholder}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+            className="input"
             maxLength={100}
           />
           {accounts.length > 1 && (
@@ -685,7 +692,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             {t.builder.triggerSpecific}
           </Radio>
           {triggerScope === "specific" && (
-            <div className="rounded-lg border border-border p-2">
+            <div className="inset p-3">
               <PostPicker
                 selectedPostId={postId}
                 instagramAccountId={selectedAccountId}
@@ -721,7 +728,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 value={keywordText}
                 onChange={(e) => setKeywordText(e.target.value)}
                 placeholder={t.builder.keywordsPlaceholder}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                className="input"
               />
               <p className="text-xs text-muted">{t.builder.keywordsHelp}</p>
             </div>
@@ -732,8 +739,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
           >
             {t.builder.matchAny}
           </Radio>
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-            <span className="text-sm text-foreground">
+          <div className="inset flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm text-white">
               {matchMode === "any" ? t.builder.dmTriggerAnything : t.builder.dmTriggerWords}
             </span>
             <Toggle
@@ -748,8 +755,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 : t.builder.dmTriggerHelpWords}
             </p>
           )}
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-            <span className="text-sm text-foreground">
+          <div className="inset flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm text-white">
               {t.assistant.campaignToggle}
             </span>
             <Toggle
@@ -760,8 +767,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
           {handoffToAssistant && (
             <p className="text-xs text-muted">{t.assistant.campaignToggleHelp}</p>
           )}
-          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-            <span className="text-sm text-foreground">
+          <div className="inset flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm text-white">
               {t.builder.publicReplyToggle}
             </span>
             <Toggle
@@ -782,7 +789,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                     }
                     placeholder={t.builder.publicReplyPlaceholder}
                     maxLength={1000}
-                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                    className="input"
                   />
                   {publicReplyMessages.length > 1 && (
                     <button
@@ -792,10 +799,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                           prev.filter((_, idx) => idx !== i)
                         )
                       }
-                      className="shrink-0 px-2 text-muted hover:text-error"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:bg-surface-hover hover:text-error"
                       aria-label={t.builder.removeReply}
                     >
-                      ✕
+                      <span aria-hidden="true">✕</span>
                     </button>
                   )}
                 </div>
@@ -806,7 +813,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onClick={() =>
                     setPublicReplyMessages((prev) => [...prev, ""])
                   }
-                  className="text-xs font-medium text-accent hover:underline"
+                  className="text-xs font-semibold text-lime hover:underline"
                 >
                   {t.builder.addAnotherReply}
                 </button>
@@ -817,9 +824,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </Section>
 
         <Section title={t.builder.sectionDelivery}>
-          <div className="rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">{t.builder.openingDmToggle}</span>
+          <div className="inset p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-white">{t.builder.openingDmToggle}</span>
               <Toggle
                 on={openingDmEnabled}
                 onToggle={() => setOpeningDmEnabled(!openingDmEnabled)}
@@ -832,22 +839,22 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setOpeningDmMessage(e.target.value)}
                   placeholder={t.builder.openingDmPlaceholder}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none resize-none"
+                  className="input resize-none"
                   maxLength={1000}
                 />
                 <input
                   value={openingDmButtonLabel}
                   onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
                   placeholder={t.builder.openingDmButtonPlaceholder}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                  className="input"
                   maxLength={64}
                 />
               </div>
             )}
           </div>
-          <div className="mt-3 rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">
+          <div className="inset p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-white">
                 {t.builder.followRequirementToggle}
               </span>
               <Toggle
@@ -862,14 +869,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setFollowPromptMessage(e.target.value)}
                   placeholder={t.builder.followPromptPlaceholder}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none resize-none"
+                  className="input resize-none"
                   maxLength={1000}
                 />
                 <input
                   value={followPromptButtonLabel}
                   onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
                   placeholder={t.builder.followButtonPlaceholder}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                  className="input"
                   maxLength={20}
                 />
                 <p className="text-xs text-muted">{t.builder.followHelp}</p>
@@ -879,14 +886,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </Section>
 
         <Section title={t.builder.sectionThen}>
-          <div className="rounded-lg border border-border p-3 space-y-2">
-            <span className="text-sm text-foreground">{t.builder.dmWithLinkLabel}</span>
+          <div className="inset space-y-2 p-4">
+            <span className="block text-sm text-white">{t.builder.dmWithLinkLabel}</span>
             <textarea
               value={dmMessage}
               onChange={(e) => setDmMessage(e.target.value)}
               placeholder={t.builder.dmMessagePlaceholder}
               rows={3}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none resize-none"
+              className="input resize-none"
               maxLength={1000}
             />
             {linkOpen ? (
@@ -896,36 +903,36 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setTrackedDestinationUrl(e.target.value)}
                   onBlur={ensureLinkToken}
                   placeholder="https://yourlink.com/offer"
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                  className="input"
                 />
                 <input
                   value={linkButtonLabel}
                   onChange={(e) => setLinkButtonLabel(e.target.value)}
                   placeholder={t.builder.linkButtonLabelPlaceholder}
                   maxLength={20}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                  className="input"
                 />
                 {secondLinkOpen ? (
-                  <div className="space-y-2 border-t border-border pt-2">
+                  <div className="space-y-2 pt-2">
                     <input
                       value={secondaryDestinationUrl}
                       onChange={(e) => setSecondaryDestinationUrl(e.target.value)}
                       placeholder="https://yourlink.com/second"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                      className="input"
                     />
                     <input
                       value={secondaryButtonLabel}
                       onChange={(e) => setSecondaryButtonLabel(e.target.value)}
                       placeholder={t.builder.secondButtonLabelPlaceholder}
                       maxLength={20}
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none"
+                      className="input"
                     />
                   </div>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setSecondLinkOpen(true)}
-                    className="w-full rounded-lg border border-border py-2 text-sm text-muted hover:text-foreground"
+                    className="btn btn-sm btn-ghost w-full"
                   >
                     {t.builder.addSecondLink}
                   </button>
@@ -935,16 +942,16 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               <button
                 type="button"
                 onClick={() => setLinkOpen(true)}
-                className="w-full rounded-lg border border-border py-2 text-sm text-muted hover:text-foreground"
+                className="btn btn-sm btn-ghost w-full"
               >
                 {t.builder.addLink}
               </button>
             )}
             <p className="text-xs text-muted">{t.builder.linkTokenHelp}</p>
           </div>
-          <div className="mt-3 rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">
+          <div className="inset p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-white">
                 {t.builder.followUpToggle}
               </span>
               <Toggle
@@ -959,10 +966,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setFollowUpMessage(e.target.value)}
                   placeholder={t.builder.followUpMessagePlaceholder}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none resize-none"
+                  className="input resize-none"
                   maxLength={1000}
                 />
-                <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-white">
                   <span className="text-xs text-muted">{t.builder.sendIt}</span>
                   <input
                     type="number"
@@ -974,7 +981,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                         Math.max(0, Math.min(1440, Math.floor(Number(e.target.value) || 0)))
                       )
                     }
-                    className="w-20 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:border-accent/40 focus:outline-none"
+                    className="input !w-24 !px-3 !py-1.5"
                   />
                   <span className="text-xs text-muted">
                     {t.builder.minutesAfterLink}
@@ -994,7 +1001,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
       {/* Right: preview */}
       <div>
-        <p className="mb-4 text-sm text-muted">{t.builder.previewLabel}</p>
+        <p className="mb-4 text-xs font-semibold text-muted">{t.builder.previewLabel}</p>
         <div className="flex min-w-0 justify-center lg:sticky lg:top-6 lg:block">
           <CampaignPreview
             tab={previewTab}

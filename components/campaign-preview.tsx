@@ -102,8 +102,8 @@ function renderMessage(text: string, hasLink: boolean, linkUrl?: string) {
         key={i}
         className={
           linkUrl || hasLink
-            ? "text-sky-400 underline break-all"
-            : "text-zinc-500 italic"
+            ? "break-all text-lime underline"
+            : "italic text-white/50"
         }
       >
         {/* Show the actual link being sent, not a placeholder token. */}
@@ -197,7 +197,7 @@ function PostScreen({
       <div className="flex items-center px-3 py-2">
         <span className="w-6">{Ico.back("h-5 w-5")}</span>
         <div className="flex-1 text-center">
-          <p className="text-[9px] uppercase tracking-wide text-zinc-400">{username}</p>
+          <p className="text-[9px] text-zinc-400">{username}</p>
           <p className="text-sm font-semibold">Posts</p>
         </div>
         <span className="w-6" />
@@ -227,7 +227,7 @@ function PostScreen({
         </p>
         <p className="mt-1 text-zinc-500">View all comments</p>
       </div>
-      <div className="flex shrink-0 items-center justify-around border-t border-zinc-800 px-2 py-3 text-white">
+      <div className="flex shrink-0 items-center justify-around px-2 py-3 text-white">
         {Ico.home("h-6 w-6")}
         {Ico.search("h-6 w-6")}
         {Ico.plus("h-6 w-6")}
@@ -364,7 +364,7 @@ function DmScreen({
       <div className="flex-1 space-y-3 px-3 py-4">
         {inboundMessage !== undefined && (
           <div className="flex justify-end">
-            <div className="max-w-[80%] rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
+            <div className="max-w-[80%] rounded-2xl rounded-br-md bg-violet px-3 py-2 text-sm text-white">
               {inboundMessage || "their message"}
             </div>
           </div>
@@ -373,15 +373,15 @@ function DmScreen({
           <>
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
+              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-white/10">
                 <p className="whitespace-pre-wrap px-3 py-2 text-sm">{openingDmMessage || t.builder.openingMessageEmptyPlaceholder}</p>
-                <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
+                <div className="mx-1.5 mb-1.5 rounded-xl bg-white/15 px-4 py-1.5 text-center text-sm font-medium text-white">
                   {openingDmButtonLabel || "Button label"}
                 </div>
               </div>
             </div>
             <div className="flex justify-end">
-              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
+              <div className="rounded-2xl rounded-br-md bg-violet px-3 py-2 text-sm text-white">
                 {openingDmButtonLabel || "Button label"}
               </div>
             </div>
@@ -391,17 +391,17 @@ function DmScreen({
           <>
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
+              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-white/10">
                 <p className="whitespace-pre-wrap px-3 py-2 text-sm">
                   {followPromptMessage || t.builder.followPromptPlaceholder}
                 </p>
-                <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
+                <div className="mx-1.5 mb-1.5 rounded-xl bg-white/15 px-4 py-1.5 text-center text-sm font-medium text-white">
                   {followPromptButtonLabel || t.builder.followButtonPlaceholder}
                 </div>
               </div>
             </div>
             <div className="flex justify-end">
-              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
+              <div className="rounded-2xl rounded-br-md bg-violet px-3 py-2 text-sm text-white">
                 {followPromptButtonLabel || t.builder.followButtonPlaceholder}
               </div>
             </div>
@@ -417,7 +417,7 @@ function DmScreen({
           return (
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
+              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-white/10">
                 {(!showCard || bodyText) && (
                   <p className="whitespace-pre-wrap px-3 py-2 text-sm">
                     {!revealMessage
@@ -429,11 +429,11 @@ function DmScreen({
                 )}
                 {showCard && (
                   <>
-                    <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
+                    <div className="mx-1.5 mb-1.5 rounded-xl bg-white/15 px-4 py-1.5 text-center text-sm font-medium text-white">
                       {linkButtonLabel || "Open link"}
                     </div>
                     {hasSecondLink && (
-                      <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
+                      <div className="mx-1.5 mb-1.5 rounded-xl bg-white/15 px-4 py-1.5 text-center text-sm font-medium text-white">
                         {secondLinkButtonLabel || "Open link"}
                       </div>
                     )}
@@ -452,7 +452,7 @@ function DmScreen({
             )}
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-zinc-800 px-3 py-2">
+              <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-white/10 px-3 py-2">
                 <p className="whitespace-pre-wrap text-sm">
                   {followUpMessage.trim()
                     ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER)
@@ -465,7 +465,7 @@ function DmScreen({
       </div>
 
       <div className="flex items-center gap-2 px-3 py-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-background">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-violet text-white">
           {Ico.camera("h-4 w-4")}
         </span>
         <div className="flex-1 rounded-full bg-zinc-800 px-3 py-2 text-xs text-zinc-500">Message…</div>
@@ -559,17 +559,14 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
         )}
       </Phone>
 
-      <div className="inline-flex rounded-full bg-surface p-1">
+      <div className="flex flex-wrap justify-center gap-2">
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => onTabChange(t.key)}
-            className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-              activeTab === t.key
-                ? "bg-background font-medium text-foreground ring-1 ring-accent/40"
-                : "text-muted hover:text-foreground"
-            }`}
+            aria-pressed={activeTab === t.key}
+            className={`chip ${activeTab === t.key ? "chip-active" : ""}`}
           >
             {t.label}
           </button>

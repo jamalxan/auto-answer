@@ -62,16 +62,16 @@ export default function AssistantDiagnostics() {
 
   return (
     <>
-      <section className="panel rounded-xl p-4 sm:p-6">
-        <h2 className="text-base font-semibold text-foreground">{D.deliveryErrors}</h2>
+      <section className="panel rounded-3xl p-5 sm:p-6">
+        <h2 className="text-base font-bold text-white">{D.deliveryErrors}</h2>
         {data.deliveryErrors.length === 0 ? (
           <p className="py-5 text-center text-sm text-muted">{D.deliveryErrorsEmpty}</p>
         ) : (
-          <ul className="mt-3 divide-y divide-border">
+          <ul className="mt-5 space-y-2">
             {data.deliveryErrors.map((d) => (
-              <li key={d.id} className="py-3 text-sm">
+              <li key={d.id} className="inset px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-foreground">
+                  <span className="text-white">
                     {d.integration} · {d.leadName ?? "—"}
                   </span>
                   <span className="flex items-center gap-2">
@@ -80,7 +80,7 @@ export default function AssistantDiagnostics() {
                   </span>
                 </div>
                 {d.lastError && <p className="mt-1 break-words text-xs text-error">{d.lastError}</p>}
-                <Link href="/leads" className="mt-1 inline-block text-xs font-medium text-accent hover:underline">
+                <Link href="/leads" className="mt-1 inline-block text-xs font-medium text-lime hover:underline">
                   {t.assistant.nav.leads}
                 </Link>
               </li>
@@ -89,15 +89,15 @@ export default function AssistantDiagnostics() {
         )}
       </section>
 
-      <section className="panel rounded-xl p-4 sm:p-6">
-        <h2 className="text-base font-semibold text-foreground">{D.integrationHealth}</h2>
+      <section className="panel rounded-3xl p-5 sm:p-6">
+        <h2 className="text-base font-bold text-white">{D.integrationHealth}</h2>
         {data.integrations.length === 0 ? (
           <p className="py-5 text-center text-sm text-muted">{D.integrationHealthEmpty}</p>
         ) : (
-          <ul className="mt-3 divide-y divide-border">
+          <ul className="mt-5 space-y-2">
             {data.integrations.map((i) => (
-              <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                <span className="text-foreground">{i.name}</span>
+              <li key={i.id} className="inset flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <span className="text-white">{i.name}</span>
                 <span className="flex items-center gap-2">
                   <Badge tone={TONE[i.status]}>{t.assistant.integrations.status[i.status]}</Badge>
                   {i.lastCheckedAt && <span className="text-xs text-muted">{when(i.lastCheckedAt)}</span>}
@@ -109,9 +109,9 @@ export default function AssistantDiagnostics() {
         )}
       </section>
 
-      <section className="panel rounded-xl p-4 sm:p-6">
-        <h2 className="text-base font-semibold text-foreground">{D.llmHealth}</h2>
-        <ul className="mt-3 space-y-2 text-sm text-foreground">
+      <section className="panel rounded-3xl p-5 sm:p-6">
+        <h2 className="text-base font-bold text-white">{D.llmHealth}</h2>
+        <ul className="mt-5 space-y-2 text-sm text-white">
           <li>
             {!data.llm.configured ? (
               <Badge tone="error">{D.llmNotConfigured}</Badge>
