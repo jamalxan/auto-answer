@@ -41,8 +41,9 @@ async function authorize(
   if (!(driver instanceof LocalStorageDriver)) return { ok: false, response: text(404, "Not found") };
 
   const { key: parts } = await ctx.params;
-  const key = (parts ?? []).join("/");
-  if (!isValidMediaKey(key)) return { ok: false, response: text(403, "Forbidden") };
+  const key = Array.isArray(parts) ? parts.join("/") : "";
+  // An invalid key is a file that does not exist, not a forbidden one: nothing to learn from the status.
+  if (!isValidMediaKey(key)) return { ok: false, response: text(404, "Not found") };
 
   const q = request.nextUrl.searchParams;
   const exp = Number(q.get("exp"));

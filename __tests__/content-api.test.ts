@@ -56,7 +56,7 @@ const WS = "ws1";
 const ctx = (role: string, workspaceId = WS) => ({ userId: "u1", workspaceId, workspace: { id: workspaceId, name: "W", timezone: "Asia/Tashkent" }, role });
 const req = (method: string, path: string, body?: unknown) =>
   new NextRequest(`http://localhost/api/developer/content/${path}`, { method, ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
-const params = (p: Record<string, string>) => ({ params: Promise.resolve(p) });
+const params = <T extends Record<string, string>>(p: T) => ({ params: Promise.resolve(p) });
 
 beforeEach(() => {
   resetDb();

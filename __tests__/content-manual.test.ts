@@ -8,10 +8,10 @@ import { db, resetDb } from "./helpers/db-instance";
 
 const mocks = vi.hoisted(() => ({
   chats: [] as Array<{ id: string; chatId: string; integrationId: string }>,
-  sendMessage: vi.fn(async () => ({ message_id: 1 })),
-  sendPhoto: vi.fn(async () => ({ message_id: 2 })),
-  sendVideo: vi.fn(async () => ({ message_id: 3 })),
-  sendMediaGroup: vi.fn(async () => [{ message_id: 4 }]),
+  sendMessage: vi.fn<(...args: unknown[]) => Promise<{ message_id: number }>>(async () => ({ message_id: 1 })),
+  sendPhoto: vi.fn<(...args: unknown[]) => Promise<{ message_id: number }>>(async () => ({ message_id: 2 })),
+  sendVideo: vi.fn<(...args: unknown[]) => Promise<{ message_id: number }>>(async () => ({ message_id: 3 })),
+  sendMediaGroup: vi.fn<(...args: unknown[]) => Promise<Array<{ message_id: number }>>>(async () => [{ message_id: 4 }]),
   alertWorkspace: vi.fn(async () => undefined),
   getUserMedia: vi.fn(async () => [] as unknown[]),
 }));

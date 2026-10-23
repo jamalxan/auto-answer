@@ -220,7 +220,8 @@ describe("local route", () => {
     const exp = Math.floor(Date.now() / 1000) + 60;
     const evil = "../x";
     const url = `http://localhost:3000/api/developer/content/media/local/${evil}?exp=${exp}&m=get&token=${signLocalToken(evil, exp, "get")}`;
-    expect((await route.GET(new NextRequest(url), ctx(evil))).status).toBe(403);
+    // an invalid key is "no such file" (404), so the route reveals nothing about what exists
+    expect((await route.GET(new NextRequest(url), ctx(evil))).status).toBe(404);
 
     const big = await getStorage().presignPut(KEY, {
       contentType: "image/jpeg",
