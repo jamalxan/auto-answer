@@ -11,6 +11,8 @@
  *      PUBLISHING rows untouched for five minutes → ask Meta what happened (recoverStuckPublishing)
  *   4. READY_TO_PUBLISH containers close to Meta's 24 h expiry → SCHEDULED again
  *   5. PUBLISHED_MANUAL posts without a media id → bind from the account media
+ *   8. approvals (FR-A4, lib/content/review): OPTIONAL posts approved at their slot,
+ *      PENDING_REVIEW posts 3 h past it → EXPIRED_REVIEW
  */
 
 import { prisma } from "@/lib/db/client";
@@ -31,6 +33,8 @@ export interface SweepResult {
   bound: number;
   relinked: number;
   abandonedUploads: number;
+  reviewsAutoApproved?: number;
+  reviewsExpired?: number;
 }
 
 const STUCK_PREPARING_MS = CONTAINER_MAX_WAIT_MS.video + 5 * 60_000;
@@ -129,6 +133,16 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
 
   // 7: uploads that never finished give their reserved quota back.
   result.abandonedUploads = await releaseAbandonedUploads(now).catch(() => 0);
+
+  // 8: approvals waiting past their slot (FR-A4).
+  try {
+    const { sweepReviews } = await import("./review");
+    const reviews = await sweepReviews(now);
+    result.reviewsAutoApproved = reviews.autoApproved;
+    result.reviewsExpired = reviews.expired;
+  } catch (error) {
+    console.error("[Content] review sweep failed:", error instanceof Error ? error.message : error);
+  }
 
   return result;
 }

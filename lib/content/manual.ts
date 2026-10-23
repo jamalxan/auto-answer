@@ -193,6 +193,11 @@ async function mayAct(workspaceId: string, ctx: CallbackContext): Promise<boolea
 /** "content:done:<id>" / "content:cancel:<id>" → the toast text for answerCallbackQuery. */
 export async function handleContentCallback(data: string, ctx: CallbackContext): Promise<string> {
   const [, action, postId] = data.split(":");
+  // Faza 2 approval buttons: "content:approve:<reviewId>" / "content:reject:<reviewId>" (lib/content/review).
+  if (postId && (action === "approve" || action === "reject")) {
+    const { handleReviewCallback } = await import("./review");
+    return handleReviewCallback(action, postId, ctx.tgUserId);
+  }
   if (!postId || (action !== "done" && action !== "cancel")) return "Noma'lum amal";
   const post = await prisma.scheduledPost.findUnique({ where: { id: postId }, select: { id: true, workspaceId: true, status: true, deletedAt: true, attempts: true } });
   if (!post || post.deletedAt) return "Post topilmadi";

@@ -130,7 +130,7 @@ const POST_INCLUDE = {
   attemptsLog: { orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.ScheduledPostInclude;
 
-type PostRow = Prisma.ScheduledPostGetPayload<{ include: typeof POST_INCLUDE }>;
+export type PostRow = Prisma.ScheduledPostGetPayload<{ include: typeof POST_INCLUDE }>;
 
 function validateOpts(now?: Date) {
   return { carouselMax: carouselMaxItems(), maxCollaborators: maxCollaborators(), now };
@@ -244,7 +244,7 @@ async function toDetail(row: PostRow): Promise<PostDetail> {
 
 // ─── Loading ────────────────────────────────────────────────────────────────
 
-async function loadRow(workspaceId: string, postId: string): Promise<PostRow> {
+export async function loadRow(workspaceId: string, postId: string): Promise<PostRow> {
   const row = await prisma.scheduledPost.findUnique({ where: { id: postId }, include: POST_INCLUDE });
   if (!row || row.workspaceId !== workspaceId || row.deletedAt) throw notFound();
   return row;
@@ -369,6 +369,12 @@ export async function updatePost(workspaceId: string, postId: string, input: Pos
     if (input.media.length) await prisma.scheduledPostMedia.createMany({ data: mediaRows(postId, input.media) });
   }
   if (input.linkCampaign !== undefined) await attachCampaignToPost(workspaceId, postId, input.linkCampaign);
+  // FR-A3: an edit voids the review — a pending or approved post goes back to DRAFT (old reviews stay as history, their postVersion no longer matches).
+  if (row.status === "PENDING_REVIEW" || (row.reviewSubmittedAt && (row.status === "SCHEDULED" || row.status === "PAUSED"))) {
+    await prisma.scheduledPost.updateMany({ where: { id: postId, status: row.status }, data: { status: "DRAFT", reviewRule: null, reviewSubmittedAt: null, version: { increment: 1 } } });
+    if (row.status !== "PENDING_REVIEW") await removePostJobs(row.id, row.attempts);
+    return getPost(workspaceId, postId);
+  }
   await rearmIfNeeded(row, await loadRow(workspaceId, postId));
   return getPost(workspaceId, postId);
 }

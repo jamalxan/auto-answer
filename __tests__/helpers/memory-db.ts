@@ -82,6 +82,15 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     attemptsLog: { model: "publishAttempt", fk: "postId", kind: "many" },
     automations: { model: "automation", fk: "scheduledPostId", kind: "many" },
     triggerCampaigns: { model: "triggerCampaign", fk: "scheduledPostId", kind: "many" },
+    reviews: { model: "postReview", fk: "postId", kind: "many" },
+    notes: { model: "postNote", fk: "postId", kind: "many" },
+  },
+  // Content approval (ETAP 13 Faza 2)
+  postReview: {
+    post: { model: "scheduledPost", fk: "postId", kind: "one" },
+  },
+  postNote: {
+    post: { model: "scheduledPost", fk: "postId", kind: "one" },
   },
   scheduledPostMedia: {
     media: { model: "mediaAsset", fk: "mediaId", kind: "one" },
@@ -355,6 +364,7 @@ const DEFAULTS: Record<string, () => Row> = {
     status: "UPLOADING", tags: [], preparedKey: null, thumbKey: null, width: null, height: null,
     durationMs: null, codec: null, fps: null, error: null, uploadedById: null,
   }),
+  postReview: () => ({ reviewerUserId: null, externalEmail: null, tokenHash: null, decision: null, comment: null, decidedAt: null }),
   publishAttempt: () => ({ metaCode: null, metaSubcode: null, fbTraceId: null, message: null, durationMs: null }),
   knowledgeGap: () => ({ status: "OPEN", hits: 1, examples: [] }),
   onboardingSession: () => ({ step: 0, answers: {}, fsm: {}, status: "ACTIVE", language: "uz", igAccountId: null, reminderSentAt: null }),

@@ -26,8 +26,8 @@ export function canTransition(from: PostStatusValue, to: PostStatusValue): boole
   return TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-/** Statuses a user may still edit (FR-S5): nothing in flight or finished. */
-export const EDITABLE: PostStatusValue[] = ["DRAFT", "SCHEDULED", "PAUSED", "FAILED", "NEEDS_MANUAL", "REJECTED", "EXPIRED_REVIEW", "CANCELED"];
+/** Statuses a user may still edit (FR-S5): nothing in flight or finished. Editing PENDING_REVIEW resets the review (FR-A3). */
+export const EDITABLE: PostStatusValue[] = ["DRAFT", "PENDING_REVIEW", "SCHEDULED", "PAUSED", "FAILED", "NEEDS_MANUAL", "REJECTED", "EXPIRED_REVIEW", "CANCELED"];
 
 export const TERMINAL: PostStatusValue[] = ["PUBLISHED", "PUBLISHED_MANUAL"];
 
