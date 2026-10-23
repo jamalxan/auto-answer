@@ -14,6 +14,7 @@ import { ServerOffNotice } from "@/components/developer/server-off";
 import { DevBadge, Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 import CalendarView from "./calendar-view";
 import Composer from "./composer";
+import CsvImport from "./csv-import";
 import MediaLibrary from "./media-library";
 import PostDetail from "./post-detail";
 import QueueCard from "./queue-card";
@@ -24,6 +25,7 @@ const TABS = [
   ["calendar", "Kalendar"],
   ["library", "Kutubxona"],
   ["texts", "Shablonlar"],
+  ["import", "Import"],
 ] as const;
 export type ContentTab = (typeof TABS)[number][0];
 
@@ -161,6 +163,7 @@ export default function ContentDashboard() {
           )}
           {tab === "library" && <MediaLibrary meta={meta} />}
           {tab === "texts" && <SavedTexts meta={meta} onChanged={load} />}
+          {tab === "import" && <CsvImport meta={meta} onImported={bump} />}
         </>
       )}
 

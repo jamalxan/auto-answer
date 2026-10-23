@@ -15,6 +15,7 @@ import { ChipInput, Field, inputClass, Pill, primaryButton, secondaryButton, Tog
 import { EDITABLE } from "@/lib/content/transitions";
 import { MediaPicker, UploadZone } from "./media-library";
 import Preview from "./preview";
+import AiCaptionPanel from "./ai-caption-panel";
 import {
   composerBlocked,
   composerButtonLabel,
@@ -562,6 +563,7 @@ export default function Composer({
                   <Counter value={caption.mentions} max={meta.limits.mentions} label="@" />
                 </div>
               </Field>
+              {meta.me.canCreate && <AiCaptionPanel type={draft.type} caption={draft.caption} limits={meta.limits} onChange={(text) => update({ caption: text })} />}
               {meta.savedTexts.length > 0 && (
                 <details className="text-xs">
                   <summary className="cursor-pointer text-muted">Hashtag guruhi / shablon qo&apos;shish</summary>

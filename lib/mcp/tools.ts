@@ -18,6 +18,7 @@ import { confirmAction, rejectAction } from "./confirm";
 import type { McpTokenContext } from "./auth";
 import { MAX_LIST_LIMIT, UNTRUSTED_NOTE } from "./config";
 import { McpServiceError } from "./errors";
+import * as content from "./content";
 import * as svc from "./service";
 
 export type ToolScope = "READ" | "WRITE";
@@ -28,6 +29,8 @@ interface ToolBase {
   scope: ToolScope;
   input: z.ZodType;
   readOnly: boolean;
+  /** A module kill switch: a disabled tool is not listed and cannot be called or confirmed. */
+  enabled?: () => boolean;
 }
 
 export interface ReadTool extends ToolBase {
@@ -53,7 +56,7 @@ const period = z.enum(svc.PERIODS).default("7d").describe("today, 7d or 30d (day
 
 const accountId = z.string().min(1).optional().describe("Optional Instagram account id (from list_instagram_accounts).");
 
-function read<S extends z.ZodType>(def: { name: string; description: string; input: S; run: (ctx: McpTokenContext, input: z.infer<S>) => Promise<unknown> }): ReadTool {
+function read<S extends z.ZodType>(def: { name: string; description: string; input: S; enabled?: () => boolean; run: (ctx: McpTokenContext, input: z.infer<S>) => Promise<unknown> }): ReadTool {
   return { kind: "read", scope: "READ", readOnly: true, ...def } as unknown as ReadTool;
 }
 
@@ -61,6 +64,7 @@ function write<S extends z.ZodType>(def: {
   name: string;
   description: string;
   input: S;
+  enabled?: () => boolean;
   propose: (ctx: McpTokenContext, input: z.infer<S>) => Promise<{ preview: svc.Preview; stored: unknown }>;
   execute: (ctx: McpTokenContext, stored: unknown) => Promise<unknown>;
 }): WriteTool {
@@ -198,12 +202,48 @@ export const TOOLS: McpTool[] = [
     propose: async (ctx, input: z.infer<typeof svc.leadStageInput>) => ({ preview: await svc.previewLeadStage(ctx.workspaceId, input), stored: input }),
     execute: (ctx, stored) => svc.executeLeadStage(ctx.workspaceId, stored),
   }),
+
+  // ── Content Scheduler (ETAP 13; hidden while CONTENT_SCHEDULER_DISABLED=1) ──
+  read({
+    name: "list_scheduled_posts",
+    description: `List Instagram posts of the Content Scheduler (drafts, scheduled, published, failed …) with time, type, status and whether a comment-to-DM campaign is linked. Filters: from / to (ISO date-time, by scheduled time), status, accountId.${UNTRUSTED}`,
+    input: content.listScheduledPostsInput,
+    enabled: content.contentToolsEnabled,
+    run: (ctx, input) => content.listScheduledPostsView(ctx.workspaceId, input),
+  }),
+  read({
+    name: "get_scheduled_post",
+    description: `Get one scheduled post: type, status, time, media (ids, kinds, processing status), caption, first comment, linked campaign, publish errors and the validation issues that would block scheduling. Use an id from list_scheduled_posts.${UNTRUSTED}`,
+    input: z.object({ postId: z.string().min(1) }),
+    enabled: content.contentToolsEnabled,
+    run: (ctx, input) => content.scheduledPostView(ctx.workspaceId, input.postId),
+  }),
+  read({
+    name: "get_publishing_quota",
+    description: "Instagram's 24-hour publishing quota per account (used / total from Meta, plus posts already queued in the window) and whether the account has the publish permission.",
+    input: content.publishingQuotaInput,
+    enabled: content.contentToolsEnabled,
+    run: (ctx, input) => content.publishingQuotaView(ctx.workspaceId, input),
+  }),
+  write({
+    name: "create_post_draft",
+    description:
+      "Create an Instagram post DRAFT in the Content Scheduler (caption, first comment, collaborators, media ids already in the media library). The post is ALWAYS saved as DRAFT: it is never scheduled or published over MCP - a person schedules it in the SocialAuto app. The preview lists what must still be fixed before it can be scheduled." +
+      CONFIRM_NOTE + UNTRUSTED,
+    input: content.createPostDraftInput,
+    enabled: content.contentToolsEnabled,
+    propose: async (ctx, input: content.CreatePostDraftInput) => ({ preview: await content.previewCreatePostDraft(ctx.workspaceId, input), stored: input }),
+    execute: (ctx, stored) => content.executeCreatePostDraft(ctx.workspaceId, stored),
+  }),
 ];
+
+const isEnabled = (tool: McpTool) => tool.enabled?.() ?? true;
 
 /** Runs a stored proposal (called by confirm_action after the code and expiry checks). */
 export async function executeStored(tool: string, ctx: McpTokenContext, stored: unknown): Promise<unknown> {
   const def = TOOLS.find((t): t is WriteTool => t.kind === "write" && t.name === tool);
   if (!def) throw new McpServiceError(500, "Noma'lum amal turi");
+  if (!isEnabled(def)) throw new McpServiceError(404, "Bu amal hozir o'chirilgan (modul o'chirilgan)");
   return def.execute(ctx, stored);
 }
 
@@ -232,12 +272,12 @@ const CONTROL_TOOLS: McpTool[] = [
 export const ALL_TOOLS: McpTool[] = [...TOOLS, ...CONTROL_TOOLS];
 
 export function findTool(name: string): McpTool | undefined {
-  return ALL_TOOLS.find((t) => t.name === name);
+  return ALL_TOOLS.find((t) => t.name === name && isEnabled(t));
 }
 
 /** Tools a token of this scope may call (a WRITE token can do everything a READ token can). */
 export function toolsForScope(scope: ToolScope): McpTool[] {
-  return ALL_TOOLS.filter((t) => t.scope === "READ" || scope === "WRITE");
+  return ALL_TOOLS.filter((t) => (t.scope === "READ" || scope === "WRITE") && isEnabled(t));
 }
 
 export function inputSchemaOf(tool: McpTool): Record<string, unknown> {

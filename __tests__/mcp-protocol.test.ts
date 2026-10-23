@@ -84,8 +84,8 @@ describe("tools/list", () => {
     const { json } = await rpc(write, "tools/list");
     const names: string[] = json.result.tools.map((t: { name: string }) => t.name);
     expect(names).toEqual(expect.arrayContaining(["create_keyword_campaign", "update_campaign", "pause_campaign", "create_flow_draft", "add_lead_tag", "set_lead_stage", "confirm_action", "reject_action"]));
-    // Publishing a flow is deliberately not a tool.
-    expect(names.some((n) => /publish/i.test(n))).toBe(false);
+    // Publishing a flow (or a post) is deliberately not a tool; reading the publishing quota is.
+    expect(names.some((n) => /publish/i.test(n) && n !== "get_publishing_quota")).toBe(false);
     expect(ALL_TOOLS.every((t) => t.description.length > 20)).toBe(true);
   });
 });
