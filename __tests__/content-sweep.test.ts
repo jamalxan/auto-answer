@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   sendManualNotice: vi.fn(async () => ({ delivered: "telegram" as const })),
   bindManualPost: vi.fn(async () => true),
   failPost: vi.fn(async () => undefined),
+  recoverStuckPublishing: vi.fn(async () => ({ status: "PUBLISHED" })),
 }));
 
 vi.mock("@/lib/db/client", () => ({ prisma: db.client() }));
@@ -24,7 +25,7 @@ vi.mock("@/lib/content/queue", () => ({
   removePostJobs: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/content/manual", () => ({ sendManualNotice: mocks.sendManualNotice, bindManualPost: mocks.bindManualPost }));
-vi.mock("@/lib/content/publish", () => ({ failPost: mocks.failPost }));
+vi.mock("@/lib/content/publish", () => ({ failPost: mocks.failPost, recoverStuckPublishing: mocks.recoverStuckPublishing }));
 
 import { sweepContent } from "@/lib/content/sweep";
 
@@ -88,6 +89,17 @@ describe("sweepContent", () => {
     const r = await sweepContent(NOW);
     expect(r.stale).toBe(1);
     expect(mocks.failPost).toHaveBeenCalledWith("p1", "PUBLISH_CONTAINER_TIMEOUT", expect.any(String), expect.anything());
+  });
+
+  it("recovers a PUBLISHING row untouched for more than 5 minutes and leaves a fresh one alone (I1)", async () => {
+    const old = post("p1", { status: "PUBLISHING", containerId: "c1" });
+    old.updatedAt = min(-6);
+    const fresh = post("p2", { status: "PUBLISHING", containerId: "c2" });
+    fresh.updatedAt = min(-1);
+    const r = await sweepContent(NOW);
+    expect(r.recovered).toBe(1);
+    expect(mocks.recoverStuckPublishing).toHaveBeenCalledTimes(1);
+    expect(mocks.recoverStuckPublishing.mock.calls[0][0]).toBe("p1");
   });
 
   it("returns a READY_TO_PUBLISH post with a 23-hour-old container to SCHEDULED", async () => {

@@ -50,6 +50,11 @@ describe("presignUpload", () => {
     expect(asset).toMatchObject({ id: r.mediaId, workspaceId: WS, kind: "IMAGE", status: "UPLOADING", originalKey: `ws/${WS}/2026/10/abc123.png` });
   });
 
+  it("refuses HEIC / HEIF with a clear message — the installed sharp cannot decode it (I4)", async () => {
+    await expect(presignUpload(WS, "u1", { fileName: "IMG_1.HEIC", mimeType: "image/heic", sizeBytes: 1000 })).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/HEIC/) });
+    await expect(presignUpload(WS, "u1", { fileName: "IMG_1.heif", mimeType: "image/heif", sizeBytes: 1000 })).rejects.toMatchObject({ status: 400 });
+  });
+
   it("refuses an image over 30 MB and a video over 1 GB", async () => {
     await expect(presignUpload(WS, "u1", { fileName: "a.jpg", mimeType: "image/jpeg", sizeBytes: 31 * 1024 ** 2 })).rejects.toMatchObject({ status: 413 });
     await expect(presignUpload(WS, "u1", { fileName: "a.mp4", mimeType: "video/mp4", sizeBytes: 1024 ** 3 + 1 })).rejects.toMatchObject({ status: 413 });

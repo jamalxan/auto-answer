@@ -28,7 +28,7 @@ import { activateLinkedCampaigns } from "./link-campaign";
 import { withAccountLock } from "./lock";
 import { signedMediaUrl } from "./media";
 import { accountQuota, quotaWindowFull } from "./quota";
-import { FIRST_COMMENT_JOB, PREPARE_JOB, PUBLISH_JOB, scheduleFirstComment, schedulePublish, scheduleRetry } from "./queue";
+import { FIRST_COMMENT_JOB, PREPARE_JOB, PUBLISH_JOB, scheduleFirstComment, scheduleLockRetry, schedulePublish, scheduleRetry } from "./queue";
 import type { PostStatusValue } from "./schema";
 import { formatZoned } from "./time";
 
@@ -48,6 +48,8 @@ export type PublishResult =
   | { skipped: string }
   | { waiting: "token" | "retry" | "lock" | "quota" }
   | { failed: PublishErrorCode };
+
+export type RecoverResult = { status: "PUBLISHED"; igMediaId: string } | { status: "READY_TO_PUBLISH" } | { skipped: string } | { failed: PublishErrorCode };
 
 const FIRST_COMMENT_RETRY_DELAYS = [30_000, 120_000];
 
@@ -298,6 +300,8 @@ export async function preparePost(postId: string, attemptNo: number, depsIn: Pip
     }
     if ("containerId" in result) {
       await move(postId, ["PREPARING"], { status: "READY_TO_PUBLISH", containerId: result.containerId, containerStatus: "FINISHED", lastErrorCode: null, lastErrorMessage: null });
+      // The slot already passed (late prepare, retry backoff): nothing is waiting to publish — queue it now.
+      if (post.scheduledAt && post.scheduledAt.getTime() <= deps.now().getTime()) await schedulePublish(postId, attemptNo, deps.now());
       return { status: "READY_TO_PUBLISH", containerId: result.containerId };
     }
     if (result.outcome === "ERROR") {
@@ -421,49 +425,91 @@ export async function publishPost(postId: string, attemptNo: number, depsIn: Pip
       if (!igMediaId) return handlePublishError(row, error, retryNo, now);
     }
 
-    if (!permalink) {
-      const media = await getPublishedMedia(token, igMediaId).catch(() => null);
-      permalink = media?.permalink;
-    }
-
-    // One transaction: the post is PUBLISHED and its campaign is live before the first comment can arrive (FR-L3).
-    let linked = { automations: 0, triggers: 0 };
-    try {
-      await prisma.$transaction(async (tx) => {
-        await tx.scheduledPost.update({
-          where: { id: postId },
-          data: { status: "PUBLISHED", igMediaId, permalink: permalink ?? null, publishedAt: deps.now(), containerStatus: "PUBLISHED", lastErrorCode: null, lastErrorMessage: null, version: { increment: 1 } },
-        });
-        linked = await activateLinkedCampaigns(tx, postId, igMediaId!);
-      });
-      await attempt(postId, "LINK_CAMPAIGN", true, { message: `automations ${linked.automations}, triggers ${linked.triggers}` });
-    } catch (error) {
-      // The publish happened; record it even if the campaign link failed, and shout.
-      const message = error instanceof Error ? error.message : String(error);
-      await prisma.scheduledPost.update({ where: { id: postId }, data: { status: "PUBLISHED", igMediaId, permalink: permalink ?? null, publishedAt: deps.now(), lastErrorCode: "CAMPAIGN_LINK_FAILED", lastErrorMessage: message.slice(0, 500), version: { increment: 1 } } }).catch(() => undefined);
-      await attempt(postId, "LINK_CAMPAIGN", false, { message });
-      await alertWorkspace(row.workspaceId, "Kampaniya ulanmadi", `⚠️ <b>Post chiqdi, lekin kampaniya ulanmadi</b> — DM lar yo'qolishi mumkin. Kampaniyani qo'lda ulang.`, "Post chiqdi, lekin kampaniya ulanmadi — DM lar yo'qolishi mumkin. Kampaniyani qo'lda ulang.").catch(() => undefined);
-    }
-
-    if (row.firstComment?.trim()) await scheduleFirstComment(postId, FIRST_COMMENT_DELAY_MS);
-    await notifyWorkspaceChats(
-      row.workspaceId,
-      `✅ <b>${postLabel(row)} chiqdi</b> — @${row.instagramAccount.username}${permalink ? `\n${permalink}` : ""}${linked.automations + linked.triggers > 0 ? "\nComment-to-DM kampaniyasi ulandi." : ""}`
-    ).catch(() => 0);
-    return { status: "PUBLISHED", igMediaId };
+    return finishPublished(row, igMediaId, permalink, deps);
   });
 
   if (!locked.acquired) {
-    await scheduleRetry(PUBLISH_JOB, postId, attemptNo, retryNo, 15_000);
+    await scheduleLockRetry(postId, attemptNo, retryNo, 15_000);
     return { waiting: "lock" };
   }
   return locked.result;
 }
 
+/** Meta has the media: record PUBLISHED, activate the campaign in the same transaction (FR-L3), queue the first comment, tell the chats. */
+async function finishPublished(row: PostRow, igMediaId: string, permalinkIn: string | undefined, deps: Required<PipelineDeps>): Promise<{ status: "PUBLISHED"; igMediaId: string }> {
+  const postId = row.id;
+  let permalink = permalinkIn;
+  if (!permalink) {
+    const media = await getPublishedMedia(decryptToken(row.instagramAccount.accessToken), igMediaId).catch(() => null);
+    permalink = media?.permalink;
+  }
+
+  // One transaction: the post is PUBLISHED and its campaign is live before the first comment can arrive (FR-L3).
+  let linked = { automations: 0, triggers: 0 };
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.scheduledPost.update({
+        where: { id: postId },
+        data: { status: "PUBLISHED", igMediaId, permalink: permalink ?? null, publishedAt: deps.now(), containerStatus: "PUBLISHED", lastErrorCode: null, lastErrorMessage: null, version: { increment: 1 } },
+      });
+      linked = await activateLinkedCampaigns(tx, postId, igMediaId);
+    });
+    await attempt(postId, "LINK_CAMPAIGN", true, { message: `automations ${linked.automations}, triggers ${linked.triggers}` });
+  } catch (error) {
+    // The publish happened; record it even if the campaign link failed, and shout.
+    const message = error instanceof Error ? error.message : String(error);
+    await prisma.scheduledPost.update({ where: { id: postId }, data: { status: "PUBLISHED", igMediaId, permalink: permalink ?? null, publishedAt: deps.now(), lastErrorCode: "CAMPAIGN_LINK_FAILED", lastErrorMessage: message.slice(0, 500), version: { increment: 1 } } }).catch(() => undefined);
+    await attempt(postId, "LINK_CAMPAIGN", false, { message });
+    await alertWorkspace(row.workspaceId, "Kampaniya ulanmadi", `⚠️ <b>Post chiqdi, lekin kampaniya ulanmadi</b> — DM lar yo'qolishi mumkin. Kampaniyani qo'lda ulang.`, "Post chiqdi, lekin kampaniya ulanmadi — DM lar yo'qolishi mumkin. Kampaniyani qo'lda ulang.").catch(() => undefined);
+  }
+
+  if (row.firstComment?.trim()) await scheduleFirstComment(postId, FIRST_COMMENT_DELAY_MS);
+  await notifyWorkspaceChats(
+    row.workspaceId,
+    `✅ <b>${postLabel(row)} chiqdi</b> — @${row.instagramAccount.username}${permalink ? `\n${permalink}` : ""}${linked.automations + linked.triggers > 0 ? "\nComment-to-DM kampaniyasi ulandi." : ""}`
+  ).catch(() => 0);
+  return { status: "PUBLISHED", igMediaId };
+}
+
+/**
+ * A worker died between PUBLISHING and the final update (deploy, crash): the
+ * sweeper hands such rows here after five quiet minutes. Meta is asked what
+ * became of the container — never a second media_publish (FR-P5).
+ */
+export async function recoverStuckPublishing(postId: string, depsIn: PipelineDeps = {}): Promise<RecoverResult> {
+  const deps: Required<PipelineDeps> = { now: depsIn.now ?? (() => new Date()), sleep: depsIn.sleep ?? defaultSleep };
+  const post = await loadPost(postId);
+  if (!post || post.deletedAt) return { skipped: "missing" };
+  if (post.status !== "PUBLISHING") return { skipped: `status ${post.status}` };
+  if (!post.containerId) {
+    await failPost(postId, "PUBLISH_UNKNOWN", "Chiqarish jarayoni uzilib qoldi — qayta urinib ko'ring", { step: "PUBLISH" });
+    return { failed: "PUBLISH_UNKNOWN" };
+  }
+  const token = decryptToken(post.instagramAccount.accessToken);
+  const status = await getContainerStatus(token, post.containerId).catch(() => null);
+  await attempt(postId, "STATUS", Boolean(status), { message: `recover after a halted publish: ${status?.status ?? "no answer"}` });
+  if (status?.status === "PUBLISHED") {
+    const found = await findJustPublished(token, post, post.scheduledAt ?? deps.now());
+    if (!found) {
+      await failPost(postId, "PUBLISH_UNKNOWN", "Instagram postni chiqardi, lekin uning ID si topilmadi — Instagram'da tekshiring va kampaniyani qo'lda ulang", { step: "PUBLISH" });
+      return { failed: "PUBLISH_UNKNOWN" };
+    }
+    return finishPublished(post, found.id, found.permalink, deps);
+  }
+  if (status?.status === "FINISHED") {
+    await move(postId, ["PUBLISHING"], { status: "READY_TO_PUBLISH" });
+    await schedulePublish(postId, post.attempts, deps.now());
+    return { status: "READY_TO_PUBLISH" };
+  }
+  await failPost(postId, "PUBLISH_UNKNOWN", `Chiqarish jarayoni uzilib qoldi (konteyner: ${status?.status ?? "javob yo'q"}) — qayta urinib ko'ring`, { step: "PUBLISH" });
+  return { failed: "PUBLISH_UNKNOWN" };
+}
+
 async function rescheduleForQuota(post: PostRow, at: Date, from: PostStatusValue[]): Promise<PublishResult> {
   const slot = new Date(Math.max(at.getTime(), Date.now() + 60_000));
-  await move(post.id, from, { status: "SCHEDULED", scheduledAt: slot, lastErrorCode: "PUBLISH_QUOTA", lastErrorMessage: `24 soatlik limit to'ldi — ${formatZoned(slot, post.timezone)} ga ko'chirildi`, containerId: null, containerStatus: null, containerCreatedAt: null });
-  await schedulePublish(post.id, post.attempts, slot);
+  // A fresh attempt number: the job that just ran owns the old id, and BullMQ would ignore a re-add under it.
+  await move(post.id, from, { status: "SCHEDULED", scheduledAt: slot, attempts: { increment: 1 }, lastErrorCode: "PUBLISH_QUOTA", lastErrorMessage: `24 soatlik limit to'ldi — ${formatZoned(slot, post.timezone)} ga ko'chirildi`, containerId: null, containerStatus: null, containerCreatedAt: null });
+  await schedulePublish(post.id, post.attempts + 1, slot);
   await alertWorkspace(
     post.workspaceId,
     "24 soatlik post limiti to'ldi",

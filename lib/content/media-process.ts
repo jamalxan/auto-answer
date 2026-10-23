@@ -215,6 +215,7 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
 
     let preparedKey: string;
     let thumbKey: string;
+    let preparedBytes: number;
     let addedBytes = 0;
     const facts: { width?: number; height?: number; durationMs?: number; codec?: string; fps?: number } = {};
 
@@ -226,6 +227,7 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
       await storage.putObject(preparedKey, prepared.out, "image/jpeg");
       await storage.putObject(thumbKey, thumb, "image/jpeg");
       addedBytes = prepared.out.length + thumb.length;
+      preparedBytes = prepared.out.length;
       facts.width = prepared.width;
       facts.height = prepared.height;
     } else {
@@ -248,10 +250,12 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
         preparedKey = variantKey(asset.originalKey, "prepared", "mp4");
         await storage.putObject(preparedKey, transcoded, "video/mp4");
         addedBytes += transcoded.length;
+        preparedBytes = transcoded.length;
         facts.codec = "h264";
         if (probe.fps !== undefined) facts.fps = Math.min(60, Math.max(23, Math.round(probe.fps)));
       } else {
         preparedKey = asset.originalKey;
+        preparedBytes = original.length;
       }
 
       const framePath = path.join(tmp, "thumb.jpg");
@@ -265,7 +269,7 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
 
     await prisma.mediaAsset.update({
       where: { id: mediaId },
-      data: { status: "READY", error: null, preparedKey, thumbKey, ...facts },
+      data: { status: "READY", error: null, preparedKey, thumbKey, preparedBytes, ...facts },
     });
     if (addedBytes > 0) {
       await prisma.workspace.update({ where: { id: asset.workspaceId }, data: { mediaStorageBytes: { increment: BigInt(addedBytes) } } });

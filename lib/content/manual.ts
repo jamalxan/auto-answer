@@ -52,8 +52,8 @@ function tagsOf(raw: unknown): string[] {
   return Array.isArray(raw) ? (raw as Array<{ username?: string }>).map((t) => t?.username).filter((u): u is string => typeof u === "string") : [];
 }
 
-/** The text message with everything the person needs besides the files. */
-function detailsText(post: PostRow): string {
+/** The text message with everything the person needs besides the files; download links when Telegram refused the files. */
+function detailsText(post: PostRow, downloadLinks: string[] = []): string {
   const lines = [
     `📣 <b>${TYPE_LABEL[post.type] ?? post.type} — qo'lda e'lon vaqti</b> (@${esc(post.instagramAccount.username)})`,
     post.scheduledAt ? `🕒 ${formatZoned(post.scheduledAt, post.timezone)}` : "",
@@ -65,6 +65,9 @@ function detailsText(post: PostRow): string {
   if (post.firstComment?.trim()) lines.push(`💬 Birinchi komment:\n${esc(post.firstComment.trim())}`);
   if (post.type === "REEL" || post.type === "TRIAL_REEL" || post.type === "FEED_VIDEO") {
     lines.push(post.shareToFeed ? "📌 Feed'da ham ko'rsating" : "📌 Faqat Reels tabida (feed'ga chiqarmang)");
+  }
+  if (downloadLinks.length) {
+    lines.push("", "📎 Telegram faylni qabul qilmadi (hajm limiti) — yuklab oling (24 soat amal qiladi):", ...downloadLinks.map((l, i) => `${i + 1}. ${esc(l)}`));
   }
   lines.push("", "Chiqargach «✅ E'lon qildim» ni bosing — kampaniya postga ulanadi.");
   return lines.filter((l) => l !== "").join("\n");
@@ -98,7 +101,7 @@ export async function sendManualNotice(postId: string, deps: ManualDeps = {}): P
       where: { id: postId, status: { in: from } },
       data: {
         status: "NEEDS_MANUAL",
-        manualReason: post.manualReason ?? (post.status === "FAILED" ? "API_REJECTED" : post.autoPublish ? "USER_CHOICE" : "USER_CHOICE"),
+        manualReason: post.manualReason ?? (post.status === "FAILED" ? "API_REJECTED" : "USER_CHOICE"),
         version: { increment: 1 },
       },
     });
@@ -119,12 +122,19 @@ export async function sendManualNotice(postId: string, deps: ManualDeps = {}): P
   if (chats.length > 0) {
     let delivered = 0;
     for (const chat of chats) {
+      // Telegram caps URL uploads (20 MB video / 5 MB photo); a refused file must not swallow the caption and the buttons.
+      let mediaSent = true;
       try {
         if (files.length > 1) await sendMediaGroup(chat.chatId, files);
         else if (files.length === 1 && files[0].type === "video") await sendVideo(chat.chatId, files[0].media);
         else if (files.length === 1) await sendPhoto(chat.chatId, files[0].media);
+      } catch (error) {
+        mediaSent = false;
+        console.error("[Content] manual notice media refused by Telegram:", error instanceof Error ? error.message : error);
+      }
+      try {
         if (row.caption?.trim()) await sendMessage(chat.chatId, row.caption.trim(), { parseMode: null });
-        await sendMessage(chat.chatId, detailsText(row), { keyboard: keyboard(postId) });
+        await sendMessage(chat.chatId, detailsText(row, mediaSent ? [] : files.map((f) => f.media)), { keyboard: keyboard(postId) });
         delivered++;
       } catch (error) {
         console.error("[Content] manual notice to chat failed:", error instanceof Error ? error.message : error);

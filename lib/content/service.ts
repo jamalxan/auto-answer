@@ -7,8 +7,8 @@
  * the field matrix (validate.ts) before anything is scheduled, the five
  * minute lead time, the two-minute spacing of one account's posts, the
  * 24-hour quota, and the campaign binding. Every mutation that moves a
- * status is a compare-and-swap on status + version so two tabs or a worker
- * and a user cannot both win.
+ * status is a compare-and-swap on status (updates by the user also carry
+ * the version they saw) so two tabs or a worker and a user cannot both win.
  */
 
 import type { Prisma } from "@/app/generated/prisma/client";
@@ -136,7 +136,7 @@ function validateOpts(now?: Date) {
   return { carouselMax: carouselMaxItems(), maxCollaborators: maxCollaborators(), now };
 }
 
-function factsOf(asset: { id: string; kind: string; status: string; width: number | null; height: number | null; durationMs: number | null; sizeBytes: bigint | number }): MediaFacts {
+function factsOf(asset: { id: string; kind: string; status: string; width: number | null; height: number | null; durationMs: number | null; sizeBytes: bigint | number; preparedBytes?: number | null }): MediaFacts {
   return {
     id: asset.id,
     kind: asset.kind as MediaFacts["kind"],
@@ -144,7 +144,8 @@ function factsOf(asset: { id: string; kind: string; status: string; width: numbe
     width: asset.width,
     height: asset.height,
     durationMs: asset.durationMs,
-    sizeBytes: Number(asset.sizeBytes),
+    // Instagram's size limits apply to the prepared copy Meta will fetch, not to the upload.
+    sizeBytes: Number(asset.preparedBytes ?? asset.sizeBytes),
   };
 }
 

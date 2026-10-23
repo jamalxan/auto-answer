@@ -137,6 +137,7 @@ describe("processMedia", () => {
     expect(a.height).toBe(1800);
     const prepared = storage.objects.get(`ws/${WS}/2026/10/a.prepared.jpg`)!;
     const thumb = storage.objects.get(`ws/${WS}/2026/10/a.thumb.jpg`)!;
+    expect(a.preparedBytes).toBe(prepared.length); // I2: Instagram's 8 MB applies to this copy, not the upload
     expect((await sharp(thumb).metadata()).width).toBe(640);
     expect(Number(db.rows("workspace")[0].mediaStorageBytes)).toBe(prepared.length + thumb.length);
   });

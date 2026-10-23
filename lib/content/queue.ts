@@ -9,9 +9,12 @@
  *
  * Postgres is the source of truth: a lost job is recovered by the minute
  * sweeper (lib/content/sweep.ts). Job ids are deterministic
- * (`publish_<postId>_<attempt>`), so scheduling twice is a no-op; BullMQ
- * forbids ":" in ids. Without REDIS_URL (unit tests, scripts) scheduling
- * is a no-op and only the sweeper moves posts.
+ * (`publish_<postId>_<attempt>`), so scheduling twice is a no-op while the
+ * job is waiting — and BullMQ refuses to re-add an id in ANY state, so a
+ * finished job must be removed before its id can be scheduled again
+ * (removeOnComplete / removeOnFail plus clearFinishedJob). BullMQ forbids
+ * ":" in ids. Without REDIS_URL (unit tests, scripts) scheduling is a
+ * no-op and only the sweeper moves posts.
  */
 
 import { Queue, type JobsOptions } from "bullmq";
@@ -46,8 +49,9 @@ export function getContentPublishQueue(): Queue<PublishJob> {
     publishQueue = new Queue<PublishJob>(CONTENT_PUBLISH_QUEUE, {
       connection: getRedisConnection(),
       defaultJobOptions: {
-        removeOnComplete: { count: 1000 },
-        removeOnFail: { age: 24 * 3600, count: 1000 },
+        // History lives in PublishAttempt; a kept job blocks every re-queue of its id.
+        removeOnComplete: true,
+        removeOnFail: true,
         // Retries are decided by the pipeline itself (classifyPublishError);
         // a BullMQ retry would re-run a step whose state already moved on.
         attempts: 1,
@@ -85,9 +89,19 @@ export function publishJobId(postId: string, attempt: number, suffix?: string): 
   return safeJobId(`publish_${postId}_${attempt}${suffix ? `_${suffix}` : ""}`);
 }
 
-async function addPublish(name: string, data: PublishJob, opts: JobsOptions): Promise<void> {
+/** A finished job under this id would make BullMQ ignore the new one: clear it first. Live jobs stay. */
+async function clearFinishedJob(queue: Queue<PublishJob>, jobId: string): Promise<void> {
+  const job = await queue.getJob(jobId).catch(() => null);
+  if (!job) return;
+  const state = await job.getState().catch(() => "unknown");
+  if (state === "completed" || state === "failed") await job.remove().catch(() => undefined);
+}
+
+async function addPublish(name: string, data: PublishJob, opts: JobsOptions & { jobId: string }): Promise<void> {
   if (!hasContentQueueBackend()) return;
-  await getContentPublishQueue().add(name, data, opts);
+  const queue = getContentPublishQueue();
+  await clearFinishedJob(queue, opts.jobId);
+  await queue.add(name, data, opts);
 }
 
 const delayUntil = (at: Date) => Math.max(0, at.getTime() - Date.now());
@@ -105,6 +119,12 @@ export async function schedulePublish(postId: string, attempt: number, at: Date)
 /** A retry of one step after a transient Meta error, under a fresh id so BullMQ accepts it. */
 export async function scheduleRetry(name: string, postId: string, attempt: number, retryNo: number, delayMs: number): Promise<void> {
   await addPublish(name, { postId, attempt, retryNo }, { jobId: publishJobId(postId, attempt, `${name}_r${retryNo}`), delay: delayMs });
+}
+
+/** The account lock was busy: try again shortly under a fresh id (the running job owns the plain one), same retry counter. */
+export async function scheduleLockRetry(postId: string, attempt: number, retryNo: number, delayMs: number): Promise<void> {
+  const stamp = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  await addPublish(PUBLISH_JOB, { postId, attempt, retryNo }, { jobId: publishJobId(postId, attempt, `lock_${stamp}`), delay: delayMs });
 }
 
 export async function scheduleFirstComment(postId: string, delayMs: number, retryNo = 0): Promise<void> {

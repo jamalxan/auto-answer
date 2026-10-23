@@ -38,6 +38,7 @@ vi.mock("@/lib/telegram/notify", () => ({ alertWorkspace: mocks.alertWorkspace, 
 vi.mock("@/lib/content/queue", () => ({
   scheduleFirstComment: mocks.scheduleFirstComment,
   scheduleRetry: mocks.scheduleRetry,
+  scheduleLockRetry: vi.fn(async () => undefined),
   schedulePublish: mocks.schedulePublish,
   schedulePrepare: vi.fn(),
   scheduleManualNotify: vi.fn(),
@@ -54,7 +55,7 @@ vi.mock("@/lib/content/storage", () => ({
 
 import { MetaApiError, TokenExpiredError } from "@/lib/meta/client";
 import { classifyPublishError } from "@/lib/content/errors";
-import { postFirstComment, preparePost, publishPost } from "@/lib/content/publish";
+import { postFirstComment, preparePost, publishPost, recoverStuckPublishing } from "@/lib/content/publish";
 import { explainError } from "@/lib/foundation/error-catalog";
 
 const WS = "ws1";
@@ -153,6 +154,19 @@ describe("preparePost", () => {
     await preparePost("p1", 1, deps());
     expect(containerCalls()[0]).toMatchObject({ imageUrl: "https://cdn/p/m1", mediaType: "STORIES" });
     expect(containerCalls()[0].caption).toBeUndefined();
+  });
+
+  it("a prepare that finishes after the slot queues the publish itself instead of waiting for the sweeper (C1)", async () => {
+    seedPost({ scheduledAt: new Date(NOW.getTime() - 2 * 60_000) });
+    const r = await preparePost("p1", 1, deps());
+    expect(r).toMatchObject({ status: "READY_TO_PUBLISH" });
+    expect(mocks.schedulePublish).toHaveBeenCalledWith("p1", 1, NOW);
+  });
+
+  it("a prepare that finishes before the slot leaves the delayed publish job alone", async () => {
+    seedPost({ scheduledAt: new Date(NOW.getTime() + 30 * 60_000) });
+    await preparePost("p1", 1, deps());
+    expect(mocks.schedulePublish).not.toHaveBeenCalled();
   });
 
   it("media still PROCESSING → FAILED PUBLISH_MEDIA_INVALID without calling Meta (review focus 1)", async () => {
@@ -302,6 +316,15 @@ describe("publishPost", () => {
     expect(mocks.schedulePublish).toHaveBeenCalled();
   });
 
+  it("quota reschedule moves to a fresh attempt so its publish job is not a duplicate of the one that just ran (C1)", async () => {
+    ready();
+    mocks.publishContainer.mockRejectedValue(new MetaApiError(9, 2207051, undefined, "Application request limit reached [code=9 sub=2207051]"));
+    await publishPost("p1", 1, deps());
+    const post = db.rows("scheduledPost")[0];
+    expect(post.attempts).toBe(2);
+    expect(mocks.schedulePublish).toHaveBeenCalledWith("p1", 2, expect.any(Date));
+  });
+
   it("a SCHEDULED post whose prepare job never ran is prepared inline", async () => {
     seedPost({ status: "SCHEDULED" });
     const r = await publishPost("p1", 1, deps());
@@ -317,6 +340,50 @@ describe("publishPost", () => {
     expect([a, b].filter((r) => (r as { status?: string }).status === "PUBLISHED")).toHaveLength(1);
     // The loser either lost the account lock (and re-queues itself) or lost the status CAS.
     expect([a, b].filter((r) => "skipped" in (r as object) || (r as { waiting?: string }).waiting === "lock")).toHaveLength(1);
+  });
+});
+
+describe("recoverStuckPublishing (I1: a worker died between PUBLISHING and the final update)", () => {
+  const stuck = () => {
+    const p = seedPost({ status: "PUBLISHING", containerId: "c1", containerCreatedAt: NOW });
+    p.updatedAt = new Date(NOW.getTime() - 10 * 60_000);
+    return p;
+  };
+
+  it("container PUBLISHED → binds the newest matching media and finishes as PUBLISHED, no second media_publish", async () => {
+    stuck();
+    mocks.getContainerStatus.mockResolvedValue({ status: "PUBLISHED" });
+    mocks.getUserMedia.mockResolvedValue([{ id: "17999", media_type: "IMAGE", timestamp: NOW.toISOString(), permalink: "https://instagram.com/p/y" }]);
+    const r = await recoverStuckPublishing("p1", deps());
+    expect(r).toMatchObject({ status: "PUBLISHED", igMediaId: "17999" });
+    const post = db.rows("scheduledPost")[0];
+    expect(post.status).toBe("PUBLISHED");
+    expect(post.igMediaId).toBe("17999");
+    expect(post.permalink).toBe("https://instagram.com/p/y");
+    expect(mocks.publishContainer).not.toHaveBeenCalled();
+  });
+
+  it("container still FINISHED → back to READY_TO_PUBLISH with a publish job now", async () => {
+    stuck();
+    mocks.getContainerStatus.mockResolvedValue({ status: "FINISHED" });
+    const r = await recoverStuckPublishing("p1", deps());
+    expect(r).toMatchObject({ status: "READY_TO_PUBLISH" });
+    expect(db.rows("scheduledPost")[0].status).toBe("READY_TO_PUBLISH");
+    expect(mocks.schedulePublish).toHaveBeenCalledWith("p1", 1, NOW);
+  });
+
+  it("container ERROR or unknown → FAILED PUBLISH_UNKNOWN so the owner can retry", async () => {
+    stuck();
+    mocks.getContainerStatus.mockResolvedValue({ status: "ERROR", statusText: "boom" });
+    const r = await recoverStuckPublishing("p1", deps());
+    expect(r).toMatchObject({ failed: "PUBLISH_UNKNOWN" });
+    expect(db.rows("scheduledPost")[0].status).toBe("FAILED");
+  });
+
+  it("ignores a post that is not PUBLISHING", async () => {
+    seedPost({ status: "READY_TO_PUBLISH", containerId: "c1" });
+    expect(await recoverStuckPublishing("p1", deps())).toMatchObject({ skipped: expect.any(String) });
+    expect(mocks.getContainerStatus).not.toHaveBeenCalled();
   });
 });
 

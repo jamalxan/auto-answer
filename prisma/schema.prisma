@@ -3092,6 +3092,8 @@ model MediaAsset {
   thumbKey     String?
   mimeType     String
   sizeBytes    BigInt
+  // Size of the Instagram-ready copy (preparedKey); Instagram's limits apply to this, not the upload.
+  preparedBytes Int?
   width        Int?
   height       Int?
   durationMs   Int?

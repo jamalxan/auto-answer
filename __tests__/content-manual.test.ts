@@ -94,6 +94,19 @@ describe("sendManualNotice", () => {
     expect(db.rows("publishAttempt").map((a) => [a.step, a.ok])).toEqual([["MANUAL_NOTICE", true]]);
   });
 
+  it("still delivers the details, a download link and the buttons when Telegram refuses the media (I5)", async () => {
+    seedPost({ type: "REEL" }, [{ id: "v1", kind: "VIDEO" }]);
+    mocks.sendVideo.mockRejectedValueOnce(new Error("Bad Request: file is too big"));
+    const r = await sendManualNotice("p1", { now: () => NOW });
+    expect(r.delivered).toBe("telegram");
+    const withButtons = mocks.sendMessage.mock.calls.find((c) => (c[2] as { keyboard?: unknown })?.keyboard);
+    expect(withButtons).toBeDefined();
+    expect(String(withButtons?.[1])).toContain("https://cdn/p/v1");
+    expect(String(withButtons?.[1])).toMatch(/yuklab/i);
+    expect(db.rows("publishAttempt").map((a) => [a.step, a.ok])).toEqual([["MANUAL_NOTICE", true]]);
+    expect(mocks.alertWorkspace).not.toHaveBeenCalled();
+  });
+
   it("sends a media group for several files and a video for one video", async () => {
     seedPost({ type: "CAROUSEL" }, [{ id: "m1" }, { id: "v1", kind: "VIDEO" }]);
     await sendManualNotice("p1", { now: () => NOW });

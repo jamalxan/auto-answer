@@ -11,7 +11,7 @@ import { Notice } from "@/components/developer/comments/parts";
 import { inputClass, Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 import { CONTENT_API, formatBytes, formatDuration, jsonInit, requestJson, uploadFile, type ContentMeta, type MediaRow } from "./shared";
 
-const ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime";
+const ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/quicktime";
 
 interface UploadState {
   name: string;
@@ -80,7 +80,7 @@ export function UploadZone({ onUploaded, max = 20, compact = false }: { onUpload
         className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border-hover bg-surface text-center text-sm text-muted hover:border-accent/50 ${compact ? "px-3 py-3" : "px-4 py-8"}`}
       >
         <span className="font-semibold text-foreground">Fayl tashlang yoki bosib tanlang</span>
-        <span className="mt-1 text-xs">JPEG, PNG, WEBP, HEIC (30 MB gacha) · MP4, MOV (1 GB gacha) · bir vaqtda {max} tagacha</span>
+        <span className="mt-1 text-xs">JPEG, PNG, WEBP (30 MB gacha) · MP4, MOV (1 GB gacha) · bir vaqtda {max} tagacha · HEIC hozircha emas</span>
         <input ref={input} type="file" accept={ACCEPT} multiple className="hidden" onChange={(e) => e.target.files && void handle(e.target.files)} />
       </div>
       {uploads.length > 0 && (

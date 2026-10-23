@@ -89,15 +89,15 @@ Meta 190 error in the post detail (verified 2026-10-23).
 | AC-1 JPEG feed post at 19:00 publishes within the minute, PUBLISHED + permalink | needs real account |
 | AC-2 5-item carousel (3 images + 2 videos) with user tags, order kept | needs real account (unit: carousel children order, tags per child) |
 | AC-3 45 s Reels, custom cover, `share_to_feed=false`, one collaborator | needs real account (unit: container params) |
-| AC-4 3-story series one minute apart | needs real account (unit: series gap) |
+| AC-4 3-story series one minute apart | **not built** — the story series (FR-C9) is Faza 2; only the `storySeriesGapMs` constant exists |
 | AC-5 Link-sticker story → NEEDS_MANUAL → Telegram → PUBLISHED_MANUAL | unit + Telegram callback tests pass; live Telegram check pending |
 | AC-6 First comment ≤ 30 s | unit (10 s job) ; live pending |
 | AC-7 Linked campaign gets the DM within a minute | unit (activation in the publish transaction); live pending |
-| AC-8 Worker restart → sweeper republishes ≤ 2 min, no duplicate | unit (sweep + job ids) |
+| AC-8 Worker restart → sweeper republishes ≤ 2 min, no duplicate | unit (sweep re-queue; BullMQ "existing id is never re-added" modelled in `content-queue.test.ts`); live restart test pending |
 | AC-9 `media_publish` timeout → published once | unit (status_code check, CAS) |
 | AC-10 Token BROKEN → stays SCHEDULED, notified, continues after reconnect | unit + local live check (190 explained in post detail) |
 | AC-11 2300 chars / 31 hashtags / 3:1 image / 62 s story rejected with exact text | unit |
-| AC-12 PNG / HEIC → JPEG, 4K 80 Mbps transcoded | unit (sharp / ffmpeg args); live pending |
+| AC-12 PNG → JPEG, 4K 80 Mbps transcoded | unit (sharp / ffmpeg args); live pending. HEIC is refused with a hint (the prebuilt sharp has no HEVC decoder) |
 | AC-13 OPERATOR creates, cannot schedule; MANAGER schedules | API test |
 | AC-14 Other workspace's ids → 404 | API test |
 | AC-15 Existing regression suite passes | `npx vitest run` → 182 files / 3011 tests (2026-10-23) |

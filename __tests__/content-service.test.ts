@@ -46,6 +46,7 @@ import {
   schedulePost,
   unschedulePost,
   updatePost,
+  validateDraft,
 } from "@/lib/content/service";
 
 const WS = "ws1";
@@ -69,6 +70,20 @@ beforeEach(() => {
 });
 
 const draft = (over: Record<string, unknown> = {}) => createPost(WS, "u1", { instagramAccountId: "acc1", type: "FEED_IMAGE", caption: "Salom", media: [{ mediaId: "m1" }], ...over } as never);
+
+describe("validateDraft size rule (I2)", () => {
+  it("judges Instagram's 8 MB against the prepared copy, not the 12 MB phone upload", async () => {
+    db.seed("mediaAsset", { id: "big", workspaceId: WS, kind: "IMAGE", originalKey: "k/big", preparedKey: "k/big.p", thumbKey: "k/big.t", mimeType: "image/jpeg", sizeBytes: 12 * 1024 ** 2, preparedBytes: 5 * 1024 ** 2, width: 1080, height: 1350, status: "READY" });
+    const issues = await validateDraft(WS, { instagramAccountId: "acc1", type: "FEED_IMAGE", caption: "x", media: [{ mediaId: "big" }] } as never);
+    expect(issues).toEqual([]);
+  });
+
+  it("falls back to the upload size when no prepared size is recorded yet", async () => {
+    db.seed("mediaAsset", { id: "big", workspaceId: WS, kind: "IMAGE", originalKey: "k/big", preparedKey: null, thumbKey: null, mimeType: "image/jpeg", sizeBytes: 12 * 1024 ** 2, preparedBytes: null, width: 1080, height: 1350, status: "READY" });
+    const issues = await validateDraft(WS, { instagramAccountId: "acc1", type: "FEED_IMAGE", caption: "x", media: [{ mediaId: "big" }] } as never);
+    expect(issues.map((i) => i.message)).toContain("Rasm 8 MB dan katta");
+  });
+});
 
 describe("createPost", () => {
   it("stores a DRAFT with ordered media rows", async () => {

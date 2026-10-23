@@ -17,8 +17,7 @@ export const MIME_EXT: Record<string, { ext: string; kind: "IMAGE" | "VIDEO" }> 
   "image/jpeg": { ext: "jpg", kind: "IMAGE" },
   "image/png": { ext: "png", kind: "IMAGE" },
   "image/webp": { ext: "webp", kind: "IMAGE" },
-  "image/heic": { ext: "heic", kind: "IMAGE" },
-  "image/heif": { ext: "heif", kind: "IMAGE" },
+  // HEIC / HEIF are NOT accepted: the prebuilt sharp/libvips has no HEVC decoder (see presignUpload).
   "video/mp4": { ext: "mp4", kind: "VIDEO" },
   "video/quicktime": { ext: "mov", kind: "VIDEO" },
 };
@@ -27,7 +26,7 @@ export const ACCEPTED_MIME_TYPES = Object.keys(MIME_EXT);
 
 export const presignInputSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
-  mimeType: z.enum(ACCEPTED_MIME_TYPES as [string, ...string[]], { error: "Bu fayl turi qabul qilinmaydi (JPEG, PNG, WEBP, HEIC, MP4, MOV)" }),
+  mimeType: z.enum(ACCEPTED_MIME_TYPES as [string, ...string[]], { error: "Bu fayl turi qabul qilinmaydi (JPEG, PNG, WEBP, MP4, MOV; HEIC hozircha emas — JPEG'ga o'giring)" }),
   sizeBytes: z.number().int().positive("fayl bo'sh"),
 });
 export type PresignInput = z.infer<typeof presignInputSchema>;
@@ -56,7 +55,10 @@ export interface PresignResult {
 }
 
 /** Step 1 of an upload: reserve the quota, create the UPLOADING row, hand back a PUT URL. */
+export const HEIC_MESSAGE = "HEIC hozircha qabul qilinmaydi — iPhone'da Sozlamalar → Kamera → Formatlar → «Eng mos» ni tanlang yoki rasmni JPEG'ga o'giring";
+
 export async function presignUpload(workspaceId: string, userId: string | null, input: PresignInput): Promise<PresignResult> {
+  if (/^image\/hei[cf]$/i.test(input.mimeType)) throw new ContentError(400, HEIC_MESSAGE);
   const mime = MIME_EXT[input.mimeType];
   if (!mime) throw new ContentError(400, "Bu fayl turi qabul qilinmaydi");
   const max = mime.kind === "IMAGE" ? MEDIA.imageMaxUploadBytes : MEDIA.videoMaxUploadBytes;
