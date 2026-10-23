@@ -16,6 +16,10 @@ password sharing.
 - Multi-account workspaces with team roles and shareable, read-only client
   reports.
 - Multi-language dashboard and marketing site (Uzbek, Russian, English).
+- Content Scheduler (developer area, ETAP 13): feed posts, carousels, Reels and
+  Stories scheduled through the Instagram Content Publishing API, manual
+  publishing over Telegram, and a comment-to-DM campaign that activates the
+  moment the post goes live.
 
 ## Stack
 

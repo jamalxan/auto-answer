@@ -51,3 +51,6 @@ next-env.d.ts
 /.tools/*.exe
 /.idea/
 .local-dev/
+
+# Content Scheduler local media driver (dev only)
+.media/

@@ -47,6 +47,9 @@ import {
 } from "../lib/migration/service";
 import { decryptToken } from "../lib/meta/oauth";
 
+/** The whole DB as text (BigInt columns such as Workspace.mediaStorageBytes have no JSON form). */
+const dumpDb = () => JSON.stringify(db.tables, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+
 const WS = "w1";
 const OTHER = "w2";
 const KEY = "99999:SuperSecretManyChatKey1234";
@@ -168,7 +171,7 @@ describe("connectManychat", () => {
     expect(result.counts.FLOW.total).toBe(2);
     expect(result.checklist.todo.join("\n")).toMatch(/ig\.me/);
     expect(result.contactGuidance).toMatch(/obunachilar/i);
-    expect(JSON.stringify(db.tables)).not.toContain(KEY);
+    expect(dumpDb()).not.toContain(KEY);
   });
 
   it("maps defaults: tag slugs, snake_case field keys, bot variable keys", async () => {
@@ -336,7 +339,7 @@ describe("submitFlowText", () => {
     expect(result.item.sourceText).toContain("Qo'shimcha");
     expect(result.item.sourceText).toContain("Zapier");
     expect(result.extractedChars).toBeGreaterThan(10);
-    expect(JSON.stringify(db.tables)).not.toContain(PNG);
+    expect(dumpDb()).not.toContain(PNG);
     expect(JSON.stringify(result)).not.toContain(PNG);
     const usage = db.rows("llmUsage").filter((r) => r.kind === "javobai_migration");
     expect(usage).toHaveLength(1);
@@ -575,7 +578,7 @@ describe("workspace scoping, listing, deletion, kill switch", () => {
     expect(db.rows("migrationProject")).toHaveLength(0);
     expect(db.rows("migrationItem")).toHaveLength(0);
     expect(db.rows("flow")).toHaveLength(1);
-    expect(JSON.stringify(db.tables)).not.toContain("SuperSecret");
+    expect(dumpDb()).not.toContain("SuperSecret");
   });
 
   it("MIGRATION_DISABLED stops connect / analyze / convert / import but not reading or deleting", async () => {

@@ -82,6 +82,11 @@ model Workspace {
   isSuspended Boolean   @default(false)
   suspendedAt DateTime?
 
+  // Content Scheduler (ETAP 13): default timezone of the composer and the
+  // bytes currently held in the media bucket (quota: lib/content/config).
+  timezone          String @default("Asia/Tashkent")
+  mediaStorageBytes BigInt @default(0)
+
   members            WorkspaceMember[]
   invitations        WorkspaceInvitation[]
   instagramAccounts  InstagramAccount[]
@@ -134,6 +139,11 @@ model Workspace {
   flows         Flow[]
   flowRuns      FlowRun[]
   flowTemplates FlowTemplate[]
+
+  // Content Scheduler (developer area, ETAP 13)
+  mediaAssets    MediaAsset[]
+  scheduledPosts ScheduledPost[]
+  savedTexts     SavedText[]
 
   // CRM (developer area, ETAP 5)
   crmContacts        CrmContact[]
@@ -201,28 +211,37 @@ model WorkspaceInvitation {
 }
 
 model InstagramAccount {
-  id                String      @id @default(cuid())
-  workspaceId       String
-  instagramId       String      @unique
-  username          String
-  name              String?
-  accessToken       String
-  tokenExpiresAt    DateTime?
-  webhookSubscribed Boolean     @default(false)
+  id                    String      @id @default(cuid())
+  workspaceId           String
+  instagramId           String      @unique
+  username              String
+  name                  String?
+  accessToken           String
+  tokenExpiresAt        DateTime?
+  webhookSubscribed     Boolean     @default(false)
   // Real token health, verified against Meta every few hours
   // (lib/meta/token-health). "Connected" in the UI means tokenStatus = ACTIVE,
   // not merely "a row exists".
-  tokenStatus       TokenStatus @default(ACTIVE)
-  tokenCheckedAt    DateTime?
-  tokenLastError    String?
-  tokenBrokenAt     DateTime?
-  tokenAlertedAt    DateTime?
+  tokenStatus           TokenStatus @default(ACTIVE)
+  tokenCheckedAt        DateTime?
+  tokenLastError        String?
+  tokenBrokenAt         DateTime?
+  tokenAlertedAt        DateTime?
   // Last 7-day / 1-day expiry warning sent (lib/meta/token-expiry); reset on a successful refresh.
-  tokenWarnedAt     DateTime?
+  tokenWarnedAt         DateTime?
   // Per-account hourly outbound DM cap; null = DM_HOURLY_LIMIT_DEFAULT (200).
-  dmHourlyLimit     Int?
-  connectedAt       DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  dmHourlyLimit         Int?
+  // Content Scheduler (ETAP 13): OAuth scopes Meta actually granted at the last
+  // connect; canPublish = instagram_business_content_publish is among them.
+  grantedScopes         String[]    @default([])
+  canPublish            Boolean     @default(false)
+  // BUSINESS | CREATOR, when Meta tells us.
+  accountType           String?
+  // Last content_publishing_limit reading (quota_usage) and when it was taken.
+  publishQuotaUsed      Int?
+  publishQuotaCheckedAt DateTime?
+  connectedAt           DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   automations       Automation[]
@@ -242,6 +261,8 @@ model InstagramAccount {
   giveaways            Giveaway[]
   referralProgram      ReferralProgram?
   flows                Flow[]
+  scheduledPosts       ScheduledPost[]
+  postingSlots         PostingSlot[]
 
   @@index([workspaceId])
 }
@@ -305,12 +326,17 @@ model Automation {
   wholeWordMatch          Boolean  @default(true)
   reportShareSlug         String?  @unique
   reportShareEnabled      Boolean  @default(true)
+  // Content Scheduler (ETAP 13): bound to a post that is not published yet.
+  // While set and postId is null the campaign waits ("post kutilmoqda");
+  // the publish transaction writes postId = igMediaId and isActive = true.
+  scheduledPostId         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  scheduledPost    ScheduledPost?   @relation(fields: [scheduledPostId], references: [id], onDelete: SetNull)
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
@@ -1306,8 +1332,13 @@ model TriggerCampaign {
   // sourceFilter LINK: only these ig.me ref values (empty = any link).
   refs             String[]            @default([])
 
+  // Content Scheduler (ETAP 13): waits for this post; on publish
+  // mediaIds = [igMediaId], mediaScope = SPECIFIC, active = true.
+  scheduledPostId String?
+
   workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount      @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  scheduledPost    ScheduledPost?        @relation(fields: [scheduledPostId], references: [id], onDelete: SetNull)
   executions       TriggerExecution[]
   claimedEvents    InstagramEvent[]
   replyVariants    TriggerReplyVariant[]
@@ -3004,4 +3035,245 @@ model McpAction {
 
   @@index([workspaceId, createdAt])
   @@index([tokenId, status])
+}
+
+// ─── Content Scheduler (developer area, ETAP 13) ──────────────────────────────
+// Spec: docs/superpowers/specs/2026-10-22-content-scheduler-design.md §8.
+
+enum PostType {
+  FEED_IMAGE
+  FEED_VIDEO
+  CAROUSEL
+  REEL
+  TRIAL_REEL
+  STORY
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING_REVIEW
+  SCHEDULED
+  PAUSED
+  PREPARING
+  READY_TO_PUBLISH
+  PUBLISHING
+  PUBLISHED
+  NEEDS_MANUAL
+  PUBLISHED_MANUAL
+  FAILED
+  REJECTED
+  EXPIRED_REVIEW
+  CANCELED
+}
+
+enum MediaStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum ReviewRule {
+  ANY
+  ALL
+  OPTIONAL
+}
+
+model MediaAsset {
+  id           String      @id @default(cuid())
+  workspaceId  String
+  uploadedById String?
+  // IMAGE | VIDEO
+  kind         String
+  // Bucket keys: the original upload, the Instagram-ready copy, the 640 px thumbnail.
+  originalKey  String
+  preparedKey  String?
+  thumbKey     String?
+  mimeType     String
+  sizeBytes    BigInt
+  // Size of the Instagram-ready copy (preparedKey); Instagram's limits apply to this, not the upload.
+  preparedBytes Int?
+  width        Int?
+  height       Int?
+  durationMs   Int?
+  codec        String?
+  fps          Float?
+  status       MediaStatus @default(UPLOADING)
+  error        String?
+  tags         String[]    @default([])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  usages    ScheduledPostMedia[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model ScheduledPost {
+  id                 String      @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  createdById        String?
+  type               PostType
+  status             PostStatus  @default(DRAFT)
+  // null for stories (the API has no caption there).
+  caption            String?
+  firstComment       String?
+  collaborators      String[]    @default([])
+  shareToFeed        Boolean     @default(true)
+  coverMediaId       String?
+  thumbOffsetMs      Int?
+  // MANUAL | SS_PERFORMANCE (trial reels)
+  trialStrategy      String?
+  audioName          String?
+  locationId         String?
+  isAiGenerated      Boolean     @default(false)
+  autoPublish        Boolean     @default(true)
+  // STORY_STICKER | MUSIC | API_REJECTED | USER_CHOICE
+  manualReason       String?
+  // UTC
+  scheduledAt        DateTime?
+  timezone           String      @default("Asia/Tashkent")
+  // Recurring series or a story series.
+  seriesId           String?
+  seriesIndex        Int?
+  // Meta side
+  containerId        String?
+  containerStatus    String?
+  containerCreatedAt DateTime?
+  igMediaId          String?     @unique
+  permalink          String?
+  publishedAt        DateTime?
+  firstCommentId     String?
+  // SENT | FAILED | SKIPPED
+  firstCommentStatus String?
+  attempts           Int         @default(0)
+  // lib/foundation/error-catalog code
+  lastErrorCode      String?
+  lastErrorMessage   String?
+  // Approval (Faza 2)
+  reviewRule         ReviewRule?
+  reviewSubmittedAt  DateTime?
+  labels             String[]    @default([])
+  // Optimistic lock: every edit and status change bumps it.
+  version            Int         @default(1)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  deletedAt          DateTime?
+
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount     @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  media            ScheduledPostMedia[]
+  reviews          PostReview[]
+  notes            PostNote[]
+  attemptsLog      PublishAttempt[]
+  automations      Automation[]
+  triggerCampaigns TriggerCampaign[]
+
+  @@index([status, scheduledAt])
+  @@index([workspaceId, scheduledAt])
+  @@index([instagramAccountId, scheduledAt])
+}
+
+model ScheduledPostMedia {
+  id          String  @id @default(cuid())
+  postId      String
+  mediaId     String
+  // Carousel order, from 0.
+  position    Int
+  altText     String?
+  // [{ username, x?, y? }]
+  userTags    Json    @default("[]")
+  // { x, y, w, h } in 0..1
+  cropRect    Json?
+  // Carousel child container.
+  containerId String?
+
+  post  ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  media MediaAsset    @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@unique([postId, position])
+  @@index([mediaId])
+}
+
+model PublishAttempt {
+  id          String   @id @default(cuid())
+  postId      String
+  // CONTAINER | STATUS | PUBLISH | COMMENT | LINK_CAMPAIGN | MANUAL_NOTICE
+  step        String
+  ok          Boolean
+  metaCode    Int?
+  metaSubcode Int?
+  fbTraceId   String?
+  message     String?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+
+  post ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model PostReview {
+  id             String    @id @default(cuid())
+  postId         String
+  reviewerUserId String?
+  externalEmail  String?
+  // SHA-256 of the external reviewer's link token.
+  tokenHash      String?
+  // APPROVED | REJECTED
+  decision       String?
+  comment        String?
+  postVersion    Int
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  post ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model PostNote {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  post ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model SavedText {
+  id          String   @id @default(cuid())
+  workspaceId String
+  // ≤ 32
+  title       String
+  // ≤ 16 192
+  body        String
+  // "hashtags", "signature", ...
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model PostingSlot {
+  id                 String    @id @default(cuid())
+  instagramAccountId String
+  // 0 = Monday
+  weekday            Int
+  // 0..1439 in the account's timezone
+  minuteOfDay        Int
+  postType           PostType?
+
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([instagramAccountId, weekday, minuteOfDay])
 }

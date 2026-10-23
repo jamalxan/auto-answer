@@ -144,6 +144,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
+// Public alias so sibling Meta modules (lib/meta/publish.ts) share the same
+// error mapping without duplicating it.
+export { handleResponse as handleMetaResponse };
+
 export async function sendPrivateReply(
   accessToken: string,
   instagramAccountId: string,

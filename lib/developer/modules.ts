@@ -102,7 +102,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     key: "content-analytics",
     etap: 10,
     title: "Analitika",
-    summary: "Kampaniya, AI va sotuv analitikasi, funnel, KPI va ogohlantirishlar. Scheduler Meta publishing ruxsatigacha kechiktirilgan.",
+    summary: "Kampaniya, AI va sotuv analitikasi, funnel, KPI va ogohlantirishlar.",
     status: "TESTING",
     href: "/developer/analytics",
   },
@@ -121,6 +121,14 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary: "Claude / ChatGPT orqali SocialAuto'ni boshqarish (tasdiqlash bilan).",
     status: "TESTING",
     href: "/developer/mcp",
+  },
+  {
+    key: "content-scheduler",
+    etap: 13,
+    title: "Content Scheduler",
+    summary: "Post, karusel, Reels va Story rejalashtirish; qo'lda e'lon; post → comment-to-DM bog'lanishi.",
+    status: "BUILDING",
+    href: "/developer/content",
   },
 ];
 

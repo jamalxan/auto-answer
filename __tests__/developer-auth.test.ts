@@ -84,7 +84,7 @@ describe("developer session token", () => {
 describe("developer module registry", () => {
   it("covers every master-plan stage exactly once", () => {
     expect(DEVELOPER_MODULES.map((m) => m.etap).sort((a, b) => a - b)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
     ]);
     expect(new Set(DEVELOPER_MODULES.map((m) => m.key)).size).toBe(DEVELOPER_MODULES.length);
   });

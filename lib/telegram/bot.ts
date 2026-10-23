@@ -467,6 +467,15 @@ async function handleCallback(io: BotIO, update: TgUpdate) {
   // CRM (ETAP 5.3) assignment buttons: "crm:take:<contactId>" / "crm:release:<contactId>".
   // Routed before the generic answer: the handler answers once with its own text.
   if (data.startsWith("crm:")) return handleCrmCallback(io, cb, data);
+  // Content Scheduler (ETAP 13) manual-publish buttons: "content:done:<postId>" / "content:cancel:<postId>".
+  if (data.startsWith("content:")) {
+    const { handleContentCallback } = await import("@/lib/content/manual");
+    const toast = await handleContentCallback(data, { tgUserId, chatId: cb.message ? String(cb.message.chat.id) : undefined }).catch(
+      () => "Xatolik yuz berdi, birozdan keyin qayta urinib ko'ring."
+    );
+    await answerCallbackQuery(cb.id, toast).catch(() => {});
+    return;
+  }
   await answerCallbackQuery(cb.id).catch(() => {});
 
   if (data.startsWith("contacted:")) return handleContacted(io, cb, data.slice("contacted:".length));
