@@ -94,3 +94,19 @@ npm run telegram:webhook      # Telegram webhook'ni ro'yxatdan o'tkazadi
 ```
 
 Worker (`npm run worker`) endi ikkita navbatni tinglaydi: `dm-processing` va `lead-assistant`. Cron (`scripts/cron.sh`) ikkita yangi marshrutni chaqiradi: `check-tokens` (har 6 soat) va `owner-notifications` (har soat; o'zi kuniga/oyiga 1 marta bilan cheklaydi).
+
+## 12. Content Scheduler (ETAP 13, Faza 1)
+
+Spec: `docs/superpowers/specs/2026-10-22-content-scheduler-design.md`; notes:
+`docs/developer/etap-13-content-scheduler.md`. Ochiq savollarga dasturchi qarori (egasi o'zgartirguncha):
+
+- **Obyekt ombori** — S3-mos driver (`@aws-sdk/client-s3`): R2, Lightsail, MinIO bitta `MEDIA_S3_*` config bilan; tavsiya Cloudflare R2 (egress bepul). Lokal dev uchun `MEDIA_STORAGE_DRIVER=local` (Meta localhost'dan yuklay olmaydi, faqat UI sinovi).
+- **Tarif limitlari** — `CONTENT_STORAGE_QUOTA_BYTES` (standart 5 GB); post limiti Meta `content_publishing_limit` dan o'qiladi (hujjatdagi 50/100 qarama-qarshiligi shu bilan hal); tarifga bog'lash keyin admin paneldan.
+- **YaTT / App Review** — egasi ishi; ungacha modul faqat tester akkauntda (@jamalxann). Telegram orqali qo'lda e'lon ruxsat talab qilmaydi va hamma uchun ishlaydi.
+- **Qayerda** — avval `/developer/content` (BUILDING → TESTING); asosiy menyuga egasi tasdig'i bilan.
+- **Boshqa tarmoqlar** — `channel` maydoni qo'shilmadi; `PostType` + `instagramAccountId`. Kerak bo'lsa nullable migratsiya.
+- **Telegram qo'lda e'lon** — workspace'ga ulangan barcha faol chatlar (mavjud ogohlantirish yo'li). Bildirishnoma bir marta yuboriladi (`PublishAttempt` `MANUAL_NOTICE` qatori belgi).
+- **Limitlar env'da** — `CAROUSEL_MAX_ITEMS` (10), `IG_MAX_COLLABORATORS` (3), `LATE_PUBLISH_MAX_MIN` (15): Meta hujjatlari qarama-qarshi, real akkauntda sinab o'rnatiladi.
+- **Idempotentlik** — `media_publish` javobsiz qolsa qayta chaqirilmaydi: avval konteyner `status_code`, PUBLISHED bo'lsa akkaunt media ro'yxatidan oxirgi post bog'lanadi. Status o'tishlari `UPDATE … WHERE status = <kutilgan>` (CAS), bitta akkauntga bir vaqtda bitta publish (Redis lock).
+- **Kampaniya bog'lanishi** — `Automation.scheduledPostId` / `TriggerCampaign.scheduledPostId`; post chiqguncha kampaniya o'chiq, publish tranzaksiyasida `postId` / `mediaIds` yoziladi va faollashadi. Post bekor qilinsa kampaniya PAUSED, o'chirilmaydi.
+- **Tasdiqlash (approval), CSV, AI caption, recurrence, slotlar** — Faza 2; jadvallar (`PostReview`, `PostNote`, `PostingSlot`) ikkinchi migratsiya bo'lmasligi uchun hozirdan bor.

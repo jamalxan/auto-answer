@@ -40,14 +40,14 @@ function assertKey(key: string): void {
 
 export function getLocalDir(): string {
   const raw = (process.env.MEDIA_LOCAL_DIR ?? "").trim() || ".media";
-  return path.resolve(raw);
+  return path.resolve(/*turbopackIgnore: true*/ raw);
 }
 
 /** Absolute path of a key inside MEDIA_LOCAL_DIR; throws on an invalid key. */
 export function localFilePath(key: string): string {
   assertKey(key);
   const root = getLocalDir();
-  const file = path.resolve(root, ...key.split("/"));
+  const file = path.resolve(/*turbopackIgnore: true*/ root, ...key.split("/"));
   // Belt and braces: the regex already forbids `..`, but never serve outside root.
   if (file !== root && !file.startsWith(root + path.sep)) {
     throw new Error("Media kaliti noto'g'ri");
