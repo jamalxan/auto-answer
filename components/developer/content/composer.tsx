@@ -44,6 +44,8 @@ import {
   type PostTypeValue,
 } from "./shared";
 import TagEditor from "./tag-editor";
+import RecurrenceFields, { emptyRecur, recurBody, recurPreview, type RecurState } from "./recurrence-fields";
+import { formatZoned, storySeriesLabel } from "./shared";
 import CropEditor, { presetsFor } from "./crop-editor";
 import { centerCrop, type CropRect } from "@/lib/content/crop-geometry";
 
@@ -120,6 +122,10 @@ export default function Composer({
   const [tagging, setTagging] = useState<number | null>(null);
   const [cropping, setCropping] = useState<number | null>(null);
   const [advanced, setAdvanced] = useState(false);
+  // Faza 2: recurrence (FR-S8) and the account's posting slots (FR-S9).
+  const [recur, setRecur] = useState<RecurState>(() => emptyRecur(slot.date));
+  const [recurReport, setRecurReport] = useState<{ id: string; total: number; failed: Array<{ seriesIndex: number; at: string; error: string }> } | null>(null);
+  const [slotCount, setSlotCount] = useState(0);
   const dirty = useRef(false);
   const serverId = useRef<string | undefined>(postId);
   const versionRef = useRef<number | null>(null);
@@ -189,6 +195,18 @@ export default function Composer({
       setDraft((d) => ({ ...d, autoPublish: false, manualReason: d.manualReason ?? "USER_CHOICE" }));
     }
   }, [account, canPublish, draft.autoPublish]);
+
+  // ── FR-S9: "Navbatga qo'shish" shows only when the account has slots ───
+  useEffect(() => {
+    if (!canSchedule || !draft.instagramAccountId) return;
+    let alive = true;
+    void requestJson<{ slots: unknown[] }>(`${CONTENT_API}/accounts/${draft.instagramAccountId}/slots`).then((res) => {
+      if (alive) setSlotCount(res.ok ? res.data.slots.length : 0);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [canSchedule, draft.instagramAccountId]);
 
   // ── live server validation ──────────────────────────────────────────────
   useEffect(() => {
@@ -288,7 +306,7 @@ export default function Composer({
   const keywordMissing = Boolean(linked && linked.keywords.length > 0 && fieldVisible(draft.type, "caption") && !linked.keywords.some((k) => draft.caption.toLowerCase().includes(k.toLowerCase())));
 
   // ── save ────────────────────────────────────────────────────────────────
-  async function save(as: ComposerMode = mode) {
+  async function save(as: ComposerMode | "queue" = mode) {
     setSaving(true);
     setError(null);
     try {
@@ -305,7 +323,24 @@ export default function Composer({
         serverId.current = saved.id;
       }
       versionRef.current = saved.version;
-      if (as !== "draft" && canSchedule) {
+      if (as === "queue" || (as === "schedule" && canSchedule && recurring)) {
+        // FR-S9 next free slot / FR-S8 recurrence: their own actions on the saved draft.
+        const res =
+          as === "queue"
+            ? await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/queue`, jsonInit("POST", {}))
+            : await requestJson<{ total: number; failed: Array<{ seriesIndex: number; at: string; error: string }> }>(`${CONTENT_API}/posts/${saved.id}/recur`, jsonInit("POST", recurBody(recur, slot.date, slot.time)));
+        if (!res.ok) {
+          setNotice("Draft saqlandi, lekin rejalashtirilmadi");
+          throw new Error(res.error);
+        }
+        if (as === "schedule" && "failed" in res.data && res.data.failed.length > 0) {
+          writeBackup(postId, null);
+          writeBackup(undefined, null);
+          dirty.current = false;
+          setRecurReport({ id: saved.id, total: res.data.total, failed: res.data.failed });
+          return;
+        }
+      } else if (as !== "draft" && canSchedule) {
         const action = as === "now" ? "publish-now" : "schedule";
         const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/${action}`, jsonInit("POST", as === "now" ? {} : { scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
         if (!res.ok) {
@@ -329,8 +364,12 @@ export default function Composer({
   const issueFor = (field: string) => issues.find((i) => i.field === field)?.message ?? null;
   const mediaIssues = issues.filter((i) => i.field.startsWith("media"));
   const otherIssues = issues.filter((i) => !["caption", "collaborators", "firstComment", "scheduledAt"].includes(i.field) && !i.field.startsWith("media"));
-  const buttonLabel = composerButtonLabel({ mode, at, tz, canSchedule });
-  const disabled = saving || loading || locked || Boolean(blocked) || issues.length > 0 || !meta.me.canCreate;
+  const storySeries = draft.type === "STORY" && draft.media.length > 1;
+  const canRecur = canSchedule && mode === "schedule" && !storySeries && (!detail || detail.status === "DRAFT");
+  const recurring = canRecur && recur.on;
+  const recurInfo = recurPreview(recur, slot.date, slot.time, tz);
+  const buttonLabel = recurring ? (recurInfo.error ? "Takrorlash sozlamasini tekshiring" : `${recurInfo.count} ta nusxani rejalashtirish`) : composerButtonLabel({ mode, at, tz, canSchedule });
+  const disabled = saving || loading || locked || Boolean(blocked) || issues.length > 0 || !meta.me.canCreate || (recurring && Boolean(recurInfo.error));
 
   if (loading) return <p className="text-sm text-muted">Yuklanmoqda…</p>;
 
@@ -348,6 +387,21 @@ export default function Composer({
 
       {locked && <Notice tone="warning">Post {STATUS_LABEL[detail!.status].toLowerCase()} — bu holatda tahrirlab bo&apos;lmaydi.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
+      {recurReport && (
+        <Notice tone="warning">
+          {recurReport.total - recurReport.failed.length}/{recurReport.total} nusxa rejalashtirildi. Rejalashtirilmaganlar draft bo&apos;lib seriyada qoldi:
+          <ul className="mt-1 list-disc pl-4">
+            {recurReport.failed.map((f) => (
+              <li key={f.seriesIndex}>
+                {formatZoned(new Date(f.at), tz)} — {f.error}
+              </li>
+            ))}
+          </ul>
+          <button type="button" className={`${secondaryButton} mt-2`} onClick={() => onSaved(recurReport.id)}>
+            Postga o&apos;tish
+          </button>
+        </Notice>
+      )}
       {notice && (
         <Notice tone="info">
           {notice}{" "}
@@ -485,6 +539,7 @@ export default function Composer({
               </ol>
             )}
             {draft.type === "CAROUSEL" && draft.media.length > 1 && <p className="text-[11px] text-muted">Instagram barcha elementlarni birinchi elementning nisbatiga qirqadi.</p>}
+            {storySeries && <p className="text-xs font-semibold text-foreground">{storySeriesLabel(draft.media.length, mode === "schedule" ? at : null, tz)} — har biri alohida story bo&apos;lib chiqadi.</p>}
             {mediaIssues.filter((i) => !/^media\[\d+\]$/.test(i.field)).map((i) => (
               <p key={i.field} className="text-xs text-error">
                 {i.message}
@@ -657,6 +712,7 @@ export default function Composer({
               </div>
             )}
             {issueFor("scheduledAt") && <p className="text-xs text-error">{issueFor("scheduledAt")}</p>}
+            {canRecur && <RecurrenceFields value={recur} onChange={setRecur} startDate={slot.date} time={slot.time} timezone={tz} />}
             {!canSchedule && <p className="text-xs text-muted">Sizning rolingiz ({meta.me.roleLabel}) rejalashtira olmaydi — draft saqlanadi, MANAGER tasdiqlaydi.</p>}
 
             <div className="space-y-1 border-t border-border pt-3">
@@ -704,6 +760,11 @@ export default function Composer({
             <button type="button" className={primaryButton} disabled={disabled} onClick={() => void save()}>
               {saving ? "Saqlanmoqda…" : buttonLabel}
             </button>
+            {canSchedule && slotCount > 0 && !recurring && (
+              <button type="button" className={secondaryButton} disabled={disabled} onClick={() => void save("queue")} title="Akkauntning keyingi bo'sh slotiga (kamida 5 daqiqa keyin)">
+                Navbatga qo&apos;shish
+              </button>
+            )}
             {mode !== "draft" && (
               <button type="button" className={secondaryButton} disabled={saving || loading || locked || Boolean(blocked)} onClick={() => { setMode("draft"); void save("draft"); }}>
                 Draft sifatida saqlash

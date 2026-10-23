@@ -66,6 +66,31 @@ worker, the sweeper inside the existing cron loop.
    YaTT registration). Manual publishing over Telegram needs no permission and works for everyone.
 3. Creator accounts may refuse story auto-publish; the pipeline falls back to NEEDS_MANUAL.
 
+## Faza 2 — series, recurrence, slots (WP-B)
+
+- **Story series (FR-C9).** The split happens at **schedule time**, not at create time: the composer
+  edits one STORY draft with up to `CONTENT_LIMITS.storySeriesMax` (10) media ("3 ta story, 1 daqiqa
+  oraliq bilan"). `schedulePost` checks lead time, the field matrix and the quota for all N items
+  first, then keeps media[0] on the original (seriesIndex 0) and creates one STORY post per further
+  media sharing a new `seriesId`, each scheduled `storySeriesGapMs` after the previous one through
+  the normal path (own jobs, FR-S4 spacing keeps the order). Validation accepts a multi-media STORY
+  only while it is unscheduled (`ValidateOptions.storySeries`); editing a SCHEDULED / PAUSED story
+  back to several media is refused, so a queued story is always one media. Pause / unschedule /
+  cancel act on one item. Post detail shows "Seriya: 2/3" with links.
+- **Recurrence (FR-S8).** `lib/content/recurrence.ts` (pure, also used by the composer for the live
+  count): daily / weekly (chosen weekdays, 0 = Monday) / monthly (same day; months without it are
+  skipped), every N, wall-clock in the post's zone, end date inclusive; ≤ 180 days, ≤ 200 copies.
+  Action `recur` (MANAGER+) on a DRAFT: the original becomes index 0, copies are duplicates sharing
+  the `seriesId`, each goes through `schedulePost`; a copy that fails (quota, spacing) stays DRAFT in
+  the series and is listed in the report instead of aborting the rest. Multi-media stories cannot be
+  recurred. `delete-series-future` (MANAGER+) soft-deletes later items not yet published or in flight;
+  `apply-to-series` (OPERATOR+) copies texts and switches to the series' DRAFT copies.
+- **Posting slots (FR-S9).** `GET/PUT /api/developer/content/accounts/[id]/slots` (PUT replaces the
+  weekly set, MANAGER+): weekday 0 = Monday, minuteOfDay in the workspace zone, optional postType.
+  `nextFreeSlot` skips slots within the same minute as a queued post of the account; action `queue`
+  schedules into the next free slot ≥ now + 5 min (8-week horizon, 409 when none). Calendar →
+  "Slotlar" panel edits them; the composer shows "Navbatga qo'shish" when the account has slots.
+
 ## How to test on @jamalxann
 
 1. Set `MEDIA_S3_*` (R2 recommended) — Meta must be able to fetch the media URL.
@@ -89,7 +114,7 @@ Meta 190 error in the post detail (verified 2026-10-23).
 | AC-1 JPEG feed post at 19:00 publishes within the minute, PUBLISHED + permalink | needs real account |
 | AC-2 5-item carousel (3 images + 2 videos) with user tags, order kept | needs real account (unit: carousel children order, tags per child) |
 | AC-3 45 s Reels, custom cover, `share_to_feed=false`, one collaborator | needs real account (unit: container params) |
-| AC-4 3-story series one minute apart | **not built** — the story series (FR-C9) is Faza 2; only the `storySeriesGapMs` constant exists |
+| AC-4 3-story series one minute apart | unit (Faza 2 WP-B, `content-series.test.ts`); live pending |
 | AC-5 Link-sticker story → NEEDS_MANUAL → Telegram → PUBLISHED_MANUAL | unit + Telegram callback tests pass; live Telegram check pending |
 | AC-6 First comment ≤ 30 s | unit (10 s job) ; live pending |
 | AC-7 Linked campaign gets the DM within a minute | unit (activation in the publish transaction); live pending |

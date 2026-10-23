@@ -76,7 +76,7 @@ export const minuteLabel = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 
 const DAY_MS = 86_400_000;
 
 /** Slot instants (sorted) from `after` on, over the horizon — pure. */
-export function slotInstants(slots: Array<Pick<SlotView, "weekday" | "minuteOfDay" | "postType">>, after: Date, timezone: string, opts: { postType?: PostTypeValue; days?: number } = {}): Date[] {
+export function slotInstants(slots: Array<{ weekday: number; minuteOfDay: number; postType?: PostTypeValue | null }>, after: Date, timezone: string, opts: { postType?: PostTypeValue; days?: number } = {}): Date[] {
   const fitting = slots.filter((s) => !opts.postType || !s.postType || s.postType === opts.postType);
   if (fitting.length === 0) return [];
   const startDay = Date.parse(`${utcToZoned(after, timezone).date}T00:00:00Z`) / DAY_MS;
