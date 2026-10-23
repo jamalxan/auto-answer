@@ -15,6 +15,7 @@ import { ChipInput, Field, inputClass, Pill, primaryButton, secondaryButton, Tog
 import { EDITABLE } from "@/lib/content/transitions";
 import { MediaPicker, UploadZone } from "./media-library";
 import Preview from "./preview";
+import { EMPTY_REVIEW, ReviewForm, reviewDraftIssue, type MetaWithReviewers, type ReviewDraft } from "./reviews";
 import {
   composerBlocked,
   composerButtonLabel,
@@ -120,6 +121,8 @@ export default function Composer({
   const [tagging, setTagging] = useState<number | null>(null);
   const [cropping, setCropping] = useState<number | null>(null);
   const [advanced, setAdvanced] = useState(false);
+  // Approval (Faza 2): null = schedule directly; OPERATOR always sends to review.
+  const [review, setReview] = useState<ReviewDraft | null>(meta.me.canSchedule ? null : EMPTY_REVIEW);
   const dirty = useRef(false);
   const serverId = useRef<string | undefined>(postId);
   const versionRef = useRef<number | null>(null);
@@ -305,7 +308,13 @@ export default function Composer({
         serverId.current = saved.id;
       }
       versionRef.current = saved.version;
-      if (as !== "draft" && canSchedule) {
+      if (as === "schedule" && review) {
+        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/review`, jsonInit("POST", { ...review, scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
+        if (!res.ok) {
+          setNotice("Draft saqlandi, lekin tasdiqqa yuborilmadi");
+          throw new Error(res.error);
+        }
+      } else if (as !== "draft" && canSchedule) {
         const action = as === "now" ? "publish-now" : "schedule";
         const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/${action}`, jsonInit("POST", as === "now" ? {} : { scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
         if (!res.ok) {
@@ -313,7 +322,7 @@ export default function Composer({
           throw new Error(res.error);
         }
       } else if (as !== "draft" && !canSchedule) {
-        setNotice("Draft saqlandi. Tasdiqlash oqimi keyingi fazada — hozircha MANAGER kalendardan rejalashtiradi.");
+        setNotice("Draft saqlandi. Tasdiqqa yuborish uchun vaqtni tanlang.");
       }
       writeBackup(postId, null);
       writeBackup(undefined, null);
@@ -329,8 +338,9 @@ export default function Composer({
   const issueFor = (field: string) => issues.find((i) => i.field === field)?.message ?? null;
   const mediaIssues = issues.filter((i) => i.field.startsWith("media"));
   const otherIssues = issues.filter((i) => !["caption", "collaborators", "firstComment", "scheduledAt"].includes(i.field) && !i.field.startsWith("media"));
-  const buttonLabel = composerButtonLabel({ mode, at, tz, canSchedule });
-  const disabled = saving || loading || locked || Boolean(blocked) || issues.length > 0 || !meta.me.canCreate;
+  const toReview = Boolean(review && mode === "schedule");
+  const buttonLabel = toReview ? "Tasdiqqa yuborish" : composerButtonLabel({ mode, at, tz, canSchedule });
+  const disabled = saving || loading || locked || Boolean(blocked) || issues.length > 0 || !meta.me.canCreate || Boolean(toReview && review && reviewDraftIssue(review));
 
   if (loading) return <p className="text-sm text-muted">Yuklanmoqda…</p>;
 
@@ -640,7 +650,7 @@ export default function Composer({
                   ["draft", "Draft"],
                 ] as Array<[ComposerMode, string]>
               ).map(([m, label]) => (
-                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`${secondaryButton} ${mode === m ? "border-accent/60 text-foreground" : ""}`} disabled={m !== "draft" && !canSchedule}>
+                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`${secondaryButton} ${mode === m ? "border-accent/60 text-foreground" : ""}`} disabled={m === "now" && (!canSchedule || review !== null)}>
                   {label}
                 </button>
               ))}
@@ -657,7 +667,13 @@ export default function Composer({
               </div>
             )}
             {issueFor("scheduledAt") && <p className="text-xs text-error">{issueFor("scheduledAt")}</p>}
-            {!canSchedule && <p className="text-xs text-muted">Sizning rolingiz ({meta.me.roleLabel}) rejalashtira olmaydi — draft saqlanadi, MANAGER tasdiqlaydi.</p>}
+            {!canSchedule && <p className="text-xs text-muted">Sizning rolingiz ({meta.me.roleLabel}) rejalashtira olmaydi — post tanlangan vaqt bilan tasdiqqa yuboriladi.</p>}
+            {canSchedule && mode === "schedule" && (
+              <button type="button" className={`${secondaryButton} !py-1 text-xs`} onClick={() => setReview((r) => (r ? null : EMPTY_REVIEW))}>
+                {review ? "Tasdiqsiz rejalashtirish" : "Tasdiqqa yuborish (mijoz yoki rahbar ko'rsin)"}
+              </button>
+            )}
+            {review && mode === "schedule" && <ReviewForm meta={meta as MetaWithReviewers} value={review} onChange={setReview} />}
 
             <div className="space-y-1 border-t border-border pt-3">
               <Switch

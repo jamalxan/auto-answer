@@ -17,6 +17,7 @@ import Composer from "./composer";
 import MediaLibrary from "./media-library";
 import PostDetail from "./post-detail";
 import QueueCard from "./queue-card";
+import { ReviewsPanel } from "./reviews";
 import SavedTexts from "./saved-texts";
 import { CONTENT_API, requestJson, type ContentMeta } from "./shared";
 
@@ -24,6 +25,7 @@ const TABS = [
   ["calendar", "Kalendar"],
   ["library", "Kutubxona"],
   ["texts", "Shablonlar"],
+  ["reviews", "Tasdiqlar"],
 ] as const;
 export type ContentTab = (typeof TABS)[number][0];
 
@@ -161,6 +163,7 @@ export default function ContentDashboard() {
           )}
           {tab === "library" && <MediaLibrary meta={meta} />}
           {tab === "texts" && <SavedTexts meta={meta} onChanged={load} />}
+          {tab === "reviews" && <ReviewsPanel meta={meta} refreshKey={refreshKey} onOpen={(id) => navigate({ tab: "calendar", post: id })} onChanged={bump} />}
         </>
       )}
 
