@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
 import { Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 import { explainError, RECONNECT_HREF } from "@/lib/foundation/error-catalog";
+import { ReviewHistory } from "./reviews";
 import { CONTENT_API, formatZoned, jsonInit, postCardTone, requestJson, STATUS_LABEL, TONE_CLASS, TYPE_LABEL, type ContentMeta, type PostDetail as Detail } from "./shared";
 
 const TIMELINE: Array<{ key: string; label: string; reached: (p: Detail) => boolean }> = [
@@ -144,6 +145,9 @@ export default function PostDetail({
         </div>
       )}
       {s === "PUBLISHED" && post.firstCommentStatus === "FAILED" && <Notice tone="warning">Post chiqdi, birinchi komment yozilmadi — Instagram ilovasida qo&apos;lda yozing.</Notice>}
+      {s === "PENDING_REVIEW" && <Notice tone="info">Post tasdiq kutmoqda. Tahrirlasangiz tasdiq bekor bo&apos;ladi va post draftga qaytadi.</Notice>}
+      {s === "REJECTED" && <Notice tone="warning">Post rad etildi — izohni pastda ko&apos;ring, tahrirlab qayta yuboring.</Notice>}
+      {s === "EXPIRED_REVIEW" && <Notice tone="warning">Vaqtida tasdiqlanmadi — yangi vaqt bilan qayta tasdiqqa yuboring.</Notice>}
       {s === "NEEDS_MANUAL" && (
         <Notice tone="warning">
           Bu post qo&apos;lda chiqariladi{meta.telegramConnected ? " — fayllar va caption Telegram'ga yuborildi." : " — Telegram ulanmagan: fayllarni quyidan yuklab oling, caption'dan nusxa oling."} Chiqargach «Chiqardim» ni bosing.
@@ -196,7 +200,7 @@ export default function PostDetail({
             </Notice>
           )}
           <div className="flex flex-wrap gap-2 pt-2">
-            {meta.me.canCreate && ["DRAFT", "SCHEDULED", "PAUSED", "FAILED", "NEEDS_MANUAL", "REJECTED", "EXPIRED_REVIEW", "CANCELED"].includes(s) && (
+            {meta.me.canCreate && ["DRAFT", "PENDING_REVIEW", "SCHEDULED", "PAUSED", "FAILED", "NEEDS_MANUAL", "REJECTED", "EXPIRED_REVIEW", "CANCELED"].includes(s) && (
               <button type="button" className={secondaryButton} onClick={onEdit}>
                 Tahrirlash
               </button>
@@ -267,6 +271,8 @@ export default function PostDetail({
           )}
         </div>
       </div>
+
+      <ReviewHistory meta={meta} postId={post.id} status={s} refreshKey={refreshKey} onChanged={() => { onChanged(); void load(); }} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { ContentError } from "@/lib/content/errors";
 import { recurInputSchema } from "@/lib/content/recurrence";
 import { applyToSeries, deleteSeriesFuture, recurPost } from "@/lib/content/series";
 import { queuePost } from "@/lib/content/slots";
+import { addNote, decide, getReviewSummary, listNotes, noteInputSchema, reviewDecisionSchema, reviewSubmitSchema, submitForReview } from "@/lib/content/review";
 import { duplicateInputSchema, scheduleInputSchema } from "@/lib/content/schema";
 import {
   cancelPost,
@@ -40,7 +41,14 @@ const ACTIONS: Record<string, ContentAccess> = {
   queue: "schedule",
   "delete-series-future": "schedule",
   "apply-to-series": "create",
+  // Approval (Faza 2, FR-A1): OPERATOR+ submits, MANAGER+ decides, notes by anyone who may draft.
+  review: "create",
+  decision: "approve",
+  notes: "create",
 };
+
+/** Read-only sub-resources: the review history and the notes thread. */
+const READS: Record<string, ContentAccess> = { review: "view", notes: "view" };
 
 function resolveScheduledAt(value: { scheduledAt: string | { date: string; time: string; timezone: string } }): Date {
   if (typeof value.scheduledAt === "string") return new Date(value.scheduledAt);
@@ -78,6 +86,21 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       return respond(await run(() => cancelPost(ws, id)));
     case "mark-published":
       return respond(await run(() => markPublishedManually(ws, id)));
+    case "review": {
+      const parsed = parseBody(reviewSubmitSchema, body);
+      if (!parsed.ok) return respond(parsed);
+      return respond(await run(() => submitForReview(ws, id, auth.ctx.userId, { ...parsed.data, scheduledAt: resolveScheduledAt(parsed.data) })));
+    }
+    case "decision": {
+      const parsed = parseBody(reviewDecisionSchema, body);
+      if (!parsed.ok) return respond(parsed);
+      return respond(await run(() => decide(ws, id, auth.ctx.userId, auth.ctx.role, parsed.data)));
+    }
+    case "notes": {
+      const parsed = parseBody(noteInputSchema, body);
+      if (!parsed.ok) return respond(parsed);
+      return respond(await run(() => addNote(ws, id, auth.ctx.userId, parsed.data.body)), 201);
+    }
     case "duplicate": {
       const parsed = parseBody(duplicateInputSchema, body);
       if (!parsed.ok) return respond(parsed);
@@ -97,4 +120,15 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     default:
       return jsonError("Not found", 404);
   }
+}
+
+export async function GET(_request: NextRequest, { params }: Ctx) {
+  const { id, action } = await params;
+  const access = READS[action];
+  if (!access) return jsonError("Not found", 404);
+  const auth = await requireContent(access);
+  if (!auth.ok) return auth.response;
+  const ws = auth.ctx.workspaceId;
+  if (action === "review") return respond(await run(() => getReviewSummary(ws, id)));
+  return respond(await run(() => listNotes(ws, id)));
 }

@@ -127,6 +127,14 @@ describe("sweepContent", () => {
     expect(mocks.bindManualPost).toHaveBeenCalledWith("p1");
   });
 
+  it("expires a PENDING_REVIEW post 3 hours past its slot (FR-A4)", async () => {
+    post("p1", { status: "PENDING_REVIEW", scheduledAt: min(-181), reviewRule: "ANY", reviewSubmittedAt: min(-600) });
+    post("p2", { status: "PENDING_REVIEW", scheduledAt: min(-120), reviewRule: "ANY", reviewSubmittedAt: min(-600) });
+    const r = await sweepContent(NOW);
+    expect(r.reviewsExpired).toBe(1);
+    expect(db.rows("scheduledPost").map((p) => p.status)).toEqual(["EXPIRED_REVIEW", "PENDING_REVIEW"]);
+  });
+
   it("skips deleted posts", async () => {
     post("p1", { scheduledAt: min(-1), deletedAt: NOW });
     const r = await sweepContent(NOW);

@@ -1,6 +1,7 @@
 import { jsonOk } from "@/lib/api-auth";
 import { carouselMaxItems, CONTENT_LIMITS, isContentSchedulerEnabled, maxCollaborators, storageQuotaBytes } from "@/lib/content/config";
 import { canContent } from "@/lib/content/permissions";
+import { reviewerCandidates } from "@/lib/content/review";
 import { getStorageDriverName, isStorageConfigured } from "@/lib/content/storage";
 import { prisma } from "@/lib/db/client";
 import { requireContent } from "@/lib/developer/content-guard";
@@ -37,8 +38,11 @@ export async function GET() {
     prisma.savedText.findMany({ where: { workspaceId }, orderBy: { updatedAt: "desc" }, take: 100 }),
     isTelegramConfigured() ? getWorkspaceChats(workspaceId).catch(() => []) : Promise.resolve([]),
   ]);
+  // Approval (Faza 2): the members a post can be sent to for review.
+  const reviewers = await reviewerCandidates(workspaceId).catch(() => []);
   return jsonOk({
     disabled: !isContentSchedulerEnabled(),
+    reviewers,
     me: {
       role,
       normalizedRole: normalizeRole(role),
