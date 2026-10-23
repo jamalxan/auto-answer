@@ -81,6 +81,12 @@ export interface ValidateOptions {
   carouselMax: number;
   maxCollaborators: number;
   now?: Date;
+  /**
+   * FR-C9: a STORY draft may hold several media — scheduling turns it into a
+   * series of one-media stories (service.ts). Off for a post that already
+   * holds a slot: a queued story is always a single item.
+   */
+  storySeries?: boolean;
 }
 
 const ratio = (w?: number | null, h?: number | null) => (w && h ? w / h : null);
@@ -173,14 +179,16 @@ export function validatePost(input: PostInput, media: MediaFacts[], opts: Valida
   }
 
   // Media count
-  const max = rules.media.max === "carousel" ? opts.carouselMax : rules.media.max;
+  const max = rules.media.max === "carousel" ? opts.carouselMax : type === "STORY" && opts.storySeries ? CONTENT_LIMITS.storySeriesMax : rules.media.max;
   if (input.media.length < rules.media.min || input.media.length > max) {
     issues.push({
       field: "media",
       message:
         type === "CAROUSEL"
           ? `Karuselda ${rules.media.min} dan ${max} tagacha element bo'ladi`
-          : `Bu turda ${rules.media.min} ta media bo'ladi`,
+          : type === "STORY" && opts.storySeries
+            ? `Story seriyasida ${rules.media.min} dan ${max} tagacha media bo'ladi`
+            : `Bu turda ${rules.media.min} ta media bo'ladi`,
     });
   }
 
