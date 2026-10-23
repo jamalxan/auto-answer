@@ -31,6 +31,8 @@ export const CONTENT_LIMITS = {
   maxScheduleAheadMs: 365 * 86_400_000,
   /** Story series: each story one minute after the previous one. */
   storySeriesGapMs: 60_000,
+  /** FR-C9: a STORY draft with up to this many media becomes a series when scheduled. */
+  storySeriesMax: 10,
   /** Two posts of one account within a minute: the second moves this far. */
   sameMinuteGapMs: 120_000,
 } as const;

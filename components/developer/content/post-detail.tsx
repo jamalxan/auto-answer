@@ -6,6 +6,7 @@
  * permalink, the linked campaign, and the state buttons.
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
 import { Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
@@ -115,6 +116,8 @@ export default function PostDetail({
           );
         })}
       </ol>
+
+      {post.series && post.series.total > 1 && <SeriesBar post={post} canSchedule={can} canCreate={meta.me.canCreate} busy={busy !== null} onAction={(name) => void action(name)} />}
 
       {failure && <Notice tone="error">{failure}</Notice>}
 
@@ -264,6 +267,59 @@ export default function PostDetail({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** FR-C9 / FR-S8: "Seriya: 2/3" with a link to every item and the series-wide actions. */
+function SeriesBar({ post, canSchedule, canCreate, busy, onAction }: { post: Detail; canSchedule: boolean; canCreate: boolean; busy: boolean; onAction: (name: string) => void }) {
+  const series = post.series!;
+  const ownIndex = series.items.find((x) => x.id === post.id)?.seriesIndex ?? 0;
+  const later = series.items.filter((i) => i.seriesIndex > ownIndex && !["PUBLISHING", "PUBLISHED", "PUBLISHED_MANUAL"].includes(i.status));
+  const drafts = series.items.filter((i) => i.id !== post.id && i.status === "DRAFT");
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+      <span className="font-semibold text-foreground">
+        Seriya: {series.position}/{series.total}
+      </span>
+      <ol className="flex flex-wrap gap-1">
+        {series.items.map((item, i) => {
+          const tone = TONE_CLASS[postCardTone(item.status)];
+          const when = item.scheduledAt ? formatZoned(new Date(item.scheduledAt), post.timezone) : STATUS_LABEL[item.status];
+          return (
+            <li key={item.id}>
+              {item.id === post.id ? (
+                <span className={`rounded-md border px-1.5 py-0.5 font-semibold ring-1 ring-accent/60 ${tone}`} aria-current="page">
+                  {i + 1} · {when}
+                </span>
+              ) : (
+                <Link href={`/developer/content?tab=calendar&post=${item.id}`} className={`rounded-md border px-1.5 py-0.5 hover:underline ${tone}`} title={STATUS_LABEL[item.status]}>
+                  {i + 1} · {when}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <span className="ml-auto flex flex-wrap gap-1">
+        {canCreate && drafts.length > 0 && ["DRAFT", "SCHEDULED", "PAUSED"].includes(post.status) && (
+          <button type="button" className={`${secondaryButton} !py-0.5 text-xs`} disabled={busy} onClick={() => onAction("apply-to-series")} title="Matn va sozlamalar seriyaning draft nusxalariga ko'chiriladi">
+            Matnni seriyaga qo&apos;llash ({drafts.length})
+          </button>
+        )}
+        {canSchedule && later.length > 0 && (
+          <button
+            type="button"
+            className={`${secondaryButton} !py-0.5 text-xs text-error`}
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(`Seriyaning keyingi ${later.length} ta nusxasi o'chirilsinmi?`)) onAction("delete-series-future");
+            }}
+          >
+            Keyingi nusxalarni o&apos;chirish ({later.length})
+          </button>
+        )}
+      </span>
     </div>
   );
 }

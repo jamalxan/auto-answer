@@ -11,6 +11,7 @@
  * the version they saw) so two tabs or a worker and a user cannot both win.
  */
 
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
 import { done, type ServiceResult } from "@/lib/crm/result";
@@ -104,6 +105,16 @@ export interface PostDetail {
   attemptsLog: PublishAttemptView[];
   linkedCampaign: LinkedCampaignSummary | null;
   issues: ValidationIssue[];
+  /** FR-C9 / FR-S8: the story series or recurrence this post belongs to. */
+  series: SeriesInfo | null;
+}
+
+export interface SeriesInfo {
+  id: string;
+  /** 1-based place of this post among the live items ("Seriya: 2/3"). */
+  position: number;
+  total: number;
+  items: Array<{ id: string; seriesIndex: number; status: PostStatusValue; scheduledAt: Date | null }>;
 }
 
 export interface PostCard {
@@ -122,6 +133,8 @@ export interface PostCard {
   autoPublish: boolean;
   lastErrorCode: string | null;
   version: number;
+  seriesId: string | null;
+  seriesIndex: number | null;
 }
 
 const POST_INCLUDE = {
@@ -132,8 +145,8 @@ const POST_INCLUDE = {
 
 type PostRow = Prisma.ScheduledPostGetPayload<{ include: typeof POST_INCLUDE }>;
 
-function validateOpts(now?: Date) {
-  return { carouselMax: carouselMaxItems(), maxCollaborators: maxCollaborators(), now };
+function validateOpts(now?: Date, storySeries = true) {
+  return { carouselMax: carouselMaxItems(), maxCollaborators: maxCollaborators(), now, storySeries };
 }
 
 function factsOf(asset: { id: string; kind: string; status: string; width: number | null; height: number | null; durationMs: number | null; sizeBytes: bigint | number; preparedBytes?: number | null }): MediaFacts {
@@ -239,7 +252,19 @@ async function toDetail(row: PostRow): Promise<PostDetail> {
     attemptsLog: row.attemptsLog.map((a) => ({ id: a.id, step: a.step, ok: a.ok, metaCode: a.metaCode, message: a.message, durationMs: a.durationMs, createdAt: a.createdAt })),
     linkedCampaign: await linkedCampaignSummary(row.id),
     issues: issuesOfRow(row),
+    series: await seriesOf(row),
   };
+}
+
+async function seriesOf(row: PostRow): Promise<SeriesInfo | null> {
+  if (!row.seriesId) return null;
+  const items = await prisma.scheduledPost.findMany({
+    where: { workspaceId: row.workspaceId, seriesId: row.seriesId, deletedAt: null },
+    orderBy: [{ seriesIndex: "asc" }, { scheduledAt: "asc" }],
+    select: { id: true, seriesIndex: true, status: true, scheduledAt: true },
+  });
+  const list = items.map((i) => ({ id: i.id, seriesIndex: i.seriesIndex ?? 0, status: i.status, scheduledAt: i.scheduledAt }));
+  return { id: row.seriesId, position: list.findIndex((i) => i.id === row.id) + 1, total: list.length, items: list };
 }
 
 // ─── Loading ────────────────────────────────────────────────────────────────
@@ -350,7 +375,7 @@ export async function updatePost(workspaceId: string, postId: string, input: Pos
   if (hard.length) throw new ContentError(400, hard[0].message);
   // A post that already holds a slot must stay publishable.
   if (row.status === "SCHEDULED" || row.status === "PAUSED") {
-    const issues = validatePost(merged, [...facts.values()], validateOpts());
+    const issues = validatePost(merged, [...facts.values()], validateOpts(undefined, false));
     if (issues.length) throw new ContentError(400, issues[0].message);
   }
 
@@ -417,6 +442,7 @@ export async function schedulePost(workspaceId: string, postId: string, at: Date
   if (row.status !== "SCHEDULED" && !canTransition(row.status, "SCHEDULED")) {
     throw new ContentError(409, "Bu holatdagi postni rejalashtirib bo'lmaydi");
   }
+  if (row.type === "STORY" && row.media.length > 1) return scheduleStorySeries(workspaceId, row, at, opts);
   if (!opts.skipLeadCheck) {
     const when = scheduleIssues(at, now);
     if (when.length) throw new ContentError(400, when[0].message);
@@ -613,8 +639,68 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
         autoPublish: row.autoPublish,
         lastErrorCode: row.lastErrorCode,
         version: row.version,
+        seriesId: row.seriesId ?? null,
+        seriesIndex: row.seriesIndex ?? null,
       };
     })
   );
   return { items, total };
+}
+
+// ─── Story series (FR-C9, AC-4) ─────────────────────────────────────────────
+
+/**
+ * A STORY draft with several media is split when it is scheduled, not when
+ * it is created: the composer edits one draft, and every item that reaches
+ * the queue is an ordinary one-media story. The original keeps media[0] and
+ * becomes index 0; each further media gets its own post (index 1…n-1)
+ * sharing a new seriesId, scheduled one minute after the previous item,
+ * each with its own jobs. All checks run before anything is split.
+ */
+async function scheduleStorySeries(workspaceId: string, row: PostRow, at: Date, opts: ScheduleOptions): Promise<PostDetail> {
+  const now = opts.now ?? new Date();
+  if (!opts.skipLeadCheck) {
+    const when = scheduleIssues(at, now);
+    if (when.length) throw new ContentError(400, when[0].message);
+  }
+  const issues = issuesOfRow(row, now);
+  if (issues.length) throw new ContentError(400, issues.map((i) => i.message).join("; "));
+  const n = row.media.length;
+  if (row.autoPublish && !row.manualReason) {
+    const quota = await accountQuota(row.instagramAccountId, now);
+    if (quotaWindowFull(quota, n)) {
+      throw new ContentError(409, `24 soatlik limit ${n} ta story'ga yetmaydi (${quota.used + quota.scheduledNext24h}/${quota.total}) — boshqa vaqt tanlang`, "PUBLISH_QUOTA");
+    }
+  }
+
+  const seriesId = randomUUID();
+  const input = inputOfRow(row);
+  const ids = [row.id];
+  for (let i = 1; i < n; i++) {
+    const created = await prisma.scheduledPost.create({
+      data: {
+        workspaceId,
+        instagramAccountId: row.instagramAccountId,
+        createdById: row.createdById ?? undefined,
+        type: "STORY",
+        status: "DRAFT",
+        timezone: row.timezone,
+        seriesId,
+        seriesIndex: i,
+        ...scalarData(input, "STORY"),
+      },
+    });
+    await prisma.scheduledPostMedia.createMany({ data: mediaRows(created.id, [input.media[i]]) });
+    ids.push(created.id);
+  }
+  await prisma.scheduledPostMedia.deleteMany({ where: { postId: row.id, position: { gt: 0 } } });
+  await prisma.scheduledPost.update({ where: { id: row.id }, data: { seriesId, seriesIndex: 0, version: { increment: 1 } } });
+
+  let previous: Date | null = null;
+  for (const id of ids) {
+    const slot: Date = previous ? new Date(previous.getTime() + CONTENT_LIMITS.storySeriesGapMs) : at;
+    const scheduled = await schedulePost(workspaceId, id, slot, { now, skipLeadCheck: previous ? true : opts.skipLeadCheck });
+    previous = scheduled.scheduledAt ?? slot;
+  }
+  return getPost(workspaceId, row.id);
 }

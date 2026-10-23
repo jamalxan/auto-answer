@@ -32,6 +32,7 @@ import {
   type PostStatusValue,
   type PostTypeValue,
 } from "./shared";
+import SlotsEditor from "./slots-editor";
 
 type View = "month" | "week" | "list";
 
@@ -65,6 +66,7 @@ export default function CalendarView({
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
+  const [slotsOpen, setSlotsOpen] = useState(false);
   const seq = useRef(0);
 
   const [year, month0] = [Number(anchor.slice(0, 4)), Number(anchor.slice(5, 7)) - 1];
@@ -175,6 +177,11 @@ export default function CalendarView({
           <option value="no">Kampaniyasiz</option>
         </select>
         <input className={`${inputClass} !w-48`} placeholder="Caption bo'yicha qidirish" value={q} onChange={(e) => setQ(e.target.value)} />
+        {meta.accounts.length > 0 && (
+          <button type="button" className={`${secondaryButton} ${slotsOpen ? "border-accent/60 text-foreground" : ""}`} aria-expanded={slotsOpen} onClick={() => setSlotsOpen((o) => !o)}>
+            Slotlar
+          </button>
+        )}
         {quota && (
           <span className="ml-auto">
             <Pill tone={quota.used + quota.scheduledNext24h >= quota.total ? "error" : quota.used + quota.scheduledNext24h >= quota.total * 0.8 ? "warning" : "muted"}>
@@ -185,6 +192,7 @@ export default function CalendarView({
       </div>
 
       {failure && <Notice tone="error">{failure}</Notice>}
+      {slotsOpen && <SlotsEditor meta={meta} accountId={account || undefined} onClose={() => setSlotsOpen(false)} />}
 
       {view === "list" ? (
         <ListView posts={posts} tz={tz} onOpen={onOpen} />
@@ -250,6 +258,11 @@ function PostChip({ post, tz, onOpen }: { post: PostCard; tz: string; onOpen: (i
         <span className="font-semibold">{time}</span> {TYPE_LABEL[post.type]}
         {post.linked && <span className="ml-1 rounded bg-accent/20 px-1 text-[9px] font-bold text-accent">DM</span>}
         {!post.autoPublish && <span className="ml-1 text-[9px]">✋</span>}
+        {post.seriesId && (
+          <span className="ml-1 rounded bg-primary/20 px-1 text-[9px] font-bold text-primary" title="Seriya (story seriyasi yoki takroriy post)">
+            S{(post.seriesIndex ?? 0) + 1}
+          </span>
+        )}
       </span>
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT_CLASS[tone]}`} aria-hidden="true" />
     </button>

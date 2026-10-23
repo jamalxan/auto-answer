@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { jsonError } from "@/lib/api-auth";
 import { ContentError } from "@/lib/content/errors";
+import { recurInputSchema } from "@/lib/content/recurrence";
+import { applyToSeries, deleteSeriesFuture, recurPost } from "@/lib/content/series";
+import { queuePost } from "@/lib/content/slots";
 import { duplicateInputSchema, scheduleInputSchema } from "@/lib/content/schema";
 import {
   cancelPost,
@@ -32,6 +35,11 @@ const ACTIONS: Record<string, ContentAccess> = {
   cancel: "schedule",
   "mark-published": "create",
   duplicate: "create",
+  // Faza 2 — series and slots (FR-S8, FR-S9)
+  recur: "schedule",
+  queue: "schedule",
+  "delete-series-future": "schedule",
+  "apply-to-series": "create",
 };
 
 function resolveScheduledAt(value: { scheduledAt: string | { date: string; time: string; timezone: string } }): Date {
@@ -75,6 +83,17 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       if (!parsed.ok) return respond(parsed);
       return respond(await run(() => duplicatePost(ws, id, parsed.data)), 201);
     }
+    case "recur": {
+      const parsed = parseBody(recurInputSchema, body);
+      if (!parsed.ok) return respond(parsed);
+      return respond(await run(() => recurPost(ws, id, parsed.data)));
+    }
+    case "queue":
+      return respond(await run(() => queuePost(ws, id)));
+    case "delete-series-future":
+      return respond(await run(() => deleteSeriesFuture(ws, id)));
+    case "apply-to-series":
+      return respond(await run(() => applyToSeries(ws, id)));
     default:
       return jsonError("Not found", 404);
   }

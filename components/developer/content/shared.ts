@@ -7,6 +7,7 @@
 import { FIELD_MATRIX, type FieldRules } from "@/lib/content/validate";
 import type { PostStatusValue, PostTypeValue } from "@/lib/content/schema";
 import { formatZoned, utcToZoned } from "@/lib/content/time";
+import { CONTENT_LIMITS } from "@/lib/content/config";
 
 export { jsonInit, requestJson, type JsonResult } from "@/components/developer/comments/shared";
 import { countCaption } from "@/lib/content/text";
@@ -159,7 +160,7 @@ export interface ComposerLimits {
  */
 export function composerBlocked(draft: PostDraft, limits: ComposerLimits): string | null {
   if (!draft.instagramAccountId) return "Akkaunt tanlanmagan";
-  const rule = FIELD_MATRIX[draft.type].media;
+  const rule = mediaRule(draft.type);
   if (draft.media.length === 0) return "Media tanlanmagan";
   const max = rule.max === "carousel" ? limits.carouselMax : rule.max;
   if (draft.media.length < rule.min) return `Kamida ${rule.min} ta media kerak`;
@@ -189,8 +190,19 @@ export function defaultSlot(initialDate: string | null, tz: string, now: Date = 
   return utcToZoned(new Date(t), tz);
 }
 
+/** FR-C9: in the composer a story takes several media — scheduling makes them a series. */
 export function mediaRule(type: PostTypeValue): FieldRules["media"] {
-  return FIELD_MATRIX[type].media;
+  const rule = FIELD_MATRIX[type].media;
+  return type === "STORY" ? { ...rule, max: CONTENT_LIMITS.storySeriesMax } : rule;
+}
+
+/** "3 ta story, 1 daqiqa oraliq bilan · 19:00, 19:01, 19:02" (FR-C9). */
+export function storySeriesLabel(count: number, at: Date | null, tz: string): string {
+  const gapMin = Math.round(CONTENT_LIMITS.storySeriesGapMs / 60_000);
+  const base = `${count} ta story, ${gapMin} daqiqa oraliq bilan`;
+  if (!at) return base;
+  const times = Array.from({ length: Math.min(count, 5) }, (_, i) => utcToZoned(new Date(at.getTime() + i * CONTENT_LIMITS.storySeriesGapMs), tz).time);
+  return `${base} · ${times.join(", ")}${count > 5 ? " …" : ""}`;
 }
 
 export function tagCoords(type: PostTypeValue): FieldRules["userTagCoords"] {
@@ -257,6 +269,16 @@ export interface PostCard {
   autoPublish: boolean;
   lastErrorCode: string | null;
   version: number;
+  seriesId?: string | null;
+  seriesIndex?: number | null;
+}
+
+/** FR-C9 / FR-S8: the story series or recurrence of a post. */
+export interface SeriesInfo {
+  id: string;
+  position: number;
+  total: number;
+  items: Array<{ id: string; seriesIndex: number; status: PostStatusValue; scheduledAt: string | null }>;
 }
 
 export interface PostDetail {
@@ -294,6 +316,7 @@ export interface PostDetail {
   attemptsLog: Array<{ id: string; step: string; ok: boolean; metaCode: number | null; message: string | null; durationMs: number | null; createdAt: string }>;
   linkedCampaign: { kind: "automation" | "trigger"; id: string; name: string; keywords: string[]; active: boolean; waiting: boolean } | null;
   issues: Array<{ field: string; message: string }>;
+  series?: SeriesInfo | null;
 }
 
 export interface MediaRow {
