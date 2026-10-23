@@ -14,6 +14,7 @@ import { esc, sendMediaGroup, sendMessage, sendPhoto, sendVideo, type InlineKeyb
 import { alertWorkspace, getWorkspaceChats } from "@/lib/telegram/notify";
 import { SIGNED_URL_TTL_SEC } from "./config";
 import { activateLinkedCampaigns } from "./link-campaign";
+import { itemMediaKey } from "./crop";
 import { signedMediaUrl } from "./media";
 import { removePostJobs } from "./queue";
 import type { PostStatusValue } from "./schema";
@@ -115,7 +116,7 @@ export async function sendManualNotice(postId: string, deps: ManualDeps = {}): P
   const files = await Promise.all(
     row.media.map(async (m) => ({
       type: m.media.kind === "VIDEO" ? ("video" as const) : ("photo" as const),
-      media: await signedMediaUrl(m.media.preparedKey ?? m.media.originalKey, SIGNED_URL_TTL_SEC),
+      media: await signedMediaUrl(await itemMediaKey(m), SIGNED_URL_TTL_SEC),
     }))
   );
 

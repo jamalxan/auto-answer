@@ -24,6 +24,7 @@ import { markTokenBroken } from "@/lib/meta/token-health";
 import { alertWorkspace, notifyWorkspaceChats } from "@/lib/telegram/notify";
 import { CONTAINER_MAX_WAIT_MS, CONTAINER_POLL_MS, FIRST_COMMENT_DELAY_MS, latePublishMaxMs, SIGNED_URL_TTL_SEC } from "./config";
 import { classifyPublishError, isAmbiguousFailure, type PublishErrorCode } from "./errors";
+import { dropItemCrops, itemMediaKey, tagsInCrop, cropOf } from "./crop";
 import { activateLinkedCampaigns } from "./link-campaign";
 import { withAccountLock } from "./lock";
 import { signedMediaUrl } from "./media";
@@ -131,8 +132,9 @@ async function waitForToken(post: PostRow, reason: string, from: PostStatusValue
 
 // ─── Container building ─────────────────────────────────────────────────────
 
-function tagsOf(raw: unknown): UserTag[] {
-  return Array.isArray(raw) ? (raw as UserTag[]).filter((t) => t && typeof t.username === "string") : [];
+function tagsOf(raw: unknown, item?: Pick<PostRow["media"][number], "cropRect" | "media">): UserTag[] {
+  const tags = Array.isArray(raw) ? (raw as UserTag[]).filter((t) => t && typeof t.username === "string") : [];
+  return item && item.media.kind === "IMAGE" ? tagsInCrop(tags, cropOf(item)) : tags;
 }
 
 async function urlOf(key: string | null | undefined): Promise<string> {
@@ -143,10 +145,11 @@ async function urlOf(key: string | null | undefined): Promise<string> {
 async function singleContainerParams(post: PostRow): Promise<ContainerParams> {
   const item = post.media[0];
   const asset = item.media;
-  const url = await urlOf(asset.preparedKey ?? asset.originalKey);
+  const url = await urlOf(await itemMediaKey(item));
   const isVideo = asset.kind === "VIDEO";
+  const tags = tagsOf(item.userTags, item);
   const common: ContainerParams = {
-    userTags: tagsOf(item.userTags).length ? tagsOf(item.userTags) : undefined,
+    userTags: tags.length ? tags : undefined,
     isAiGenerated: post.isAiGenerated || undefined,
   };
   if (post.type === "STORY") {
@@ -181,8 +184,8 @@ async function singleContainerParams(post: PostRow): Promise<ContainerParams> {
 
 async function carouselChildParams(item: PostRow["media"][number]): Promise<ContainerParams> {
   const asset = item.media;
-  const url = await urlOf(asset.preparedKey ?? asset.originalKey);
-  const tags = tagsOf(item.userTags);
+  const url = await urlOf(await itemMediaKey(item));
+  const tags = tagsOf(item.userTags, item);
   return {
     ...(asset.kind === "VIDEO" ? { videoUrl: url } : { imageUrl: url, altText: item.altText ?? undefined }),
     isCarouselItem: true,
@@ -464,6 +467,7 @@ async function finishPublished(row: PostRow, igMediaId: string, permalinkIn: str
   }
 
   if (row.firstComment?.trim()) await scheduleFirstComment(postId, FIRST_COMMENT_DELAY_MS);
+  await dropItemCrops(row.media).catch(() => undefined);
   await notifyWorkspaceChats(
     row.workspaceId,
     `✅ <b>${postLabel(row)} chiqdi</b> — @${row.instagramAccount.username}${permalink ? `\n${permalink}` : ""}${linked.automations + linked.triggers > 0 ? "\nComment-to-DM kampaniyasi ulandi." : ""}`

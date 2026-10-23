@@ -22,7 +22,7 @@ import type { StorageDriver } from "./storage";
 
 /** `ws/<wsId>/<yyyy>/<mm>/<id>.<ext>` plus the `.prepared` / `.thumb` variants. */
 export const MEDIA_KEY_RE =
-  /^ws\/[a-z0-9]+\/\d{4}\/\d{2}\/[a-z0-9-]+(\.(prepared|thumb))?\.[a-z0-9]+$/;
+  /^ws\/[a-z0-9]+\/\d{4}\/\d{2}\/[a-z0-9-]+(\.(prepared|thumb|crop-[a-z0-9]+))?\.[a-z0-9]+$/;
 
 export type LocalTokenMethod = "put" | "get";
 

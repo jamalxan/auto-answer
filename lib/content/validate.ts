@@ -6,6 +6,7 @@
  */
 
 import { CONTENT_LIMITS, MEDIA } from "./config";
+import { cropInsideImage, croppedRatio, type CropRect } from "./crop-geometry";
 import type { PostInput, PostTypeValue } from "./schema";
 import { countCaption, normalizeUsernames, USERNAME_RE } from "./text";
 
@@ -85,7 +86,7 @@ export interface ValidateOptions {
 const ratio = (w?: number | null, h?: number | null) => (w && h ? w / h : null);
 const fmtSec = (ms: number) => `${Math.round(ms / 1000)} s`;
 
-function mediaIssues(type: PostTypeValue, index: number, facts: MediaFacts | undefined, count: number): ValidationIssue[] {
+function mediaIssues(type: PostTypeValue, index: number, facts: MediaFacts | undefined, crop: CropRect | undefined): ValidationIssue[] {
   const field = `media[${index}]`;
   if (!facts) return [{ field, message: "Media topilmadi" }];
   if (facts.status !== "READY") {
@@ -97,7 +98,8 @@ function mediaIssues(type: PostTypeValue, index: number, facts: MediaFacts | und
   }
   const out: ValidationIssue[] = [];
   if (facts.kind === "IMAGE") {
-    const r = ratio(facts.width, facts.height);
+    if (crop && !cropInsideImage(crop)) return [{ field, message: "Kesish ramkasi rasmdan tashqariga chiqqan — qayta kesing" }];
+    const r = crop && facts.width && facts.height ? croppedRatio(facts.width, facts.height, crop) : ratio(facts.width, facts.height);
     const needsFeedRatio = type === "FEED_IMAGE" || type === "CAROUSEL";
     if (needsFeedRatio && r !== null && (r < MEDIA.feedAspectMin - 0.005 || r > MEDIA.feedAspectMax + 0.005)) {
       out.push({
@@ -119,7 +121,6 @@ function mediaIssues(type: PostTypeValue, index: number, facts: MediaFacts | und
       if (facts.sizeBytes > MEDIA.reelMaxBytes) out.push({ field, message: "Video 300 MB dan katta" });
     }
   }
-  void count;
   return out;
 }
 
@@ -186,7 +187,7 @@ export function validatePost(input: PostInput, media: MediaFacts[], opts: Valida
   // Per-item rules
   input.media.forEach((item, index) => {
     const facts = byId.get(item.mediaId);
-    issues.push(...mediaIssues(type, index, facts, input.media.length));
+    issues.push(...mediaIssues(type, index, facts, item.cropRect));
     if (item.userTags?.length) {
       if (!rules.userTags) issues.push({ field: `media[${index}].userTags`, message: "Bu turda odam belgilab bo'lmaydi" });
       else if (rules.userTagCoords === "required" && facts?.kind === "IMAGE" && item.userTags.some((t) => t.x === undefined || t.y === undefined)) {

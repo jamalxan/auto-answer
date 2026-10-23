@@ -7,6 +7,7 @@
  */
 
 import { useState } from "react";
+import { isFullFrame, tagsInCrop } from "@/lib/content/crop-geometry";
 import type { PostDraft } from "./shared";
 
 export default function Preview({ draft, username }: { draft: PostDraft; username: string }) {
@@ -16,6 +17,13 @@ export default function Preview({ draft, username }: { draft: PostDraft; usernam
   const vertical = draft.type === "REEL" || draft.type === "TRIAL_REEL" || draft.type === "STORY" || draft.type === "FEED_VIDEO";
   const caption = draft.caption.trim();
   const short = caption.length > 125 ? `${caption.slice(0, 125)}… yana` : caption;
+  // FR-M4: show exactly the frame Instagram will get.
+  const crop = item?.kind !== "VIDEO" && item?.cropRect && !isFullFrame(item.cropRect) && item.width && item.height ? item.cropRect : null;
+  const frameStyle = crop && item?.width && item?.height ? { aspectRatio: `${crop.w * item.width} / ${crop.h * item.height}` } : undefined;
+  const imgStyle = crop
+    ? { position: "absolute" as const, width: `${100 / crop.w}%`, height: `${100 / crop.h}%`, left: `${(-crop.x / crop.w) * 100}%`, top: `${(-crop.y / crop.h) * 100}%`, maxWidth: "none" }
+    : undefined;
+  const tags = item?.userTags ? tagsInCrop(item.userTags, crop) : [];
 
   return (
     <div className="mx-auto w-full max-w-[340px] rounded-2xl border border-border bg-background p-3 text-foreground">
@@ -24,18 +32,18 @@ export default function Preview({ draft, username }: { draft: PostDraft; usernam
         <span className="font-semibold">{username || "akkaunt"}</span>
         {draft.collaborators.length > 0 && <span className="text-muted">va {draft.collaborators.map((c) => `@${c}`).join(", ")}</span>}
       </div>
-      <div className={`relative overflow-hidden rounded-lg bg-surface ${vertical ? "aspect-[9/16]" : "aspect-[4/5]"}`}>
+      <div className={`relative overflow-hidden rounded-lg bg-surface ${frameStyle ? "" : vertical ? "aspect-[9/16]" : "aspect-[4/5]"}`} style={frameStyle}>
         {item?.previewUrl || item?.thumbUrl ? (
           item.kind === "VIDEO" && item.previewUrl ? (
             <video src={item.previewUrl} className="h-full w-full object-cover" muted playsInline controls />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- signed, short-lived URL
-            <img src={item.previewUrl ?? item.thumbUrl ?? ""} alt="" className="h-full w-full object-cover" />
+            <img src={item.previewUrl ?? item.thumbUrl ?? ""} alt="" className={crop ? "" : "h-full w-full object-cover"} style={imgStyle} />
           )
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted">Media tanlanmagan</div>
         )}
-        {item?.userTags?.map((t, i) =>
+        {tags.map((t, i) =>
           t.x !== undefined && t.y !== undefined ? (
             <span key={`${t.username}-${i}`} style={{ left: `${t.x * 100}%`, top: `${t.y * 100}%` }} className="absolute -translate-x-1/2 rounded-full bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold">
               @{t.username}

@@ -316,6 +316,8 @@ export interface MediaItemDraft {
   mediaId: string;
   altText?: string;
   userTags?: UserTag[];
+  /** FR-M4 frame on the full image (0–1); null = as uploaded. */
+  cropRect?: { x: number; y: number; w: number; h: number } | null;
   /** Client-only, for previews. */
   thumbUrl?: string | null;
   previewUrl?: string | null;
@@ -378,7 +380,7 @@ export function draftOfDetail(d: PostDetail): PostDraft {
     isAiGenerated: d.isAiGenerated,
     autoPublish: d.autoPublish,
     manualReason: (d.manualReason as PostDraft["manualReason"]) ?? null,
-    media: d.media.map((m) => ({ mediaId: m.mediaId, altText: m.altText ?? undefined, userTags: m.userTags, thumbUrl: m.thumbUrl, previewUrl: m.previewUrl, kind: m.kind, status: m.status, width: m.width, height: m.height, durationMs: m.durationMs })),
+    media: d.media.map((m) => ({ mediaId: m.mediaId, altText: m.altText ?? undefined, userTags: m.userTags, cropRect: m.cropRect, thumbUrl: m.thumbUrl, previewUrl: m.previewUrl, kind: m.kind, status: m.status, width: m.width, height: m.height, durationMs: m.durationMs })),
     labels: d.labels,
     linkCampaign: d.linkedCampaign ? (d.linkedCampaign.kind === "automation" ? { automationId: d.linkedCampaign.id } : { triggerCampaignId: d.linkedCampaign.id }) : null,
   };
@@ -399,7 +401,7 @@ export function draftToBody(d: PostDraft) {
     isAiGenerated: d.isAiGenerated,
     autoPublish: d.autoPublish,
     manualReason: d.manualReason,
-    media: d.media.map((m) => ({ mediaId: m.mediaId, altText: m.altText || undefined, userTags: m.userTags?.length ? m.userTags : undefined })),
+    media: d.media.map((m) => ({ mediaId: m.mediaId, altText: m.altText || undefined, userTags: m.userTags?.length ? m.userTags : undefined, cropRect: m.cropRect ?? undefined })),
     labels: d.labels,
     linkCampaign: d.linkCampaign,
   };

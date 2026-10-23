@@ -44,6 +44,8 @@ import {
   type PostTypeValue,
 } from "./shared";
 import TagEditor from "./tag-editor";
+import CropEditor, { presetsFor } from "./crop-editor";
+import { centerCrop, type CropRect } from "@/lib/content/crop-geometry";
 
 const TYPE_CHOICES: PostTypeValue[] = ["FEED_IMAGE", "CAROUSEL", "REEL", "TRIAL_REEL", "STORY"];
 const AUTOSAVE_MS = 5_000;
@@ -116,6 +118,7 @@ export default function Composer({
   const [autosavedAt, setAutosavedAt] = useState<string | null>(null);
   const [picker, setPicker] = useState<"media" | "cover" | null>(null);
   const [tagging, setTagging] = useState<number | null>(null);
+  const [cropping, setCropping] = useState<number | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const dirty = useRef(false);
   const serverId = useRef<string | undefined>(postId);
@@ -234,6 +237,7 @@ export default function Composer({
   function removeMedia(index: number) {
     update((d) => ({ ...d, media: d.media.filter((_, i) => i !== index) }));
     setTagging(null);
+    setCropping(null);
   }
   function moveMedia(index: number, dir: -1 | 1) {
     update((d) => {
@@ -246,6 +250,22 @@ export default function Composer({
   }
   function patchItem(index: number, patch: Partial<MediaItemDraft>) {
     update((d) => ({ ...d, media: d.media.map((m, i) => (i === index ? { ...m, ...patch } : m)) }));
+  }
+  /** FR-M4: in a carousel the first item's ratio is everyone's — the others are re-centred on it. */
+  function setCrop(index: number, rect: CropRect | null) {
+    update((d) => {
+      const first = index === 0 ? rect : (d.media[0]?.cropRect ?? null);
+      const firstItem = d.media[0];
+      const ratio = first && firstItem?.width && firstItem?.height ? (first.w * firstItem.width) / (first.h * firstItem.height) : null;
+      return {
+        ...d,
+        media: d.media.map((m, i) => {
+          if (i === index) return { ...m, cropRect: rect };
+          if (d.type !== "CAROUSEL" || index !== 0 || m.kind === "VIDEO" || !m.width || !m.height) return m;
+          return { ...m, cropRect: ratio ? centerCrop(m.width, m.height, ratio) : null };
+        }),
+      };
+    });
   }
 
   function setType(type: PostTypeValue) {
@@ -268,7 +288,7 @@ export default function Composer({
   const keywordMissing = Boolean(linked && linked.keywords.length > 0 && fieldVisible(draft.type, "caption") && !linked.keywords.some((k) => draft.caption.toLowerCase().includes(k.toLowerCase())));
 
   // ── save ────────────────────────────────────────────────────────────────
-  async function save() {
+  async function save(as: ComposerMode = mode) {
     setSaving(true);
     setError(null);
     try {
@@ -285,14 +305,14 @@ export default function Composer({
         serverId.current = saved.id;
       }
       versionRef.current = saved.version;
-      if (mode !== "draft" && canSchedule) {
-        const action = mode === "now" ? "publish-now" : "schedule";
-        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/${action}`, jsonInit("POST", mode === "now" ? {} : { scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
+      if (as !== "draft" && canSchedule) {
+        const action = as === "now" ? "publish-now" : "schedule";
+        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/${action}`, jsonInit("POST", as === "now" ? {} : { scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
         if (!res.ok) {
           setNotice("Draft saqlandi, lekin rejalashtirilmadi");
           throw new Error(res.error);
         }
-      } else if (mode !== "draft" && !canSchedule) {
+      } else if (as !== "draft" && !canSchedule) {
         setNotice("Draft saqlandi. Tasdiqlash oqimi keyingi fazada — hozircha MANAGER kalendardan rejalashtiradi.");
       }
       writeBackup(postId, null);
@@ -412,6 +432,16 @@ export default function Composer({
                               </button>
                             </>
                           )}
+                          {m.kind === "IMAGE" && m.width && m.height && (draft.type === "FEED_IMAGE" || draft.type === "CAROUSEL" || draft.type === "STORY") && (
+                            <button
+                              type="button"
+                              className={`${secondaryButton} !px-2 !py-1 text-xs ${issue && /Kesing|Kesish/.test(issue) ? "!border-warning text-warning" : ""}`}
+                              onClick={() => setCropping(cropping === i ? null : i)}
+                              aria-expanded={cropping === i}
+                            >
+                              {m.cropRect ? "Kesildi" : "Kesish"}
+                            </button>
+                          )}
                           {fieldVisible(draft.type, "userTags") && (
                             <button type="button" className={`${secondaryButton} !px-2 !py-1 text-xs`} onClick={() => setTagging(tagging === i ? null : i)} aria-expanded={tagging === i}>
                               Odam belgilash
@@ -422,6 +452,19 @@ export default function Composer({
                           </button>
                         </div>
                       </div>
+                      {cropping === i && m.width && m.height && (
+                        <div className="mt-2">
+                          <CropEditor
+                            imageUrl={m.previewUrl ?? m.thumbUrl ?? null}
+                            width={m.width}
+                            height={m.height}
+                            rect={m.cropRect ?? null}
+                            presets={presetsFor(draft.type === "STORY")}
+                            onChange={(rect) => setCrop(i, rect)}
+                          />
+                          {draft.type === "CAROUSEL" && i === 0 && <p className="mt-1 text-[11px] text-muted">Birinchi rasm nisbati boshqa rasmlarga ham qo&apos;llanadi.</p>}
+                        </div>
+                      )}
                       {tagging === i && (
                         <div className="mt-2">
                           <TagEditor imageUrl={m.kind === "IMAGE" ? (m.previewUrl ?? m.thumbUrl ?? null) : null} tags={m.userTags ?? []} coords={m.kind === "IMAGE" ? tagCoords(draft.type) : "optional"} onChange={(userTags) => patchItem(i, { userTags })} />
@@ -662,7 +705,7 @@ export default function Composer({
               {saving ? "Saqlanmoqda…" : buttonLabel}
             </button>
             {mode !== "draft" && (
-              <button type="button" className={secondaryButton} disabled={saving || loading || locked || Boolean(blocked)} onClick={() => { setMode("draft"); setTimeout(() => void save(), 0); }}>
+              <button type="button" className={secondaryButton} disabled={saving || loading || locked || Boolean(blocked)} onClick={() => { setMode("draft"); void save("draft"); }}>
                 Draft sifatida saqlash
               </button>
             )}

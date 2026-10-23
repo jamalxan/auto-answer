@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   scheduleRetry: vi.fn(async () => undefined),
   schedulePublish: vi.fn(async () => undefined),
   createComment: vi.fn(),
+  stored: new Map<string, Buffer>(),
 }));
 
 vi.mock("@/lib/db/client", () => ({ prisma: db.client() }));
@@ -49,7 +50,13 @@ vi.mock("@/lib/content/queue", () => ({
   FIRST_COMMENT_JOB: "first-comment",
 }));
 vi.mock("@/lib/content/storage", () => ({
-  getStorage: () => ({ presignGet: async (key: string) => `https://cdn/${key}`, headObject: async () => null, deleteObject: async () => undefined }),
+  getStorage: () => ({
+    presignGet: async (key: string) => `https://cdn/${key}`,
+    headObject: async () => null,
+    deleteObject: async (key: string) => void mocks.stored.delete(key),
+    getObject: async () => (await import("sharp")).default({ create: { width: 1080, height: 1440, channels: 3, background: "#123456" } }).jpeg().toBuffer(),
+    putObject: async (key: string, body: Buffer) => void mocks.stored.set(key, body),
+  }),
   mediaKey: () => "k",
 }));
 
@@ -69,14 +76,14 @@ function seedMedia(id: string, kind: "IMAGE" | "VIDEO" = "IMAGE", status = "READ
   });
 }
 
-function seedPost(over: Record<string, unknown> = {}, media: Array<{ id: string; kind?: "IMAGE" | "VIDEO"; userTags?: unknown; altText?: string; status?: string }> = [{ id: "m1" }]) {
+function seedPost(over: Record<string, unknown> = {}, media: Array<{ id: string; kind?: "IMAGE" | "VIDEO"; userTags?: unknown; altText?: string; status?: string; cropRect?: unknown }> = [{ id: "m1" }]) {
   const post = db.seed("scheduledPost", {
     id: "p1", workspaceId: WS, instagramAccountId: "acc1", type: "FEED_IMAGE", status: "SCHEDULED", caption: "Salom #a",
     scheduledAt: NOW, attempts: 1, ...over,
   });
   media.forEach((m, position) => {
     seedMedia(m.id, m.kind ?? "IMAGE", m.status ?? "READY");
-    db.seed("scheduledPostMedia", { postId: post.id, mediaId: m.id, position, userTags: m.userTags ?? [], altText: m.altText ?? null });
+    db.seed("scheduledPostMedia", { postId: post.id, mediaId: m.id, position, userTags: m.userTags ?? [], altText: m.altText ?? null, cropRect: m.cropRect ?? null });
   });
   return post;
 }
@@ -85,7 +92,8 @@ const containerCalls = () => mocks.createContainer.mock.calls.map((c) => c[2]);
 
 beforeEach(() => {
   resetDb();
-  for (const m of Object.values(mocks)) m.mockReset();
+  for (const m of Object.values(mocks)) if (typeof m === "function") m.mockReset();
+  mocks.stored.clear();
   mocks.alertWorkspace.mockResolvedValue(undefined);
   mocks.notifyWorkspaceChats.mockResolvedValue(1);
   mocks.scheduleFirstComment.mockResolvedValue(undefined);
@@ -116,6 +124,17 @@ describe("preparePost", () => {
     expect(post).toMatchObject({ status: "READY_TO_PUBLISH", containerId: "c1", containerStatus: "FINISHED" });
     const steps = db.rows("publishAttempt").map((a) => [a.step, a.ok]);
     expect(steps).toEqual([["CONTAINER", true], ["STATUS", true]]);
+  });
+
+  it("a cropped image: Meta gets the cut JPEG and tags moved into the frame (FR-M4)", async () => {
+    seedPost({}, [{ id: "m1", cropRect: { x: 0, y: 0.25, w: 1, h: 0.5 }, userTags: [{ username: "ali", x: 0.5, y: 0.5 }] }]);
+    await preparePost("p1", 1, deps());
+    const call = containerCalls()[0];
+    expect(call.imageUrl).toMatch(/^https:\/\/cdn\/o\/m1\.crop-[a-z0-9]+\.jpg$/);
+    expect(call.userTags).toEqual([{ username: "ali", x: 0.5, y: 0.5 }]);
+    const [, cut] = [...mocks.stored.entries()][0];
+    const meta = await (await import("sharp")).default(cut).metadata();
+    expect([meta.width, meta.height]).toEqual([1080, 720]);
   });
 
   it("carousel: children first (in order, with alt text / tags), then the parent with caption and collaborators", async () => {
