@@ -103,3 +103,29 @@ Meta 190 error in the post detail (verified 2026-10-23).
 | AC-15 Existing regression suite passes | `npx vitest run` → 182 files / 3011 tests (2026-10-23) |
 
 Tests: `__tests__/content-*.test.ts`, `__tests__/meta-publish.test.ts` (202 tests).
+
+## Faza 2 — approval flow and notes (WP-A, FR-A1…A5)
+
+| Piece | Where |
+|---|---|
+| Submit / decide / token / sweep / notes / reviewer list | `lib/content/review.ts` |
+| FR-A3 reset on edit (PENDING_REVIEW or approved SCHEDULED / PAUSED → DRAFT) | `lib/content/service.ts` `updatePost` |
+| FR-A4 sweep step 8 | `lib/content/sweep.ts` → `sweepReviews` |
+| `POST posts/[id]/review` (create), `POST posts/[id]/decision` (approve), `GET/POST posts/[id]/notes`, `GET posts/[id]/review` (history) | `app/api/developer/content/posts/[id]/[action]/route.ts` |
+| `GET reviews?tab=mine\|sent\|rejected`; `/meta` → `reviewers` | `app/api/developer/content/reviews`, `meta` |
+| External reviewer (no session, the token is the key, 404 on bad / expired / voided) | `app/api/content/reviews/[token]`, `app/review/[token]` (noindex, `/review/` disallowed in robots) |
+| Telegram `content:approve:<reviewId>` / `content:reject:<reviewId>` | `lib/content/manual.ts` → `handleReviewCallback` |
+| UI: Tasdiqlar tab, composer review form, post detail history + notes | `components/developer/content/reviews.tsx` |
+
+Rules: a rejection needs a comment and always stops (→ REJECTED); ANY and OPTIONAL schedule on
+the first approval, ALL waits for every assigned reviewer; an approver who was not assigned
+decides alone (override — they could schedule it anyway). Approval schedules at the requested
+slot, or a minute from now when the slot is under five minutes away or already past. OPTIONAL with
+no rejection is approved by the sweeper at the slot; any PENDING_REVIEW post 3 h past its slot
+becomes EXPIRED_REVIEW and the author is told (Telegram if linked, else email). A round is the set
+of PostReview rows stamped with the post's version at submit; decisions do not bump the version,
+edits do — so an edit voids the round and the old external link answers 404. Tokens: 32 random
+bytes base64url, only the SHA-256 stored, 7 days from the round. "Rad etish" in Telegram does not
+reject (the bot has no comment flow): it answers with a pointer to the app. "Yuborganlarim" lists
+the user's own posts that went to review (there is no "submitted by" column). Every step writes an
+`OperationalEvent` (source SYSTEM).
