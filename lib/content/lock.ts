@@ -40,7 +40,11 @@ export type Locked<T> = { acquired: true; result: T } | { acquired: false };
 
 /** Run `fn` while holding the account's lock, or report that someone else holds it. */
 export async function withAccountLock<T>(accountId: string, fn: () => Promise<T>): Promise<Locked<T>> {
-  const key = accountLockKey(accountId);
+  return withKeyLock(accountLockKey(accountId), fn);
+}
+
+/** The same lock for any key (e.g. one manual notice per post while two sweepers overlap). */
+export async function withKeyLock<T>(key: string, fn: () => Promise<T>): Promise<Locked<T>> {
   const token = await acquire(key);
   if (!token) return { acquired: false };
   try {

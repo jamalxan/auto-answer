@@ -163,3 +163,21 @@ export async function hasLivePublishJob(postId: string, attempt: number): Promis
   }
   return false;
 }
+
+export interface QueueCounts {
+  waiting: number;
+  delayed: number;
+  active: number;
+  failed: number;
+}
+
+/** M10: what the two content queues hold right now (server-wide), or null without Redis. */
+export async function contentQueueCounts(): Promise<{ publish: QueueCounts; media: QueueCounts } | null> {
+  if (!hasContentQueueBackend()) return null;
+  const pick = (c: Record<string, number>): QueueCounts => ({ waiting: c.waiting ?? 0, delayed: c.delayed ?? 0, active: c.active ?? 0, failed: c.failed ?? 0 });
+  const [publish, media] = await Promise.all([
+    getContentPublishQueue().getJobCounts("waiting", "delayed", "active", "failed"),
+    getMediaProcessQueue().getJobCounts("waiting", "delayed", "active", "failed"),
+  ]);
+  return { publish: pick(publish), media: pick(media) };
+}

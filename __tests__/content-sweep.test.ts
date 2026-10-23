@@ -102,6 +102,15 @@ describe("sweepContent", () => {
     expect(mocks.recoverStuckPublishing).toHaveBeenCalledWith("p1", expect.anything());
   });
 
+  it("retries a failed campaign link for a published post and clears the error (M2)", async () => {
+    post("p1", { status: "PUBLISHED", igMediaId: "1789", publishedAt: min(-10), lastErrorCode: "CAMPAIGN_LINK_FAILED", lastErrorMessage: "db down" });
+    db.seed("automation", { id: "au1", workspaceId: WS, instagramAccountId: "acc1", name: "A", keywords: [], dmMessage: "x", isActive: false, scheduledPostId: "p1" });
+    const r = await sweepContent(NOW);
+    expect(r.relinked).toBe(1);
+    expect(db.rows("automation")[0]).toMatchObject({ isActive: true, postId: "1789" });
+    expect(db.rows("scheduledPost")[0]).toMatchObject({ lastErrorCode: null });
+  });
+
   it("returns a READY_TO_PUBLISH post with a 23-hour-old container to SCHEDULED", async () => {
     post("p1", { status: "READY_TO_PUBLISH", scheduledAt: min(60), containerId: "c1", containerCreatedAt: new Date(NOW.getTime() - 23.5 * 3_600_000) });
     const r = await sweepContent(NOW);

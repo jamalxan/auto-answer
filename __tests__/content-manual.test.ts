@@ -107,6 +107,13 @@ describe("sendManualNotice", () => {
     expect(mocks.alertWorkspace).not.toHaveBeenCalled();
   });
 
+  it("two overlapping sweeps send the notice once (M1)", async () => {
+    seedPost({ status: "NEEDS_MANUAL" });
+    const [a, b] = await Promise.all([sendManualNotice("p1", { now: () => NOW }), sendManualNotice("p1", { now: () => NOW })]);
+    expect([a.delivered, b.delivered].sort()).toEqual(["none", "telegram"]);
+    expect(mocks.sendPhoto).toHaveBeenCalledTimes(1);
+  });
+
   it("sends a media group for several files and a video for one video", async () => {
     seedPost({ type: "CAROUSEL" }, [{ id: "m1" }, { id: "v1", kind: "VIDEO" }]);
     await sendManualNotice("p1", { now: () => NOW });

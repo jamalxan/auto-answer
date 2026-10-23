@@ -15,6 +15,7 @@ import { alertWorkspace, getWorkspaceChats } from "@/lib/telegram/notify";
 import { SIGNED_URL_TTL_SEC } from "./config";
 import { activateLinkedCampaigns } from "./link-campaign";
 import { itemMediaKey } from "./crop";
+import { withKeyLock } from "./lock";
 import { signedMediaUrl } from "./media";
 import { removePostJobs } from "./queue";
 import type { PostStatusValue } from "./schema";
@@ -109,6 +110,12 @@ export async function sendManualNotice(postId: string, deps: ManualDeps = {}): P
     if (r.count === 0) return { delivered: "none" };
     await removePostJobs(postId, post.attempts).catch(() => undefined);
   }
+  // Two sweeper runs (or a sweep and the notify job) can reach this point together: one sender per post (M1).
+  const locked = await withKeyLock(`content:notice:${postId}`, () => deliverNotice(postId));
+  return locked.acquired ? locked.result : { delivered: "none" };
+}
+
+async function deliverNotice(postId: string): Promise<ManualNoticeResult> {
   if (await alreadyNotified(postId)) return { delivered: "none" };
 
   const row = (await loadPost(postId))!;

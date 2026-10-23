@@ -617,9 +617,9 @@ export default function Composer({
                   >
                     <option value="">Kampaniyani tanlang</option>
                     {campaigns.map((c) => (
-                      <option key={c.id} value={c.id}>
+                      <option key={c.id} value={c.id} disabled={c.bound && c.active && c.linkedPostId !== postId}>
                         {c.name} · {c.keywords.join(", ") || "keyword yo'q"}
-                        {c.bound ? " · boshqa postga bog'langan" : ""}
+                        {c.bound ? (c.active ? " · boshqa postda ishlayapti" : " · boshqa postga bog'langan") : ""}
                       </option>
                     ))}
                   </select>

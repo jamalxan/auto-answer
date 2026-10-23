@@ -22,7 +22,7 @@ const WS = "ws1";
 beforeEach(() => {
   resetDb();
   db.seed("scheduledPost", { id: "p1", workspaceId: WS, instagramAccountId: "acc1", type: "REEL", status: "DRAFT" });
-  db.seed("automation", { id: "au1", workspaceId: WS, instagramAccountId: "acc1", name: "Narx", keywords: ["narx"], dmMessage: "x", isActive: true, pendingNextReel: true, postId: "old" });
+  db.seed("automation", { id: "au1", workspaceId: WS, instagramAccountId: "acc1", name: "Narx", keywords: ["narx"], dmMessage: "x", isActive: true, pendingNextReel: true, postId: null });
   db.seed("triggerCampaign", { id: "tc1", workspaceId: WS, instagramAccountId: "acc1", name: "Promo", triggerType: "COMMENT", keywords: ["promo"], responseMessage: "y", active: true, mediaScope: "ANY", mediaIds: [] });
 });
 
@@ -42,6 +42,17 @@ describe("attachCampaignToPost", () => {
     await expect(attachCampaignToPost(WS, "p1", { automationId: "au2" })).rejects.toMatchObject({ status: 404 });
     db.seed("automation", { id: "au3", workspaceId: WS, instagramAccountId: "acc2", name: "X", keywords: [], dmMessage: "x" });
     await expect(attachCampaignToPost(WS, "p1", { automationId: "au3" })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("refuses a campaign that is live on a published post, but moves a stopped one (M5)", async () => {
+    db.seed("automation", { id: "au4", workspaceId: WS, instagramAccountId: "acc1", name: "Live", keywords: [], dmMessage: "x", isActive: true, postId: "1789" });
+    await expect(attachCampaignToPost(WS, "p1", { automationId: "au4" })).rejects.toMatchObject({ status: 400 });
+    expect(db.rows("automation").find((a) => a.id === "au4")).toMatchObject({ isActive: true, postId: "1789" });
+    db.seed("triggerCampaign", { id: "tc4", workspaceId: WS, instagramAccountId: "acc1", name: "Live", triggerType: "COMMENT", keywords: [], responseMessage: "y", active: true, mediaScope: "SPECIFIC", mediaIds: ["1789"] });
+    await expect(attachCampaignToPost(WS, "p1", { triggerCampaignId: "tc4" })).rejects.toMatchObject({ status: 400 });
+    db.seed("automation", { id: "au5", workspaceId: WS, instagramAccountId: "acc1", name: "Stopped", keywords: [], dmMessage: "x", isActive: false, postId: "1789" });
+    await attachCampaignToPost(WS, "p1", { automationId: "au5" });
+    expect(db.rows("automation").find((a) => a.id === "au5")).toMatchObject({ scheduledPostId: "p1", postId: null });
   });
 
   it("detaches with null", async () => {

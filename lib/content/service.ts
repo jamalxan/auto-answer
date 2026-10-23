@@ -369,6 +369,7 @@ export async function updatePost(workspaceId: string, postId: string, input: Pos
     if (input.media.length) await prisma.scheduledPostMedia.createMany({ data: mediaRows(postId, input.media) });
   }
   if (input.linkCampaign !== undefined) await attachCampaignToPost(workspaceId, postId, input.linkCampaign);
+  await rearmIfNeeded(row, await loadRow(workspaceId, postId));
   return getPost(workspaceId, postId);
 }
 
@@ -445,15 +446,40 @@ export async function schedulePost(workspaceId: string, postId: string, at: Date
     lastErrorMessage: null,
   });
 
-  if (manual) {
-    await scheduleManualNotify(row.id, attempt, slot);
-  } else {
-    const lead = isVideoType(row.type, row.media.map((m) => factsOf(m.media))) ? PREPARE_LEAD_MS.video : PREPARE_LEAD_MS.image;
-    const prepareAt = new Date(Math.max(now.getTime(), slot.getTime() - lead));
-    await schedulePrepare(row.id, attempt, prepareAt);
-    await schedulePublish(row.id, attempt, slot);
-  }
+  await armJobs(row, attempt, slot, now);
   return getPost(workspaceId, postId);
+}
+
+/** The delayed jobs of one scheduling attempt: the manual notice, or prepare (30 / 60 min lead) + publish. */
+async function armJobs(row: PostRow, attempt: number, slot: Date, now: Date): Promise<void> {
+  if (!row.autoPublish || row.manualReason) {
+    await scheduleManualNotify(row.id, attempt, slot);
+    return;
+  }
+  const lead = isVideoType(row.type, row.media.map((m) => factsOf(m.media))) ? PREPARE_LEAD_MS.video : PREPARE_LEAD_MS.image;
+  const prepareAt = new Date(Math.max(now.getTime(), slot.getTime() - lead));
+  await schedulePrepare(row.id, attempt, prepareAt);
+  await schedulePublish(row.id, attempt, slot);
+}
+
+/**
+ * M8: editing a SCHEDULED post can change which jobs it needs — an image
+ * swapped for a video needs the 60-minute prepare lead, a post switched to
+ * manual needs the notice instead. Re-arm under a new attempt number so the
+ * old jobs become stale.
+ */
+async function rearmIfNeeded(before: PostRow, after: PostRow, now: Date = new Date()): Promise<void> {
+  if (after.status !== "SCHEDULED" || !after.scheduledAt) return;
+  const wasVideo = isVideoType(before.type, before.media.map((m) => factsOf(m.media)));
+  const isVideo = isVideoType(after.type, after.media.map((m) => factsOf(m.media)));
+  const wasManual = !before.autoPublish || Boolean(before.manualReason);
+  const isManual = !after.autoPublish || Boolean(after.manualReason);
+  if (wasVideo === isVideo && wasManual === isManual && before.instagramAccountId === after.instagramAccountId) return;
+  await removePostJobs(after.id, after.attempts);
+  const attempt = after.attempts + 1;
+  const r = await prisma.scheduledPost.updateMany({ where: { id: after.id, status: "SCHEDULED", attempts: after.attempts }, data: { attempts: attempt } });
+  if (r.count === 0) return;
+  await armJobs(after, attempt, after.scheduledAt, now);
 }
 
 /** FR-S2: one minute from now, with the usual checks except the lead time. */
@@ -551,6 +577,7 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
     ...(q.q ? { caption: { contains: q.q, mode: "insensitive" } } : {}),
     ...(q.from || q.to ? { scheduledAt: { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lt: q.to } : {}) } } : {}),
     ...(q.linked === "yes" ? { OR: [{ automations: { some: {} } }, { triggerCampaigns: { some: {} } }] } : {}),
+    ...(q.linked === "no" ? { automations: { none: {} }, triggerCampaigns: { none: {} } } : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.scheduledPost.findMany({
@@ -589,6 +616,5 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
       };
     })
   );
-  const filtered = q.linked === "no" ? items.filter((i) => !i.linked) : items;
-  return { items: filtered, total: q.linked === "no" ? filtered.length : total };
+  return { items, total };
 }

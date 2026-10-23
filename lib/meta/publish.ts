@@ -48,6 +48,14 @@ function base() {
   return `https://graph.instagram.com/${getMetaGraphApiVersion()}`;
 }
 
+/**
+ * A hung Graph call must not hold the publish worker (M3). POSTs get longer:
+ * media_publish can take tens of seconds; a timeout there is treated as an
+ * ambiguous failure and resolved by asking Meta for the container status.
+ */
+export const META_POST_TIMEOUT_MS = 90_000;
+export const META_GET_TIMEOUT_MS = 30_000;
+
 function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
@@ -60,6 +68,7 @@ async function postForm<T>(token: string, path: string, body: URLSearchParams): 
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: body.toString(),
+    signal: AbortSignal.timeout(META_POST_TIMEOUT_MS),
   });
   return handleMetaResponse<T>(response);
 }
@@ -70,6 +79,7 @@ async function getFields<T>(token: string, path: string, fields: string): Promis
   const response = await fetch(url.toString(), {
     method: "GET",
     headers: authHeaders(token),
+    signal: AbortSignal.timeout(META_GET_TIMEOUT_MS),
   });
   return handleMetaResponse<T>(response);
 }

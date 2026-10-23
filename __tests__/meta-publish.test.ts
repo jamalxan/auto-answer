@@ -24,6 +24,8 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+const signals: Array<AbortSignal | null> = [];
+
 /** Stub fetch with a single canned JSON body and return the recorded calls. */
 function stubFetch(body: unknown, status = 200) {
   const calls: Call[] = [];
@@ -38,6 +40,7 @@ function stubFetch(body: unknown, status = 200) {
     if (rawBody instanceof URLSearchParams) parsed = rawBody;
     else if (typeof rawBody === "string") parsed = new URLSearchParams(rawBody);
     calls.push({ url, method: (init?.method ?? "GET").toUpperCase(), headers, body: parsed });
+    signals.push(init?.signal ?? null);
     // Response.url is read by handleResponse for the error message; a Response
     // built in tests has an empty url, which that code tolerates.
     return jsonResponse(body, status);
@@ -260,5 +263,19 @@ describe("error handling via handleMetaResponse", () => {
   it("throws on an error body even when the HTTP status is 200", async () => {
     stubFetch({ error: { message: "Unsupported post request.", type: "GraphMethodException", code: 100 } }, 200);
     await expect(getContainerStatus(TOKEN, "c")).rejects.toBeInstanceOf(MetaApiError);
+  });
+});
+
+describe("timeouts (M3)", () => {
+  it("every Graph call carries an abort signal, and a timeout counts as ambiguous", async () => {
+    signals.length = 0;
+    stubFetch({ id: "c1" });
+    await createContainer("tok", "ig1", { imageUrl: "https://x/a.jpg" });
+    stubFetch({ status_code: "FINISHED" });
+    await getContainerStatus("tok", "c1");
+    expect(signals).toHaveLength(2);
+    expect(signals.every((s) => s instanceof AbortSignal)).toBe(true);
+    const { isAmbiguousFailure } = await import("@/lib/content/errors");
+    expect(isAmbiguousFailure(new DOMException("The operation was aborted due to timeout", "TimeoutError"))).toBe(true);
   });
 });

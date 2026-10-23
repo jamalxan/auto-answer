@@ -16,6 +16,8 @@
 import { prisma } from "@/lib/db/client";
 import { CONTAINER_MAX_AGE_MS, CONTAINER_MAX_WAIT_MS, latePublishMaxMs } from "./config";
 import { bindManualPost, sendManualNotice } from "./manual";
+import { activateLinkedCampaigns } from "./link-campaign";
+import { releaseAbandonedUploads } from "./media";
 import { failPost, recoverStuckPublishing } from "./publish";
 import { hasLivePublishJob, schedulePublish } from "./queue";
 
@@ -27,16 +29,20 @@ export interface SweepResult {
   recovered: number;
   expiredContainers: number;
   bound: number;
+  relinked: number;
+  abandonedUploads: number;
 }
 
 const STUCK_PREPARING_MS = CONTAINER_MAX_WAIT_MS.video + 5 * 60_000;
 /** media_publish answers in seconds; a PUBLISHING row this old lost its worker. */
 const STUCK_PUBLISHING_MS = 5 * 60_000;
 const BIND_WINDOW_MS = 30 * 60_000;
+/** A post that went out while its campaign link failed keeps being retried for a day (M2). */
+const RELINK_WINDOW_MS = 24 * 3_600_000;
 const BATCH = 200;
 
 export async function sweepContent(now: Date = new Date()): Promise<SweepResult> {
-  const result: SweepResult = { requeued: 0, late: 0, manual: 0, stale: 0, recovered: 0, expiredContainers: 0, bound: 0 };
+  const result: SweepResult = { requeued: 0, late: 0, manual: 0, stale: 0, recovered: 0, expiredContainers: 0, bound: 0, relinked: 0, abandonedUploads: 0 };
   const lateBefore = new Date(now.getTime() - latePublishMaxMs());
 
   // 1 + 2: everything whose time has come.
@@ -101,6 +107,28 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
   for (const post of unbound) {
     if (await bindManualPost(post.id).catch(() => false)) result.bound++;
   }
+
+  // 6: published, but the campaign was not switched on — DMs are being lost until it is.
+  const unlinked = await prisma.scheduledPost.findMany({
+    where: { deletedAt: null, status: "PUBLISHED", lastErrorCode: "CAMPAIGN_LINK_FAILED", igMediaId: { not: null }, publishedAt: { gte: new Date(now.getTime() - RELINK_WINDOW_MS) } },
+    take: BATCH,
+    select: { id: true, igMediaId: true },
+  });
+  for (const post of unlinked) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await activateLinkedCampaigns(tx, post.id, post.igMediaId!);
+        await tx.scheduledPost.update({ where: { id: post.id }, data: { lastErrorCode: null, lastErrorMessage: null, version: { increment: 1 } } });
+      });
+      await prisma.publishAttempt.create({ data: { postId: post.id, step: "LINK_CAMPAIGN", ok: true, message: "sweeper retry" } });
+      result.relinked++;
+    } catch (error) {
+      console.error("[Content] campaign relink failed:", error instanceof Error ? error.message : error);
+    }
+  }
+
+  // 7: uploads that never finished give their reserved quota back.
+  result.abandonedUploads = await releaseAbandonedUploads(now).catch(() => 0);
 
   return result;
 }

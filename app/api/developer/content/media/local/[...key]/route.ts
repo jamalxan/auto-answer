@@ -8,6 +8,7 @@ import {
   isValidMediaKey,
   localFilePath,
   verifyLocalToken,
+  UploadTooLargeError,
   type LocalTokenMethod,
 } from "@/lib/content/storage-local";
 
@@ -81,10 +82,13 @@ export async function PUT(request: NextRequest, ctx: Ctx) {
   if (declared > MAX_PUT_BYTES) return text(413, "Fayl juda katta (maks 1 GiB)");
   if (!request.body) return text(400, "Body bo'sh");
 
-  const written = await auth.driver.putObjectStream(
-    auth.key,
-    Readable.fromWeb(request.body as import("node:stream/web").ReadableStream)
-  );
+  let written: number;
+  try {
+    written = await auth.driver.putObjectStream(auth.key, Readable.fromWeb(request.body as import("node:stream/web").ReadableStream), declared);
+  } catch (error) {
+    if (error instanceof UploadTooLargeError) return text(400, "Content-Length body bilan mos emas");
+    throw error;
+  }
   if (written !== declared) {
     await auth.driver.deleteObject(auth.key);
     return text(400, "Content-Length body bilan mos emas");

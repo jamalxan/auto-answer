@@ -16,11 +16,17 @@ import { createWriteStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import type { Readable } from "node:stream";
+import { Transform, type Readable } from "node:stream";
 import { getBaseUrl, requireEnv } from "@/lib/env";
 import type { StorageDriver } from "./storage";
 
 /** `ws/<wsId>/<yyyy>/<mm>/<id>.<ext>` plus the `.prepared` / `.thumb` variants. */
+export class UploadTooLargeError extends Error {
+  constructor() {
+    super("Upload is larger than declared");
+  }
+}
+
 export const MEDIA_KEY_RE =
   /^ws\/[a-z0-9]+\/\d{4}\/\d{2}\/[a-z0-9-]+(\.(prepared|thumb|crop-[a-z0-9]+))?\.[a-z0-9]+$/;
 
@@ -149,15 +155,28 @@ export class LocalStorageDriver implements StorageDriver {
     await fs.writeFile(file, body);
   }
 
-  /** Streams an upload straight to disk (used by the local PUT route). */
-  async putObjectStream(key: string, body: Readable): Promise<number> {
+  /**
+   * Streams an upload straight to disk (used by the local PUT route). Stops
+   * — and removes the partial file — as soon as more than `maxBytes` arrive,
+   * so a lying Content-Length cannot fill the disk (M7).
+   */
+  async putObjectStream(key: string, body: Readable, maxBytes = Number.POSITIVE_INFINITY): Promise<number> {
     const file = localFilePath(key);
     await fs.mkdir(path.dirname(file), { recursive: true });
     let written = 0;
-    body.on("data", (chunk: Buffer | string) => {
-      written += typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
+    const limit = new Transform({
+      transform(chunk: Buffer, _enc, done) {
+        written += chunk.length;
+        if (written > maxBytes) done(new UploadTooLargeError());
+        else done(null, chunk);
+      },
     });
-    await pipeline(body, createWriteStream(file));
+    try {
+      await pipeline(body, limit, createWriteStream(file));
+    } catch (err) {
+      await fs.unlink(file).catch(() => undefined);
+      throw err;
+    }
     return written;
   }
 

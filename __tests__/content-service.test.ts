@@ -302,4 +302,37 @@ describe("delete / duplicate / manual / isolation", () => {
     const windowed = await listPosts(WS, { from: at(0), to: at(30), page: 1, pageSize: 50 });
     expect(windowed.total).toBe(0);
   });
+
+  it("linked=no pages in the database, so page 1 is full and total is the real count (M4)", async () => {
+    const posts = [await draft(), await draft(), await draft()];
+    db.seed("automation", { id: "au1", workspaceId: WS, instagramAccountId: "acc1", name: "A", keywords: [], scheduledPostId: posts[0].id });
+    const page = await listPosts(WS, { linked: "no", page: 1, pageSize: 1 });
+    expect(page.total).toBe(2);
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].id).not.toBe(posts[0].id);
+    const linked = await listPosts(WS, { linked: "yes", page: 1, pageSize: 50 });
+    expect(linked.items.map((i) => i.id)).toEqual([posts[0].id]);
+  });
+
+  it("swapping a scheduled image for a video re-arms the jobs with the 60-minute lead (M8)", async () => {
+    const p = await draft();
+    await schedulePost(WS, p.id, at(180), { now: NOW });
+    mocks.schedulePrepare.mockClear();
+    const scheduled = await getPost(WS, p.id);
+    await updatePost(WS, p.id, { type: "REEL", media: [{ mediaId: "v1" }], version: scheduled.version } as never);
+    expect(mocks.removePostJobs).toHaveBeenCalledWith(p.id, 1);
+    expect(mocks.schedulePrepare).toHaveBeenCalledWith(p.id, 2, at(120));
+    expect(mocks.schedulePublish).toHaveBeenLastCalledWith(p.id, 2, at(180));
+    expect(db.rows("scheduledPost")[0].attempts).toBe(2);
+  });
+
+  it("a caption edit keeps the existing jobs", async () => {
+    const p = await draft();
+    await schedulePost(WS, p.id, at(180), { now: NOW });
+    mocks.schedulePrepare.mockClear();
+    const scheduled = await getPost(WS, p.id);
+    await updatePost(WS, p.id, { caption: "Yangi", version: scheduled.version } as never);
+    expect(mocks.schedulePrepare).not.toHaveBeenCalled();
+    expect(db.rows("scheduledPost")[0].attempts).toBe(1);
+  });
 });

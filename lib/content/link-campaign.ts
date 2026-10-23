@@ -30,6 +30,8 @@ export interface LinkedCampaignSummary {
 
 type Tx = Prisma.TransactionClient | typeof prisma;
 
+const LIVE_CAMPAIGN = "Kampaniya hozir boshqa chiqqan postda ishlayapti — avval uni to'xtating yoki nusxasini yarating";
+
 async function loadPost(workspaceId: string, postId: string) {
   const post = await prisma.scheduledPost.findUnique({ where: { id: postId }, select: { id: true, workspaceId: true, instagramAccountId: true, deletedAt: true } });
   if (!post || post.workspaceId !== workspaceId || post.deletedAt) throw notFound();
@@ -56,6 +58,8 @@ export async function attachCampaignToPost(workspaceId: string, postId: string, 
     const automation = await prisma.automation.findUnique({ where: { id: link.automationId } });
     if (!automation || automation.workspaceId !== workspaceId) throw notFound("Kampaniya topilmadi");
     if (automation.instagramAccountId !== post.instagramAccountId) throw new ContentError(400, "Kampaniya boshqa Instagram akkauntga tegishli");
+    // M5: re-linking would switch off a campaign that answers comments on a live post right now.
+    if (automation.isActive && automation.postId && automation.scheduledPostId !== postId) throw new ContentError(400, LIVE_CAMPAIGN);
     await prisma.automation.updateMany({ where: { scheduledPostId: postId, id: { not: automation.id } }, data: { scheduledPostId: null } });
     await prisma.automation.update({
       where: { id: automation.id },
@@ -66,6 +70,7 @@ export async function attachCampaignToPost(workspaceId: string, postId: string, 
     const campaign = await prisma.triggerCampaign.findUnique({ where: { id: link.triggerCampaignId } });
     if (!campaign || campaign.workspaceId !== workspaceId) throw notFound("Kampaniya topilmadi");
     if (campaign.instagramAccountId !== post.instagramAccountId) throw new ContentError(400, "Kampaniya boshqa Instagram akkauntga tegishli");
+    if (campaign.active && campaign.mediaIds.length > 0 && campaign.scheduledPostId !== postId) throw new ContentError(400, LIVE_CAMPAIGN);
     await prisma.triggerCampaign.updateMany({ where: { scheduledPostId: postId, id: { not: campaign.id } }, data: { scheduledPostId: null } });
     await prisma.triggerCampaign.update({
       where: { id: campaign.id },

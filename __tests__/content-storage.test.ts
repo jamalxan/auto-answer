@@ -235,6 +235,16 @@ describe("local route", () => {
     expect(res.status).toBe(413);
   });
 
+  it("stops a body longer than its Content-Length and leaves no file behind (M7)", async () => {
+    const route = await loadRoute();
+    const storage = getStorage();
+    const { url, headers } = await storage.presignPut(KEY, { contentType: "image/jpeg", contentLength: 3, expiresSec: 60 });
+    const req = new NextRequest(url, { method: "PUT", headers, body: Buffer.from("abcdefgh") });
+    const res = await route.PUT(req, ctx(KEY));
+    expect(res.status).toBe(400);
+    expect(await storage.headObject(KEY)).toBeNull();
+  });
+
   it("is a 404 when the local driver is not active", async () => {
     vi.stubEnv("MEDIA_STORAGE_DRIVER", "s3");
     vi.stubEnv("MEDIA_S3_BUCKET", "bucket");

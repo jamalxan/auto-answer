@@ -16,6 +16,7 @@ import CalendarView from "./calendar-view";
 import Composer from "./composer";
 import MediaLibrary from "./media-library";
 import PostDetail from "./post-detail";
+import QueueCard from "./queue-card";
 import SavedTexts from "./saved-texts";
 import { CONTENT_API, requestJson, type ContentMeta } from "./shared";
 
@@ -154,6 +155,7 @@ export default function ContentDashboard() {
           {tab === "calendar" && postParam && !editing && (
             <PostDetail meta={meta} postId={postParam} refreshKey={refreshKey} onBack={() => navigate({ post: null })} onEdit={() => navigate({ post: postParam, edit: true })} onChanged={bump} />
           )}
+          {tab === "calendar" && !creating && !postParam && <QueueCard timezone={meta.timezone} refreshKey={refreshKey} />}
           {tab === "calendar" && !creating && !postParam && (
             <CalendarView meta={meta} refreshKey={refreshKey} onOpen={(id) => navigate({ post: id })} onCreate={(date) => navigate({ creating: true, date })} />
           )}

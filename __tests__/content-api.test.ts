@@ -27,6 +27,7 @@ vi.mock("@/lib/content/queue", () => ({
   scheduleManualNotify: vi.fn(async () => undefined),
   removePostJobs: vi.fn(async () => undefined),
   enqueueMediaProcess: vi.fn(async () => undefined),
+  contentQueueCounts: vi.fn(async () => null),
 }));
 vi.mock("@/lib/content/quota", () => ({
   accountQuota: vi.fn(async () => ({ used: 0, total: 50, scheduledNext24h: 0, resetsAt: null, source: "cache" })),
@@ -51,6 +52,7 @@ import { GET as listRoute, POST as createRoute } from "@/app/api/developer/conte
 import { DELETE as deleteRoute, GET as getRoute, PATCH as patchRoute } from "@/app/api/developer/content/posts/[id]/route";
 import { POST as actionRoute } from "@/app/api/developer/content/posts/[id]/[action]/route";
 import { POST as presignRoute } from "@/app/api/developer/content/media/presign/route";
+import { GET as queueStatsRoute } from "@/app/api/developer/content/queue-stats/route";
 
 const WS = "ws1";
 const ctx = (role: string, workspaceId = WS) => ({ userId: "u1", workspaceId, workspace: { id: workspaceId, name: "W", timezone: "Asia/Tashkent" }, role });
@@ -172,6 +174,19 @@ describe("meta and media", () => {
     expect(json.data.me).toMatchObject({ canCreate: true, canSchedule: true });
     expect(json.data.limits.carouselMax).toBe(10);
     expect(json.data.telegramConnected).toBe(false);
+  });
+
+  it("queue-stats counts the workspace's posts by stage and flags overdue ones (M10)", async () => {
+    const past = new Date(Date.now() - 10 * 60_000);
+    db.seed("scheduledPost", { id: "a", workspaceId: WS, instagramAccountId: "acc1", type: "FEED_IMAGE", status: "SCHEDULED", scheduledAt: past });
+    db.seed("scheduledPost", { id: "b", workspaceId: WS, instagramAccountId: "acc1", type: "FEED_IMAGE", status: "NEEDS_MANUAL", scheduledAt: past });
+    db.seed("scheduledPost", { id: "c", workspaceId: "other", instagramAccountId: "acc9", type: "FEED_IMAGE", status: "SCHEDULED", scheduledAt: past });
+    const res = await queueStatsRoute();
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.data.statuses).toEqual({ SCHEDULED: 1, NEEDS_MANUAL: 1 });
+    expect(json.data.overdue).toBe(1);
+    expect(json.data.queues).toBeNull();
   });
 
   it("presign is OPERATOR+ and validates the MIME type", async () => {

@@ -198,6 +198,32 @@ export async function deleteMedia(workspaceId: string, mediaId: string): Promise
   await prisma.workspace.update({ where: { id: workspaceId }, data: { mediaStorageBytes: { decrement: BigInt(released) } } });
 }
 
+/** An upload whose PUT never finished: presign TTL plus generous slack. */
+export const ABANDONED_UPLOAD_MS = 2 * 3_600_000;
+
+/**
+ * M6: a browser that closed mid-upload leaves an UPLOADING row holding its
+ * reserved quota forever. The sweeper deletes those rows (and any partial
+ * object), which releases the reservation.
+ */
+export async function releaseAbandonedUploads(now: Date = new Date()): Promise<number> {
+  const stale = await prisma.mediaAsset.findMany({
+    where: { status: "UPLOADING", createdAt: { lt: new Date(now.getTime() - ABANDONED_UPLOAD_MS) } },
+    take: 200,
+    select: { id: true, workspaceId: true },
+  });
+  let released = 0;
+  for (const asset of stale) {
+    try {
+      await deleteMedia(asset.workspaceId, asset.id);
+      released++;
+    } catch (error) {
+      console.error("[Content] abandoned upload not released:", error instanceof Error ? error.message : error);
+    }
+  }
+  return released;
+}
+
 /** Tags are the only "folders" (FR-M5). */
 export async function setMediaTags(workspaceId: string, mediaId: string, tags: string[]): Promise<void> {
   await ownedAsset(workspaceId, mediaId);

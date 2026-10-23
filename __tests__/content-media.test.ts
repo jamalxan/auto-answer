@@ -27,7 +27,7 @@ vi.mock("@/lib/content/storage", () => ({
 }));
 
 import { ContentError } from "@/lib/content/errors";
-import { completeUpload, deleteMedia, listMedia, presignUpload } from "@/lib/content/media";
+import { completeUpload, deleteMedia, listMedia, presignUpload, releaseAbandonedUploads } from "@/lib/content/media";
 
 const WS = "ws1";
 
@@ -144,5 +144,18 @@ describe("listMedia", () => {
     const r = await listMedia(WS, {});
     expect(r.total).toBe(1);
     expect(r.items[0]).toMatchObject({ id: "m1", thumbUrl: "https://bucket/t1?get=1", usedByPostIds: ["p1"], sizeBytes: 100 });
+  });
+});
+
+describe("releaseAbandonedUploads (M6)", () => {
+  it("deletes UPLOADING rows older than two hours and gives their quota back; fresh ones stay", async () => {
+    const now = new Date("2026-10-24T14:00:00Z");
+    db.rows("workspace")[0].mediaStorageBytes = 3000;
+    db.seed("mediaAsset", { id: "old", workspaceId: WS, kind: "IMAGE", originalKey: "ws/ws1/2026/10/old.jpg", mimeType: "image/jpeg", sizeBytes: 1000, status: "UPLOADING", createdAt: new Date(now.getTime() - 3 * 3_600_000) });
+    db.seed("mediaAsset", { id: "new", workspaceId: WS, kind: "IMAGE", originalKey: "ws/ws1/2026/10/new.jpg", mimeType: "image/jpeg", sizeBytes: 1000, status: "UPLOADING", createdAt: new Date(now.getTime() - 10 * 60_000) });
+    expect(await releaseAbandonedUploads(now)).toBe(1);
+    expect(db.rows("mediaAsset").map((a) => [a.id, a.status])).toEqual([["old", "DELETED"], ["new", "UPLOADING"]]);
+    expect(Number(db.rows("workspace")[0].mediaStorageBytes)).toBe(2000);
+    expect(mocks.deleted).toContain("ws/ws1/2026/10/old.jpg");
   });
 });
