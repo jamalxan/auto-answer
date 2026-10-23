@@ -99,7 +99,7 @@ describe("sweepContent", () => {
     const r = await sweepContent(NOW);
     expect(r.recovered).toBe(1);
     expect(mocks.recoverStuckPublishing).toHaveBeenCalledTimes(1);
-    expect(mocks.recoverStuckPublishing.mock.calls[0][0]).toBe("p1");
+    expect(mocks.recoverStuckPublishing).toHaveBeenCalledWith("p1", expect.anything());
   });
 
   it("returns a READY_TO_PUBLISH post with a 23-hour-old container to SCHEDULED", async () => {
