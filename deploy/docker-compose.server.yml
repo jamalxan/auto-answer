@@ -22,6 +22,11 @@ x-app: &app
     # only UI for it, and the owner wants every /developer module live, so it is
     # pinned on here for web + worker + cron. CRM_DISABLED=1 in .env still wins.
     CRM_ENABLED: "1"
+  # Content Scheduler media with the local storage driver (no S3/R2 bucket yet):
+  # web serves the signed URLs Meta fetches, the worker transcodes into the same
+  # folder, so both mount one named volume that survives redeploys.
+  volumes:
+    - media:/app/.media
   depends_on:
     postgres:
       condition: service_healthy
@@ -77,3 +82,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  media:
