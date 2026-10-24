@@ -91,6 +91,45 @@ worker, the sweeper inside the existing cron loop.
   schedules into the next free slot ≥ now + 5 min (8-week horizon, 409 when none). Calendar →
   "Slotlar" panel edits them; the composer shows "Navbatga qo'shish" when the account has slots.
 
+## Faza 2 — calendar and insights (WP-D, FR-S6, FR-V4, FR-V3, FR-S7)
+
+| Piece | Where |
+|---|---|
+| Move (drag-and-drop / "Ko'chirish"), bulk actions | `lib/content/bulk.ts` → `movePost`, `runBulk`, `shiftInstant` |
+| `POST posts/[id]/move` {scheduledAt} (create; SCHEDULED also needs schedule) | `app/api/developer/content/posts/[id]/[action]/route.ts` |
+| `POST posts/bulk` {ids ≤ 100, action: shift \| pause \| delete \| review, …} | `app/api/developer/content/posts/bulk/route.ts` |
+| Feed grid, best times, cache | `lib/content/insights.ts`; Meta calls `getAccountMedia`, `getOnlineFollowers` in `lib/meta/client.ts` |
+| `GET accounts/[id]/feed`, `GET accounts/[id]/best-times[?fresh=1]` (view) | `app/api/developer/content/accounts/[id]/feed`, `best-times` |
+| UI: drag in Oy / Hafta (hour rows + heat map), Ro'yxat checkboxes + bulk bar + Ko'chirish, Grid view, composer chips, post detail Ko'chirish | `components/developer/content/calendar-view.tsx`, `calendar-tools.tsx` |
+
+Rulings:
+- **Move.** A SCHEDULED card goes through `schedulePost` (5-minute lead, FR-S4 spacing — the UI says
+  where it landed when the minute was taken — quota, jobs re-armed). A DRAFT only gets its planned
+  `scheduledAt` moved and stays a DRAFT even when complete: dragging never schedules (the lead rule
+  still applies so a plan is never in the past). Month drop keeps the time of day, week drop takes
+  the hour and keeps the minutes; a draft without a time lands at 19:00 / on the hour. The UI moves
+  the card at once and rolls back with the server's reason. Native HTML5 drag events; the keyboard
+  and phone fallback is "Ko'chirish" (datetime-local) in the list rows and in post detail.
+- **Bulk.** Same permission as the single action: pause / delete MANAGER+, review OPERATOR+, shift
+  OPERATOR+ with SCHEDULED / PAUSED items needing MANAGER+ (reported per item). Shift: minutes and
+  hours are exact, days keep the wall clock in the post's zone; PAUSED posts move and stay paused;
+  posts without a time are reported. A forward shift moves the latest post first (backward: the
+  earliest) so spacing does not bump neighbours. Review sends each draft with its own planned time.
+  Every id gets a result; unknown or foreign ids are "Post topilmadi". The UI keeps failed ids
+  selected and lists each failure with its reason.
+- **Feed grid.** Planned feed posts (SCHEDULED, PAUSED, in flight, PENDING_REVIEW, NEEDS_MANUAL and
+  drafts with a planned time — drafts faded) sorted furthest future first, then the last 12 from
+  Meta (`/{ig-user-id}/media`, cached 10 min). Stories and Trial Reels are left out, Reels only with
+  share_to_feed. Meta error → our own published posts plus the reason ("qayta ulang" etc.).
+- **Best times.** ≥ 100 followers → `online_followers` (lifetime, last 30 days), hour h of a value is
+  `end_time − 24 h + h` (Meta reports Pacific days) converted to the workspace zone, averaged per
+  weekday × hour. Otherwise the account's media of the last 90 days (≥ 5 posts): reach when Meta gives
+  it for every sampled post (≤ 30), else likes + comments; a post counts at half value on the hours
+  either side. Otherwise `source: "none"` → "Ma'lumot yetarli emas". Scores 0…1 (best = 1), top 3
+  cells. Cache 6 h per account + zone (10 min after a Meta failure) in Redis, in-process without
+  REDIS_URL — no migration. Week view paints the map behind the hours; the composer shows "Eng
+  yaxshi vaqt: Ju 19:00" chips that fill the next such slot.
+
 ## How to test on @jamalxann
 
 1. Set `MEDIA_S3_*` (R2 recommended) — Meta must be able to fetch the media URL.
