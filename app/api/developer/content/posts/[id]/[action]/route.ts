@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { jsonError } from "@/lib/api-auth";
+import { movePost } from "@/lib/content/bulk";
 import { ContentError } from "@/lib/content/errors";
+import { canContent } from "@/lib/content/permissions";
 import { recurInputSchema } from "@/lib/content/recurrence";
 import { applyToSeries, deleteSeriesFuture, recurPost } from "@/lib/content/series";
 import { queuePost } from "@/lib/content/slots";
@@ -45,6 +47,8 @@ const ACTIONS: Record<string, ContentAccess> = {
   review: "create",
   decision: "approve",
   notes: "create",
+  // FR-S6 drag-and-drop / "Ko'chirish": a draft's plan is an edit, a SCHEDULED post needs schedule (checked in movePost).
+  move: "create",
 };
 
 /** Read-only sub-resources: the review history and the notes thread. */
@@ -71,6 +75,11 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       const parsed = parseBody(scheduleInputSchema, body);
       if (!parsed.ok) return respond(parsed);
       return respond(await run(() => schedulePost(ws, id, resolveScheduledAt(parsed.data))));
+    }
+    case "move": {
+      const parsed = parseBody(scheduleInputSchema, body);
+      if (!parsed.ok) return respond(parsed);
+      return respond(await run(() => movePost(ws, id, resolveScheduledAt(parsed.data), { canSchedule: canContent(auth.ctx.role, "content.schedule") })));
     }
     case "publish-now":
       return respond(await run(() => publishNow(ws, id)));
