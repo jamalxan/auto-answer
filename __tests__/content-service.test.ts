@@ -290,6 +290,14 @@ describe("delete / duplicate / manual / isolation", () => {
     await expect(getPost(WS, p.id)).rejects.toMatchObject({ status: 404 });
   });
 
+  it("duplicating an old post whose prepared copy was cleaned prepares the media again (§7)", async () => {
+    const p = await draft({ caption: "old" });
+    db.rows("mediaAsset").find((a) => a.id === "m1")!.preparedKey = null;
+    db.rows("mediaAsset").find((a) => a.id === "m1")!.preparedBytes = null;
+    await duplicatePost(WS, p.id, {});
+    expect(db.rows("mediaAsset").find((a) => a.id === "m1")!.status).toBe("PROCESSING");
+  });
+
   it("duplicate makes a fresh DRAFT with the same media", async () => {
     const p = await draft({ caption: "orig" });
     const d = await duplicatePost(WS, p.id, {});

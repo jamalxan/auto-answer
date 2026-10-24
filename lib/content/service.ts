@@ -18,7 +18,7 @@ import { done, type ServiceResult } from "@/lib/crm/result";
 import { carouselMaxItems, CONTENT_LIMITS, maxCollaborators, PREPARE_LEAD_MS } from "./config";
 import { ContentError, notFound } from "./errors";
 import { activateLinkedCampaigns, attachCampaignToPost, linkedCampaignSummary, pauseLinkedCampaigns, type LinkedCampaignSummary } from "./link-campaign";
-import { signedMediaUrl } from "./media";
+import { reprepareCleanedMedia, signedMediaUrl } from "./media";
 import { accountQuota, quotaWindowFull } from "./quota";
 import { removePostJobs, scheduleManualNotify, schedulePrepare, schedulePublish } from "./queue";
 import type { MediaItemInput, PostInput, PostsQuery, PostStatusValue, PostTypeValue, PostUpdateInput } from "./schema";
@@ -359,6 +359,7 @@ export async function createPost(workspaceId: string, userId: string | null, inp
     },
   });
   if (input.media.length) await prisma.scheduledPostMedia.createMany({ data: mediaRows(created.id, input.media) });
+  await reprepareCleanedMedia(workspaceId, input.media.map((m) => m.mediaId));
   if (input.linkCampaign !== undefined) await attachCampaignToPost(workspaceId, created.id, input.linkCampaign);
   return getPost(workspaceId, created.id);
 }
@@ -396,6 +397,7 @@ export async function updatePost(workspaceId: string, postId: string, input: Pos
   if (input.media) {
     await prisma.scheduledPostMedia.deleteMany({ where: { postId } });
     if (input.media.length) await prisma.scheduledPostMedia.createMany({ data: mediaRows(postId, input.media) });
+    await reprepareCleanedMedia(workspaceId, input.media.map((m) => m.mediaId));
   }
   if (input.linkCampaign !== undefined) await attachCampaignToPost(workspaceId, postId, input.linkCampaign);
   // FR-A3: an edit voids the review — a pending or approved post goes back to DRAFT (old reviews stay as history, their postVersion no longer matches).
@@ -605,6 +607,7 @@ export async function duplicatePost(workspaceId: string, postId: string, opts: {
     },
   });
   if (input.media.length) await prisma.scheduledPostMedia.createMany({ data: mediaRows(created.id, input.media) });
+  await reprepareCleanedMedia(workspaceId, input.media.map((m) => m.mediaId));
   return getPost(workspaceId, created.id);
 }
 

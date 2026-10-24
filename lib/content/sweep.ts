@@ -13,13 +13,14 @@
  *   5. PUBLISHED_MANUAL posts without a media id → bind from the account media
  *   8. approvals (FR-A4, lib/content/review): OPTIONAL posts approved at their slot,
  *      PENDING_REVIEW posts 3 h past it → EXPIRED_REVIEW
+ *   9. prepared copies of media published 30+ days ago → deleted, storage released (§7)
  */
 
 import { prisma } from "@/lib/db/client";
 import { CONTAINER_MAX_AGE_MS, CONTAINER_MAX_WAIT_MS, latePublishMaxMs } from "./config";
 import { bindManualPost, sendManualNotice } from "./manual";
 import { activateLinkedCampaigns } from "./link-campaign";
-import { releaseAbandonedUploads } from "./media";
+import { cleanupPreparedCopies, releaseAbandonedUploads } from "./media";
 import { failPost, recoverStuckPublishing } from "./publish";
 import { hasLivePublishJob, schedulePublish } from "./queue";
 
@@ -35,6 +36,7 @@ export interface SweepResult {
   abandonedUploads: number;
   reviewsAutoApproved?: number;
   reviewsExpired?: number;
+  preparedCleaned?: number;
 }
 
 const STUCK_PREPARING_MS = CONTAINER_MAX_WAIT_MS.video + 5 * 60_000;
@@ -143,6 +145,12 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
   } catch (error) {
     console.error("[Content] review sweep failed:", error instanceof Error ? error.message : error);
   }
+
+  // 9: storage housekeeping (spec §7 "Saqlash muddati").
+  result.preparedCleaned = (await cleanupPreparedCopies(now).catch((error) => {
+    console.error("[Content] prepared-copy cleanup failed:", error instanceof Error ? error.message : error);
+    return { cleaned: 0 };
+  })).cleaned;
 
   return result;
 }
