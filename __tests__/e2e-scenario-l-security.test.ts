@@ -91,8 +91,8 @@ describe("L(b): deploy config hides the server version", () => {
     expect(caddyfile).not.toMatch(/X-Powered-By/i);
   });
 
-  it("states which nginx files are versioned (informational): site conf for admin host + gzip conf only", () => {
-    expect(nginxFiles.sort()).toEqual(["admin.socialauto.uz.conf", "gzip.conf"]);
+  it("states which nginx files are versioned (informational): site conf for admin host + gzip and upload conf only", () => {
+    expect(nginxFiles.sort()).toEqual(["admin.socialauto.uz.conf", "gzip.conf", "upload.conf"]);
     // there is no versioned main nginx.conf and no server block for socialauto.uz itself
     expect(existsSync(path.join(nginxDir, "nginx.conf"))).toBe(false);
   });
