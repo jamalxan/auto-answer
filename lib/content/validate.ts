@@ -8,12 +8,22 @@
 import { CONTENT_LIMITS, MEDIA } from "./config";
 import { cropInsideImage, croppedRatio, type CropRect } from "./crop-geometry";
 import type { PostInput, PostTypeValue } from "./schema";
-import { countCaption, normalizeUsernames, USERNAME_RE } from "./text";
+import { captionMentionsKeyword, countCaption, normalizeUsernames, USERNAME_RE } from "./text";
 
 export interface ValidationIssue {
   /** "caption", "media", "media[2]", "media[0].userTags", "collaborators", "type", "scheduledAt" … */
   field: string;
   message: string;
+}
+
+/**
+ * FR-L5, a warning and never an error: the linked campaign answers comments
+ * with its keyword, but the caption does not tell people to write it.
+ */
+export function campaignKeywordWarnings(type: PostTypeValue, caption: string | null | undefined, keywords: readonly string[]): ValidationIssue[] {
+  const list = keywords.filter((k) => k.trim());
+  if (!FIELD_MATRIX[type].caption || list.length === 0 || captionMentionsKeyword(caption, list)) return [];
+  return [{ field: "caption", message: `Caption'da kalit so'z yo'q — odamlarga "${list[0]} deb yozing" deb ayting, aks holda kampaniya ishga tushmaydi` }];
 }
 
 export type MediaStatusValue = "UPLOADING" | "PROCESSING" | "READY" | "FAILED" | "DELETED";

@@ -316,6 +316,7 @@ export interface PostDetail {
   attemptsLog: Array<{ id: string; step: string; ok: boolean; metaCode: number | null; message: string | null; durationMs: number | null; createdAt: string }>;
   linkedCampaign: { kind: "automation" | "trigger"; id: string; name: string; keywords: string[]; active: boolean; waiting: boolean } | null;
   issues: Array<{ field: string; message: string }>;
+  warnings?: Array<{ field: string; message: string }>;
   series?: SeriesInfo | null;
 }
 
@@ -366,7 +367,17 @@ export interface PostDraft {
   manualReason: "STORY_STICKER" | "MUSIC" | "USER_CHOICE" | null;
   media: MediaItemDraft[];
   labels: string[];
-  linkCampaign: { automationId?: string; triggerCampaignId?: string } | null;
+  linkCampaign: { automationId?: string; triggerCampaignId?: string; create?: NewCampaignDraft } | null;
+}
+
+/** FR-L1: the composer's inline "Yangi kampaniya" form. */
+export interface NewCampaignDraft {
+  keywords: string[];
+  publicReply: string;
+  dmMessage: string;
+  link: string;
+  linkButtonLabel: string;
+  requireFollow: boolean;
 }
 
 export function emptyDraft(instagramAccountId: string, type: PostTypeValue = "FEED_IMAGE"): PostDraft {

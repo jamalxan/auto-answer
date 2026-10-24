@@ -4,7 +4,7 @@
  * (AC-11). Pure: no DB.
  */
 import { describe, expect, it } from "vitest";
-import { FIELD_MATRIX, scheduleIssues, validatePost, type MediaFacts } from "@/lib/content/validate";
+import { campaignKeywordWarnings, FIELD_MATRIX, scheduleIssues, validatePost, type MediaFacts } from "@/lib/content/validate";
 import type { PostInput } from "@/lib/content/schema";
 
 const OPTS = { carouselMax: 10, maxCollaborators: 3 };
@@ -93,6 +93,15 @@ describe("schedule window", () => {
     expect(scheduleIssues(new Date(now.getTime() + 4 * 60_000), now)).toHaveLength(1);
     expect(scheduleIssues(new Date(now.getTime() + 6 * 60_000), now)).toEqual([]);
     expect(scheduleIssues(new Date(now.getTime() + 366 * 86_400_000), now)).toHaveLength(1);
+  });
+});
+
+describe("campaignKeywordWarnings (FR-L5)", () => {
+  it("warns only when a caption type misses every keyword", () => {
+    expect(campaignKeywordWarnings("REEL", "Yangi video", ["narx"])).toEqual([expect.objectContaining({ field: "caption" })]);
+    expect(campaignKeywordWarnings("REEL", "Narx deb yozing", ["narx"])).toEqual([]);
+    expect(campaignKeywordWarnings("STORY", "", ["narx"])).toEqual([]);
+    expect(campaignKeywordWarnings("REEL", "x", [])).toEqual([]);
   });
 });
 

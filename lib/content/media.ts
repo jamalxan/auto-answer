@@ -224,6 +224,98 @@ export async function releaseAbandonedUploads(now: Date = new Date()): Promise<n
   return released;
 }
 
+/** Spec §7 "Saqlash muddati": a prepared copy outlives its last publish by 30 days. */
+export const PREPARED_RETENTION_MS = 30 * 24 * 3_600_000;
+const PREPARED_CLEANUP_BATCH = 50;
+const PUBLISHED_STATUSES = ["PUBLISHED", "PUBLISHED_MANUAL"] as const;
+
+export interface PreparedCleanup {
+  cleaned: number;
+  releasedBytes: number;
+}
+
+/**
+ * Sweeper step: drop the Instagram-ready copy (preparedKey) of media whose
+ * every live usage is a post published more than 30 days ago. The original
+ * and the thumbnail stay, the copy's bytes leave Workspace.mediaStorageBytes.
+ * A video whose prepared copy IS the original (no transcode) loses only the
+ * pointer — publishing falls back to originalKey, which is the same file.
+ * Idempotent (a cleaned row has no preparedKey, and the write is guarded on
+ * the key it read) and batched.
+ */
+export async function cleanupPreparedCopies(now: Date = new Date(), batch = PREPARED_CLEANUP_BATCH): Promise<PreparedCleanup> {
+  const cutoff = new Date(now.getTime() - PREPARED_RETENTION_MS);
+  const candidates = await prisma.mediaAsset.findMany({
+    where: {
+      status: "READY",
+      preparedKey: { not: null },
+      AND: [
+        { usages: { some: { post: { deletedAt: null, status: { in: [...PUBLISHED_STATUSES] }, publishedAt: { lt: cutoff } } } } },
+        // nothing else may still need it: a draft, a queued post, a failed one that can be retried, a recent publish
+        { usages: { none: { post: { deletedAt: null, NOT: { status: { in: [...PUBLISHED_STATUSES] }, publishedAt: { lt: cutoff } } } } } },
+      ],
+    },
+    orderBy: { updatedAt: "asc" },
+    take: batch,
+    select: { id: true, workspaceId: true, originalKey: true, preparedKey: true, preparedBytes: true },
+  });
+
+  const result: PreparedCleanup = { cleaned: 0, releasedBytes: 0 };
+  if (candidates.length === 0) return result;
+  const storage = getStorage();
+  for (const asset of candidates) {
+    const key = asset.preparedKey!;
+    const separate = key !== asset.originalKey;
+    let released = 0;
+    try {
+      if (separate) {
+        released = asset.preparedBytes ?? (await storage.headObject(key).catch(() => null))?.size ?? 0;
+        await storage.deleteObject(key);
+      }
+    } catch (error) {
+      console.error("[Content] prepared copy not deleted:", error instanceof Error ? error.message : error);
+      continue;
+    }
+    // preparedBytes null marks "copy dropped, re-prepare before reuse"; a shared original keeps its facts.
+    const updated = await prisma.mediaAsset.updateMany({
+      where: { id: asset.id, preparedKey: key },
+      data: separate ? { preparedKey: null, preparedBytes: null } : { preparedKey: null },
+    });
+    if (updated.count === 0) continue;
+    if (released > 0) {
+      await prisma.workspace.update({ where: { id: asset.workspaceId }, data: { mediaStorageBytes: { decrement: BigInt(released) } } });
+    }
+    result.cleaned++;
+    result.releasedBytes += released;
+  }
+  return result;
+}
+
+/**
+ * The other half of the cleanup: an old asset whose prepared copy was
+ * dropped is attached to a new post (duplicate, re-use from the library) —
+ * prepare it again so Meta never gets the raw original. The thumbnail is
+ * rewritten by the processor, so its bytes are released first (no double count).
+ */
+export async function reprepareCleanedMedia(workspaceId: string, mediaIds: string[]): Promise<number> {
+  const ids = [...new Set(mediaIds)];
+  if (ids.length === 0) return 0;
+  const cleaned = await prisma.mediaAsset.findMany({
+    where: { id: { in: ids }, workspaceId, status: "READY", preparedKey: null, preparedBytes: null },
+    select: { id: true, thumbKey: true },
+  });
+  let queued = 0;
+  for (const asset of cleaned) {
+    const claimed = await prisma.mediaAsset.updateMany({ where: { id: asset.id, status: "READY", preparedKey: null }, data: { status: "PROCESSING", error: null } });
+    if (claimed.count === 0) continue;
+    const thumb = asset.thumbKey ? await getStorage().headObject(asset.thumbKey).catch(() => null) : null;
+    if (thumb?.size) await prisma.workspace.update({ where: { id: workspaceId }, data: { mediaStorageBytes: { decrement: BigInt(thumb.size) } } });
+    await enqueueMediaProcess(asset.id);
+    queued++;
+  }
+  return queued;
+}
+
 /** Tags are the only "folders" (FR-M5). */
 export async function setMediaTags(workspaceId: string, mediaId: string, tags: string[]): Promise<void> {
   await ownedAsset(workspaceId, mediaId);

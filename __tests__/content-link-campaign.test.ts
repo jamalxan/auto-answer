@@ -55,6 +55,50 @@ describe("attachCampaignToPost", () => {
     expect(db.rows("automation").find((a) => a.id === "au5")).toMatchObject({ scheduledPostId: "p1", postId: null });
   });
 
+  it("creates a new campaign inline (FR-L1) through the dashboard's writer, born waiting", async () => {
+    await attachCampaignToPost(WS, "p1", { automationId: "au1" });
+    await attachCampaignToPost(WS, "p1", {
+      create: { keywords: ["Narx", "narx", ""], publicReply: "DM'ga yubordik", dmMessage: "Mana narxlar", link: "https://shop.uz/x", linkButtonLabel: "Ochish", requireFollow: true },
+    });
+    const created = db.rows("automation").find((a) => a.id !== "au1")!;
+    expect(created).toMatchObject({
+      workspaceId: WS,
+      instagramAccountId: "acc1",
+      name: "Post: Narx",
+      keywords: ["Narx"],
+      dmMessage: "Mana narxlar",
+      publicReplyEnabled: true,
+      publicReplyMessages: ["DM'ga yubordik"],
+      publicReplyMessage: "DM'ga yubordik",
+      linkButtonLabel: "Ochish",
+      requireFollow: true,
+      isActive: false,
+      postId: null,
+      pendingNextReel: false,
+      matchAnyPost: false,
+      scheduledPostId: "p1",
+    });
+    expect(created.reportShareSlug).toBeTruthy();
+    expect(db.rows("trackedLink")).toEqual([expect.objectContaining({ automationId: created.id, destinationUrl: "https://shop.uz/x", workspaceId: WS })]);
+    // the previously linked campaign is released — one post, one campaign
+    expect(db.rows("automation").find((a) => a.id === "au1")!.scheduledPostId).toBeNull();
+    expect(await linkedCampaignSummary("p1")).toMatchObject({ kind: "automation", id: created.id, waiting: true, active: false });
+    await activateLinkedCampaigns(db.client(), "p1", "1799");
+    expect(db.rows("automation").find((a) => a.id === created.id)).toMatchObject({ postId: "1799", isActive: true });
+  });
+
+  it("refuses an inline campaign without a keyword or DM text", async () => {
+    await expect(attachCampaignToPost(WS, "p1", { create: { keywords: [" "], dmMessage: "x" } })).rejects.toMatchObject({ status: 400 });
+    await expect(attachCampaignToPost(WS, "p1", { create: { keywords: ["narx"], dmMessage: "" } })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("inline campaign without a public reply or link stays minimal", async () => {
+    await attachCampaignToPost(WS, "p1", { create: { keywords: ["promo"], dmMessage: "Kod: X" } });
+    const created = db.rows("automation").find((a) => a.id !== "au1")!;
+    expect(created).toMatchObject({ publicReplyEnabled: false, publicReplyMessages: [], requireFollow: false, linkButtonLabel: null, isActive: false });
+    expect(db.rows("trackedLink")).toHaveLength(0);
+  });
+
   it("detaches with null", async () => {
     await attachCampaignToPost(WS, "p1", { automationId: "au1" });
     await attachCampaignToPost(WS, "p1", null);

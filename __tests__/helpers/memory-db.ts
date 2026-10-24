@@ -69,6 +69,9 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   dmLog: {
     automation: { model: "automation", fk: "automationId", kind: "one" },
   },
+  automation: {
+    trackedLinks: { model: "trackedLink", fk: "automationId", kind: "many" },
+  },
   onboardingSession: {},
   instagramAccount: {
     triggerCampaigns: { model: "triggerCampaign", fk: "instagramAccountId", kind: "many" },
@@ -679,7 +682,14 @@ export class MemoryDb {
             throw Object.assign(new Error(`Unique constraint failed: ${name}(${key.join(",")})`), { code: "P2002" });
           }
         }
-        return db.withInclude(name, db.seed(name, flat), include);
+        const created = db.seed(name, flat);
+        // nested `{ relation: { create: [...] } }` on a one-to-many relation
+        for (const [k, v] of Object.entries(data)) {
+          const rel = RELATIONS[name]?.[k];
+          const nested = v && typeof v === "object" ? (v as { create?: Row | Row[] }).create : undefined;
+          if (rel?.kind === "many" && nested) for (const child of Array.isArray(nested) ? nested : [nested]) db.seed(rel.model, { ...child, [rel.fk]: created.id });
+        }
+        return db.withInclude(name, created, include);
       },
       async createMany({ data }: { data: Row[] }) {
         for (const row of data) db.seed(name, row);
