@@ -11,8 +11,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
 import { Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 import { explainError, RECONNECT_HREF } from "@/lib/foundation/error-catalog";
+import { MoveForm } from "./calendar-tools";
 import { ReviewHistory } from "./reviews";
-import { CONTENT_API, formatZoned, jsonInit, postCardTone, requestJson, STATUS_LABEL, TONE_CLASS, TYPE_LABEL, type ContentMeta, type PostDetail as Detail } from "./shared";
+import { canMovePost, CONTENT_API, formatZoned, jsonInit, postCardTone, requestJson, STATUS_LABEL, TONE_CLASS, TYPE_LABEL, type ContentMeta, type PostDetail as Detail } from "./shared";
 
 const TIMELINE: Array<{ key: string; label: string; reached: (p: Detail) => boolean }> = [
   { key: "created", label: "Yaratildi", reached: () => true },
@@ -39,6 +40,7 @@ export default function PostDetail({
   const [post, setPost] = useState<Detail | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -225,6 +227,11 @@ export default function PostDetail({
                 Bekor qilish
               </button>
             )}
+            {canMovePost(s, meta.me) && (
+              <button type="button" className={secondaryButton} disabled={busy !== null} aria-expanded={moving} onClick={() => setMoving((m) => !m)}>
+                Ko&apos;chirish
+              </button>
+            )}
             {meta.me.canCreate && s === "NEEDS_MANUAL" && (
               <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void action("mark-published")}>
                 Chiqardim
@@ -248,6 +255,18 @@ export default function PostDetail({
               </button>
             )}
           </div>
+          {moving && canMovePost(s, meta.me) && (
+            <MoveForm
+              post={post}
+              tz={meta.timezone}
+              onCancel={() => setMoving(false)}
+              onDone={() => {
+                setMoving(false);
+                void load();
+                onChanged();
+              }}
+            />
+          )}
         </div>
 
         <div className="rounded-2xl border border-border bg-surface p-4">

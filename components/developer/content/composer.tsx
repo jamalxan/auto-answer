@@ -16,6 +16,7 @@ import { EDITABLE } from "@/lib/content/transitions";
 import { MediaPicker, UploadZone } from "./media-library";
 import Preview from "./preview";
 import AiCaptionPanel from "./ai-caption-panel";
+import { BestTimeChips } from "./calendar-tools";
 import { EMPTY_REVIEW, ReviewForm, reviewDraftIssue, type MetaWithReviewers, type ReviewDraft } from "./reviews";
 import {
   composerBlocked,
@@ -737,6 +738,7 @@ export default function Composer({
                 <span className="pb-2 text-xs text-muted">{tz} · kamida 5 daqiqa keyin</span>
               </div>
             )}
+            {mode === "schedule" && <BestTimeChips accountId={draft.instagramAccountId || undefined} tz={tz} onPick={setSlot} />}
             {issueFor("scheduledAt") && <p className="text-xs text-error">{issueFor("scheduledAt")}</p>}
             {canRecur && <RecurrenceFields value={recur} onChange={setRecur} startDate={slot.date} time={slot.time} timezone={tz} />}
             {!canSchedule && <p className="text-xs text-muted">Sizning rolingiz ({meta.me.roleLabel}) rejalashtira olmaydi — post tanlangan vaqt bilan tasdiqqa yuboriladi.</p>}
