@@ -184,7 +184,7 @@ describe("bulk (FR-V4)", () => {
     expect(paused.data.results.find((r: { id: string }) => r.id === "f").error).toBe("Post topilmadi");
     const deleted = await (await bulk({ action: "delete", ids: ["a", "b", "f"] })).json();
     expect(deleted.data).toMatchObject({ done: 2, failed: 1 });
-    expect(db.rows("scheduledPost").find((r) => r.id === "f").deletedAt).toBeFalsy();
+    expect(db.rows("scheduledPost").find((r) => r.id === "f")?.deletedAt).toBeFalsy();
   });
 
   it("sends drafts with a planned time to review, reports those without one", async () => {
@@ -195,7 +195,7 @@ describe("bulk (FR-V4)", () => {
     mocks.workspaceContext.mockResolvedValue(ctx("OPERATOR"));
     const json = await (await bulk({ action: "review", ids: ["a", "b"], reviewerUserIds: ["u2"] })).json();
     expect(json.data).toMatchObject({ done: 1, failed: 1 });
-    expect(db.rows("scheduledPost").find((r) => r.id === "a").status).toBe("PENDING_REVIEW");
+    expect(db.rows("scheduledPost").find((r) => r.id === "a")?.status).toBe("PENDING_REVIEW");
   });
 
   it("validates the body: unknown action, empty or > 100 ids", async () => {
