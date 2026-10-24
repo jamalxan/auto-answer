@@ -4,7 +4,7 @@
  * month, reset on the next one).
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, resetDb } from "./helpers/db-instance";
 
 const mocks = vi.hoisted(() => ({ alertWorkspace: vi.fn() }));
@@ -38,10 +38,17 @@ function spend(costUsd: number, over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  // Pin the clock to the fixtures' date: code under test also reads `new Date()`.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(OCT);
   resetDb();
   mocks.alertWorkspace.mockReset().mockResolvedValue(undefined);
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("saveBudget / getBudget", () => {

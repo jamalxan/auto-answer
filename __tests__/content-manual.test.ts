@@ -3,7 +3,7 @@
  * media, copyable caption and buttons, sent once; the email fallback; the
  * "E'lon qildim" callback; binding the real media id afterwards.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, resetDb } from "./helpers/db-instance";
 
 const mocks = vi.hoisted(() => ({
@@ -67,12 +67,19 @@ function seedPost(over: Record<string, unknown> = {}, media: Array<{ id: string;
 }
 
 beforeEach(() => {
+  // Pin the clock to the fixtures' date: code under test also reads `new Date()`.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   resetDb();
   for (const m of Object.values(mocks)) if (typeof m === "function") (m as ReturnType<typeof vi.fn>).mockClear();
   mocks.chats = [{ id: "tc1", chatId: "100", integrationId: "int1" }];
   db.seed("workspace", { id: WS, name: "W", ownerId: "u1" });
   db.seed("instagramAccount", { id: "acc1", workspaceId: WS, instagramId: "ig1", username: "jamalxann", accessToken: "enc", tokenStatus: "ACTIVE" });
   db.seed("telegramUser", { tgUserId: "777", userId: "u1", workspaceId: WS });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("sendManualNotice", () => {

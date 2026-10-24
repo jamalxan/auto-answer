@@ -6,7 +6,7 @@
  * buttons, notes, tenant isolation.
  */
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, resetDb } from "./helpers/db-instance";
 
 const mocks = vi.hoisted(() => ({
@@ -64,6 +64,9 @@ function member(userId: string, role: string, ws = WS) {
 }
 
 beforeEach(() => {
+  // Pin the clock to the fixtures' date: code under test also reads `new Date()`.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   resetDb();
   vi.useRealTimers();
   for (const m of Object.values(mocks)) m.mockClear();
@@ -76,6 +79,10 @@ beforeEach(() => {
   member("adm", "ADMIN");
   member("view", "VIEWER");
   member("stranger", "MANAGER", "ws2");
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 const draft = () => createPost(WS, "op", { instagramAccountId: "acc1", type: "FEED_IMAGE", caption: "Salom", media: [{ mediaId: "m1" }] });
