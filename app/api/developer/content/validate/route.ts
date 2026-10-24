@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { jsonError } from "@/lib/api-auth";
 import { postInputSchema } from "@/lib/content/schema";
-import { run, validateDraft } from "@/lib/content/service";
+import { draftWarnings, run, validateDraft } from "@/lib/content/service";
 import { countCaption } from "@/lib/content/text";
 import { parseBody, readJson, requireContent, respond } from "@/lib/developer/content-guard";
 
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
   return respond(
     await run(async () => ({
       issues: await validateDraft(auth.ctx.workspaceId, parsed.data),
+      warnings: await draftWarnings(auth.ctx.workspaceId, parsed.data),
       caption: countCaption(parsed.data.caption ?? ""),
       firstComment: countCaption(parsed.data.firstComment ?? ""),
     }))

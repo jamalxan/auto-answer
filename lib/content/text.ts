@@ -52,3 +52,10 @@ export function extractHashtags(text: string): string[] {
   for (const m of text.match(HASHTAG_RE) ?? []) out.add(m.trim().slice(1).toLowerCase());
   return [...out];
 }
+
+/** FR-L5: does the caption tell people what to comment? */
+export function captionMentionsKeyword(caption: string | null | undefined, keywords: readonly string[]): boolean {
+  if (!caption) return false;
+  const text = caption.toLowerCase();
+  return keywords.some((k) => k.trim() && text.includes(k.trim().toLowerCase()));
+}

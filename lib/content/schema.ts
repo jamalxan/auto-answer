@@ -52,12 +52,32 @@ export const mediaItemInputSchema = z.object({
 });
 export type MediaItemInput = z.infer<typeof mediaItemInputSchema>;
 
+/**
+ * FR-L1: a new comment-to-DM campaign typed in the composer. It becomes a
+ * legacy Automation (the engine the main dashboard creates today, the only
+ * one with the follow gate) through lib/campaigns/create-automation.
+ */
+export const newCampaignSchema = z.object({
+  name: z.string().trim().max(100).optional(),
+  keywords: z
+    .array(z.string().trim().max(50, "kalit so'z 50 belgidan oshmasin"))
+    .transform((list) => list.filter((k, i) => k && list.findIndex((x) => x.toLowerCase() === k.toLowerCase()) === i))
+    .pipe(z.array(z.string()).min(1, "kamida bitta kalit so'z kiriting").max(10, "ko'pi bilan 10 ta kalit so'z")),
+  publicReply: z.string().trim().max(1000).optional(),
+  dmMessage: z.string().trim().min(1, "DM matnini kiriting").max(1000, "DM matni 1000 belgidan oshmasin"),
+  link: z.union([z.string().trim().url("havola noto'g'ri"), z.literal("")]).optional(),
+  linkButtonLabel: z.string().trim().max(20, "tugma nomi 20 belgidan oshmasin").optional(),
+  requireFollow: z.boolean().optional(),
+});
+export type NewCampaignInput = z.infer<typeof newCampaignSchema>;
+
 export const linkCampaignSchema = z
   .object({
     automationId: z.string().min(1).optional(),
     triggerCampaignId: z.string().min(1).optional(),
+    create: newCampaignSchema.optional(),
   })
-  .refine((v) => Boolean(v.automationId || v.triggerCampaignId), "kampaniya tanlanmagan");
+  .refine((v) => Boolean(v.automationId || v.triggerCampaignId || v.create), "kampaniya tanlanmagan");
 
 export const postInputSchema = z.object({
   instagramAccountId: z.string().min(1, "akkaunt tanlanmagan"),

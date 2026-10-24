@@ -24,7 +24,7 @@ import { removePostJobs, scheduleManualNotify, schedulePrepare, schedulePublish 
 import type { MediaItemInput, PostInput, PostsQuery, PostStatusValue, PostTypeValue, PostUpdateInput } from "./schema";
 import { normalizeUsernames } from "./text";
 import { canTransition, EDITABLE, QUEUED } from "./transitions";
-import { isVideoType, scheduleIssues, validatePost, type MediaFacts, type ValidationIssue } from "./validate";
+import { campaignKeywordWarnings, isVideoType, scheduleIssues, validatePost, type MediaFacts, type ValidationIssue } from "./validate";
 
 export { activateLinkedCampaigns };
 
@@ -105,6 +105,8 @@ export interface PostDetail {
   attemptsLog: PublishAttemptView[];
   linkedCampaign: LinkedCampaignSummary | null;
   issues: ValidationIssue[];
+  /** Non-blocking hints (FR-L5 caption keyword); scheduling ignores them. */
+  warnings: ValidationIssue[];
   /** FR-C9 / FR-S8: the story series or recurrence this post belongs to. */
   series: SeriesInfo | null;
 }
@@ -199,6 +201,7 @@ export function issuesOfRow(row: PostRow, now?: Date): ValidationIssue[] {
 }
 
 async function toDetail(row: PostRow): Promise<PostDetail> {
+  const linkedCampaign = await linkedCampaignSummary(row.id);
   const media = await Promise.all(
     row.media.map(async (m) => ({
       id: m.id,
@@ -250,8 +253,9 @@ async function toDetail(row: PostRow): Promise<PostDetail> {
     updatedAt: row.updatedAt,
     media,
     attemptsLog: row.attemptsLog.map((a) => ({ id: a.id, step: a.step, ok: a.ok, metaCode: a.metaCode, message: a.message, durationMs: a.durationMs, createdAt: a.createdAt })),
-    linkedCampaign: await linkedCampaignSummary(row.id),
+    linkedCampaign,
     issues: issuesOfRow(row),
+    warnings: campaignKeywordWarnings(row.type, row.caption, linkedCampaign?.keywords ?? []),
     series: await seriesOf(row),
   };
 }
@@ -402,6 +406,21 @@ export async function updatePost(workspaceId: string, postId: string, input: Pos
   }
   await rearmIfNeeded(row, await loadRow(workspaceId, postId));
   return getPost(workspaceId, postId);
+}
+
+/** FR-L5 for an unsaved draft: the keywords of the campaign it is about to link (or create). */
+export async function draftWarnings(workspaceId: string, input: PostInput): Promise<ValidationIssue[]> {
+  const link = input.linkCampaign;
+  if (!link) return [];
+  let keywords: string[] = [];
+  if (link.automationId) {
+    keywords = (await prisma.automation.findFirst({ where: { id: link.automationId, workspaceId }, select: { keywords: true } }))?.keywords ?? [];
+  } else if (link.triggerCampaignId) {
+    keywords = (await prisma.triggerCampaign.findFirst({ where: { id: link.triggerCampaignId, workspaceId }, select: { keywords: true } }))?.keywords ?? [];
+  } else if (link.create) {
+    keywords = link.create.keywords;
+  }
+  return campaignKeywordWarnings(input.type, input.caption, keywords);
 }
 
 export async function validateDraft(workspaceId: string, input: PostInput): Promise<ValidationIssue[]> {

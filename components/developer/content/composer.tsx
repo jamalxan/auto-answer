@@ -46,6 +46,7 @@ import {
   type PostTypeValue,
 } from "./shared";
 import TagEditor from "./tag-editor";
+import NewCampaignFields, { EMPTY_NEW_CAMPAIGN, newCampaignBody, newCampaignIssue } from "./new-campaign-fields";
 import RecurrenceFields, { emptyRecur, recurBody, recurPreview, type RecurState } from "./recurrence-fields";
 import { formatZoned, storySeriesLabel } from "./shared";
 import CropEditor, { presetsFor } from "./crop-editor";
@@ -84,11 +85,19 @@ function writeBackup(postId: string | undefined, draft: PostDraft | null) {
   }
 }
 
-/** The API body: client-only fields stripped, an empty automation card sent as "no link". */
-function bodyOf(draft: PostDraft) {
+/**
+ * The API body: client-only fields stripped, an empty automation card sent as "no link".
+ * A new inline campaign (FR-L1) is only created by an explicit save — autosave
+ * leaves the link alone, so it can never make a second copy.
+ */
+function bodyOf(draft: PostDraft, purpose: "save" | "validate" | "autosave" = "save") {
   const body = draftToBody(draft);
   const link = draft.linkCampaign;
-  return { ...body, linkCampaign: link && (link.automationId || link.triggerCampaignId) ? link : null };
+  if (link?.create && !link.automationId && !link.triggerCampaignId) {
+    const send = purpose === "save" || (purpose === "validate" && !newCampaignIssue(link.create));
+    return { ...body, linkCampaign: send ? { create: newCampaignBody(link.create) } : undefined };
+  }
+  return { ...body, linkCampaign: link && (link.automationId || link.triggerCampaignId) ? { automationId: link.automationId, triggerCampaignId: link.triggerCampaignId } : null };
 }
 
 function rowToItem(row: Pick<MediaRow, "id" | "kind" | "status" | "thumbUrl" | "width" | "height" | "durationMs">): MediaItemDraft {
@@ -128,6 +137,7 @@ export default function Composer({
   const [recur, setRecur] = useState<RecurState>(() => emptyRecur(slot.date));
   const [recurReport, setRecurReport] = useState<{ id: string; total: number; failed: Array<{ seriesIndex: number; at: string; error: string }> } | null>(null);
   const [slotCount, setSlotCount] = useState(0);
+  const [createdCampaigns, setCreatedCampaigns] = useState<ContentMeta["campaigns"]>([]);
   // Approval (Faza 2): null = schedule directly; OPERATOR always sends to review.
   const [review, setReview] = useState<ReviewDraft | null>(meta.me.canSchedule ? null : EMPTY_REVIEW);
   const dirty = useRef(false);
@@ -220,7 +230,7 @@ export default function Composer({
       return;
     }
     const t = setTimeout(async () => {
-      const res = await requestJson<{ issues: Issue[] }>(`${CONTENT_API}/validate`, jsonInit("POST", bodyOf(draft)));
+      const res = await requestJson<{ issues: Issue[] }>(`${CONTENT_API}/validate`, jsonInit("POST", bodyOf(draft, "validate")));
       if (res.ok) setIssues(res.data.issues);
     }, VALIDATE_DEBOUNCE_MS);
     return () => clearTimeout(t);
@@ -233,7 +243,7 @@ export default function Composer({
       dirty.current = false;
       writeBackup(serverId.current, draft);
       if (serverId.current && versionRef.current !== null && !locked && !blocked) {
-        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${serverId.current}`, jsonInit("PATCH", { ...bodyOf(draft), version: versionRef.current }));
+        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${serverId.current}`, jsonInit("PATCH", { ...bodyOf(draft, "autosave"), version: versionRef.current }));
         if (res.ok) {
           versionRef.current = res.data.version;
           setAutosavedAt(new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }));
@@ -304,16 +314,20 @@ export default function Composer({
   }
 
   // ── automation card ─────────────────────────────────────────────────────
-  const campaigns = meta.campaigns.filter((c) => c.instagramAccountId === draft.instagramAccountId && (!c.linkedPostId || c.linkedPostId === postId));
+  const campaigns = [...meta.campaigns, ...createdCampaigns.filter((c) => !meta.campaigns.some((m) => m.id === c.id))].filter((c) => c.instagramAccountId === draft.instagramAccountId && (!c.linkedPostId || c.linkedPostId === postId));
   const linkedId = draft.linkCampaign?.automationId ?? draft.linkCampaign?.triggerCampaignId ?? "";
   const linked = campaigns.find((c) => c.id === linkedId) ?? null;
-  const keywordMissing = Boolean(linked && linked.keywords.length > 0 && fieldVisible(draft.type, "caption") && !linked.keywords.some((k) => draft.caption.toLowerCase().includes(k.toLowerCase())));
+  const newCampaign = draft.linkCampaign?.create && !linkedId ? draft.linkCampaign.create : null;
+  // FR-L5: a warning, never a block.
+  const campaignKeywords = linked?.keywords ?? newCampaign?.keywords.filter((k) => k.trim()) ?? [];
+  const keywordMissing = campaignKeywords.length > 0 && fieldVisible(draft.type, "caption") && !campaignKeywords.some((k) => draft.caption.toLowerCase().includes(k.toLowerCase()));
 
   // ── save ────────────────────────────────────────────────────────────────
   async function save(as: ComposerMode | "queue" = mode) {
     setSaving(true);
     setError(null);
     try {
+      if (newCampaign && newCampaignIssue(newCampaign)) throw new Error(`Yangi kampaniya: ${newCampaignIssue(newCampaign)}`);
       const body = bodyOf(draft);
       let saved: PostDetail;
       if (serverId.current) {
@@ -327,6 +341,12 @@ export default function Composer({
         serverId.current = saved.id;
       }
       versionRef.current = saved.version;
+      if (newCampaign && saved.linkedCampaign) {
+        // FR-L1: the campaign exists now — later saves link it by id instead of creating another.
+        const created = saved.linkedCampaign;
+        setCreatedCampaigns((list) => [...list, { kind: created.kind, id: created.id, name: created.name, instagramAccountId: saved.instagramAccountId, active: created.active, keywords: created.keywords, linkedPostId: null, bound: false }]);
+        setDraft((d) => ({ ...d, linkCampaign: created.kind === "automation" ? { automationId: created.id } : { triggerCampaignId: created.id } }));
+      }
       if (as === "schedule" && review) {
         const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/review`, jsonInit("POST", { ...review, scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
         if (!res.ok) {
@@ -578,7 +598,7 @@ export default function Composer({
               <Field
                 label="Caption"
                 error={issueFor("caption") ?? (caption.chars > meta.limits.captionChars ? `Caption ${meta.limits.captionChars} belgidan oshdi` : null)}
-                hint={keywordMissing ? `Caption'da "${linked!.keywords[0]} deb yozing" degan chaqiruv yo'q` : undefined}
+                hint={keywordMissing ? `Caption'da "${campaignKeywords[0]} deb yozing" degan chaqiruv yo'q` : undefined}
               >
                 <textarea className={`${inputClass} min-h-32`} value={draft.caption} onChange={(e) => update({ caption: e.target.value })} placeholder="Nima yozamiz? #hashtag va @mention ishlaydi" />
                 <div className="flex flex-wrap gap-3 text-[11px]">
@@ -673,19 +693,38 @@ export default function Composer({
           <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
             <Switch
               on={Boolean(draft.linkCampaign)}
-              onChange={(on) => update({ linkCampaign: on ? (campaigns[0] ? (campaigns[0].kind === "automation" ? { automationId: campaigns[0].id } : { triggerCampaignId: campaigns[0].id }) : {}) : null })}
+              onChange={(on) => update({ linkCampaign: on ? (campaigns[0] ? (campaigns[0].kind === "automation" ? { automationId: campaigns[0].id } : { triggerCampaignId: campaigns[0].id }) : { create: EMPTY_NEW_CAMPAIGN }) : null })}
               label="Shu postga comment-to-DM kampaniyasini ulash"
             />
             {draft.linkCampaign && (
               <>
-                {campaigns.length === 0 ? (
-                  <p className="text-xs text-muted">
-                    Bu akkauntda bo&apos;sh kampaniya yo&apos;q —{" "}
-                    <a className="underline" href="/developer/comments" target="_blank" rel="noreferrer">
-                      Comment 2.0
-                    </a>{" "}
-                    da yarating, keyin shu yerda tanlang.
-                  </p>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Kampaniya manbai">
+                  {(
+                    [
+                      ["existing", "Mavjud kampaniya"],
+                      ["new", "Yangi kampaniya"],
+                    ] as const
+                  ).map(([k, label]) => {
+                    const on = k === "new" ? Boolean(newCampaign) : !newCampaign;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        disabled={k === "existing" && campaigns.length === 0}
+                        onClick={() => update({ linkCampaign: k === "new" ? { create: draft.linkCampaign?.create ?? EMPTY_NEW_CAMPAIGN } : campaigns[0] ? (campaigns[0].kind === "automation" ? { automationId: campaigns[0].id } : { triggerCampaignId: campaigns[0].id }) : {} })}
+                        className={`${secondaryButton} ${on ? "border-accent/60 text-foreground" : ""}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {newCampaign ? (
+                  <NewCampaignFields value={newCampaign} onChange={(create) => update({ linkCampaign: { create } })} />
+                ) : campaigns.length === 0 ? (
+                  <p className="text-xs text-muted">Bu akkauntda bo&apos;sh kampaniya yo&apos;q — &quot;Yangi kampaniya&quot; ni tanlang.</p>
                 ) : (
                   <select
                     className={inputClass}
@@ -705,7 +744,7 @@ export default function Composer({
                     ))}
                   </select>
                 )}
-                {linked && <p className="text-xs text-muted">Post chiqishi bilan kampaniya shu postga faollashadi. Ungacha u &quot;post kutilmoqda&quot; holatida turadi va hech narsa yubormaydi.</p>}
+                {(linked || newCampaign) && <p className="text-xs text-muted">Post chiqishi bilan kampaniya shu postga faollashadi. Ungacha u &quot;post kutilmoqda&quot; holatida turadi va hech narsa yubormaydi.</p>}
                 {issueFor("linkCampaign") && <p className="text-xs text-error">{issueFor("linkCampaign")}</p>}
               </>
             )}

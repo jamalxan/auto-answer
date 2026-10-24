@@ -11,11 +11,17 @@
 
 import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
+import { createAutomationBaseSchema, createAutomationRecord } from "@/lib/campaigns/create-automation";
 import { ContentError, notFound } from "./errors";
+import { newCampaignSchema, type NewCampaignInput } from "./schema";
+
+export { captionMentionsKeyword } from "./text";
 
 export interface CampaignLink {
   automationId?: string;
   triggerCampaignId?: string;
+  /** FR-L1: create a new campaign (legacy Automation engine) and park it on the post. */
+  create?: NewCampaignInput;
 }
 
 export interface LinkedCampaignSummary {
@@ -50,8 +56,13 @@ async function detachAll(tx: Tx, postId: string): Promise<void> {
  */
 export async function attachCampaignToPost(workspaceId: string, postId: string, link: CampaignLink | null): Promise<void> {
   const post = await loadPost(workspaceId, postId);
-  if (!link || (!link.automationId && !link.triggerCampaignId)) {
+  if (!link || (!link.automationId && !link.triggerCampaignId && !link.create)) {
     await detachAll(prisma, postId);
+    return;
+  }
+  if (link.create && !link.automationId && !link.triggerCampaignId) {
+    await detachAll(prisma, postId);
+    await createCampaignForPost(workspaceId, post, link.create);
     return;
   }
   if (link.automationId) {
@@ -110,9 +121,33 @@ export async function linkedCampaignSummary(postId: string): Promise<LinkedCampa
   return null;
 }
 
-/** FR-L5: does the caption tell people what to comment? */
-export function captionMentionsKeyword(caption: string | null | undefined, keywords: readonly string[]): boolean {
-  if (!caption) return false;
-  const text = caption.toLowerCase();
-  return keywords.some((k) => k.trim() && text.includes(k.trim().toLowerCase()));
+/**
+ * FR-L1: the composer's "Yangi kampaniya". Built by the dashboard's own
+ * campaign writer (no second copy of the rules) and born in the waiting
+ * state: scheduledPostId set, switched off, no post / any-post / next-reel
+ * target — activateLinkedCampaigns turns it on when the post goes out.
+ */
+async function createCampaignForPost(workspaceId: string, post: { id: string; instagramAccountId: string }, raw: NewCampaignInput): Promise<string> {
+  const checked = newCampaignSchema.safeParse(raw);
+  if (!checked.success) throw new ContentError(400, checked.error.issues[0]?.message ?? "Kampaniya ma'lumotlari noto'g'ri");
+  const input = checked.data;
+  const publicReply = input.publicReply?.trim() ?? "";
+  const data = createAutomationBaseSchema.parse({
+    name: input.name?.trim() || `Post: ${input.keywords.join(", ")}`.slice(0, 100),
+    keywords: input.keywords,
+    dmMessage: input.dmMessage,
+    publicReplyEnabled: Boolean(publicReply),
+    publicReplyMessages: publicReply ? [publicReply] : [],
+    trackedDestinationUrl: input.link || null,
+    linkButtonLabel: input.link ? input.linkButtonLabel || null : null,
+    requireFollow: Boolean(input.requireFollow),
+    // No target yet: the publish transaction writes the media id.
+    postId: null,
+    postUrl: null,
+    pendingNextReel: false,
+    matchAnyPost: false,
+    isActive: false,
+  });
+  const automation = await createAutomationRecord(workspaceId, post.instagramAccountId, data, { scheduledPostId: post.id });
+  return automation.id;
 }
