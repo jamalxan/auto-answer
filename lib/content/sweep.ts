@@ -14,6 +14,7 @@
  *   8. approvals (FR-A4, lib/content/review): OPTIONAL posts approved at their slot,
  *      PENDING_REVIEW posts 3 h past it → EXPIRED_REVIEW
  *   9. prepared copies of media published 30+ days ago → deleted, storage released (§7)
+ *  10. notifications (§11, lib/content/notify): "Kvota 80%", "24 soatda X ta post, akkaunt BROKEN"
  */
 
 import { prisma } from "@/lib/db/client";
@@ -22,6 +23,7 @@ import { bindManualPost, sendManualNotice } from "./manual";
 import { activateLinkedCampaigns } from "./link-campaign";
 import { cleanupPreparedCopies, releaseAbandonedUploads } from "./media";
 import { failPost, recoverStuckPublishing } from "./publish";
+import { sweepNotifications } from "./notify";
 import { hasLivePublishJob, schedulePublish } from "./queue";
 
 export interface SweepResult {
@@ -37,6 +39,8 @@ export interface SweepResult {
   reviewsAutoApproved?: number;
   reviewsExpired?: number;
   preparedCleaned?: number;
+  quotaWarnings?: number;
+  brokenWarnings?: number;
 }
 
 const STUCK_PREPARING_MS = CONTAINER_MAX_WAIT_MS.video + 5 * 60_000;
@@ -151,6 +155,11 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
     console.error("[Content] prepared-copy cleanup failed:", error instanceof Error ? error.message : error);
     return { cleaned: 0 };
   })).cleaned;
+
+  // 10: the warnings that must reach the owner before a post is lost (§11).
+  const notices = await sweepNotifications(now);
+  result.quotaWarnings = notices.quotaWarnings;
+  result.brokenWarnings = notices.brokenWarnings;
 
   return result;
 }

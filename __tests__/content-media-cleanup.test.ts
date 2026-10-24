@@ -8,7 +8,7 @@ import { db, resetDb } from "./helpers/db-instance";
 
 const mocks = vi.hoisted(() => ({
   enqueueMediaProcess: vi.fn(async () => undefined),
-  head: vi.fn(async (_key: string): Promise<{ size: number } | null> => ({ size: 300 })),
+  head: vi.fn<(key: string) => Promise<{ size: number } | null>>(async () => ({ size: 300 })),
   deleted: [] as string[],
   failDelete: false,
 }));
