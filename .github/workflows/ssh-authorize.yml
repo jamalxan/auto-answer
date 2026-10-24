@@ -1,0 +1,40 @@
+name: Authorize SSH key
+
+# One-off, manual: adds an SSH public key to the deploy user's
+# ~/.ssh/authorized_keys on the server, using the same password secrets as
+# deploy.yml. Lets the owner (or Claude Code on the owner's machine) reach the
+# box with a key instead of the password. Idempotent: a key already present is
+# not added twice.
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_key:
+        description: "OpenSSH public key line (ssh-rsa / ssh-ed25519 ...)"
+        required: true
+        type: string
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      USER: ${{ secrets.DEPLOY_USER }}
+      SSHPASS: ${{ secrets.DEPLOY_PASSWORD }}
+      PUBLIC_KEY: ${{ inputs.public_key }}
+    steps:
+      - name: Validate the key
+        run: |
+          set -e
+          printf '%s\n' "$PUBLIC_KEY" > key.pub
+          ssh-keygen -l -f key.pub
+
+      - name: Append to authorized_keys
+        run: |
+          set -e
+          sudo apt-get install -y -qq sshpass >/dev/null
+          OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=20"
+          sshpass -e ssh $OPTS "$USER@$HOST" \
+            'mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+             key=$(cat); grep -qxF "$key" ~/.ssh/authorized_keys || printf "%s\n" "$key" >> ~/.ssh/authorized_keys
+             echo "authorized_keys now has $(wc -l < ~/.ssh/authorized_keys) key(s)"' < key.pub
