@@ -349,15 +349,22 @@ describe("delete / duplicate / manual / isolation", () => {
   });
 
   it("swapping a scheduled image for a video re-arms the jobs with the 60-minute lead (M8)", async () => {
-    const p = await draft();
-    await schedulePost(WS, p.id, at(180), { now: NOW });
-    mocks.schedulePrepare.mockClear();
-    const scheduled = await getPost(WS, p.id);
-    await updatePost(WS, p.id, { type: "REEL", media: [{ mediaId: "v1" }], version: scheduled.version } as never);
-    expect(mocks.removePostJobs).toHaveBeenCalledWith(p.id, 1);
-    expect(mocks.schedulePrepare).toHaveBeenCalledWith(p.id, 2, at(120));
-    expect(mocks.schedulePublish).toHaveBeenLastCalledWith(p.id, 2, at(180));
-    expect(db.rows("scheduledPost")[0].attempts).toBe(2);
+    // updatePost re-arms against the wall clock; pin it so the lead is measured from NOW.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const p = await draft();
+      await schedulePost(WS, p.id, at(180), { now: NOW });
+      mocks.schedulePrepare.mockClear();
+      const scheduled = await getPost(WS, p.id);
+      await updatePost(WS, p.id, { type: "REEL", media: [{ mediaId: "v1" }], version: scheduled.version } as never);
+      expect(mocks.removePostJobs).toHaveBeenCalledWith(p.id, 1);
+      expect(mocks.schedulePrepare).toHaveBeenCalledWith(p.id, 2, at(120));
+      expect(mocks.schedulePublish).toHaveBeenLastCalledWith(p.id, 2, at(180));
+      expect(db.rows("scheduledPost")[0].attempts).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a caption edit keeps the existing jobs", async () => {

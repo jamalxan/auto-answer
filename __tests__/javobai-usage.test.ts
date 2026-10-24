@@ -3,7 +3,7 @@
  * LlmUsage rows, Tashkent month boundaries, by-kind aggregation, daily series.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, resetDb } from "./helpers/db-instance";
 
 vi.mock("@/lib/db/client", () => ({ prisma: db.client() }));
@@ -38,8 +38,15 @@ function usage(over: Record<string, unknown>) {
 }
 
 beforeEach(() => {
+  // Pin the clock to the fixtures' date: code under test also reads `new Date()`.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-16T10:00:00Z"));
   resetDb();
   vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("Tashkent calendar", () => {
