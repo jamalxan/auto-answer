@@ -106,6 +106,7 @@ jobs:
           set -e
           $SCP deploy/docker-compose.server.yml "$USER@$HOST:socialauto/docker-compose.server.yml"
           $SCP deploy/nginx/gzip.conf "$USER@$HOST:socialauto/gzip.conf"
+          $SCP deploy/nginx/upload.conf "$USER@$HOST:socialauto/upload.conf"
 
           # The token is passed on stdin so it never shows up in a process list.
           printf '%s' "$GHCR_TOKEN" | $SSH "$USER@$HOST" "docker login ghcr.io -u $GHCR_USER --password-stdin"
@@ -113,7 +114,7 @@ jobs:
             && docker compose -f docker-compose.server.yml pull web worker cron \
             && docker compose -f docker-compose.server.yml up -d --remove-orphans \
             && echo APP_TAG=$TAG > .deploy-tag \
-            && sudo cp gzip.conf /etc/nginx/conf.d/gzip.conf && sudo nginx -t && sudo systemctl reload nginx \
+            && sudo cp gzip.conf /etc/nginx/conf.d/gzip.conf && sudo cp upload.conf /etc/nginx/conf.d/upload.conf && sudo nginx -t && sudo systemctl reload nginx \
             ; status=\$?; docker logout ghcr.io; exit \$status"
 
       - name: Wait for the app to be healthy
