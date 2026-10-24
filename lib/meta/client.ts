@@ -893,3 +893,60 @@ export async function getAccountProfileForAutofill(
   const response = await fetch(url.toString());
   return handleResponse<ProfileForAutofill>(response);
 }
+
+/** FR-V3 feed grid: the newest media of an account, newest first. */
+export interface FeedMedia {
+  id: string;
+  media_type: string;
+  media_product_type?: string;
+  media_url?: string;
+  thumbnail_url?: string;
+  permalink?: string;
+  timestamp: string;
+  like_count?: number;
+  comments_count?: number;
+}
+
+export async function getAccountMedia(
+  accessToken: string,
+  instagramUserId: string,
+  limit = 12,
+  fields = "id,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp"
+): Promise<FeedMedia[]> {
+  const url = new URL(`${instagramGraphBase()}/${instagramUserId}/media`);
+  url.searchParams.set("fields", fields);
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), MEDIA_PAGE_SIZE)));
+  url.searchParams.set("access_token", accessToken);
+  const response = await fetch(url.toString());
+  const data = await handleResponse<{ data: FeedMedia[] }>(response);
+  return data.data ?? [];
+}
+
+/** One day of `online_followers`: hour key "0"…"23" → followers online; `end_time` closes the day. */
+export interface OnlineFollowersDay {
+  endTime: string;
+  hours: Record<string, number>;
+}
+
+/**
+ * FR-S7: followers online per hour, lifetime metric over the last 30 days.
+ * Instagram omits it for accounts under 100 followers; the hour keys count
+ * from the start of the day `end_time` closes (Meta reports it in Pacific
+ * time, so the instant of hour h is end_time − 24 h + h).
+ */
+export async function getOnlineFollowers(accessToken: string, instagramUserId: string, now: Date = new Date()): Promise<OnlineFollowersDay[]> {
+  const until = Math.floor(now.getTime() / 1000);
+  const since = until - (FOLLOWER_INSIGHT_MAX_DAYS - 1) * 86_400;
+  const url = new URL(`${instagramGraphBase()}/${instagramUserId}/insights`);
+  url.searchParams.set("metric", "online_followers");
+  url.searchParams.set("period", "lifetime");
+  url.searchParams.set("since", String(since));
+  url.searchParams.set("until", String(until));
+  url.searchParams.set("access_token", accessToken);
+  const response = await fetch(url.toString());
+  const data = await handleResponse<{ data: Array<{ name: string; values: Array<{ value: Record<string, number> | number; end_time?: string }> }> }>(response);
+  const metric = data.data?.find((d) => d.name === "online_followers");
+  return (metric?.values ?? [])
+    .filter((v) => v.end_time && v.value && typeof v.value === "object")
+    .map((v) => ({ endTime: v.end_time as string, hours: v.value as Record<string, number> }));
+}

@@ -6,7 +6,8 @@
 
 import { FIELD_MATRIX, type FieldRules } from "@/lib/content/validate";
 import type { PostStatusValue, PostTypeValue } from "@/lib/content/schema";
-import { formatZoned, utcToZoned } from "@/lib/content/time";
+import { formatZoned, utcToZoned, zonedToUtc } from "@/lib/content/time";
+import { CONTENT_LIMITS } from "@/lib/content/config";
 
 export { jsonInit, requestJson, type JsonResult } from "@/components/developer/comments/shared";
 import { countCaption } from "@/lib/content/text";
@@ -159,7 +160,7 @@ export interface ComposerLimits {
  */
 export function composerBlocked(draft: PostDraft, limits: ComposerLimits): string | null {
   if (!draft.instagramAccountId) return "Akkaunt tanlanmagan";
-  const rule = FIELD_MATRIX[draft.type].media;
+  const rule = mediaRule(draft.type);
   if (draft.media.length === 0) return "Media tanlanmagan";
   const max = rule.max === "carousel" ? limits.carouselMax : rule.max;
   if (draft.media.length < rule.min) return `Kamida ${rule.min} ta media kerak`;
@@ -189,8 +190,19 @@ export function defaultSlot(initialDate: string | null, tz: string, now: Date = 
   return utcToZoned(new Date(t), tz);
 }
 
+/** FR-C9: in the composer a story takes several media — scheduling makes them a series. */
 export function mediaRule(type: PostTypeValue): FieldRules["media"] {
-  return FIELD_MATRIX[type].media;
+  const rule = FIELD_MATRIX[type].media;
+  return type === "STORY" ? { ...rule, max: CONTENT_LIMITS.storySeriesMax } : rule;
+}
+
+/** "3 ta story, 1 daqiqa oraliq bilan · 19:00, 19:01, 19:02" (FR-C9). */
+export function storySeriesLabel(count: number, at: Date | null, tz: string): string {
+  const gapMin = Math.round(CONTENT_LIMITS.storySeriesGapMs / 60_000);
+  const base = `${count} ta story, ${gapMin} daqiqa oraliq bilan`;
+  if (!at) return base;
+  const times = Array.from({ length: Math.min(count, 5) }, (_, i) => utcToZoned(new Date(at.getTime() + i * CONTENT_LIMITS.storySeriesGapMs), tz).time);
+  return `${base} · ${times.join(", ")}${count > 5 ? " …" : ""}`;
 }
 
 export function tagCoords(type: PostTypeValue): FieldRules["userTagCoords"] {
@@ -257,6 +269,16 @@ export interface PostCard {
   autoPublish: boolean;
   lastErrorCode: string | null;
   version: number;
+  seriesId?: string | null;
+  seriesIndex?: number | null;
+}
+
+/** FR-C9 / FR-S8: the story series or recurrence of a post. */
+export interface SeriesInfo {
+  id: string;
+  position: number;
+  total: number;
+  items: Array<{ id: string; seriesIndex: number; status: PostStatusValue; scheduledAt: string | null }>;
 }
 
 export interface PostDetail {
@@ -294,6 +316,8 @@ export interface PostDetail {
   attemptsLog: Array<{ id: string; step: string; ok: boolean; metaCode: number | null; message: string | null; durationMs: number | null; createdAt: string }>;
   linkedCampaign: { kind: "automation" | "trigger"; id: string; name: string; keywords: string[]; active: boolean; waiting: boolean } | null;
   issues: Array<{ field: string; message: string }>;
+  warnings?: Array<{ field: string; message: string }>;
+  series?: SeriesInfo | null;
 }
 
 export interface MediaRow {
@@ -343,7 +367,17 @@ export interface PostDraft {
   manualReason: "STORY_STICKER" | "MUSIC" | "USER_CHOICE" | null;
   media: MediaItemDraft[];
   labels: string[];
-  linkCampaign: { automationId?: string; triggerCampaignId?: string } | null;
+  linkCampaign: { automationId?: string; triggerCampaignId?: string; create?: NewCampaignDraft } | null;
+}
+
+/** FR-L1: the composer's inline "Yangi kampaniya" form. */
+export interface NewCampaignDraft {
+  keywords: string[];
+  publicReply: string;
+  dmMessage: string;
+  link: string;
+  linkButtonLabel: string;
+  requireFollow: boolean;
 }
 
 export function emptyDraft(instagramAccountId: string, type: PostTypeValue = "FEED_IMAGE"): PostDraft {
@@ -441,6 +475,126 @@ export function weekOf(isoDate: string): string[] {
 
 export function todayIso(tz: string): string {
   return utcToZoned(new Date(), tz).date;
+}
+
+// ─── Calendar moves, bulk, insights (Faza 2 WP-D: FR-S6, FR-V4, FR-V3, FR-S7) ─
+
+/** FR-S6: which cards may be dragged — a SCHEDULED one needs schedule, a draft only create. */
+export function canMovePost(status: PostStatusValue, me: { canCreate: boolean; canSchedule: boolean }): boolean {
+  if (status === "SCHEDULED") return me.canSchedule;
+  if (status === "DRAFT") return me.canCreate;
+  return false;
+}
+
+/**
+ * Where a dropped card lands: on a month day it keeps its time of day; on a
+ * week cell it takes the cell's hour and keeps its minutes. A draft with no
+ * planned time gets 19:00 (month) or :00 (week).
+ */
+export function dropInstant(current: string | null, day: string, hour: number | null, tz: string): Date {
+  const was = current ? utcToZoned(new Date(current), tz).time : null;
+  const minutes = was ? was.slice(3, 5) : "00";
+  const time = hour === null ? (was ?? "19:00") : `${String(hour).padStart(2, "0")}:${minutes}`;
+  return zonedToUtc(day, time, tz);
+}
+
+/** The value a `datetime-local` input shows for an instant in the zone. */
+export function toLocalInput(at: string | null, tz: string): string {
+  if (!at) return "";
+  const { date, time } = utcToZoned(new Date(at), tz);
+  return `${date}T${time}`;
+}
+
+export function fromLocalInput(value: string, tz: string): Date | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(value);
+  return m ? zonedToUtc(m[1], m[2], tz) : null;
+}
+
+export type BulkAction = "shift" | "pause" | "delete" | "review";
+
+export interface BulkReport {
+  action: BulkAction;
+  done: number;
+  failed: number;
+  results: Array<{ id: string; ok: boolean; status?: PostStatusValue; scheduledAt?: string | null; error?: string }>;
+}
+
+/** "3 ta post surildi · 1 ta xato" */
+export function bulkSummary(r: Pick<BulkReport, "action" | "done" | "failed">): string {
+  const verb = { shift: "surildi", pause: "pauza qilindi", delete: "o'chirildi", review: "tasdiqqa yuborildi" }[r.action];
+  return `${r.done} ta post ${verb}${r.failed ? ` · ${r.failed} ta xato` : ""}`;
+}
+
+export interface BestTimeCell {
+  weekday: number;
+  hour: number;
+  score: number;
+}
+
+export interface BestTimes {
+  source: "online_followers" | "own_posts" | "none";
+  metric: "online_followers" | "reach" | "engagement" | null;
+  timezone: string;
+  scores: number[][] | null;
+  top: BestTimeCell[];
+  sample: number;
+  followers: number | null;
+  reason: string | null;
+  computedAt: string;
+}
+
+export const BEST_TIMES_SOURCE_LABEL: Record<BestTimes["source"], string> = {
+  online_followers: "obunachilar onlayn bo'lgan soatlar (30 kun)",
+  own_posts: "postlaringiz natijasi (90 kun)",
+  none: "Ma'lumot yetarli emas",
+};
+
+/** "Ju 19:00" */
+export function bestTimeLabel(cell: { weekday: number; hour: number }): string {
+  return `${WEEKDAYS[cell.weekday]} ${String(cell.hour).padStart(2, "0")}:00`;
+}
+
+/** The next such weekday + hour in the zone at least five minutes from now (composer chips). */
+export function nextOccurrence(weekday: number, hour: number, tz: string, now: Date = new Date()): { date: string; time: string } {
+  const time = `${String(hour).padStart(2, "0")}:00`;
+  const today = utcToZoned(now, tz).date;
+  for (let i = 0; i < 15; i++) {
+    const date = new Date(new Date(`${today}T00:00:00Z`).getTime() + i * 86_400_000).toISOString().slice(0, 10);
+    const wd = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+    if (wd !== weekday) continue;
+    if (zonedToUtc(date, time, tz).getTime() >= now.getTime() + 5 * 60_000) return { date, time };
+  }
+  return { date: today, time };
+}
+
+/** Heat-map background of a week cell; empty for no score. */
+export function heatClass(score: number | undefined): string {
+  if (!score || score <= 0) return "";
+  if (score >= 0.85) return "bg-accent/25";
+  if (score >= 0.6) return "bg-accent/15";
+  if (score >= 0.35) return "bg-accent/10";
+  return "bg-accent/5";
+}
+
+export interface FeedTile {
+  key: string;
+  source: "instagram" | "planned";
+  postId: string | null;
+  mediaType: string;
+  imageUrl: string | null;
+  permalink: string | null;
+  at: string;
+  status: PostStatusValue | null;
+  draft: boolean;
+}
+
+export interface AccountFeed {
+  accountId: string;
+  username: string;
+  timezone: string;
+  items: FeedTile[];
+  publishedSource: "instagram" | "local";
+  notice: string | null;
 }
 
 /**

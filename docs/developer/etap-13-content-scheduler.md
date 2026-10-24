@@ -1,7 +1,8 @@
-# ETAP 13 — Content Scheduler (developer area, Faza 1)
+# ETAP 13 — Content Scheduler (developer area, Faza 1 + Faza 2)
 
 Spec: `docs/superpowers/specs/2026-10-22-content-scheduler-design.md`; plan:
-`docs/superpowers/plans/2026-10-22-content-scheduler-faza1.md`. Built at `/developer/content`,
+`docs/superpowers/plans/2026-10-22-content-scheduler-faza1.md`, Faza 2:
+`docs/superpowers/plans/2026-10-23-content-scheduler-faza2.md`. Built at `/developer/content`,
 API under `/api/developer/content/*`. Kill switch `CONTENT_SCHEDULER_DISABLED=1` (web + worker).
 Registry status: BUILDING.
 
@@ -33,10 +34,13 @@ transaction as the publish, so the first keyword comment already gets its DM.
 | Developer API (posts CRUD + actions, media, saved texts, validate, quota, meta) with `content.create / schedule / approve` permissions | `app/api/developer/content/*`, `lib/content/permissions.ts`, `lib/developer/content-guard.ts` |
 | Screens: calendar (month / week / list, filters, quota pill), composer with live preview, people tagging on the image, media library, saved texts, post detail with explained errors and actions | `components/developer/content/*`, `app/developer/(secure)/content` |
 
-Deferred to Faza 2+: approval flow and `/review/[token]`, feed grid preview, best times, CSV
-import, AI caption, recurrence, posting slots, MCP tools, inline campaign creation in the composer,
-drag-and-drop reorder, moving the screens into the main dashboard, ru / en copies, 30-day cleanup of
-prepared copies, per-tariff storage quota.
+Faza 2 has since added the approval flow and `/review/[token]` (WP-A), story series, recurrence
+and posting slots (WP-B), CSV import, AI caption and the MCP tools (WP-C), and inline campaign
+creation, the caption keyword warning, the 30-day cleanup of prepared copies and the quota / BROKEN
+notifications (WP-E), and calendar drag-and-drop, bulk actions, the feed grid preview and best
+times (WP-D). Still deferred: moving the screens into the main
+dashboard, ru / en copies, a per-tariff storage quota (today one env-wide
+`CONTENT_STORAGE_QUOTA_BYTES`), Canva / Drive, RSS, polls.
 
 ## Env
 
@@ -66,6 +70,117 @@ worker, the sweeper inside the existing cron loop.
    YaTT registration). Manual publishing over Telegram needs no permission and works for everyone.
 3. Creator accounts may refuse story auto-publish; the pipeline falls back to NEEDS_MANUAL.
 
+## Faza 2 — series, recurrence, slots (WP-B)
+
+- **Story series (FR-C9).** The split happens at **schedule time**, not at create time: the composer
+  edits one STORY draft with up to `CONTENT_LIMITS.storySeriesMax` (10) media ("3 ta story, 1 daqiqa
+  oraliq bilan"). `schedulePost` checks lead time, the field matrix and the quota for all N items
+  first, then keeps media[0] on the original (seriesIndex 0) and creates one STORY post per further
+  media sharing a new `seriesId`, each scheduled `storySeriesGapMs` after the previous one through
+  the normal path (own jobs, FR-S4 spacing keeps the order). Validation accepts a multi-media STORY
+  only while it is unscheduled (`ValidateOptions.storySeries`); editing a SCHEDULED / PAUSED story
+  back to several media is refused, so a queued story is always one media. Pause / unschedule /
+  cancel act on one item. Post detail shows "Seriya: 2/3" with links.
+- **Recurrence (FR-S8).** `lib/content/recurrence.ts` (pure, also used by the composer for the live
+  count): daily / weekly (chosen weekdays, 0 = Monday) / monthly (same day; months without it are
+  skipped), every N, wall-clock in the post's zone, end date inclusive; ≤ 180 days, ≤ 200 copies.
+  Action `recur` (MANAGER+) on a DRAFT: the original becomes index 0, copies are duplicates sharing
+  the `seriesId`, each goes through `schedulePost`; a copy that fails (quota, spacing) stays DRAFT in
+  the series and is listed in the report instead of aborting the rest. Multi-media stories cannot be
+  recurred. `delete-series-future` (MANAGER+) soft-deletes later items not yet published or in flight;
+  `apply-to-series` (OPERATOR+) copies texts and switches to the series' DRAFT copies.
+- **Posting slots (FR-S9).** `GET/PUT /api/developer/content/accounts/[id]/slots` (PUT replaces the
+  weekly set, MANAGER+): weekday 0 = Monday, minuteOfDay in the workspace zone, optional postType.
+  `nextFreeSlot` skips slots within the same minute as a queued post of the account; action `queue`
+  schedules into the next free slot ≥ now + 5 min (8-week horizon, 409 when none). Calendar →
+  "Slotlar" panel edits them; the composer shows "Navbatga qo'shish" when the account has slots.
+
+## Faza 2 — calendar and insights (WP-D, FR-S6, FR-V4, FR-V3, FR-S7)
+
+| Piece | Where |
+|---|---|
+| Move (drag-and-drop / "Ko'chirish"), bulk actions | `lib/content/bulk.ts` → `movePost`, `runBulk`, `shiftInstant` |
+| `POST posts/[id]/move` {scheduledAt} (create; SCHEDULED also needs schedule) | `app/api/developer/content/posts/[id]/[action]/route.ts` |
+| `POST posts/bulk` {ids ≤ 100, action: shift \| pause \| delete \| review, …} | `app/api/developer/content/posts/bulk/route.ts` |
+| Feed grid, best times, cache | `lib/content/insights.ts`; Meta calls `getAccountMedia`, `getOnlineFollowers` in `lib/meta/client.ts` |
+| `GET accounts/[id]/feed`, `GET accounts/[id]/best-times[?fresh=1]` (view) | `app/api/developer/content/accounts/[id]/feed`, `best-times` |
+| UI: drag in Oy / Hafta (hour rows + heat map), Ro'yxat checkboxes + bulk bar + Ko'chirish, Grid view, composer chips, post detail Ko'chirish | `components/developer/content/calendar-view.tsx`, `calendar-tools.tsx` |
+
+Rulings:
+- **Move.** A SCHEDULED card goes through `schedulePost` (5-minute lead, FR-S4 spacing — the UI says
+  where it landed when the minute was taken — quota, jobs re-armed). A DRAFT only gets its planned
+  `scheduledAt` moved and stays a DRAFT even when complete: dragging never schedules (the lead rule
+  still applies so a plan is never in the past). Month drop keeps the time of day, week drop takes
+  the hour and keeps the minutes; a draft without a time lands at 19:00 / on the hour. The UI moves
+  the card at once and rolls back with the server's reason. Native HTML5 drag events; the keyboard
+  and phone fallback is "Ko'chirish" (datetime-local) in the list rows and in post detail.
+- **Bulk.** Same permission as the single action: pause / delete MANAGER+, review OPERATOR+, shift
+  OPERATOR+ with SCHEDULED / PAUSED items needing MANAGER+ (reported per item). Shift: minutes and
+  hours are exact, days keep the wall clock in the post's zone; PAUSED posts move and stay paused;
+  posts without a time are reported. A forward shift moves the latest post first (backward: the
+  earliest) so spacing does not bump neighbours. Review sends each draft with its own planned time.
+  Every id gets a result; unknown or foreign ids are "Post topilmadi". The UI keeps failed ids
+  selected and lists each failure with its reason.
+- **Feed grid.** Planned feed posts (SCHEDULED, PAUSED, in flight, PENDING_REVIEW, NEEDS_MANUAL and
+  drafts with a planned time — drafts faded) sorted furthest future first, then the last 12 from
+  Meta (`/{ig-user-id}/media`, cached 10 min). Stories and Trial Reels are left out, Reels only with
+  share_to_feed. Meta error → our own published posts plus the reason ("qayta ulang" etc.).
+- **Best times.** ≥ 100 followers → `online_followers` (lifetime, last 30 days), hour h of a value is
+  `end_time − 24 h + h` (Meta reports Pacific days) converted to the workspace zone, averaged per
+  weekday × hour. Otherwise the account's media of the last 90 days (≥ 5 posts): reach when Meta gives
+  it for every sampled post (≤ 30), else likes + comments; a post counts at half value on the hours
+  either side. Otherwise `source: "none"` → "Ma'lumot yetarli emas". Scores 0…1 (best = 1), top 3
+  cells. Cache 6 h per account + zone (10 min after a Meta failure) in Redis, in-process without
+  REDIS_URL — no migration. Week view paints the map behind the hours; the composer shows "Eng
+  yaxshi vaqt: Ju 19:00" chips that fill the next such slot.
+
+## Faza 2 — CSV import, AI caption, MCP (WP-C)
+
+| Piece | Where |
+|---|---|
+| CSV parse + row normalisation (pure: BOM, CRLF / LF, quoted fields, `,` or `;`, dates `2026-10-24` / `24.10.2026`, `@user:x:y` tags, campaign by keyword), ≤ 200 rows, downloadable template | `lib/content/csv.ts`, `csv-schema.ts` |
+| Preview (no writes) → commit of the ticked rows (refused whole when any ticked row has an error) → schedule the imported drafts once their media are READY | `lib/content/csv-import.ts`; routes `POST import/csv` (preview), `import/csv/commit`, `import/csv/schedule`, `GET import/csv/template` |
+| Media fetched from a URL into the library (SSRF-safe `fetchAttachment`: https only, public DNS, every redirect re-checked, streaming size cap — video 300 MB, 60 s timeout), then the normal media-process job | `lib/content/media-import.ts` |
+| "AI bilan yozish" (FR-AI1): topic + tone + language → three variants and ≤ 15 hashtags; shared LLM provider and workspace AI budget, one `LlmUsage` row (`javobai_caption`) per call and an hourly cap; nothing is saved | `lib/content/ai-caption.ts`, `POST ai/caption`, `components/developer/content/ai-caption-panel.tsx` |
+| MCP tools `list_scheduled_posts`, `get_scheduled_post`, `create_post_draft` (DRAFT only: no time / status / publish field), `get_publishing_quota`; token workspace, whitelist output, user text under `untrusted` | `lib/mcp/content.ts`, registered in `lib/mcp/tools.ts` |
+
+## Faza 2 — campaigns and housekeeping (WP-E)
+
+- **Inline campaign (FR-L1).** The composer's automation card has "Mavjud kampaniya" / "Yangi
+  kampaniya". The new one takes keywords, an optional public reply, the DM text, an optional link
+  (+ button label) and the follow gate, and is sent with the post body as `linkCampaign.create`
+  (`newCampaignSchema` in `lib/content/schema.ts`). **Engine ruling: the legacy `Automation`** — it
+  is what the main dashboard creates today (`POST /api/automations`) and the only engine with the
+  follow gate (`requireFollow`); Comment 2.0 `TriggerCampaign` stays selectable as an existing
+  campaign. No second copy of the rules: the dashboard route's create logic moved into
+  `lib/campaigns/create-automation.ts` (`createAutomationBaseSchema`, `createAutomationRecord`,
+  tracked links included) and both callers use it. The campaign is born waiting —
+  `scheduledPostId` set, `isActive=false`, no post / any-post / next-reel target — and
+  `activateLinkedCampaigns` switches it on in the publish transaction (FR-L2/L3; tested through
+  `publishPost`). Only an explicit save creates it; autosave leaves the link alone, and after the
+  save the composer switches to the new id, so a retry never makes a second copy.
+- **Caption keyword (FR-L5).** `campaignKeywordWarnings` (`lib/content/validate.ts`) is a warning,
+  never an error: `PostDetail.warnings`, `POST validate` → `warnings` (`draftWarnings`), and the
+  composer's caption hint. Scheduling ignores it.
+- **30-day cleanup (spec §7).** Sweep step 9, `cleanupPreparedCopies` (`lib/content/media.ts`):
+  media whose every non-deleted usage is a post PUBLISHED / PUBLISHED_MANUAL more than 30 days ago
+  (a draft, a queued post, a FAILED one that can be retried or a recent publish keeps it) lose the
+  prepared copy: object deleted, `preparedKey` / `preparedBytes` nulled, bytes released from
+  `Workspace.mediaStorageBytes`; original and thumbnail stay. 50 per sweep, idempotent, the write is
+  guarded on the key it read, a storage error leaves the row for the next sweep. A video whose
+  prepared copy is the original only loses the pointer (publishing falls back to `originalKey`, the
+  same file). Re-using a cleaned asset (create / edit / duplicate) calls `reprepareCleanedMedia`:
+  PROCESSING again + media-process job, the thumbnail bytes it will rewrite are released first.
+- **Notifications (spec §11).** Sweep step 10, `lib/content/notify.ts`. "Kvota 80%": accounts that
+  published in the last 24 h or have posts queued in the next 24 h are checked with `accountQuota`
+  (cached 10 min); `(used + scheduledNext24h) / total ≥ 0.8` → Telegram, once per account per 24 h
+  window; the dashboard side is the calendar quota pill (amber at 80%) plus the `OperationalEvent`
+  WARNING. "Keyingi 24 soatda X ta post, akkaunt chiqara olmaydi": an account with `tokenStatus
+  BROKEN` or `canPublish=false` and auto-publish posts (no manual reason) due in the next 24 h →
+  Telegram + email (`alertWorkspace`), once per account per local day (workspace zone). No
+  migration: the `OperationalEvent` row (source WORKER, stable message per account / window) is the
+  dedupe marker, a key lock covers overlapping sweepers.
+
 ## How to test on @jamalxann
 
 1. Set `MEDIA_S3_*` (R2 recommended) — Meta must be able to fetch the media URL.
@@ -74,7 +189,8 @@ worker, the sweeper inside the existing cron loop.
 3. `/developer/content` → "+ Post yaratish" → upload a JPEG → caption → "Rejalashtirish" at now + 6
    minutes. Watch the post detail: SCHEDULED → PREPARING → READY_TO_PUBLISH → PUBLISHING → PUBLISHED
    with the permalink; `PublishAttempt` rows list every Meta call.
-4. Link a comment-to-DM campaign in the composer; after publishing, comment the keyword from another
+4. Link a comment-to-DM campaign in the composer — or create one there with "Yangi kampaniya"; it
+   shows "post kutilmoqda" until the post is out. After publishing, comment the keyword from another
    account and expect the DM (AC-7).
 5. Story with the manual toggle: at the slot the Telegram chat receives media + caption + buttons.
 
@@ -89,17 +205,43 @@ Meta 190 error in the post detail (verified 2026-10-23).
 | AC-1 JPEG feed post at 19:00 publishes within the minute, PUBLISHED + permalink | needs real account |
 | AC-2 5-item carousel (3 images + 2 videos) with user tags, order kept | needs real account (unit: carousel children order, tags per child) |
 | AC-3 45 s Reels, custom cover, `share_to_feed=false`, one collaborator | needs real account (unit: container params) |
-| AC-4 3-story series one minute apart | **not built** — the story series (FR-C9) is Faza 2; only the `storySeriesGapMs` constant exists |
+| AC-4 3-story series one minute apart | unit (Faza 2 WP-B, `content-series.test.ts`); live pending |
 | AC-5 Link-sticker story → NEEDS_MANUAL → Telegram → PUBLISHED_MANUAL | unit + Telegram callback tests pass; live Telegram check pending |
 | AC-6 First comment ≤ 30 s | unit (10 s job) ; live pending |
-| AC-7 Linked campaign gets the DM within a minute | unit (activation in the publish transaction); live pending |
+| AC-7 Linked campaign gets the DM within a minute | unit (activation in the publish transaction, also for a campaign created inline — WP-E); live pending |
 | AC-8 Worker restart → sweeper republishes ≤ 2 min, no duplicate | unit (sweep re-queue; BullMQ "existing id is never re-added" modelled in `content-queue.test.ts`); live restart test pending |
 | AC-9 `media_publish` timeout → published once | unit (status_code check, CAS) |
-| AC-10 Token BROKEN → stays SCHEDULED, notified, continues after reconnect | unit + local live check (190 explained in post detail) |
+| AC-10 Token BROKEN → stays SCHEDULED, notified, continues after reconnect | unit + local live check (190 explained in post detail); WP-E adds the daily "posts due, account cannot publish" warning (`content-notify.test.ts`) |
 | AC-11 2300 chars / 31 hashtags / 3:1 image / 62 s story rejected with exact text | unit |
 | AC-12 PNG → JPEG, 4K 80 Mbps transcoded | unit (sharp / ffmpeg args); live pending. HEIC is refused with a hint (the prebuilt sharp has no HEVC decoder) |
 | AC-13 OPERATOR creates, cannot schedule; MANAGER schedules | API test |
 | AC-14 Other workspace's ids → 404 | API test |
-| AC-15 Existing regression suite passes | `npx vitest run` → 182 files / 3011 tests (2026-10-23) |
+| AC-15 Existing regression suite passes | `npx vitest run` → 200 files / 3250 tests (2026-10-24, Faza 2 WP-A…E merged) |
 
-Tests: `__tests__/content-*.test.ts`, `__tests__/meta-publish.test.ts` (202 tests).
+Tests: `__tests__/content-*.test.ts`, `__tests__/meta-publish.test.ts`, `__tests__/mcp-content-tools.test.ts`.
+
+## Faza 2 — approval flow and notes (WP-A, FR-A1…A5)
+
+| Piece | Where |
+|---|---|
+| Submit / decide / token / sweep / notes / reviewer list | `lib/content/review.ts` |
+| FR-A3 reset on edit (PENDING_REVIEW or approved SCHEDULED / PAUSED → DRAFT) | `lib/content/service.ts` `updatePost` |
+| FR-A4 sweep step 8 | `lib/content/sweep.ts` → `sweepReviews` |
+| `POST posts/[id]/review` (create), `POST posts/[id]/decision` (approve), `GET/POST posts/[id]/notes`, `GET posts/[id]/review` (history) | `app/api/developer/content/posts/[id]/[action]/route.ts` |
+| `GET reviews?tab=mine\|sent\|rejected`; `/meta` → `reviewers` | `app/api/developer/content/reviews`, `meta` |
+| External reviewer (no session, the token is the key, 404 on bad / expired / voided) | `app/api/content/reviews/[token]`, `app/review/[token]` (noindex, `/review/` disallowed in robots) |
+| Telegram `content:approve:<reviewId>` / `content:reject:<reviewId>` | `lib/content/manual.ts` → `handleReviewCallback` |
+| UI: Tasdiqlar tab, composer review form, post detail history + notes | `components/developer/content/reviews.tsx` |
+
+Rules: a rejection needs a comment and always stops (→ REJECTED); ANY and OPTIONAL schedule on
+the first approval, ALL waits for every assigned reviewer; an approver who was not assigned
+decides alone (override — they could schedule it anyway). Approval schedules at the requested
+slot, or a minute from now when the slot is under five minutes away or already past. OPTIONAL with
+no rejection is approved by the sweeper at the slot; any PENDING_REVIEW post 3 h past its slot
+becomes EXPIRED_REVIEW and the author is told (Telegram if linked, else email). A round is the set
+of PostReview rows stamped with the post's version at submit; decisions do not bump the version,
+edits do — so an edit voids the round and the old external link answers 404. Tokens: 32 random
+bytes base64url, only the SHA-256 stored, 7 days from the round. "Rad etish" in Telegram does not
+reject (the bot has no comment flow): it answers with a pointer to the app. "Yuborganlarim" lists
+the user's own posts that went to review (there is no "submitted by" column). Every step writes an
+`OperationalEvent` (source SYSTEM).

@@ -6,11 +6,14 @@
  * permalink, the linked campaign, and the state buttons.
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
 import { Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 import { explainError, RECONNECT_HREF } from "@/lib/foundation/error-catalog";
-import { CONTENT_API, formatZoned, jsonInit, postCardTone, requestJson, STATUS_LABEL, TONE_CLASS, TYPE_LABEL, type ContentMeta, type PostDetail as Detail } from "./shared";
+import { MoveForm } from "./calendar-tools";
+import { ReviewHistory } from "./reviews";
+import { canMovePost, CONTENT_API, formatZoned, jsonInit, postCardTone, requestJson, STATUS_LABEL, TONE_CLASS, TYPE_LABEL, type ContentMeta, type PostDetail as Detail } from "./shared";
 
 const TIMELINE: Array<{ key: string; label: string; reached: (p: Detail) => boolean }> = [
   { key: "created", label: "Yaratildi", reached: () => true },
@@ -37,6 +40,7 @@ export default function PostDetail({
   const [post, setPost] = useState<Detail | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -116,6 +120,8 @@ export default function PostDetail({
         })}
       </ol>
 
+      {post.series && post.series.total > 1 && <SeriesBar post={post} canSchedule={can} canCreate={meta.me.canCreate} busy={busy !== null} onAction={(name) => void action(name)} />}
+
       {failure && <Notice tone="error">{failure}</Notice>}
 
       {explained && s !== "PUBLISHED" && (
@@ -141,6 +147,9 @@ export default function PostDetail({
         </div>
       )}
       {s === "PUBLISHED" && post.firstCommentStatus === "FAILED" && <Notice tone="warning">Post chiqdi, birinchi komment yozilmadi — Instagram ilovasida qo&apos;lda yozing.</Notice>}
+      {s === "PENDING_REVIEW" && <Notice tone="info">Post tasdiq kutmoqda. Tahrirlasangiz tasdiq bekor bo&apos;ladi va post draftga qaytadi.</Notice>}
+      {s === "REJECTED" && <Notice tone="warning">Post rad etildi — izohni pastda ko&apos;ring, tahrirlab qayta yuboring.</Notice>}
+      {s === "EXPIRED_REVIEW" && <Notice tone="warning">Vaqtida tasdiqlanmadi — yangi vaqt bilan qayta tasdiqqa yuboring.</Notice>}
       {s === "NEEDS_MANUAL" && (
         <Notice tone="warning">
           Bu post qo&apos;lda chiqariladi{meta.telegramConnected ? " — fayllar va caption Telegram'ga yuborildi." : " — Telegram ulanmagan: fayllarni quyidan yuklab oling, caption'dan nusxa oling."} Chiqargach «Chiqardim» ni bosing.
@@ -193,7 +202,7 @@ export default function PostDetail({
             </Notice>
           )}
           <div className="flex flex-wrap gap-2 pt-2">
-            {meta.me.canCreate && ["DRAFT", "SCHEDULED", "PAUSED", "FAILED", "NEEDS_MANUAL", "REJECTED", "EXPIRED_REVIEW", "CANCELED"].includes(s) && (
+            {meta.me.canCreate && ["DRAFT", "PENDING_REVIEW", "SCHEDULED", "PAUSED", "FAILED", "NEEDS_MANUAL", "REJECTED", "EXPIRED_REVIEW", "CANCELED"].includes(s) && (
               <button type="button" className={secondaryButton} onClick={onEdit}>
                 Tahrirlash
               </button>
@@ -216,6 +225,11 @@ export default function PostDetail({
             {can && ["DRAFT", "SCHEDULED", "PAUSED", "FAILED", "NEEDS_MANUAL"].includes(s) && (
               <button type="button" className={secondaryButton} disabled={busy !== null} onClick={() => void action("cancel")}>
                 Bekor qilish
+              </button>
+            )}
+            {canMovePost(s, meta.me) && (
+              <button type="button" className={secondaryButton} disabled={busy !== null} aria-expanded={moving} onClick={() => setMoving((m) => !m)}>
+                Ko&apos;chirish
               </button>
             )}
             {meta.me.canCreate && s === "NEEDS_MANUAL" && (
@@ -241,6 +255,18 @@ export default function PostDetail({
               </button>
             )}
           </div>
+          {moving && canMovePost(s, meta.me) && (
+            <MoveForm
+              post={post}
+              tz={meta.timezone}
+              onCancel={() => setMoving(false)}
+              onDone={() => {
+                setMoving(false);
+                void load();
+                onChanged();
+              }}
+            />
+          )}
         </div>
 
         <div className="rounded-2xl border border-border bg-surface p-4">
@@ -264,6 +290,61 @@ export default function PostDetail({
           )}
         </div>
       </div>
+
+      <ReviewHistory meta={meta} postId={post.id} status={s} refreshKey={refreshKey} onChanged={() => { onChanged(); void load(); }} />
+    </div>
+  );
+}
+
+/** FR-C9 / FR-S8: "Seriya: 2/3" with a link to every item and the series-wide actions. */
+function SeriesBar({ post, canSchedule, canCreate, busy, onAction }: { post: Detail; canSchedule: boolean; canCreate: boolean; busy: boolean; onAction: (name: string) => void }) {
+  const series = post.series!;
+  const ownIndex = series.items.find((x) => x.id === post.id)?.seriesIndex ?? 0;
+  const later = series.items.filter((i) => i.seriesIndex > ownIndex && !["PUBLISHING", "PUBLISHED", "PUBLISHED_MANUAL"].includes(i.status));
+  const drafts = series.items.filter((i) => i.id !== post.id && i.status === "DRAFT");
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+      <span className="font-semibold text-foreground">
+        Seriya: {series.position}/{series.total}
+      </span>
+      <ol className="flex flex-wrap gap-1">
+        {series.items.map((item, i) => {
+          const tone = TONE_CLASS[postCardTone(item.status)];
+          const when = item.scheduledAt ? formatZoned(new Date(item.scheduledAt), post.timezone) : STATUS_LABEL[item.status];
+          return (
+            <li key={item.id}>
+              {item.id === post.id ? (
+                <span className={`rounded-md border px-1.5 py-0.5 font-semibold ring-1 ring-accent/60 ${tone}`} aria-current="page">
+                  {i + 1} · {when}
+                </span>
+              ) : (
+                <Link href={`/developer/content?tab=calendar&post=${item.id}`} className={`rounded-md border px-1.5 py-0.5 hover:underline ${tone}`} title={STATUS_LABEL[item.status]}>
+                  {i + 1} · {when}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <span className="ml-auto flex flex-wrap gap-1">
+        {canCreate && drafts.length > 0 && ["DRAFT", "SCHEDULED", "PAUSED"].includes(post.status) && (
+          <button type="button" className={`${secondaryButton} !py-0.5 text-xs`} disabled={busy} onClick={() => onAction("apply-to-series")} title="Matn va sozlamalar seriyaning draft nusxalariga ko'chiriladi">
+            Matnni seriyaga qo&apos;llash ({drafts.length})
+          </button>
+        )}
+        {canSchedule && later.length > 0 && (
+          <button
+            type="button"
+            className={`${secondaryButton} !py-0.5 text-xs text-error`}
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(`Seriyaning keyingi ${later.length} ta nusxasi o'chirilsinmi?`)) onAction("delete-series-future");
+            }}
+          >
+            Keyingi nusxalarni o&apos;chirish ({later.length})
+          </button>
+        )}
+      </span>
     </div>
   );
 }

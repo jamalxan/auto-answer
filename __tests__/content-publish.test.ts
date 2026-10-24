@@ -285,6 +285,15 @@ describe("publishPost", () => {
     expect(db.rows("publishAttempt").map((a) => a.step)).toEqual(["PUBLISH", "LINK_CAMPAIGN"]);
   });
 
+  it("a campaign created inline in the composer (FR-L1) waits, then switches on at publish (FR-L2/L3)", async () => {
+    ready();
+    const { attachCampaignToPost } = await import("@/lib/content/link-campaign");
+    await attachCampaignToPost(WS, "p1", { create: { keywords: ["narx"], dmMessage: "Narxlar: ...", link: "https://shop.uz", requireFollow: true } });
+    expect(db.rows("automation")[0]).toMatchObject({ scheduledPostId: "p1", isActive: false, postId: null, pendingNextReel: false, matchAnyPost: false });
+    await publishPost("p1", 1, deps());
+    expect(db.rows("automation")[0]).toMatchObject({ postId: "17890", isActive: true, requireFollow: true, keywords: ["narx"] });
+  });
+
   it("media_publish times out but Meta published: binds the newest media, never publishes twice (review focus 2, AC-9)", async () => {
     ready();
     mocks.publishContainer.mockRejectedValue(new Error("fetch failed: ETIMEDOUT"));

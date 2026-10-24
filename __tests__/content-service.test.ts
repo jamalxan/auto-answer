@@ -45,6 +45,7 @@ import {
   retryPost,
   schedulePost,
   unschedulePost,
+  draftWarnings,
   updatePost,
   validateDraft,
 } from "@/lib/content/service";
@@ -70,6 +71,31 @@ beforeEach(() => {
 });
 
 const draft = (over: Record<string, unknown> = {}) => createPost(WS, "u1", { instagramAccountId: "acc1", type: "FEED_IMAGE", caption: "Salom", media: [{ mediaId: "m1" }], ...over } as never);
+
+describe("FR-L1 / FR-L5: inline campaign and the caption keyword warning", () => {
+  it("creates the campaign with the post, waiting, and warns (without blocking) when the caption lacks the keyword", async () => {
+    const p = await draft({ caption: "Yangi kolleksiya", linkCampaign: { create: { keywords: ["narx"], dmMessage: "Narxlar" } } });
+    expect(p.linkedCampaign).toMatchObject({ kind: "automation", keywords: ["narx"], waiting: true, active: false });
+    expect(p.warnings).toEqual([expect.objectContaining({ field: "caption" })]);
+    expect(p.issues).toEqual([]);
+    // the warning never blocks scheduling
+    const s = await schedulePost(WS, p.id, at(120), { now: NOW });
+    expect(s.status).toBe("SCHEDULED");
+    expect(db.rows("automation")[0]).toMatchObject({ scheduledPostId: p.id, isActive: false });
+  });
+
+  it("no warning once the caption names the keyword; draftWarnings covers the unsaved composer", async () => {
+    const p = await draft({ caption: "NARX deb yozing", linkCampaign: { create: { keywords: ["narx"], dmMessage: "Narxlar" } } });
+    expect(p.warnings).toEqual([]);
+    const id = db.rows("automation")[0].id as string;
+    const base = { instagramAccountId: "acc1", type: "FEED_IMAGE", media: [{ mediaId: "m1" }] };
+    expect(await draftWarnings(WS, { ...base, caption: "salom", linkCampaign: { automationId: id } } as never)).toHaveLength(1);
+    expect(await draftWarnings(WS, { ...base, caption: "narx?", linkCampaign: { automationId: id } } as never)).toEqual([]);
+    expect(await draftWarnings(WS, { ...base, caption: "salom", linkCampaign: { create: { keywords: ["promo"], dmMessage: "x" } } } as never)).toHaveLength(1);
+    expect(await draftWarnings(WS, { ...base, type: "STORY", caption: "", linkCampaign: { automationId: id } } as never)).toEqual([]);
+    expect(await draftWarnings(WS, { ...base, caption: "salom", linkCampaign: null } as never)).toEqual([]);
+  });
+});
 
 describe("validateDraft size rule (I2)", () => {
   it("judges Instagram's 8 MB against the prepared copy, not the 12 MB phone upload", async () => {
@@ -262,6 +288,14 @@ describe("delete / duplicate / manual / isolation", () => {
     expect(mocks.removePostJobs).toHaveBeenCalled();
     expect(db.rows("automation")[0].isActive).toBe(false);
     await expect(getPost(WS, p.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("duplicating an old post whose prepared copy was cleaned prepares the media again (§7)", async () => {
+    const p = await draft({ caption: "old" });
+    db.rows("mediaAsset").find((a) => a.id === "m1")!.preparedKey = null;
+    db.rows("mediaAsset").find((a) => a.id === "m1")!.preparedBytes = null;
+    await duplicatePost(WS, p.id, {});
+    expect(db.rows("mediaAsset").find((a) => a.id === "m1")!.status).toBe("PROCESSING");
   });
 
   it("duplicate makes a fresh DRAFT with the same media", async () => {

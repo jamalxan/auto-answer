@@ -69,6 +69,9 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   dmLog: {
     automation: { model: "automation", fk: "automationId", kind: "one" },
   },
+  automation: {
+    trackedLinks: { model: "trackedLink", fk: "automationId", kind: "many" },
+  },
   onboardingSession: {},
   instagramAccount: {
     triggerCampaigns: { model: "triggerCampaign", fk: "instagramAccountId", kind: "many" },
@@ -82,6 +85,15 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     attemptsLog: { model: "publishAttempt", fk: "postId", kind: "many" },
     automations: { model: "automation", fk: "scheduledPostId", kind: "many" },
     triggerCampaigns: { model: "triggerCampaign", fk: "scheduledPostId", kind: "many" },
+    reviews: { model: "postReview", fk: "postId", kind: "many" },
+    notes: { model: "postNote", fk: "postId", kind: "many" },
+  },
+  // Content approval (ETAP 13 Faza 2)
+  postReview: {
+    post: { model: "scheduledPost", fk: "postId", kind: "one" },
+  },
+  postNote: {
+    post: { model: "scheduledPost", fk: "postId", kind: "one" },
   },
   scheduledPostMedia: {
     media: { model: "mediaAsset", fk: "mediaId", kind: "one" },
@@ -355,6 +367,7 @@ const DEFAULTS: Record<string, () => Row> = {
     status: "UPLOADING", tags: [], preparedKey: null, thumbKey: null, width: null, height: null,
     durationMs: null, codec: null, fps: null, error: null, uploadedById: null,
   }),
+  postReview: () => ({ reviewerUserId: null, externalEmail: null, tokenHash: null, decision: null, comment: null, decidedAt: null }),
   publishAttempt: () => ({ metaCode: null, metaSubcode: null, fbTraceId: null, message: null, durationMs: null }),
   knowledgeGap: () => ({ status: "OPEN", hits: 1, examples: [] }),
   onboardingSession: () => ({ step: 0, answers: {}, fsm: {}, status: "ACTIVE", language: "uz", igAccountId: null, reminderSentAt: null }),
@@ -669,7 +682,14 @@ export class MemoryDb {
             throw Object.assign(new Error(`Unique constraint failed: ${name}(${key.join(",")})`), { code: "P2002" });
           }
         }
-        return db.withInclude(name, db.seed(name, flat), include);
+        const created = db.seed(name, flat);
+        // nested `{ relation: { create: [...] } }` on a one-to-many relation
+        for (const [k, v] of Object.entries(data)) {
+          const rel = RELATIONS[name]?.[k];
+          const nested = v && typeof v === "object" ? (v as { create?: Row | Row[] }).create : undefined;
+          if (rel?.kind === "many" && nested) for (const child of Array.isArray(nested) ? nested : [nested]) db.seed(rel.model, { ...child, [rel.fk]: created.id });
+        }
+        return db.withInclude(name, created, include);
       },
       async createMany({ data }: { data: Row[] }) {
         for (const row of data) db.seed(name, row);

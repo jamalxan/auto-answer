@@ -8,12 +8,22 @@
 import { CONTENT_LIMITS, MEDIA } from "./config";
 import { cropInsideImage, croppedRatio, type CropRect } from "./crop-geometry";
 import type { PostInput, PostTypeValue } from "./schema";
-import { countCaption, normalizeUsernames, USERNAME_RE } from "./text";
+import { captionMentionsKeyword, countCaption, normalizeUsernames, USERNAME_RE } from "./text";
 
 export interface ValidationIssue {
   /** "caption", "media", "media[2]", "media[0].userTags", "collaborators", "type", "scheduledAt" … */
   field: string;
   message: string;
+}
+
+/**
+ * FR-L5, a warning and never an error: the linked campaign answers comments
+ * with its keyword, but the caption does not tell people to write it.
+ */
+export function campaignKeywordWarnings(type: PostTypeValue, caption: string | null | undefined, keywords: readonly string[]): ValidationIssue[] {
+  const list = keywords.filter((k) => k.trim());
+  if (!FIELD_MATRIX[type].caption || list.length === 0 || captionMentionsKeyword(caption, list)) return [];
+  return [{ field: "caption", message: `Caption'da kalit so'z yo'q — odamlarga "${list[0]} deb yozing" deb ayting, aks holda kampaniya ishga tushmaydi` }];
 }
 
 export type MediaStatusValue = "UPLOADING" | "PROCESSING" | "READY" | "FAILED" | "DELETED";
@@ -81,6 +91,12 @@ export interface ValidateOptions {
   carouselMax: number;
   maxCollaborators: number;
   now?: Date;
+  /**
+   * FR-C9: a STORY draft may hold several media — scheduling turns it into a
+   * series of one-media stories (service.ts). Off for a post that already
+   * holds a slot: a queued story is always a single item.
+   */
+  storySeries?: boolean;
 }
 
 const ratio = (w?: number | null, h?: number | null) => (w && h ? w / h : null);
@@ -173,14 +189,16 @@ export function validatePost(input: PostInput, media: MediaFacts[], opts: Valida
   }
 
   // Media count
-  const max = rules.media.max === "carousel" ? opts.carouselMax : rules.media.max;
+  const max = rules.media.max === "carousel" ? opts.carouselMax : type === "STORY" && opts.storySeries ? CONTENT_LIMITS.storySeriesMax : rules.media.max;
   if (input.media.length < rules.media.min || input.media.length > max) {
     issues.push({
       field: "media",
       message:
         type === "CAROUSEL"
           ? `Karuselda ${rules.media.min} dan ${max} tagacha element bo'ladi`
-          : `Bu turda ${rules.media.min} ta media bo'ladi`,
+          : type === "STORY" && opts.storySeries
+            ? `Story seriyasida ${rules.media.min} dan ${max} tagacha media bo'ladi`
+            : `Bu turda ${rules.media.min} ta media bo'ladi`,
     });
   }
 

@@ -15,6 +15,9 @@ import { ChipInput, Field, inputClass, Pill, primaryButton, secondaryButton, Tog
 import { EDITABLE } from "@/lib/content/transitions";
 import { MediaPicker, UploadZone } from "./media-library";
 import Preview from "./preview";
+import AiCaptionPanel from "./ai-caption-panel";
+import { BestTimeChips } from "./calendar-tools";
+import { EMPTY_REVIEW, ReviewForm, reviewDraftIssue, type MetaWithReviewers, type ReviewDraft } from "./reviews";
 import {
   composerBlocked,
   composerButtonLabel,
@@ -44,6 +47,9 @@ import {
   type PostTypeValue,
 } from "./shared";
 import TagEditor from "./tag-editor";
+import NewCampaignFields, { EMPTY_NEW_CAMPAIGN, newCampaignBody, newCampaignIssue } from "./new-campaign-fields";
+import RecurrenceFields, { emptyRecur, recurBody, recurPreview, type RecurState } from "./recurrence-fields";
+import { formatZoned, storySeriesLabel } from "./shared";
 import CropEditor, { presetsFor } from "./crop-editor";
 import { centerCrop, type CropRect } from "@/lib/content/crop-geometry";
 
@@ -80,11 +86,19 @@ function writeBackup(postId: string | undefined, draft: PostDraft | null) {
   }
 }
 
-/** The API body: client-only fields stripped, an empty automation card sent as "no link". */
-function bodyOf(draft: PostDraft) {
+/**
+ * The API body: client-only fields stripped, an empty automation card sent as "no link".
+ * A new inline campaign (FR-L1) is only created by an explicit save — autosave
+ * leaves the link alone, so it can never make a second copy.
+ */
+function bodyOf(draft: PostDraft, purpose: "save" | "validate" | "autosave" = "save") {
   const body = draftToBody(draft);
   const link = draft.linkCampaign;
-  return { ...body, linkCampaign: link && (link.automationId || link.triggerCampaignId) ? link : null };
+  if (link?.create && !link.automationId && !link.triggerCampaignId) {
+    const send = purpose === "save" || (purpose === "validate" && !newCampaignIssue(link.create));
+    return { ...body, linkCampaign: send ? { create: newCampaignBody(link.create) } : undefined };
+  }
+  return { ...body, linkCampaign: link && (link.automationId || link.triggerCampaignId) ? { automationId: link.automationId, triggerCampaignId: link.triggerCampaignId } : null };
 }
 
 function rowToItem(row: Pick<MediaRow, "id" | "kind" | "status" | "thumbUrl" | "width" | "height" | "durationMs">): MediaItemDraft {
@@ -120,6 +134,13 @@ export default function Composer({
   const [tagging, setTagging] = useState<number | null>(null);
   const [cropping, setCropping] = useState<number | null>(null);
   const [advanced, setAdvanced] = useState(false);
+  // Faza 2: recurrence (FR-S8) and the account's posting slots (FR-S9).
+  const [recur, setRecur] = useState<RecurState>(() => emptyRecur(slot.date));
+  const [recurReport, setRecurReport] = useState<{ id: string; total: number; failed: Array<{ seriesIndex: number; at: string; error: string }> } | null>(null);
+  const [slotCount, setSlotCount] = useState(0);
+  const [createdCampaigns, setCreatedCampaigns] = useState<ContentMeta["campaigns"]>([]);
+  // Approval (Faza 2): null = schedule directly; OPERATOR always sends to review.
+  const [review, setReview] = useState<ReviewDraft | null>(meta.me.canSchedule ? null : EMPTY_REVIEW);
   const dirty = useRef(false);
   const serverId = useRef<string | undefined>(postId);
   const versionRef = useRef<number | null>(null);
@@ -190,6 +211,18 @@ export default function Composer({
     }
   }, [account, canPublish, draft.autoPublish]);
 
+  // ── FR-S9: "Navbatga qo'shish" shows only when the account has slots ───
+  useEffect(() => {
+    if (!canSchedule || !draft.instagramAccountId) return;
+    let alive = true;
+    void requestJson<{ slots: unknown[] }>(`${CONTENT_API}/accounts/${draft.instagramAccountId}/slots`).then((res) => {
+      if (alive) setSlotCount(res.ok ? res.data.slots.length : 0);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [canSchedule, draft.instagramAccountId]);
+
   // ── live server validation ──────────────────────────────────────────────
   useEffect(() => {
     if (!draft.instagramAccountId || draft.media.length === 0) {
@@ -198,7 +231,7 @@ export default function Composer({
       return;
     }
     const t = setTimeout(async () => {
-      const res = await requestJson<{ issues: Issue[] }>(`${CONTENT_API}/validate`, jsonInit("POST", bodyOf(draft)));
+      const res = await requestJson<{ issues: Issue[] }>(`${CONTENT_API}/validate`, jsonInit("POST", bodyOf(draft, "validate")));
       if (res.ok) setIssues(res.data.issues);
     }, VALIDATE_DEBOUNCE_MS);
     return () => clearTimeout(t);
@@ -211,7 +244,7 @@ export default function Composer({
       dirty.current = false;
       writeBackup(serverId.current, draft);
       if (serverId.current && versionRef.current !== null && !locked && !blocked) {
-        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${serverId.current}`, jsonInit("PATCH", { ...bodyOf(draft), version: versionRef.current }));
+        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${serverId.current}`, jsonInit("PATCH", { ...bodyOf(draft, "autosave"), version: versionRef.current }));
         if (res.ok) {
           versionRef.current = res.data.version;
           setAutosavedAt(new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }));
@@ -282,16 +315,20 @@ export default function Composer({
   }
 
   // ── automation card ─────────────────────────────────────────────────────
-  const campaigns = meta.campaigns.filter((c) => c.instagramAccountId === draft.instagramAccountId && (!c.linkedPostId || c.linkedPostId === postId));
+  const campaigns = [...meta.campaigns, ...createdCampaigns.filter((c) => !meta.campaigns.some((m) => m.id === c.id))].filter((c) => c.instagramAccountId === draft.instagramAccountId && (!c.linkedPostId || c.linkedPostId === postId));
   const linkedId = draft.linkCampaign?.automationId ?? draft.linkCampaign?.triggerCampaignId ?? "";
   const linked = campaigns.find((c) => c.id === linkedId) ?? null;
-  const keywordMissing = Boolean(linked && linked.keywords.length > 0 && fieldVisible(draft.type, "caption") && !linked.keywords.some((k) => draft.caption.toLowerCase().includes(k.toLowerCase())));
+  const newCampaign = draft.linkCampaign?.create && !linkedId ? draft.linkCampaign.create : null;
+  // FR-L5: a warning, never a block.
+  const campaignKeywords = linked?.keywords ?? newCampaign?.keywords.filter((k) => k.trim()) ?? [];
+  const keywordMissing = campaignKeywords.length > 0 && fieldVisible(draft.type, "caption") && !campaignKeywords.some((k) => draft.caption.toLowerCase().includes(k.toLowerCase()));
 
   // ── save ────────────────────────────────────────────────────────────────
-  async function save(as: ComposerMode = mode) {
+  async function save(as: ComposerMode | "queue" = mode) {
     setSaving(true);
     setError(null);
     try {
+      if (newCampaign && newCampaignIssue(newCampaign)) throw new Error(`Yangi kampaniya: ${newCampaignIssue(newCampaign)}`);
       const body = bodyOf(draft);
       let saved: PostDetail;
       if (serverId.current) {
@@ -305,7 +342,36 @@ export default function Composer({
         serverId.current = saved.id;
       }
       versionRef.current = saved.version;
-      if (as !== "draft" && canSchedule) {
+      if (newCampaign && saved.linkedCampaign) {
+        // FR-L1: the campaign exists now — later saves link it by id instead of creating another.
+        const created = saved.linkedCampaign;
+        setCreatedCampaigns((list) => [...list, { kind: created.kind, id: created.id, name: created.name, instagramAccountId: saved.instagramAccountId, active: created.active, keywords: created.keywords, linkedPostId: null, bound: false }]);
+        setDraft((d) => ({ ...d, linkCampaign: created.kind === "automation" ? { automationId: created.id } : { triggerCampaignId: created.id } }));
+      }
+      if (as === "schedule" && review) {
+        const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/review`, jsonInit("POST", { ...review, scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
+        if (!res.ok) {
+          setNotice("Draft saqlandi, lekin tasdiqqa yuborilmadi");
+          throw new Error(res.error);
+        }
+      } else if (as === "queue" || (as === "schedule" && canSchedule && recurring)) {
+        // FR-S9 next free slot / FR-S8 recurrence: their own actions on the saved draft.
+        const res =
+          as === "queue"
+            ? await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/queue`, jsonInit("POST", {}))
+            : await requestJson<{ total: number; failed: Array<{ seriesIndex: number; at: string; error: string }> }>(`${CONTENT_API}/posts/${saved.id}/recur`, jsonInit("POST", recurBody(recur, slot.date, slot.time)));
+        if (!res.ok) {
+          setNotice("Draft saqlandi, lekin rejalashtirilmadi");
+          throw new Error(res.error);
+        }
+        if (as === "schedule" && "failed" in res.data && res.data.failed.length > 0) {
+          writeBackup(postId, null);
+          writeBackup(undefined, null);
+          dirty.current = false;
+          setRecurReport({ id: saved.id, total: res.data.total, failed: res.data.failed });
+          return;
+        }
+      } else if (as !== "draft" && canSchedule) {
         const action = as === "now" ? "publish-now" : "schedule";
         const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/${action}`, jsonInit("POST", as === "now" ? {} : { scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
         if (!res.ok) {
@@ -313,7 +379,7 @@ export default function Composer({
           throw new Error(res.error);
         }
       } else if (as !== "draft" && !canSchedule) {
-        setNotice("Draft saqlandi. Tasdiqlash oqimi keyingi fazada — hozircha MANAGER kalendardan rejalashtiradi.");
+        setNotice("Draft saqlandi. Tasdiqqa yuborish uchun vaqtni tanlang.");
       }
       writeBackup(postId, null);
       writeBackup(undefined, null);
@@ -329,8 +395,27 @@ export default function Composer({
   const issueFor = (field: string) => issues.find((i) => i.field === field)?.message ?? null;
   const mediaIssues = issues.filter((i) => i.field.startsWith("media"));
   const otherIssues = issues.filter((i) => !["caption", "collaborators", "firstComment", "scheduledAt"].includes(i.field) && !i.field.startsWith("media"));
-  const buttonLabel = composerButtonLabel({ mode, at, tz, canSchedule });
-  const disabled = saving || loading || locked || Boolean(blocked) || issues.length > 0 || !meta.me.canCreate;
+  const storySeries = draft.type === "STORY" && draft.media.length > 1;
+  const toReview = Boolean(review && mode === "schedule");
+  const canRecur = canSchedule && mode === "schedule" && !storySeries && !review && (!detail || detail.status === "DRAFT");
+  const recurring = canRecur && recur.on;
+  const recurInfo = recurPreview(recur, slot.date, slot.time, tz);
+  const buttonLabel = toReview
+    ? "Tasdiqqa yuborish"
+    : recurring
+      ? recurInfo.error
+        ? "Takrorlash sozlamasini tekshiring"
+        : `${recurInfo.count} ta nusxani rejalashtirish`
+      : composerButtonLabel({ mode, at, tz, canSchedule });
+  const disabled =
+    saving ||
+    loading ||
+    locked ||
+    Boolean(blocked) ||
+    issues.length > 0 ||
+    !meta.me.canCreate ||
+    (recurring && Boolean(recurInfo.error)) ||
+    Boolean(toReview && review && reviewDraftIssue(review));
 
   if (loading) return <p className="text-sm text-muted">Yuklanmoqda…</p>;
 
@@ -348,6 +433,21 @@ export default function Composer({
 
       {locked && <Notice tone="warning">Post {STATUS_LABEL[detail!.status].toLowerCase()} — bu holatda tahrirlab bo&apos;lmaydi.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
+      {recurReport && (
+        <Notice tone="warning">
+          {recurReport.total - recurReport.failed.length}/{recurReport.total} nusxa rejalashtirildi. Rejalashtirilmaganlar draft bo&apos;lib seriyada qoldi:
+          <ul className="mt-1 list-disc pl-4">
+            {recurReport.failed.map((f) => (
+              <li key={f.seriesIndex}>
+                {formatZoned(new Date(f.at), tz)} — {f.error}
+              </li>
+            ))}
+          </ul>
+          <button type="button" className={`${secondaryButton} mt-2`} onClick={() => onSaved(recurReport.id)}>
+            Postga o&apos;tish
+          </button>
+        </Notice>
+      )}
       {notice && (
         <Notice tone="info">
           {notice}{" "}
@@ -485,6 +585,7 @@ export default function Composer({
               </ol>
             )}
             {draft.type === "CAROUSEL" && draft.media.length > 1 && <p className="text-[11px] text-muted">Instagram barcha elementlarni birinchi elementning nisbatiga qirqadi.</p>}
+            {storySeries && <p className="text-xs font-semibold text-foreground">{storySeriesLabel(draft.media.length, mode === "schedule" ? at : null, tz)} — har biri alohida story bo&apos;lib chiqadi.</p>}
             {mediaIssues.filter((i) => !/^media\[\d+\]$/.test(i.field)).map((i) => (
               <p key={i.field} className="text-xs text-error">
                 {i.message}
@@ -498,7 +599,7 @@ export default function Composer({
               <Field
                 label="Caption"
                 error={issueFor("caption") ?? (caption.chars > meta.limits.captionChars ? `Caption ${meta.limits.captionChars} belgidan oshdi` : null)}
-                hint={keywordMissing ? `Caption'da "${linked!.keywords[0]} deb yozing" degan chaqiruv yo'q` : undefined}
+                hint={keywordMissing ? `Caption'da "${campaignKeywords[0]} deb yozing" degan chaqiruv yo'q` : undefined}
               >
                 <textarea className={`${inputClass} min-h-32`} value={draft.caption} onChange={(e) => update({ caption: e.target.value })} placeholder="Nima yozamiz? #hashtag va @mention ishlaydi" />
                 <div className="flex flex-wrap gap-3 text-[11px]">
@@ -507,6 +608,7 @@ export default function Composer({
                   <Counter value={caption.mentions} max={meta.limits.mentions} label="@" />
                 </div>
               </Field>
+              {meta.me.canCreate && <AiCaptionPanel type={draft.type} caption={draft.caption} limits={meta.limits} onChange={(text) => update({ caption: text })} />}
               {meta.savedTexts.length > 0 && (
                 <details className="text-xs">
                   <summary className="cursor-pointer text-muted">Hashtag guruhi / shablon qo&apos;shish</summary>
@@ -592,19 +694,38 @@ export default function Composer({
           <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
             <Switch
               on={Boolean(draft.linkCampaign)}
-              onChange={(on) => update({ linkCampaign: on ? (campaigns[0] ? (campaigns[0].kind === "automation" ? { automationId: campaigns[0].id } : { triggerCampaignId: campaigns[0].id }) : {}) : null })}
+              onChange={(on) => update({ linkCampaign: on ? (campaigns[0] ? (campaigns[0].kind === "automation" ? { automationId: campaigns[0].id } : { triggerCampaignId: campaigns[0].id }) : { create: EMPTY_NEW_CAMPAIGN }) : null })}
               label="Shu postga comment-to-DM kampaniyasini ulash"
             />
             {draft.linkCampaign && (
               <>
-                {campaigns.length === 0 ? (
-                  <p className="text-xs text-muted">
-                    Bu akkauntda bo&apos;sh kampaniya yo&apos;q —{" "}
-                    <a className="underline" href="/developer/comments" target="_blank" rel="noreferrer">
-                      Comment 2.0
-                    </a>{" "}
-                    da yarating, keyin shu yerda tanlang.
-                  </p>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Kampaniya manbai">
+                  {(
+                    [
+                      ["existing", "Mavjud kampaniya"],
+                      ["new", "Yangi kampaniya"],
+                    ] as const
+                  ).map(([k, label]) => {
+                    const on = k === "new" ? Boolean(newCampaign) : !newCampaign;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        disabled={k === "existing" && campaigns.length === 0}
+                        onClick={() => update({ linkCampaign: k === "new" ? { create: draft.linkCampaign?.create ?? EMPTY_NEW_CAMPAIGN } : campaigns[0] ? (campaigns[0].kind === "automation" ? { automationId: campaigns[0].id } : { triggerCampaignId: campaigns[0].id }) : {} })}
+                        className={`${secondaryButton} ${on ? "border-accent/60 text-foreground" : ""}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {newCampaign ? (
+                  <NewCampaignFields value={newCampaign} onChange={(create) => update({ linkCampaign: { create } })} />
+                ) : campaigns.length === 0 ? (
+                  <p className="text-xs text-muted">Bu akkauntda bo&apos;sh kampaniya yo&apos;q — &quot;Yangi kampaniya&quot; ni tanlang.</p>
                 ) : (
                   <select
                     className={inputClass}
@@ -624,7 +745,7 @@ export default function Composer({
                     ))}
                   </select>
                 )}
-                {linked && <p className="text-xs text-muted">Post chiqishi bilan kampaniya shu postga faollashadi. Ungacha u &quot;post kutilmoqda&quot; holatida turadi va hech narsa yubormaydi.</p>}
+                {(linked || newCampaign) && <p className="text-xs text-muted">Post chiqishi bilan kampaniya shu postga faollashadi. Ungacha u &quot;post kutilmoqda&quot; holatida turadi va hech narsa yubormaydi.</p>}
                 {issueFor("linkCampaign") && <p className="text-xs text-error">{issueFor("linkCampaign")}</p>}
               </>
             )}
@@ -640,7 +761,7 @@ export default function Composer({
                   ["draft", "Draft"],
                 ] as Array<[ComposerMode, string]>
               ).map(([m, label]) => (
-                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`${secondaryButton} ${mode === m ? "border-accent/60 text-foreground" : ""}`} disabled={m !== "draft" && !canSchedule}>
+                <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`${secondaryButton} ${mode === m ? "border-accent/60 text-foreground" : ""}`} disabled={m === "now" && (!canSchedule || review !== null)}>
                   {label}
                 </button>
               ))}
@@ -656,8 +777,16 @@ export default function Composer({
                 <span className="pb-2 text-xs text-muted">{tz} · kamida 5 daqiqa keyin</span>
               </div>
             )}
+            {mode === "schedule" && <BestTimeChips accountId={draft.instagramAccountId || undefined} tz={tz} onPick={setSlot} />}
             {issueFor("scheduledAt") && <p className="text-xs text-error">{issueFor("scheduledAt")}</p>}
-            {!canSchedule && <p className="text-xs text-muted">Sizning rolingiz ({meta.me.roleLabel}) rejalashtira olmaydi — draft saqlanadi, MANAGER tasdiqlaydi.</p>}
+            {canRecur && <RecurrenceFields value={recur} onChange={setRecur} startDate={slot.date} time={slot.time} timezone={tz} />}
+            {!canSchedule && <p className="text-xs text-muted">Sizning rolingiz ({meta.me.roleLabel}) rejalashtira olmaydi — post tanlangan vaqt bilan tasdiqqa yuboriladi.</p>}
+            {canSchedule && mode === "schedule" && (
+              <button type="button" className={`${secondaryButton} !py-1 text-xs`} onClick={() => setReview((r) => (r ? null : EMPTY_REVIEW))}>
+                {review ? "Tasdiqsiz rejalashtirish" : "Tasdiqqa yuborish (mijoz yoki rahbar ko'rsin)"}
+              </button>
+            )}
+            {review && mode === "schedule" && <ReviewForm meta={meta as MetaWithReviewers} value={review} onChange={setReview} />}
 
             <div className="space-y-1 border-t border-border pt-3">
               <Switch
@@ -704,6 +833,11 @@ export default function Composer({
             <button type="button" className={primaryButton} disabled={disabled} onClick={() => void save()}>
               {saving ? "Saqlanmoqda…" : buttonLabel}
             </button>
+            {canSchedule && slotCount > 0 && !recurring && (
+              <button type="button" className={secondaryButton} disabled={disabled} onClick={() => void save("queue")} title="Akkauntning keyingi bo'sh slotiga (kamida 5 daqiqa keyin)">
+                Navbatga qo&apos;shish
+              </button>
+            )}
             {mode !== "draft" && (
               <button type="button" className={secondaryButton} disabled={saving || loading || locked || Boolean(blocked)} onClick={() => { setMode("draft"); void save("draft"); }}>
                 Draft sifatida saqlash
