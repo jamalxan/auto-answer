@@ -36,7 +36,7 @@ export default function NewCampaignFields({ value, onChange }: { value: NewCampa
   const set = (patch: Partial<NewCampaignDraft>) => onChange({ ...value, ...patch });
   const issue = newCampaignIssue(value);
   return (
-    <div className="space-y-3 rounded-xl border border-border p-3">
+    <div className="space-y-3 inset p-3">
       <Field label="Kalit so'zlar" hint="Kommentda shu so'z bo'lsa, DM yuboriladi. Enter bilan qo'shing.">
         <ChipInput values={value.keywords} onChange={(keywords) => set({ keywords: keywords.slice(0, 10) })} placeholder="masalan: narx" />
       </Field>

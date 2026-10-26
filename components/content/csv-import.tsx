@@ -140,7 +140,7 @@ export default function CsvImport({ meta, onImported }: { meta: ContentMeta; onI
 
   return (
     <div className="space-y-4">
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+      <section className="space-y-3 panel rounded-3xl p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-2xl space-y-1">
             <h3 className="font-semibold">CSV dan import</h3>
@@ -172,7 +172,7 @@ export default function CsvImport({ meta, onImported }: { meta: ContentMeta; onI
       </section>
 
       {preview && (
-        <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+        <section className="space-y-3 panel rounded-3xl p-4">
           {preview.fileErrors.map((e) => (
             <Notice key={e} tone="error">
               {e}
@@ -212,7 +212,7 @@ export default function CsvImport({ meta, onImported }: { meta: ContentMeta; onI
                     {preview.rows.map((r) => {
                       const bad = r.errors.length > 0;
                       return (
-                        <tr key={r.row} className={`border-t border-border align-top ${bad ? "bg-error/5" : ""}`}>
+                        <tr key={r.row} className={`align-top ${bad ? "bg-error/10" : "odd:bg-white/[0.03]"}`}>
                           <td className="py-2">
                             <input type="checkbox" aria-label={`${r.row}-qatorni tanlash`} checked={selected.has(r.row)} disabled={bad || commit !== null} onChange={() => toggle(r.row)} />
                           </td>
@@ -268,7 +268,7 @@ export default function CsvImport({ meta, onImported }: { meta: ContentMeta; onI
       )}
 
       {commit && (
-        <section className="space-y-2 rounded-2xl border border-border bg-surface p-4 text-sm">
+        <section className="space-y-2 panel rounded-3xl p-4 text-sm">
           <h3 className="font-semibold">Natija</h3>
           <p>
             {commit.created} ta post yaratildi{commit.failed > 0 ? `, ${commit.failed} ta qator import bo'lmadi` : ""}.

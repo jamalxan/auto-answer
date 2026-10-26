@@ -157,7 +157,7 @@ export default function PostDetail({
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <div className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+        <div className="space-y-3 panel rounded-3xl p-4">
           <div className="flex flex-wrap gap-2">
             {post.media.map((m) => (
               <a key={m.id} href={m.previewUrl ?? undefined} target="_blank" rel="noreferrer" className="block h-24 w-24 overflow-hidden rounded-lg bg-background" title="Faylni ochish / yuklab olish">
@@ -173,7 +173,7 @@ export default function PostDetail({
           {post.caption && (
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span className="label-mono text-[11px] font-semibold text-muted">Caption</span>
+                <span className="text-xs font-semibold text-muted">Caption</span>
                 <button type="button" className={`${secondaryButton} !py-0.5 text-xs`} onClick={() => void navigator.clipboard?.writeText(post.caption ?? "")}>
                   Nusxa olish
                 </button>
@@ -269,7 +269,7 @@ export default function PostDetail({
           )}
         </div>
 
-        <div className="rounded-2xl border border-border bg-surface p-4">
+        <div className="panel rounded-3xl p-4">
           <h3 className="mb-2 text-sm font-semibold">Urinishlar</h3>
           {post.attemptsLog.length === 0 ? (
             <p className="text-xs text-muted">Hali urinish yo&apos;q.</p>

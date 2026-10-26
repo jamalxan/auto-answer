@@ -62,7 +62,7 @@ export default function TagEditor({
       {placeOnImage ? (
         <div
           ref={box}
-          className="relative select-none overflow-hidden rounded-lg border border-border bg-background"
+          className="relative select-none overflow-hidden rounded-2xl bg-midnight"
           onClick={(e) => {
             if (dragging.current !== null) return;
             const p = pointOf(e);
@@ -101,7 +101,7 @@ export default function TagEditor({
             </span>
           ))}
           {pending && (
-            <div style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} className="absolute z-10 -translate-x-1/2 rounded-lg border border-border bg-surface p-2 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} className="absolute z-10 -translate-x-1/2 rounded-2xl bg-surface p-2 shadow-float" onClick={(e) => e.stopPropagation()}>
               <input
                 autoFocus
                 className={`${inputClass} !w-44`}
@@ -142,7 +142,7 @@ export default function TagEditor({
       {!placeOnImage && tags.length > 0 && (
         <ul className="flex flex-wrap gap-1">
           {tags.map((t, i) => (
-            <li key={`${t.username}-${i}`} className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs">
+            <li key={`${t.username}-${i}`} className="inline-flex items-center gap-1 rounded-full bg-violet/20 px-2 py-0.5 text-xs">
               @{t.username}
               <button type="button" className="text-muted hover:text-error" aria-label={`@${t.username} ni olib tashlash`} onClick={() => onChange(tags.filter((_, j) => j !== i))}>
                 ×

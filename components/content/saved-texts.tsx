@@ -46,7 +46,7 @@ export default function SavedTexts({ meta, onChanged }: { meta: ContentMeta; onC
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
       {meta.me.canCreate && (
-        <div className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+        <div className="space-y-3 panel rounded-3xl p-4">
           <h3 className="font-semibold">{editing ? "Shablonni tahrirlash" : "Yangi shablon"}</h3>
           <Field label="Sarlavha" hint="32 belgigacha">
             <input className={inputClass} value={form.title} maxLength={32} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -81,10 +81,10 @@ export default function SavedTexts({ meta, onChanged }: { meta: ContentMeta; onC
         {groups.size === 0 && <p className="text-sm text-muted">Hali shablon yo&apos;q. Hashtag guruhini saqlang — composer&apos;da bir bosishda qo&apos;shiladi.</p>}
         {[...groups.entries()].map(([tag, list]) => (
           <section key={tag}>
-            <h4 className="label-mono mb-2 text-[11px] font-semibold text-muted">#{tag}</h4>
+            <h4 className="mb-2 text-xs font-semibold text-muted">#{tag}</h4>
             <ul className="space-y-2">
               {list.map((t) => (
-                <li key={t.id} className="rounded-2xl border border-border bg-surface p-3">
+                <li key={t.id} className="panel rounded-3xl p-3">
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-semibold">{t.title}</span>
                     {meta.me.canCreate && (

@@ -78,7 +78,7 @@ export default function AiCaptionPanel({
   const tagsFit = countCaption(withTags).hashtags <= limits.hashtags && Array.from(withTags).length <= limits.captionChars;
 
   return (
-    <div className="space-y-3 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">
+    <div className="space-y-3 rounded-2xl bg-violet/10 p-3 text-sm">
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold">AI bilan yozish</span>
         <button type="button" className="text-xs text-muted hover:text-foreground" onClick={() => setOpen(false)}>
@@ -115,7 +115,7 @@ export default function AiCaptionPanel({
       {result && (
         <div className="space-y-2">
           {result.variants.map((v, i) => (
-            <div key={i} className="space-y-2 rounded-lg border border-border bg-surface p-3">
+            <div key={i} className="space-y-2 inset p-3">
               <p className="whitespace-pre-wrap text-sm">{v}</p>
               <button type="button" className={`${secondaryButton} !py-1 text-xs`} onClick={() => onChange(v)}>
                 Shu variantni olish

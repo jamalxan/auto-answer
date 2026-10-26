@@ -46,7 +46,7 @@ export default function RecurrenceFields({ value, onChange, startDate, time, tim
   const unit = value.frequency === "daily" ? "kunda" : value.frequency === "weekly" ? "haftada" : "oyda";
 
   return (
-    <div className="space-y-3 border-t border-border pt-3">
+    <div className="space-y-3 pt-3">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm text-foreground">
           Takrorlash
@@ -73,7 +73,7 @@ export default function RecurrenceFields({ value, onChange, startDate, time, tim
                     type="button"
                     aria-pressed={on}
                     onClick={() => set({ weekdays: on ? value.weekdays.filter((d) => d !== i) : [...value.weekdays, i].sort() })}
-                    className={`${secondaryButton} !px-2.5 !py-1 text-xs ${on ? "border-accent/60 bg-accent/15 text-foreground" : ""}`}
+                    className={`${secondaryButton} !px-2.5 !py-1 text-xs ${on ? "!bg-violet !text-white" : ""}`}
                   >
                     {label}
                   </button>

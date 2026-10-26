@@ -104,7 +104,7 @@ export function ReviewForm({ meta, value, onChange }: { meta: MetaWithReviewers;
   const toggle = (id: string) =>
     onChange({ ...value, reviewerUserIds: value.reviewerUserIds.includes(id) ? value.reviewerUserIds.filter((x) => x !== id) : [...value.reviewerUserIds, id] });
   return (
-    <div className="space-y-3 rounded-xl border border-border p-3">
+    <div className="space-y-3 inset p-3">
       <p className="text-sm font-semibold">Tasdiqqa yuborish</p>
       <Field label="Tasdiqlovchilar (MANAGER va yuqori)">
         {reviewers.length === 0 ? (
@@ -217,7 +217,7 @@ export function ReviewHistory({ meta, postId, status, refreshKey, onChanged }: {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <div className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+      <div className="space-y-3 panel rounded-3xl p-4">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold">Tasdiqlash</h3>
           {summary?.rule && <Pill tone="muted">{RULE_LABEL[summary.rule].title}</Pill>}
@@ -255,7 +255,7 @@ export function ReviewHistory({ meta, postId, status, refreshKey, onChanged }: {
         )}
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+      <div className="space-y-3 panel rounded-3xl p-4">
         <h3 className="text-sm font-semibold">Izohlar</h3>
         {notes.length === 0 ? (
           <p className="text-xs text-muted">Hali izoh yo&apos;q.</p>
@@ -356,13 +356,13 @@ export function ReviewsPanel({ meta, refreshKey, onOpen, onChanged }: { meta: Co
       {items === null ? (
         <p className="text-sm text-muted">Yuklanmoqda…</p>
       ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-surface">
+        <div className="panel rounded-3xl">
           <EmptyState title={tab === "mine" ? "Sizdan tasdiq kutayotgan post yo'q" : tab === "sent" ? "Siz tasdiqqa post yubormagansiz" : "Rad etilgan post yo'q"} />
         </div>
       ) : (
         <ul className="space-y-2">
           {items.map((item) => (
-            <li key={item.id} className="flex flex-wrap items-start gap-3 rounded-2xl border border-border bg-surface p-3">
+            <li key={item.id} className="flex flex-wrap items-start gap-3 panel rounded-3xl p-3">
               {tab === "mine" && meta.me.canApprove && (
                 <input type="checkbox" className="mt-1" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label="Tanlash" />
               )}

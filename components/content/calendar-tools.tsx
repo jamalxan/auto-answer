@@ -57,7 +57,7 @@ export function MoveForm({ post, tz, onDone, onCancel }: { post: Pick<PostCard, 
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-hover/40 p-2" onClick={(e) => e.stopPropagation()}>
+    <div className="flex flex-wrap items-center gap-2 inset p-2" onClick={(e) => e.stopPropagation()}>
       <label className="flex items-center gap-2 text-xs text-muted">
         Yangi vaqt ({tz})
         <input type="datetime-local" className={`${inputClass} !w-auto !py-1`} value={value} step={300} onChange={(e) => setValue(e.target.value)} autoFocus />
@@ -99,7 +99,7 @@ export function BulkBar({ meta, selected, onClear, onDone }: { meta: ContentMeta
   const n = selected.length;
   const reviewIssue = review ? reviewDraftIssue(review) : null;
   return (
-    <div className="space-y-2 rounded-2xl border border-accent/40 bg-surface p-3" aria-label="Ommaviy amallar">
+    <div className="space-y-2 rounded-2xl bg-violet/15 p-3" aria-label="Ommaviy amallar">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-semibold">{n} ta tanlandi</span>
         <button type="button" className={`${secondaryButton} !py-1 text-xs`} onClick={onClear}>
@@ -145,7 +145,7 @@ export function BulkBar({ meta, selected, onClear, onDone }: { meta: ContentMeta
         )}
       </div>
       {review && (
-        <div className="space-y-2 border-t border-border pt-2">
+        <div className="space-y-2 pt-2">
           <p className="text-xs text-muted">Har bir draft o&apos;zining reja vaqti bilan yuboriladi; vaqti yo&apos;q postlar xato sifatida ko&apos;rsatiladi.</p>
           <ReviewForm meta={meta as MetaWithReviewers} value={review} onChange={setReview} />
           <button type="button" className={`${primaryButton} !py-1 text-xs`} disabled={busy !== null || Boolean(reviewIssue)} title={reviewIssue ?? undefined} onClick={() => void send("review", { ...review })}>
@@ -230,7 +230,7 @@ export function BestTimeChips({ accountId, tz, onPick }: { accountId: string | u
         Eng yaxshi vaqt:
       </span>
       {data.top.map((cell) => (
-        <button key={`${cell.weekday}-${cell.hour}`} type="button" className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 font-semibold text-accent hover:bg-accent/20" onClick={() => onPick(nextOccurrence(cell.weekday, cell.hour, tz))}>
+        <button key={`${cell.weekday}-${cell.hour}`} type="button" className="rounded-full bg-violet/20 px-2 py-0.5 font-semibold text-white hover:bg-violet/35" onClick={() => onPick(nextOccurrence(cell.weekday, cell.hour, tz))}>
           {bestTimeLabel(cell)}
         </button>
       ))}
@@ -271,7 +271,7 @@ export function FeedGrid({ accountId, tz, refreshKey, onOpen }: { accountId: str
       {feed.items.length === 0 ? (
         <p className="text-sm text-muted">Hali grid&apos;da ko&apos;rsatadigan post yo&apos;q.</p>
       ) : (
-        <ul className="mx-auto grid max-w-md grid-cols-3 gap-0.5 overflow-hidden rounded-xl border border-border bg-border">
+        <ul className="mx-auto grid max-w-md grid-cols-3 gap-0.5 overflow-hidden rounded-2xl bg-white/[0.06]">
           {feed.items.map((tile) => (
             <li key={tile.key} className={`relative aspect-[4/5] bg-surface ${tile.draft ? "opacity-40" : ""}`}>
               <GridTile tile={tile} tz={tz} onOpen={onOpen} />

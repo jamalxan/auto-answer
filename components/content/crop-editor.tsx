@@ -65,14 +65,14 @@ export default function CropEditor({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1">
-        <button type="button" className={`${secondaryButton} !px-2 !py-1 text-xs ${active === null && !rect ? "!border-accent text-accent" : ""}`} onClick={() => onChange(null)}>
+        <button type="button" className={`${secondaryButton} !px-2 !py-1 text-xs ${active === null && !rect ? "!bg-violet !text-white" : ""}`} onClick={() => onChange(null)}>
           Asl
         </button>
         {presets.map((p) => (
           <button
             key={p.label}
             type="button"
-            className={`${secondaryButton} !px-2 !py-1 text-xs ${active === p.label ? "!border-accent text-accent" : ""}`}
+            className={`${secondaryButton} !px-2 !py-1 text-xs ${active === p.label ? "!bg-violet !text-white" : ""}`}
             aria-pressed={active === p.label}
             onClick={() => onChange(centerCrop(width, height, p.ratio))}
           >
@@ -84,7 +84,7 @@ export default function CropEditor({
       {imageUrl && (
         <div
           ref={box}
-          className="relative mx-auto select-none overflow-hidden rounded-lg border border-border bg-background"
+          className="relative mx-auto select-none overflow-hidden rounded-2xl bg-midnight"
           style={{ aspectRatio: `${width} / ${height}`, width: `min(100%, ${Math.round((EDITOR_MAX_HEIGHT * width) / height)}px)` }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- signed, short-lived URL */}

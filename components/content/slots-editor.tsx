@@ -100,7 +100,7 @@ export default function SlotsEditor({ meta, accountId, onClose }: { meta: Conten
   }
 
   return (
-    <section className="space-y-3 rounded-2xl border border-border bg-surface p-4" aria-label="Navbat slotlari">
+    <section className="space-y-3 panel rounded-3xl p-4" aria-label="Navbat slotlari">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">Navbat slotlari</h3>
@@ -130,8 +130,8 @@ export default function SlotsEditor({ meta, accountId, onClose }: { meta: Conten
           {WEEKDAYS.map((name, d) => {
             const list = slots.filter((s) => s.weekday === d);
             return (
-              <div key={name} className="min-h-20 rounded-lg border border-border p-2">
-                <div className="label-mono mb-1 text-[11px] font-semibold text-muted">{name}</div>
+              <div key={name} className="min-h-20 inset p-2">
+                <div className="mb-1 text-xs font-semibold text-muted">{name}</div>
                 {list.length === 0 && <p className="text-[11px] text-muted">—</p>}
                 <ul className="flex flex-wrap gap-1 sm:flex-col">
                   {list.map((s) => (
@@ -153,7 +153,7 @@ export default function SlotsEditor({ meta, accountId, onClose }: { meta: Conten
       )}
 
       {canEdit ? (
-        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+        <div className="flex flex-wrap items-end gap-2 pt-3">
           <Field label="Kun">
             <select className={`${inputClass} !w-auto`} value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
               {WEEKDAYS.map((name, d) => (

@@ -26,7 +26,7 @@ export default function Preview({ draft, username }: { draft: PostDraft; usernam
   const tags = item?.userTags ? tagsInCrop(item.userTags, crop) : [];
 
   return (
-    <div className="mx-auto w-full max-w-[340px] rounded-2xl border border-border bg-background p-3 text-foreground">
+    <div className="mx-auto w-full max-w-[340px] rounded-2xl bg-midnight p-3 text-foreground">
       <div className="mb-2 flex items-center gap-2 text-xs">
         <span className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-accent" aria-hidden="true" />
         <span className="font-semibold">{username || "akkaunt"}</span>

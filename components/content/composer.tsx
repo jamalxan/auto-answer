@@ -463,7 +463,7 @@ export default function Composer({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <fieldset disabled={locked} className="min-w-0 space-y-6">
           {/* 1. Akkaunt va tur */}
-          <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+          <section className="space-y-3 panel rounded-3xl p-4">
             <Field label="Akkaunt" error={account && !canPublish ? "Bu akkauntda post chiqarish ruxsati yo'q — faqat draft va qo'lda e'lon" : null}>
               <select className={inputClass} value={draft.instagramAccountId} onChange={(e) => update({ instagramAccountId: e.target.value, linkCampaign: null })} disabled={Boolean(postId)}>
                 {meta.accounts.length === 0 && <option value="">Akkaunt ulanmagan</option>}
@@ -490,9 +490,9 @@ export default function Composer({
           </section>
 
           {/* 2. Media */}
-          <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+          <section className="space-y-3 panel rounded-3xl p-4">
             <div className="flex items-center justify-between">
-              <span className="label-mono text-[11px] font-semibold text-muted">
+              <span className="text-xs font-semibold text-muted">
                 Media · {draft.media.length}/{mediaMax}
                 {rules.kinds.length === 1 ? (rules.kinds[0] === "VIDEO" ? " · faqat video" : " · faqat rasm") : ""}
               </span>
@@ -506,7 +506,7 @@ export default function Composer({
                 {draft.media.map((m, i) => {
                   const issue = issueFor(`media[${i}]`);
                   return (
-                    <li key={m.mediaId} className={`rounded-xl border p-2 ${issue ? "border-error/50" : "border-border"}`}>
+                    <li key={m.mediaId} className={`p-2 ${issue ? "rounded-2xl bg-error/12" : "inset"}`}>
                       <div className="flex items-center gap-3">
                         <span className="w-5 text-center text-xs text-muted">{i + 1}</span>
                         <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-background">
@@ -598,7 +598,7 @@ export default function Composer({
 
           {/* 3. Caption */}
           {fieldVisible(draft.type, "caption") && (
-            <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+            <section className="space-y-3 panel rounded-3xl p-4">
               <Field
                 label="Caption"
                 error={issueFor("caption") ?? (caption.chars > meta.limits.captionChars ? `Caption ${meta.limits.captionChars} belgidan oshdi` : null)}
@@ -637,7 +637,7 @@ export default function Composer({
           {draft.type === "STORY" && <p className="text-xs text-muted">Story&apos;da caption bo&apos;lmaydi — matn stikerlarini Instagram ilovasida qo&apos;shasiz (qo&apos;lda e&apos;lon rejimi).</p>}
 
           {/* 4. Kengaytirilgan */}
-          <section className="rounded-2xl border border-border bg-surface p-4">
+          <section className="panel rounded-3xl p-4">
             <button type="button" className="flex w-full items-center justify-between text-left text-sm font-semibold" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
               Kengaytirilgan
               <span className="text-muted">{advanced ? "−" : "+"}</span>
@@ -694,7 +694,7 @@ export default function Composer({
           </section>
 
           {/* 5. Avtomatlashtirish */}
-          <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+          <section className="space-y-3 panel rounded-3xl p-4">
             <Switch
               on={Boolean(draft.linkCampaign)}
               onChange={(on) => update({ linkCampaign: on ? (campaigns[0] ? (campaigns[0].kind === "automation" ? { automationId: campaigns[0].id } : { triggerCampaignId: campaigns[0].id }) : { create: EMPTY_NEW_CAMPAIGN }) : null })}
@@ -755,7 +755,7 @@ export default function Composer({
           </section>
 
           {/* 6. Vaqt va rejim */}
-          <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+          <section className="space-y-3 panel rounded-3xl p-4">
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Qachon">
               {(
                 [
@@ -791,7 +791,7 @@ export default function Composer({
             )}
             {review && mode === "schedule" && <ReviewForm meta={meta as MetaWithReviewers} value={review} onChange={setReview} />}
 
-            <div className="space-y-1 border-t border-border pt-3">
+            <div className="space-y-1 pt-3">
               <Switch
                 on={draft.autoPublish}
                 onChange={(on) => update({ autoPublish: canPublish ? on : false, manualReason: on && canPublish ? null : draft.type === "STORY" ? "STORY_STICKER" : "USER_CHOICE" })}
@@ -832,7 +832,7 @@ export default function Composer({
             </ul>
           )}
 
-          <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-background/95 py-3 backdrop-blur">
+          <div className="sticky bottom-0 flex flex-wrap items-center gap-2 bg-background/95 py-3 backdrop-blur">
             <button type="button" className={primaryButton} disabled={disabled} onClick={() => void save()}>
               {saving ? "Saqlanmoqda…" : buttonLabel}
             </button>
