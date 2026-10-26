@@ -3,7 +3,7 @@ import { jsonError } from "@/lib/api-auth";
 import { isContentSchedulerEnabled } from "@/lib/content/config";
 import { decideByToken, getReviewByToken, reviewDecisionSchema } from "@/lib/content/review";
 import { run } from "@/lib/content/service";
-import { parseBody, readJson, respond } from "@/lib/developer/content-guard";
+import { parseBody, readJson, respond } from "@/lib/content/guard";
 
 export const dynamic = "force-dynamic";
 

@@ -11,7 +11,7 @@ vi.mock("@/lib/queue/client", () => ({ getRedisConnection: () => ({}) }));
 
 import { LlmError, type LLMProvider, type LlmRequest, setLlmProviderForTests } from "@/lib/assistant/llm/provider";
 import { isToolingLlmKind } from "@/lib/assistant/llm/stats";
-import { appendHashtags } from "@/components/developer/content/ai-caption-panel";
+import { appendHashtags } from "@/components/content/ai-caption-panel";
 import { BUDGET_MESSAGE, CAPTION_PER_HOUR, generateCaptions, normalizeHashtags, parseCaptionOutput } from "@/lib/content/ai-caption";
 
 const WS = "w1";

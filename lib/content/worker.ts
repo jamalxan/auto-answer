@@ -6,7 +6,9 @@
  *                    calls and a status wait; the per-account Redis lock in
  *                    publish.ts keeps one account's posts serial.
  *   media-process    concurrency 1: ffmpeg must not compete with itself on a
- *                    single server (spec §15).
+ *                    single server (spec §15). Videos only.
+ *   media-image      concurrency 3: sharp work of a few hundred ms per photo, so a
+ *                    batch of photos is ready while a video still transcodes.
  */
 
 import { Worker, type Job } from "bullmq";
@@ -17,6 +19,7 @@ import {
   CONTENT_PUBLISH_QUEUE,
   FIRST_COMMENT_JOB,
   MANUAL_NOTIFY_JOB,
+  MEDIA_IMAGE_QUEUE,
   MEDIA_PROCESS_QUEUE,
   PREPARE_JOB,
   PUBLISH_JOB,
@@ -29,6 +32,7 @@ export { isContentSchedulerEnabled } from "./config";
 export interface ContentWorkers {
   publish: Worker<PublishJob>;
   media: Worker<MediaProcessJob>;
+  image: Worker<MediaProcessJob>;
   close(): Promise<void>;
 }
 
@@ -59,23 +63,24 @@ export function createContentWorkers(): ContentWorkers {
   publish.on("failed", (job, err) => console.error(`[Content] job ${job?.id} failed:`, err.stack ?? err.message));
   publish.on("error", (err) => console.error("[Content] publish worker error:", err.message));
 
-  const media = new Worker<MediaProcessJob>(
-    MEDIA_PROCESS_QUEUE,
-    async (job) => {
-      if (!isContentSchedulerEnabled()) return { skipped: "CONTENT_SCHEDULER_DISABLED" };
-      await processMedia(job.data.mediaId);
-      return { processed: job.data.mediaId };
-    },
-    { connection, concurrency: 1, lockDuration: 15 * 60_000 }
-  );
-  media.on("failed", (job, err) => console.error(`[Content] media job ${job?.id} failed:`, err.stack ?? err.message));
-  media.on("error", (err) => console.error("[Content] media worker error:", err.message));
+  const processJob = async (job: Job<MediaProcessJob>) => {
+    if (!isContentSchedulerEnabled()) return { skipped: "CONTENT_SCHEDULER_DISABLED" };
+    await processMedia(job.data.mediaId);
+    return { processed: job.data.mediaId };
+  };
+  const media = new Worker<MediaProcessJob>(MEDIA_PROCESS_QUEUE, processJob, { connection, concurrency: 1, lockDuration: 15 * 60_000 });
+  const image = new Worker<MediaProcessJob>(MEDIA_IMAGE_QUEUE, processJob, { connection, concurrency: 3, lockDuration: 2 * 60_000 });
+  for (const [name, worker] of [["media", media], ["image", image]] as const) {
+    worker.on("failed", (job, err) => console.error(`[Content] ${name} job ${job?.id} failed:`, err.stack ?? err.message));
+    worker.on("error", (err) => console.error(`[Content] ${name} worker error:`, err.message));
+  }
 
   return {
     publish,
     media,
+    image,
     async close() {
-      await Promise.all([publish.close(), media.close()]);
+      await Promise.all([publish.close(), media.close(), image.close()]);
     },
   };
 }

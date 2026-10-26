@@ -68,6 +68,7 @@ export default function Sidebar({
       { label: t.nav.overview, href: "/overview", icon: "chart" },
       { label: t.nav.inbox, href: "/inbox", icon: "inbox" },
       { label: t.nav.campaigns, href: "/campaigns", icon: "megaphone" },
+      { label: t.nav.content, href: "/content", icon: "calendar" },
     ],
     [
       { label: t.assistant.nav.assistant, href: "/assistant", icon: "sparkles" },

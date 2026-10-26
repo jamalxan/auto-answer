@@ -42,15 +42,15 @@ vi.mock("@/lib/telegram/notify", () => ({ getWorkspaceChats: async () => [], ale
 vi.mock("@/lib/telegram/api", () => ({ isTelegramConfigured: () => false, sendTelegramMessage: vi.fn() }));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(async () => undefined) }));
 
-import { POST as actionRoute } from "@/app/api/developer/content/posts/[id]/[action]/route";
-import { POST as bulkRoute } from "@/app/api/developer/content/posts/bulk/route";
+import { POST as actionRoute } from "@/app/api/content/posts/[id]/[action]/route";
+import { POST as bulkRoute } from "@/app/api/content/posts/bulk/route";
 import { shiftInstant } from "@/lib/content/bulk";
 
 const WS = "ws1";
 const HOUR = 3_600_000;
 const ctx = (role: string, workspaceId = WS) => ({ userId: "u1", workspaceId, workspace: { id: workspaceId, name: "W", timezone: "Asia/Tashkent" }, role });
 const req = (path: string, body: unknown) =>
-  new NextRequest(`http://localhost/api/developer/content/${path}`, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
+  new NextRequest(`http://localhost/api/content/${path}`, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
 const params = <T extends Record<string, string>>(p: T) => ({ params: Promise.resolve(p) });
 
 function seedPost(id: string, status: string, scheduledAt: Date | null, extra: Record<string, unknown> = {}) {
@@ -207,8 +207,8 @@ describe("bulk (FR-V4)", () => {
     expect((await res.json()).error).toMatch(/100/);
   });
 
-  it("answers 404 without a developer session", async () => {
-    mocks.developerSession.mockResolvedValue(null);
-    expect((await bulk({ action: "pause", ids: ["a"] })).status).toBe(404);
+  it("answers 401 without an app session", async () => {
+    mocks.workspaceContext.mockResolvedValue(null);
+    expect((await bulk({ action: "pause", ids: ["a"] })).status).toBe(401);
   });
 });

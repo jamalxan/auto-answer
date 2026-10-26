@@ -1,15 +1,13 @@
-import { Suspense } from "react";
-import ContentDashboard from "@/components/developer/content/content-dashboard";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Content Scheduler (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout. Suspense: the dashboard reads ?tab= / ?post= / ?new= / ?date=.
-export default function ContentPage() {
-  return (
-    <Suspense fallback={null}>
-      <ContentDashboard />
-    </Suspense>
-  );
+// The Content Scheduler moved to the main dashboard; old links keep working.
+export default async function ContentPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) {
+    if (typeof value === "string") params.set(key, value);
+  }
+  const query = params.toString();
+  redirect(query ? `/content?${query}` : "/content");
 }

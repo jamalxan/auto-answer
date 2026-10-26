@@ -68,7 +68,6 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   resetDb();
-  vi.useRealTimers();
   for (const m of Object.values(mocks)) m.mockClear();
   db.seed("workspace", { id: WS, name: "W", ownerId: "owner", timezone: "Asia/Tashkent" });
   db.seed("workspace", { id: "ws2", name: "Other", ownerId: "x" });

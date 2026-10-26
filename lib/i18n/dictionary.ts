@@ -23,6 +23,7 @@ export interface Dictionary {
     inbox: string;
     campaigns: string;
     newCampaign: string;
+    content: string;
     dmLogs: string;
     settings: string;
     diagnostics: string;

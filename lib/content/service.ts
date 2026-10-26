@@ -629,7 +629,7 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
     ...(q.status ? { status: q.status } : {}),
     ...(q.type ? { type: q.type } : {}),
     ...(q.q ? { caption: { contains: q.q, mode: "insensitive" } } : {}),
-    ...(q.from || q.to ? { scheduledAt: { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lt: q.to } : {}) } } : {}),
+    ...(q.unscheduled ? { scheduledAt: null } : q.from || q.to ? { scheduledAt: { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lt: q.to } : {}) } } : {}),
     ...(q.linked === "yes" ? { OR: [{ automations: { some: {} } }, { triggerCampaigns: { some: {} } }] } : {}),
     ...(q.linked === "no" ? { automations: { none: {} }, triggerCampaigns: { none: {} } } : {}),
   };
@@ -641,9 +641,11 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
       take: q.pageSize,
       include: {
         instagramAccount: { select: { username: true } },
-        media: { include: { media: { select: { thumbKey: true } } }, orderBy: { position: "asc" } },
-        automations: { select: { id: true } },
-        triggerCampaigns: { select: { id: true } },
+        // The card needs the first frame and the count, not every carousel item.
+        media: { include: { media: { select: { thumbKey: true } } }, orderBy: { position: "asc" }, take: 1 },
+        automations: { select: { id: true }, take: 1 },
+        triggerCampaigns: { select: { id: true }, take: 1 },
+        _count: { select: { media: true } },
       },
     }),
     prisma.scheduledPost.count({ where }),
@@ -662,7 +664,7 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
         publishedAt: row.publishedAt,
         permalink: row.permalink,
         thumbUrl: first?.thumbKey ? await signedMediaUrl(first.thumbKey) : null,
-        mediaCount: row.media.length,
+        mediaCount: row._count?.media ?? row.media.length,
         linked: (row.automations?.length ?? 0) + (row.triggerCampaigns?.length ?? 0) > 0,
         autoPublish: row.autoPublish,
         lastErrorCode: row.lastErrorCode,

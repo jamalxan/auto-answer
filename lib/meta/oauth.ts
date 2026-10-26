@@ -28,11 +28,12 @@ interface OAuthStatePayload {
 
 /**
  * The only places a connect flow may return to besides the default. Kept to
- * the developer area so the parameter can never become an open redirect.
+ * the developer area and the content planner so the parameter can never
+ * become an open redirect.
  */
 export function safeOAuthReturnPath(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
-  return /^\/developer(\/[a-z0-9-]+)*$/.test(value) ? value : undefined;
+  return /^\/(developer|content)(\/[a-z0-9-]+)*$/.test(value) ? value : undefined;
 }
 
 function base64UrlEncode(value: string): string {

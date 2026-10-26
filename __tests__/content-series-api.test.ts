@@ -40,13 +40,13 @@ vi.mock("@/lib/content/storage", () => ({
   getStorageDriverName: () => "local",
 }));
 
-import { POST as actionRoute } from "@/app/api/developer/content/posts/[id]/[action]/route";
-import { GET as slotsGet, PUT as slotsPut } from "@/app/api/developer/content/accounts/[id]/slots/route";
+import { POST as actionRoute } from "@/app/api/content/posts/[id]/[action]/route";
+import { GET as slotsGet, PUT as slotsPut } from "@/app/api/content/accounts/[id]/slots/route";
 
 const WS = "ws1";
 const ctx = (role: string, workspaceId = WS) => ({ userId: "u1", workspaceId, workspace: { id: workspaceId, name: "W", timezone: "Asia/Tashkent" }, role });
 const req = (method: string, path: string, body?: unknown) =>
-  new NextRequest(`http://localhost/api/developer/content/${path}`, { method, ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
+  new NextRequest(`http://localhost/api/content/${path}`, { method, ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
 const params = <T extends Record<string, string>>(p: T) => ({ params: Promise.resolve(p) });
 const act = (id: string, action: string, body: unknown = {}) => actionRoute(req("POST", `posts/${id}/${action}`, body), params({ id, action }));
 

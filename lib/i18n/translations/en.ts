@@ -19,6 +19,7 @@ export const en = {
     inbox: "Inbox",
     campaigns: "Campaigns",
     newCampaign: "New Campaign",
+    content: "Content plan",
     dmLogs: "DM Logs",
     settings: "Settings",
     diagnostics: "Diagnostics",

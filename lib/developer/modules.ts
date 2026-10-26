@@ -127,8 +127,9 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     etap: 13,
     title: "Content Scheduler",
     summary: "Post, karusel, Reels va Story rejalashtirish; qo'lda e'lon; post → comment-to-DM bog'lanishi.",
-    status: "BUILDING",
-    href: "/developer/content",
+    // Promoted 2026-10-26: lives in the main dashboard at /content.
+    status: "READY",
+    href: "/content",
   },
 ];
 

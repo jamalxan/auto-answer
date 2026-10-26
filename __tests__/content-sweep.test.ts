@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db/client", () => ({ prisma: db.client() }));
 vi.mock("@/lib/content/queue", () => ({
   hasLivePublishJob: mocks.hasLivePublishJob,
+  hasLiveMediaJob: vi.fn(async () => false),
+  hasContentQueueBackend: () => false,
+  enqueueMediaProcess: vi.fn(async () => undefined),
   schedulePublish: mocks.schedulePublish,
   schedulePrepare: vi.fn(async () => undefined),
   scheduleManualNotify: vi.fn(async () => undefined),

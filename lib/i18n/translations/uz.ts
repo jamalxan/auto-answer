@@ -19,6 +19,7 @@ export const uz = {
     inbox: "Xabarlar",
     campaigns: "Kampaniyalar",
     newCampaign: "Yangi kampaniya",
+    content: "Kontent reja",
     dmLogs: "DM jurnali",
     settings: "Sozlamalar",
     diagnostics: "Diagnostika",

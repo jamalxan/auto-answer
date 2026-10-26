@@ -21,10 +21,10 @@ import { prisma } from "@/lib/db/client";
 import { CONTAINER_MAX_AGE_MS, CONTAINER_MAX_WAIT_MS, latePublishMaxMs } from "./config";
 import { bindManualPost, sendManualNotice } from "./manual";
 import { activateLinkedCampaigns } from "./link-campaign";
-import { cleanupPreparedCopies, releaseAbandonedUploads } from "./media";
+import { cleanupPreparedCopies, failStalledProcessing, releaseAbandonedUploads } from "./media";
 import { failPost, recoverStuckPublishing } from "./publish";
 import { sweepNotifications } from "./notify";
-import { hasLivePublishJob, schedulePublish } from "./queue";
+import { hasContentQueueBackend, hasLivePublishJob, schedulePublish } from "./queue";
 
 export interface SweepResult {
   requeued: number;
@@ -36,6 +36,7 @@ export interface SweepResult {
   bound: number;
   relinked: number;
   abandonedUploads: number;
+  stalledMedia?: number;
   reviewsAutoApproved?: number;
   reviewsExpired?: number;
   preparedCleaned?: number;
@@ -139,6 +140,10 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
 
   // 7: uploads that never finished give their reserved quota back.
   result.abandonedUploads = await releaseAbandonedUploads(now).catch(() => 0);
+  result.stalledMedia = await failStalledProcessing(now, hasContentQueueBackend()).catch((error) => {
+    console.error("[Content] stalled media check failed:", error instanceof Error ? error.message : error);
+    return 0;
+  });
 
   // 8: approvals waiting past their slot (FR-A4).
   try {

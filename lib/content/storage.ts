@@ -16,6 +16,10 @@
  */
 
 import { randomBytes } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import type { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -38,6 +42,13 @@ export interface StorageDriver {
   putObject(key: string, body: Buffer, contentType: string): Promise<void>;
   deleteObject(key: string): Promise<void>;
   headObject(key: string): Promise<{ size: number; contentType?: string } | null>;
+  /**
+   * Streaming twins of getObject / putObject for big files (video up to
+   * 1 GB): the media worker never holds a whole video in memory. Optional so
+   * a test double can stay buffer-only; callers fall back to the buffers.
+   */
+  downloadToFile?(key: string, file: string): Promise<void>;
+  putFile?(key: string, file: string, contentType: string): Promise<void>;
 }
 
 export type StorageDriverName = "s3" | "local";
@@ -179,6 +190,19 @@ export class S3StorageDriver implements StorageDriver {
     const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
     if (!res.Body) throw new Error("Media topilmadi");
     return Buffer.from(await res.Body.transformToByteArray());
+  }
+
+  async downloadToFile(key: string, file: string): Promise<void> {
+    const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    if (!res.Body) throw new Error("Media topilmadi");
+    await pipeline(res.Body as Readable, createWriteStream(file));
+  }
+
+  async putFile(key: string, file: string, contentType: string): Promise<void> {
+    const { size } = await stat(file);
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: createReadStream(file), ContentType: contentType, ContentLength: size })
+    );
   }
 
   async putObject(key: string, body: Buffer, contentType: string): Promise<void> {

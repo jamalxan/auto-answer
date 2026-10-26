@@ -4,7 +4,7 @@
  * which fields a post type shows (mirrors FIELD_MATRIX).
  */
 import { describe, expect, it } from "vitest";
-import { composerBlocked, composerButtonLabel, defaultSlot, emptyDraft, fieldVisible, groupPostsByDay, postCardTone, STATUS_LABEL, TYPE_LABEL, typeForMedia } from "@/components/developer/content/shared";
+import { composerBlocked, composerButtonLabel, defaultSlot, emptyDraft, fieldVisible, groupPostsByDay, postCardTone, STATUS_LABEL, TYPE_LABEL, typeForMedia } from "@/components/content/shared";
 
 describe("postCardTone", () => {
   it("maps statuses to the design tones", () => {

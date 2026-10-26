@@ -223,7 +223,7 @@ function postLine(post: { type: string; scheduledAt: Date | null; timezone: stri
 }
 
 function appLink(postId: string): string {
-  return `${getBaseUrl().replace(/\/+$/, "")}/developer/content?tab=calendar&post=${postId}`;
+  return `${getBaseUrl().replace(/\/+$/, "")}/content?tab=calendar&post=${postId}`;
 }
 
 async function notifyOwner(postId: string, kind: "approved" | "rejected" | "expired", comment?: string | null): Promise<void> {
