@@ -71,6 +71,11 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   },
   automation: {
     trackedLinks: { model: "trackedLink", fk: "automationId", kind: "many" },
+    instagramAccount: { model: "instagramAccount", fk: "instagramAccountId", kind: "one" },
+  },
+  // Legacy → Comment 2.0 migration (audit 2026-10-26)
+  legacyCampaignMigration: {
+    automation: { model: "automation", fk: "automationId", kind: "one" },
   },
   onboardingSession: {},
   instagramAccount: {
@@ -276,6 +281,8 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
  * with Prisma's P2002 code, which is what that code checks for.
  */
 const UNIQUE_KEYS: Record<string, string[][]> = {
+  legacyCampaignMigration: [["automationId"]],
+  legacyMigrationSample: [["migrationId", "commentId"]],
   instagramEvent: [["instagramAccountId", "messageId"]],
   triggerExecution: [["eventId", "campaignId"]],
   instagramContact: [["instagramAccountId", "igUserId"]],
@@ -691,9 +698,18 @@ export class MemoryDb {
         }
         return db.withInclude(name, created, include);
       },
-      async createMany({ data }: { data: Row[] }) {
-        for (const row of data) db.seed(name, row);
-        return { count: data.length };
+      async createMany({ data, skipDuplicates }: { data: Row[]; skipDuplicates?: boolean }) {
+        let count = 0;
+        for (const row of data) {
+          const clash = (UNIQUE_KEYS[name] ?? []).some(
+            (key) => !key.some((k) => row[k] === null || row[k] === undefined) && db.rows(name).some((r) => key.every((k) => r[k] === row[k]))
+          );
+          if (clash && skipDuplicates) continue;
+          if (clash) throw Object.assign(new Error(`Unique constraint failed: ${name}`), { code: "P2002" });
+          db.seed(name, row);
+          count++;
+        }
+        return { count };
       },
       async findUnique({ where, include, select }: { where: Row; include?: Record<string, unknown>; select?: Record<string, unknown> }) {
         const row = find({ where })[0];

@@ -135,11 +135,14 @@ export class LlmError extends Error {
 /**
  * The `llm_usage.errorKind` of a failed call: the typed kind of an LlmError, or
  * "internal" for anything else (a bug in our code around the call). An internal
- * failure is logged with its message so it can be found — never the prompt.
+ * failure is logged with its type and code location only — the message may
+ * carry a provider body or a key, so it never reaches the log.
  */
 export function failureKindOf(error: unknown, where = "llm"): string {
   if (error instanceof LlmError) return error.kind;
-  console.error(`[LLM] internal failure in ${where}:`, error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 200) : String(error).slice(0, 200));
+  const name = error instanceof Error ? error.name : typeof error;
+  const frame = error instanceof Error ? (error.stack ?? "").split(/\r?\n/).find((line) => line.trim().startsWith("at "))?.trim().slice(0, 160) : undefined;
+  console.error(`[LLM] internal failure in ${where}: ${name}${frame ? ` ${frame}` : ""}`);
   return "internal";
 }
 
@@ -694,7 +697,7 @@ export class FailoverProvider implements LLMProvider {
 }
 
 /** The configured second vendor (LLM_FALLBACK_PROVIDER), or null. */
-export function fallbackProviderFromEnv(env: NodeJS.ProcessEnv = process.env): LLMProvider | null {
+export function fallbackProviderFromEnv(env: Record<string, string | undefined> = process.env): LLMProvider | null {
   const kind = (env.LLM_FALLBACK_PROVIDER ?? "").toLowerCase();
   const key = env.LLM_FALLBACK_API_KEY;
   if (!kind || !key) return null;

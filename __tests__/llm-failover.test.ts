@@ -78,8 +78,8 @@ describe("FailoverProvider", () => {
   });
 
   it("is built from LLM_FALLBACK_* only when a key is set", () => {
-    expect(fallbackProviderFromEnv({ LLM_FALLBACK_PROVIDER: "anthropic" } as NodeJS.ProcessEnv)).toBeNull();
-    expect(fallbackProviderFromEnv({ LLM_FALLBACK_PROVIDER: "anthropic", LLM_FALLBACK_API_KEY: "k" } as NodeJS.ProcessEnv)?.name).toBe("anthropic");
-    expect(fallbackProviderFromEnv({ LLM_FALLBACK_PROVIDER: "openai", LLM_FALLBACK_API_KEY: "k", LLM_FALLBACK_MODEL: "gpt-5-mini" } as NodeJS.ProcessEnv)?.model).toBe("gpt-5-mini");
+    expect(fallbackProviderFromEnv({ LLM_FALLBACK_PROVIDER: "anthropic" })).toBeNull();
+    expect(fallbackProviderFromEnv({ LLM_FALLBACK_PROVIDER: "anthropic", LLM_FALLBACK_API_KEY: "k" })?.name).toBe("anthropic");
+    expect(fallbackProviderFromEnv({ LLM_FALLBACK_PROVIDER: "openai", LLM_FALLBACK_API_KEY: "k", LLM_FALLBACK_MODEL: "gpt-5-mini" })?.model).toBe("gpt-5-mini");
   });
 });

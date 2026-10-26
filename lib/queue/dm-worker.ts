@@ -36,6 +36,7 @@ import {
   type WorkspaceDMReservation,
 } from "@/lib/billing/usage";
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
+import { recordShadowSamples } from "@/lib/campaigns/legacy-migration";
 import { isCommentClaimedByCommentEngine } from "@/lib/triggers/claim";
 import { handOverClaimedComment } from "@/lib/triggers/ingest";
 import {
@@ -246,6 +247,16 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     originalMediaId,
   } = job.data;
   const requeueAttempt = job.data.requeueAttempt ?? 0;
+
+  // Legacy → Comment 2.0 migration in SHADOW: record whether both engines
+  // decide alike. Read-only for what is sent; never throws.
+  await recordShadowSamples({
+    instagramId: instagramAccountId,
+    commentId,
+    text: commentText,
+    mediaId,
+    originalMediaId,
+  });
 
   // Comment Automation 2.0 (developer area) answers this comment itself: step
   // aside so the commenter gets one DM and Meta's single private reply is not
