@@ -86,6 +86,9 @@ const ENTRY_KIND_LABEL: Record<string, string> = {
   BRANCH: "Filial",
   POLICY: "Qoida",
   OTHER: "Ma'lumot",
+  PRICE: "Narx",
+  HOURS: "Ish vaqti",
+  DELIVERY: "Yetkazib berish",
 };
 
 /** Pure assembly of the block from a snapshot and the verified entries. */
@@ -160,9 +163,10 @@ export function buildKnowledgeBlock(
 }
 
 /** Active + verified entries of a profile, in display order. */
-export async function loadKnowledgeEntries(profileId: string): Promise<KnowledgeEntrySnapshot[]> {
+export async function loadKnowledgeEntries(profileId: string, now = new Date()): Promise<KnowledgeEntrySnapshot[]> {
   const rows = await prisma.aiKnowledgeEntry.findMany({
-    where: { profileId, active: true, verifiedAt: { not: null } },
+    // An expired fact (a past promo, an old price) never reaches the prompt.
+    where: { profileId, active: true, verifiedAt: { not: null }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
     orderBy: [{ sort: "asc" }, { createdAt: "asc" }],
     select: { kind: true, title: true, body: true },
   });

@@ -1,3 +1,4 @@
+import { guardComment } from "@/lib/javobai/comment-guard";
 import { Worker, type Job } from "bullmq";
 import {
   getDMQueue,
@@ -247,6 +248,11 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     originalMediaId,
   } = job.data;
   const requeueAttempt = job.data.requeueAttempt ?? 0;
+
+  // Comment guard (opt-in per account): an offensive comment is hidden and
+  // gets no automation; a complaint alerts the managers and goes on as usual.
+  const hidden = await guardComment({ instagramId: instagramAccountId, commentId, text: commentText, mediaId, commenterName }).catch(() => false);
+  if (hidden) return;
 
   // Legacy → Comment 2.0 migration in SHADOW: record whether both engines
   // decide alike. Read-only for what is sent; never throws.

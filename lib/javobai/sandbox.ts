@@ -31,6 +31,8 @@ export interface SandboxInput {
   instagramAccountId: string;
   messages: { role: "customer" | "assistant"; text: string }[];
   contactState?: { score?: number; extracted?: Record<string, string> };
+  /** The golden eval reuses the sandbox turn; its spend is its own usage kind. */
+  usageKind?: "javobai_sandbox" | "javobai_eval";
 }
 
 export interface SandboxResult {
@@ -159,7 +161,7 @@ export async function runJavobAiSandbox(workspaceId: string, input: SandboxInput
   });
 
   for (const usage of result.usages) {
-    await recordJavobAiUsage({ workspaceId, conversationId: null, kind: USAGE_KIND_SANDBOX, ...usage });
+    await recordJavobAiUsage({ workspaceId, conversationId: null, kind: input.usageKind ?? USAGE_KIND_SANDBOX, ...usage });
   }
 
   return {

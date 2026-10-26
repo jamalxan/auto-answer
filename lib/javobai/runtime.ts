@@ -65,8 +65,10 @@ import {
 import { enforceBudgetBeforeCall, runBudgetAlerts, type BudgetGate, type BudgetStatus } from "./budget";
 import type { JavobAiConfig } from "./config";
 import { getJavobAiMode } from "./gate";
-import { acceptHandoff, autoCloseInactiveHandoffs, mayResumeAfterClose, openHandoff, reopenAi } from "./handoff";
+import { acceptHandoff, autoCloseInactiveHandoffs, escalatePendingHandoffs, mayResumeAfterClose, openHandoff, reopenAi } from "./handoff";
 import { loadKnowledgeBlock, type KnowledgeBlock } from "./knowledge";
+import { decideLadder, type LadderDecision } from "./ladder";
+import { createDraft, loadIntentMode, recordLadderSample } from "./ladder-service";
 import { detectLanguageV2, fromLegacyLang, toLegacyLang } from "./language";
 import { captureJavobAiLead } from "./leads";
 import {
@@ -100,6 +102,7 @@ import {
 import type { ScoringConfig } from "./scoring";
 import { STT_LOW_CONFIDENCE, geminiSttModel, sttUsageRecord } from "./stt-gemini";
 import { pickJavobAiTemplate } from "./templates";
+import { validateReply, type ValidationIssue } from "./validate";
 import { runJavobAiTurn, type JavobAiTurnContext, type JavobAiTurnResult } from "./turn";
 import { recordJavobAiUsage, type JavobAiUsageKind } from "./usage";
 import { MAX_CATALOG_ITEMS, decideImageOutcome, describeAndMatchImage, visionSystemNote, visionUsageRecord, type ImageOutcome } from "./vision";
@@ -152,6 +155,8 @@ export interface JavobAiMessageMeta {
   usedTemplate?: boolean;
   /** 4.4: the "AI paused, a manager answers" template — once per conversation. */
   budgetNotice?: boolean;
+  /** Trust ladder: a COPILOT draft a human sent (id of the AiDraft). */
+  draftId?: string;
   /** 4.3: the "please write it" template for a voice note. */
   voiceUnclear?: boolean;
   /** 4.3: on CUSTOMER messages that carried media. */
@@ -296,9 +301,15 @@ export async function handleJavobAiInbound(job: JavobAiInboundJob): Promise<void
     await reopenAi(conversation.id);
     state = await ensureAiState(conversation);
   }
-  if (state.handoffState === "OPERATOR_ACTIVE") return;
+  const humanHolds = state.handoffState === "OPERATOR_ACTIVE" || isMuted(conversation);
+  if (humanHolds) {
+    // Trust ladder: while a human answers, the AI still drafts in silence so
+    // the operator's reply becomes a comparison sample (audit: "kuzatish").
+    if ((await loadAccountConfig(account.id)).ladderEnabled) await runShadowTurn(account, profileRow, job, text, "observe");
+    if (state.handoffState === "OPERATOR_ACTIVE") return;
+  }
   if (state.handoffState === "HANDOFF_PENDING") await notifyCustomerWroteAgain(conversation.id);
-  if (isMuted(conversation)) return;
+  if (humanHolds) return;
 
   // The AI quick-reply action hands the thread over explicitly (source
   // trigger): the owner's switches and the other bots do not apply to it.
@@ -581,7 +592,8 @@ async function runShadowTurn(
   account: InstagramAccount,
   profileRow: LoadedProfile,
   job: JavobAiInboundJob,
-  text: string
+  text: string,
+  source: "shadow" | "observe" = "shadow"
 ): Promise<void> {
   const conversation = await prisma.conversation.findUnique({
     where: { instagramAccountId_igUserId: { instagramAccountId: account.id, igUserId: job.senderId } },
@@ -600,12 +612,20 @@ async function runShadowTurn(
   // Hard budget: SHADOW skips silently (nothing is sent anyway, no usage row).
   const gate = await enforceBudgetBeforeCall(account.workspaceId);
   if (!gate.allowed) {
-    await logEvent(account.workspaceId, conversation?.id ?? null, "budget_hard_exceeded", { mode: "shadow" });
+    await logEvent(account.workspaceId, conversation?.id ?? null, "budget_hard_exceeded", { mode: source });
     return;
   }
   const caps = perTurnCaps(gate.status);
 
-  const row = { workspaceId: account.workspaceId, conversationId: conversation?.id ?? null, customerText: text, productionReply };
+  const row = {
+    workspaceId: account.workspaceId,
+    conversationId: conversation?.id ?? null,
+    customerText: text,
+    productionReply,
+    instagramAccountId: account.id,
+    source,
+    customerMessageId: customerIndex >= 0 ? messages[customerIndex].id : null,
+  };
   try {
     const [config, scoring, rules, kb] = await Promise.all([
       loadAccountConfig(account.id),
@@ -961,6 +981,44 @@ async function replyInner(conversationId: string): Promise<void> {
   if (fresh && isMuted(fresh)) return;
 
   const persistOptions = { budgetStatus: gate.status, lastCustomerMessageId: pending[pending.length - 1].id };
+
+  // Trust ladder (audit 2026-10-26): only an AUTO intent is sent; OBSERVE
+  // keeps the draft as a sample, COPILOT hands it to a human. A validator
+  // hit (unknown number, promise, prompt leak) never goes out on its own.
+  let ladder: LadderDecision = "send";
+  let issues: ValidationIssue[] = [];
+  if (result.reply && config.ladderEnabled) {
+    issues = result.usedTemplate ? [] : validateReply({ reply: result.reply, knowledge: `${kb.text}
+${kb.filterContext.profileText}
+${customerText}` });
+    ladder = decideLadder({ ladderEnabled: true, intent: result.intent, mode: await loadIntentMode(account.id, result.intent), usedTemplate: result.usedTemplate });
+    if (ladder === "send" && issues.length > 0) ladder = "draft";
+  }
+  const sample = {
+    workspaceId: workspace.id,
+    instagramAccountId: account.id,
+    conversationId,
+    customerMessageId: pending[pending.length - 1].id,
+    customerText,
+    aiReply: result.reply,
+    intent: result.intent,
+    confidence: result.confidence,
+    score: result.score,
+    handoff: result.handoff.needed ? (result.handoff.reason ?? "handoff") : null,
+    costUsd: result.usages.reduce((n, u) => n + u.costUsd, 0),
+    issues,
+  };
+  if (ladder !== "send") {
+    if (ladder === "draft") {
+      await createDraft({ ...sample, who: conversation.igUsername ? `@${conversation.igUsername}` : (conversation.igName ?? conversation.igUserId) });
+    } else {
+      await recordLadderSample({ ...sample, source: "observe" });
+    }
+    await logEvent(workspace.id, conversationId, `ladder_${ladder}`, { intent: result.intent, issues });
+    await persistTurn(conversation, state, config, scoring.thresholds, result, false, persistOptions);
+    return;
+  }
+
   let delivered = false;
   if (result.reply) {
     const elapsed = Date.now() - startedAt;
@@ -992,6 +1050,12 @@ async function replyInner(conversationId: string): Promise<void> {
     }
     if (countsAsAiConversation) {
       await prisma.workspace.update({ where: { id: workspace.id }, data: { aiConversationsThisPeriod: { increment: 1 } } });
+    }
+    // An AUTO reply stays a sample: an operator message after it is judged, a critical verdict demotes the intent.
+    if (config.ladderEnabled) {
+      if (!result.usedTemplate) await recordLadderSample({ ...sample, source: "auto" }).catch(() => {});
+      // The thread got its answer: an older copilot draft must not go out after it.
+      await prisma.aiDraft.updateMany({ where: { conversationId, status: "PENDING" }, data: { status: "SUPERSEDED", decidedAt: new Date() } });
     }
   }
 
@@ -1194,6 +1258,104 @@ async function deliverReply(
   }
 }
 
+// ─── Copilot drafts & manager replies (trust ladder) ─────────────────────────
+
+export interface HumanSendResult {
+  ok: boolean;
+  error?: string;
+}
+
+async function loadSendable(workspaceId: string, conversationId: string) {
+  const conversation = await prisma.conversation.findFirst({
+    where: { id: conversationId, workspaceId },
+    include: { instagramAccount: true, workspace: true },
+  });
+  if (!conversation) return { error: "Suhbat topilmadi" } as const;
+  const last = conversation.lastCustomerMessageAt;
+  if (!last || Date.now() - last.getTime() > DAY_MS - 60_000) return { error: "Instagram 24 soatlik oynasi yopilgan" } as const;
+  const token = tokenOf(conversation.instagramAccount);
+  if (!token) return { error: "Instagram ulanishi buzilgan" } as const;
+  return { conversation, token } as const;
+}
+
+/**
+ * A human approved a COPILOT draft (as is, or with `finalText`). Claimed
+ * atomically, so two taps never send twice. Unchanged text is a judged match
+ * at once; an edit goes to the judge like any operator reply.
+ */
+export async function sendJavobAiDraft(workspaceId: string, draftId: string, by: string, finalText?: string | null): Promise<HumanSendResult> {
+  const draft = await prisma.aiDraft.findFirst({ where: { id: draftId, workspaceId } });
+  if (!draft) return { ok: false, error: "Qoralama topilmadi" };
+  const text = (finalText ?? draft.text).trim();
+  if (!text) return { ok: false, error: "Matn bo'sh" };
+  const edited = text !== draft.text.trim();
+  const claimed = await prisma.aiDraft.updateMany({
+    where: { id: draftId, status: "PENDING" },
+    data: { status: edited ? "EDITED" : "SENT", finalText: text, decidedBy: by, decidedAt: new Date() },
+  });
+  if (claimed.count === 0) return { ok: false, error: "Qoralama allaqachon ko'rib chiqilgan" };
+  // Someone already answered the customer after this draft was made (operator, another draft, the AI).
+  const answered = await prisma.conversationMessage.findFirst({
+    where: { conversationId: draft.conversationId, author: { not: "CUSTOMER" }, createdAt: { gt: draft.createdAt } },
+    select: { id: true },
+  });
+  if (answered) {
+    await prisma.aiDraft.update({ where: { id: draftId }, data: { status: "SUPERSEDED", error: "Suhbatda keyinroq javob yozilgan" } });
+    return { ok: false, error: "Mijozga bu orada boshqa javob yozilgan — qoralama eskirdi" };
+  }
+  const target = await loadSendable(workspaceId, draft.conversationId);
+  if ("error" in target) {
+    await prisma.aiDraft.update({ where: { id: draftId }, data: { status: "FAILED", error: target.error } });
+    return { ok: false, error: target.error };
+  }
+  const delivered = await deliverReply(target.conversation, target.token, text, { javobai: true, intent: draft.intent ?? undefined, draftId });
+  if (!delivered) {
+    await prisma.aiDraft.update({ where: { id: draftId }, data: { status: "FAILED", error: "Instagram xabarni qabul qilmadi" } });
+    return { ok: false, error: "Instagram xabarni qabul qilmadi" };
+  }
+  await prisma.conversation.update({ where: { id: draft.conversationId }, data: { botMessageCount: { increment: 1 }, lastBotMessageAt: new Date() } });
+  if (draft.shadowTurnId) {
+    const now = new Date();
+    await prisma.aiShadowTurn
+      .update({
+        where: { id: draft.shadowTurnId },
+        data: {
+          operatorReply: text,
+          operatorRepliedAt: now,
+          ...(edited ? {} : { judgeMatch: true, judgeScore: 1, critical: "none", judgeNotes: "Qoralama o'zgarishsiz yuborildi", judgedAt: now }),
+        },
+      })
+      .catch(() => {});
+  }
+  await logEvent(workspaceId, draft.conversationId, "ladder_draft_sent", { draftId, edited, by });
+  return { ok: true };
+}
+
+/**
+ * A manager answered from Telegram: sent as the business (author OPERATOR,
+ * so it pairs with the AI's silent draft) and the handoff counts as taken.
+ */
+export async function sendManagerReply(workspaceId: string, conversationId: string, text: string, by: string): Promise<HumanSendResult> {
+  const body = text.trim();
+  if (!body) return { ok: false, error: "Matn bo'sh" };
+  const target = await loadSendable(workspaceId, conversationId);
+  if ("error" in target) return { ok: false, error: target.error };
+  const { conversation, token } = target;
+  try {
+    const response = await sendDirectMessage(token, conversation.instagramAccount.instagramId, conversation.igUserId, body.slice(0, 1000));
+    await prisma.conversationMessage
+      .create({ data: { conversationId, mid: response.message_id, author: "OPERATOR", text: body.slice(0, 1000) } })
+      .catch(() => {});
+  } catch (error) {
+    if (error instanceof TokenExpiredError) await markTokenBroken(conversation.instagramAccount.id, error.message);
+    return { ok: false, error: "Instagram xabarni qabul qilmadi" };
+  }
+  const state = await prisma.aiConversationState.findUnique({ where: { conversationId }, select: { handoffState: true } });
+  if (state?.handoffState === "HANDOFF_PENDING") await acceptHandoff(conversationId, by);
+  await logEvent(workspaceId, conversationId, "manager_reply_sent", { by });
+  return { ok: true };
+}
+
 // ─── AI quick-reply action (Comment 2.0 → JavobAI) ────────────────────────────
 
 export interface HandThreadInput {
@@ -1258,9 +1420,39 @@ export async function runJavobAiMaintenance(): Promise<void> {
     console.error("[JavobAI] maintenance failed:", error instanceof Error ? error.message : error);
   }
   try {
+    await runLadderMaintenance();
+  } catch (error) {
+    console.error("[JavobAI] ladder maintenance failed:", error instanceof Error ? error.message : error);
+  }
+  try {
+    const escalated = await escalatePendingHandoffs();
+    if (escalated > 0) console.log(`[JavobAI] escalated ${escalated} unanswered handoff(s)`);
+  } catch (error) {
+    console.error("[JavobAI] escalation failed:", error instanceof Error ? error.message : error);
+  }
+  try {
     const alerts = await runBudgetAlerts();
     if (alerts.alerted || alerts.reset || alerts.failed) console.log("[JavobAI] budget alerts:", JSON.stringify(alerts));
   } catch (error) {
     console.error("[JavobAI] budget alerts failed:", error instanceof Error ? error.message : error);
+  }
+}
+
+/**
+ * Trust ladder upkeep, at most every 5 minutes across workers: pair operator
+ * replies, judge them (cheap model, tooling usage), expire stale drafts, pull
+ * AUTO intents back on expired facts / complaints.
+ */
+export async function runLadderMaintenance(now = new Date()): Promise<void> {
+  const tick = await getRedisConnection().set("javobai:ladder:tick", "1", "EX", 290, "NX").catch(() => "OK");
+  if (tick !== "OK") return;
+  const { pairOperatorReplies, expireStaleDrafts, runLadderChecks } = await import("./ladder-service");
+  const { runLadderJudge } = await import("./judge");
+  const paired = await pairOperatorReplies(now);
+  const judged = await runLadderJudge(25, now);
+  const expired = await expireStaleDrafts(now);
+  const checks = await runLadderChecks(now);
+  if (paired || judged.judged || judged.demoted || judged.facts || expired || checks.demoted) {
+    console.log("[JavobAI] ladder:", JSON.stringify({ paired, ...judged, expired, demotedByChecks: checks.demoted }));
   }
 }

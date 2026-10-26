@@ -38,6 +38,17 @@ export const javobAiConfigSchema = z.object({
    * while the module lives in the developer area.
    */
   isTest: z.boolean().default(true),
+  /**
+   * Trust ladder (audit 2026-10-26): per-intent OBSERVE / COPILOT / AUTO.
+   * Off: every model reply is sent as before. On: only AUTO intents are sent.
+   */
+  ladderEnabled: z.boolean().default(false),
+  /** Nobody accepted a handoff in this many minutes: the second manager is alerted (0 = never). */
+  escalateAfterMinutes: z.number().int().min(0).max(240).default(15),
+  /** Comment guard: hide offensive comments under the account's posts. */
+  hideOffensiveComments: z.boolean().default(false),
+  /** Comment guard: a complaint in a comment alerts the managers' Telegram. */
+  notifyCommentComplaints: z.boolean().default(false),
 });
 
 export type JavobAiConfig = z.infer<typeof javobAiConfigSchema>;
@@ -112,6 +123,9 @@ export const INTENTS = [
   "purchase_intent",
   "payment_intent",
   "sensitive",
+  // Trust ladder (audit 2026-10-26): hours / address / contacts and delivery are laddered on their own.
+  "business_info",
+  "delivery_question",
   "other",
 ] as const;
 export type JavobAiIntent = (typeof INTENTS)[number];

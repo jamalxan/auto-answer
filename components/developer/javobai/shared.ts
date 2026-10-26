@@ -12,7 +12,7 @@ export const JAVOBAI_API = "/api/developer/javobai";
 export type JavobAiMode = "OFF" | "SHADOW" | "LIVE";
 export type HandoffState = "AI_ACTIVE" | "HANDOFF_PENDING" | "OPERATOR_ACTIVE" | "CLOSED";
 export type Temperature = "COLD" | "WARM" | "HOT" | "CUSTOMER" | "LOST";
-export type KnowledgeKind = "DISCOUNT" | "CONTACT" | "TERMS" | "BRANCH" | "POLICY" | "OTHER";
+export type KnowledgeKind = "DISCOUNT" | "CONTACT" | "TERMS" | "BRANCH" | "POLICY" | "OTHER" | "PRICE" | "HOURS" | "DELIVERY";
 export type RuleKind = "KEYWORD" | "INTENT" | "SCORE" | "UNKNOWN_COUNT" | "OFF_HOURS";
 export type QualificationField = "product" | "budget" | "location";
 
@@ -25,6 +25,10 @@ export interface AccountConfig {
   postHandoffReplies: number;
   resumeAfterCloseHours: number;
   isTest: boolean;
+  ladderEnabled: boolean;
+  escalateAfterMinutes: number;
+  hideOffensiveComments: boolean;
+  notifyCommentComplaints: boolean;
 }
 
 export interface ProfileStatus {
@@ -333,6 +337,9 @@ export const KNOWLEDGE_KIND_TEXT: Record<KnowledgeKind, string> = {
   BRANCH: "Filial",
   POLICY: "Qoida / siyosat",
   OTHER: "Boshqa",
+  PRICE: "Narx",
+  HOURS: "Ish vaqti",
+  DELIVERY: "Yetkazib berish",
 };
 
 export const RULE_KIND_TEXT: Record<RuleKind, { title: string; description: string }> = {

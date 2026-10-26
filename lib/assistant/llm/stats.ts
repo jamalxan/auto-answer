@@ -51,7 +51,7 @@ export function isLlmErrorRateHigh(stats: Pick<LlmStats, "calls" | "failures">):
  * ManyChat migration) and shadow replies (computed, never sent). Their failures
  * are real but say nothing about what customers receive.
  */
-export const TOOLING_LLM_KINDS = ["javobai_sandbox", "javobai_flowbuilder", "javobai_migration", "javobai_shadow", "javobai_caption"] as const;
+export const TOOLING_LLM_KINDS = ["javobai_sandbox", "javobai_flowbuilder", "javobai_migration", "javobai_shadow", "javobai_caption", "javobai_judge", "javobai_eval"] as const;
 
 export function isToolingLlmKind(kind: string | null | undefined): boolean {
   return (TOOLING_LLM_KINDS as readonly string[]).includes(kind ?? "");

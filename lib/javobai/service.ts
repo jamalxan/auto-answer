@@ -52,7 +52,7 @@ export const LIVE_NEEDS_PROFILE =
 export const NO_AI_STATE = "Bu suhbatda JavobAI hali ishlamagan — holati yo'q";
 
 export const JAVOBAI_MODES = ["OFF", "SHADOW", "LIVE"] as const;
-export const AI_KNOWLEDGE_KINDS = ["DISCOUNT", "CONTACT", "TERMS", "BRANCH", "POLICY", "OTHER"] as const;
+export const AI_KNOWLEDGE_KINDS = ["DISCOUNT", "CONTACT", "TERMS", "BRANCH", "POLICY", "OTHER", "PRICE", "HOURS", "DELIVERY"] as const;
 export const HANDOFF_RULE_KINDS = ["KEYWORD", "INTENT", "SCORE", "UNKNOWN_COUNT", "OFF_HOURS"] as const;
 export const HANDOFF_STATES = ["AI_ACTIVE", "HANDOFF_PENDING", "OPERATOR_ACTIVE", "CLOSED"] as const;
 export const TEMPERATURES = ["COLD", "WARM", "HOT", "CUSTOMER", "LOST"] as const;

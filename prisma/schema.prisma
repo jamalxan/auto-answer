@@ -92,6 +92,12 @@ model Workspace {
   instagramAccounts  InstagramAccount[]
   automations        Automation[]
   legacyMigrations   LegacyCampaignMigration[]
+  aiIntentPolicies   AiIntentPolicy[]
+  aiDrafts           AiDraft[]
+  aiFactCandidates   AiFactCandidate[]
+  aiEvalCases        AiEvalCase[]
+  aiEvalRuns         AiEvalRun[]
+  commentModerations CommentModeration[]
   dmLogs             DmLog[]
   trackedLinks       TrackedLink[]
   linkClicks         LinkClick[]
@@ -1617,6 +1623,10 @@ enum AiKnowledgeKind {
   BRANCH
   POLICY
   OTHER
+  // Trust ladder (audit 2026-10-26): the facts a price / hours / delivery answer needs.
+  PRICE
+  HOURS
+  DELIVERY
 }
 
 /// Which Instagram accounts JavobAI handles, and how. Rows exist only for
@@ -1715,6 +1725,8 @@ model AiHandoff {
   closedBy       String?
   // After close: does the AI take the next customer message again?
   resumeAi       Boolean         @default(true)
+  // Nobody accepted in time: the second manager was alerted (audit 2026-10-26).
+  escalatedAt    DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -1764,6 +1776,10 @@ model AiKnowledgeEntry {
   title      String
   body       String
   verifiedAt DateTime?
+  /// A fact with a shelf life (a price, a promo): past this it leaves the prompt and the intent that needed it drops to copilot.
+  expiresAt  DateTime?
+  /// owner (typed in the KB) | observed (approved candidate from operator replies) | manager_reply (Telegram "add to KB")
+  source     String          @default("owner")
   active     Boolean         @default(true)
   sort       Int             @default(0)
   createdAt  DateTime        @default(now())
@@ -1803,11 +1819,29 @@ model AiShadowTurn {
   handoff         String?
   costUsd         Decimal  @default(0) @db.Decimal(12, 6)
   error           String?
+  // -- Trust ladder (audit 2026-10-26): one row = one comparison sample --
+  instagramAccountId String?
+  /// shadow (account SHADOW mode) | observe (intent in OBSERVE) | copilot (a draft) | auto (sent; a later operator message is a correction)
+  source             String    @default("shadow")
+  customerMessageId  String?
+  /// What the human actually sent (paired from the operator echo / the inbox / the copilot decision).
+  operatorReply      String?
+  operatorRepliedAt  DateTime?
+  /// LLM judge: does the AI draft say what the operator said?
+  judgeMatch         Boolean?
+  judgeScore         Float?
+  /// none | wrong_price | wrong_fact | promise | tone | policy
+  critical           String?
+  judgeNotes         String?
+  judgedAt           DateTime?
+  factsExtractedAt   DateTime?
   createdAt       DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt])
+  @@index([instagramAccountId, intent, createdAt])
+  @@index([conversationId, createdAt])
 }
 
 /// Monthly USD budget per workspace with alert bookkeeping (TZ 66).
@@ -3342,4 +3376,162 @@ model LegacyMigrationSample {
 
   @@unique([migrationId, commentId])
   @@index([migrationId, createdAt])
+}
+
+// --- Trust ladder (audit 2026-10-26: observe -> copilot -> auto per intent) ---
+
+enum AiLadderMode {
+  OBSERVE
+  COPILOT
+  AUTO
+}
+
+/// How JavobAI may answer one intent on one account. No row = OBSERVE.
+model AiIntentPolicy {
+  id                 String       @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  intent             String
+  mode               AiLadderMode @default(OBSERVE)
+  changedBy          String?
+  changedAt          DateTime?
+  /// Set when the engine pulled AUTO back to COPILOT (critical error, expired fact, complaints).
+  demotedAt          DateTime?
+  demoteReason       String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([instagramAccountId, intent])
+  @@index([workspaceId])
+}
+
+enum AiDraftStatus {
+  PENDING
+  SENT
+  EDITED
+  DISCARDED
+  SUPERSEDED
+  EXPIRED
+  FAILED
+}
+
+/// COPILOT: a reply the AI prepared; a human sends it as is, edits it or throws it away.
+model AiDraft {
+  id                 String        @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  conversationId     String
+  shadowTurnId       String?       @unique
+  text               String
+  intent             String?
+  confidence         Float?
+  status             AiDraftStatus @default(PENDING)
+  finalText          String?
+  decidedBy          String?
+  decidedAt          DateTime?
+  error              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, createdAt])
+  @@index([conversationId, status])
+}
+
+enum AiFactStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// A fact the AI noticed in operator replies (or a manager added from Telegram).
+/// Never used in an answer until the owner approves it into the knowledge base.
+model AiFactCandidate {
+  id               String          @id @default(cuid())
+  workspaceId      String
+  profileId        String
+  kind             AiKnowledgeKind
+  title            String
+  body             String
+  source           String          @default("observed")
+  shadowTurnId     String?
+  /// The operator sentence it came from.
+  evidence         String?
+  confidence       Float?
+  status           AiFactStatus    @default(PENDING)
+  validUntil       DateTime?
+  knowledgeEntryId String?
+  decidedBy        String?
+  decidedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, createdAt])
+}
+
+/// "Golden" question of one account: every prompt / model change is re-run against these.
+model AiEvalCase {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  question           String
+  expectedIntent     String?
+  /// Lower-cased fragments the answer must / must not contain (numbers, names).
+  mustContain        String[] @default([])
+  mustNotContain     String[] @default([])
+  referenceAnswer    String?
+  /// manual | observed (from a judged operator reply)
+  source             String   @default("manual")
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([instagramAccountId, active])
+}
+
+model AiEvalRun {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  model              String
+  status             String    @default("RUNNING")
+  total              Int       @default(0)
+  passed             Int       @default(0)
+  failed             Int       @default(0)
+  /// [{ caseId, question, reply, intent, pass, reasons[] }]
+  results            Json      @default("[]")
+  triggeredBy        String?
+  startedAt          DateTime  @default(now())
+  finishedAt         DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([instagramAccountId, startedAt])
+}
+
+/// Comment guard: an offensive comment hidden / a complaint flagged, once per comment.
+model CommentModeration {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  commentId          String   @unique
+  mediaId            String?
+  text               String
+  /// offensive | complaint | ok
+  verdict            String
+  /// hidden | notified | none | failed
+  action             String
+  error              String?
+  createdAt          DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }

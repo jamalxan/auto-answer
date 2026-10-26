@@ -15,6 +15,7 @@ import AccountsTab from "./accounts-tab";
 import ConversationsTab from "./conversations-tab";
 import HandoffTab from "./handoff-tab";
 import KnowledgeTab from "./knowledge-tab";
+import LadderTab from "./ladder-tab";
 import SandboxTab from "./sandbox-tab";
 import ScoringTab from "./scoring-tab";
 import ShadowTab from "./shadow-tab";
@@ -28,12 +29,13 @@ const TABS = [
   ["handoff", "Handoff"],
   ["conversations", "Suhbatlar"],
   ["shadow", "Shadow"],
+  ["ladder", "Ishonch zinapoyasi"],
   ["test", "Test"],
   ["usage", "Xarajat"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-const PER_ACCOUNT_TABS: Tab[] = ["knowledge", "test"];
+const PER_ACCOUNT_TABS: Tab[] = ["knowledge", "test", "ladder"];
 
 function Stat({ label, value, tone }: { label: string; value: number | string; tone?: string }) {
   return (
@@ -198,6 +200,8 @@ export default function JavobAiDashboard() {
         <ConversationsTab accounts={accounts} initialConversationId={conversationParam} />
       ) : tab === "shadow" ? (
         <ShadowTab />
+      ) : tab === "ladder" ? (
+        <LadderTab account={account} />
       ) : tab === "test" ? (
         <SandboxTab account={account} />
       ) : (
