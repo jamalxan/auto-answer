@@ -28,7 +28,26 @@ export interface DerivedDef {
   hint?: string;
 }
 
-export const DIM_KINDS = ["automation", "trigger_campaign", "broadcast", "reason", "kind", "pipeline", "member"] as const;
+/** `llm_usage.errorKind` values (LlmErrorKind + ours) in plain Uzbek. */
+export const LLM_ERROR_LABELS: Record<string, string> = {
+  timeout: "Vaqt tugadi (timeout)",
+  network: "Tarmoq xatosi",
+  rate_limit: "Limit (429)",
+  upstream: "Provider band (5xx)",
+  bad_request: "So'rov rad etildi (400)",
+  auth: "API kalit",
+  not_found: "Model topilmadi",
+  internal: "Ichki xato (kod)",
+  unknown: "Noma'lum",
+};
+
+/** Production (non-JavobAI) usage kinds. */
+export const PRODUCTION_USAGE_KIND_LABELS: Record<string, string> = {
+  reply: "Assistent javobi",
+  comment_variants: "Komment variantlari (AI)",
+};
+
+export const DIM_KINDS = ["automation", "trigger_campaign", "broadcast", "reason", "kind", "error", "pipeline", "member"] as const;
 export type DimKind = (typeof DIM_KINDS)[number];
 
 export const DIM_LABELS: Record<DimKind, string> = {
@@ -37,6 +56,7 @@ export const DIM_LABELS: Record<DimKind, string> = {
   broadcast: "Broadcast",
   reason: "Sabab",
   kind: "AI turi",
+  error: "LLM xato turi",
   pipeline: "Pipeline",
   member: "Jamoa a'zosi",
 };
@@ -76,7 +96,9 @@ export const AI_METRICS: MetricDef[] = [
   { key: "ai.qualified", label: "Sifatli lidlar", format: "int", hint: "WARM yoki HOT" },
   { key: "ai.hot", label: "Hot lidlar", format: "int" },
   { key: "ai.calls", label: "LLM chaqiruvlar", format: "int" },
-  { key: "ai.failed_calls", label: "Xato chaqiruvlar", format: "int" },
+  { key: "ai.failed_calls", label: "Xato chaqiruvlar", format: "int", hint: "Hammasi: mijoz javoblari + developer vositalari (sandbox, Flow Builder, migratsiya, shadow)" },
+  { key: "ai.customer_calls", label: "Mijozga javob chaqiruvlari", format: "int", hint: "Faqat mijozga yuboriladigan javoblar uchun LLM chaqiruvlari" },
+  { key: "ai.customer_failed_calls", label: "Mijozga javob xatolari", format: "int" },
   { key: "ai.cost_usd", label: "Xarajat", format: "usd" },
   { key: "ai.tokens_in", label: "Kirish tokenlari", format: "int" },
   { key: "ai.tokens_out", label: "Chiqish tokenlari", format: "int" },
@@ -90,13 +112,15 @@ export const AI_METRICS: MetricDef[] = [
 ];
 
 /** Sum parts kept only for the derived averages; not shown as tiles. */
-export const AI_HELPER_METRICS = ["ai.latency_ms_sum", "ai.handoff_wait_ms_sum", "ai.handoff_wait_count"] as const;
+export const AI_HELPER_METRICS = ["ai.latency_ms_sum", "ai.customer_latency_ms_sum", "ai.handoff_wait_ms_sum", "ai.handoff_wait_count"] as const;
 
 export const AI_DERIVED: DerivedDef[] = [
   { key: "ai.success_rate", label: "AI muvaffaqiyat darajasi", format: "pct", kind: "ratio", num: "ai.resolved", den: "ai.conversations" },
   { key: "ai.handoff_rate", label: "Topshirish darajasi", format: "pct", kind: "ratio", num: "ai.handoff", den: "ai.conversations" },
   { key: "ai.qualified_rate", label: "Sifatli lid ulushi", format: "pct", kind: "ratio", num: "ai.qualified", den: "ai.conversations" },
   { key: "ai.avg_latency_ms", label: "O'rtacha kechikish", format: "ms", kind: "avg", num: "ai.latency_ms_sum", den: "ai.calls" },
+  { key: "ai.customer_error_rate", label: "Mijozga javob xato ulushi", format: "pct", kind: "ratio", num: "ai.customer_failed_calls", den: "ai.customer_calls" },
+  { key: "ai.customer_avg_latency_ms", label: "Mijozga javob kechikishi", format: "ms", kind: "avg", num: "ai.customer_latency_ms_sum", den: "ai.customer_calls" },
   { key: "ai.avg_handoff_wait_ms", label: "Operator kutish vaqti", format: "ms", kind: "avg", num: "ai.handoff_wait_ms_sum", den: "ai.handoff_wait_count" },
   { key: "ai.cost_per_conversation", label: "Suhbat narxi", format: "usd", kind: "avg", num: "ai.cost_usd", den: "ai.conversations" },
 ];
@@ -180,7 +204,7 @@ export function storedKeysForTab(tab: AnalyticsTab): string[] {
 
 export function defaultDimKinds(tab: AnalyticsTab): DimKind[] {
   if (tab === "campaign") return ["automation", "trigger_campaign", "broadcast"];
-  if (tab === "ai") return ["reason", "kind"];
+  if (tab === "ai") return ["reason", "kind", "error"];
   if (tab === "sales") return ["pipeline", "member"];
   return [];
 }

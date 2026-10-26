@@ -20,7 +20,7 @@
  */
 
 import { z } from "zod";
-import { type LlmRequest, getLlmProviderFor, llmLongTimeoutMs } from "@/lib/assistant/llm/provider";
+import { failureKindOf, type LlmRequest, getLlmProviderFor, llmLongTimeoutMs } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { done, firstIssue, type ServiceResult } from "@/lib/crm/result";
 import { tagSlug } from "@/lib/crm/defaults";
@@ -444,6 +444,7 @@ async function readImages(workspaceId: string, images: Array<{ mediaType: string
   };
   let usage = { inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, model: provider.model };
   let ok = false;
+  let errorKind: string | null = null;
   const started = Date.now();
   try {
     const response = await provider.complete(request);
@@ -459,11 +460,12 @@ async function readImages(workspaceId: string, images: Array<{ mediaType: string
     if (!text.trim()) throw unprocessable("Skrinshotdan matn o'qilmadi — aniqroq rasm yuklang yoki matnni qo'lda kiriting");
     return text.trim();
   } catch (error) {
+    if (!ok) errorKind = failureKindOf(error, "migration");
     if (isMigrationServiceError(error)) throw error;
     console.error("[Migration] screenshot read failed:", describeProviderError(error));
     throw new MigrationServiceError(502, "AI skrinshotni o'qiy olmadi — birozdan keyin qayta urinib ko'ring yoki matnni qo'lda kiriting");
   } finally {
-    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_MIGRATION, model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, latencyMs: usage.latencyMs || Date.now() - started, ok });
+    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_MIGRATION, model: usage.model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, costUsd: usage.costUsd, latencyMs: usage.latencyMs || Date.now() - started, ok, errorKind });
   }
 }
 

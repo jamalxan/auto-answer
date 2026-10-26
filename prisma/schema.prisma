@@ -1047,6 +1047,8 @@ model LlmUsage {
   costUsd        Decimal  @default(0) @db.Decimal(12, 6)
   latencyMs      Int      @default(0)
   ok             Boolean  @default(true)
+  /// Why a failed call failed: an LlmErrorKind (timeout, rate_limit, upstream, ...), "bad_json", or "internal" for a code error before/around the call. Null on success.
+  errorKind      String?
   createdAt      DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

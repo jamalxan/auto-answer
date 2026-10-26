@@ -17,7 +17,7 @@
  * every `vars.<key>` the graph uses, then audit + policy. Nothing is saved.
  */
 
-import { getLlmProviderFor, llmLongTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
+import { failureKindOf, getLlmProviderFor, llmLongTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { type AuditResult, auditGraph } from "@/lib/flows/audit";
 import { buildFlowBuilderPrompt, buildFlowBuilderSystemPrompt, buildRepairPrompt, isFlowParseFailure, parseGraphFromLlm, type ParsedFlowFromLlm } from "@/lib/flows/ai-builder-prompt";
@@ -362,6 +362,7 @@ export async function convertFlowText(input: ConvertInput): Promise<ConvertedFlo
   let latencyMs = 0;
   let usedModel = provider.model;
   let ok = false;
+  let errorKind: string | null = null;
   const started = Date.now();
 
   const call = async (userMessage: string): Promise<unknown> => {
@@ -402,11 +403,12 @@ export async function convertFlowText(input: ConvertInput): Promise<ConvertedFlo
     }
     ok = true;
   } catch (error) {
+    if (!ok) errorKind = failureKindOf(error, "migration_convert");
     if (error instanceof MigrationServiceError) throw error;
     console.error("[Migration] conversion failed:", describeProviderError(error));
     throw new MigrationServiceError(502, "AI javob bermadi — birozdan keyin qayta urinib ko'ring");
   } finally {
-    await recordJavobAiUsage({ workspaceId: input.workspaceId, kind: USAGE_KIND_MIGRATION, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok });
+    await recordJavobAiUsage({ workspaceId: input.workspaceId, kind: USAGE_KIND_MIGRATION, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok, errorKind });
   }
 
   const processed = postProcessGraph(parsed.graph, { customFields: input.customFields, botVars: input.botVars });

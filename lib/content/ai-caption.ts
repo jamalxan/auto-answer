@@ -16,7 +16,7 @@
  */
 
 import { z } from "zod";
-import { describeLlmFailure, getLlmProviderFor, type LlmRequest } from "@/lib/assistant/llm/provider";
+import { failureKindOf, describeLlmFailure, getLlmProviderFor, type LlmRequest } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { enforceBudgetBeforeCall } from "@/lib/javobai/budget";
 import { javobAiModel } from "@/lib/javobai/config";
@@ -190,6 +190,7 @@ export async function generateCaptions(workspaceId: string, raw: AiCaptionInput)
   let latencyMs = 0;
   let usedModel = provider.model;
   let ok = false;
+  let errorKind: string | null = null;
   const started = Date.now();
 
   const call = async (user: string) => {
@@ -211,10 +212,11 @@ export async function generateCaptions(workspaceId: string, raw: AiCaptionInput)
     if (!result) throw new ContentError(422, UNUSABLE_MESSAGE);
     return { ...result, model: usedModel };
   } catch (error) {
+    if (!ok) errorKind = failureKindOf(error, "caption");
     if (error instanceof ContentError) throw error;
     console.warn("[content] AI caption failed:", error instanceof Error ? error.message.slice(0, 200) : "unknown");
     throw new ContentError(502, describeLlmFailure(error));
   } finally {
-    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_CAPTION, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok });
+    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_CAPTION, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok, errorKind });
   }
 }

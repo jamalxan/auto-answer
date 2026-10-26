@@ -654,6 +654,7 @@ async function recordTurnBookkeeping(
           costUsd: usage.costUsd,
           latencyMs: usage.latencyMs,
           ok: usage.ok,
+          errorKind: usage.ok ? null : (usage.errorKind ?? "unknown"),
         },
       })
       .catch(() => {});

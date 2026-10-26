@@ -11,6 +11,9 @@
  *   LLM_TIMEOUT_MS = per-request timeout (default 15000)
  *   LLM_TOTAL_BUDGET_MS = overall deadline across primary + fallbacks + retries
  *                 (default 25000, never below the per-request timeout unless set)
+ *   LLM_FALLBACK_PROVIDER / _API_KEY / _MODEL / _BASE_URL = optional SECOND
+ *                 provider (another vendor), asked once when the primary's whole
+ *                 chain failed — a vendor-wide outage no longer fails every reply
  *
  * EVERY caller goes through `complete()`, so the OpenAI-compatible adapter below
  * is the one place that: sanitises the JSON schema for Gemini, times out, retries
@@ -127,6 +130,17 @@ export class LlmError extends Error {
     this.kind = kind ?? llmErrorKindFor(status);
     this.userMessage = llmUserMessage(this.kind);
   }
+}
+
+/**
+ * The `llm_usage.errorKind` of a failed call: the typed kind of an LlmError, or
+ * "internal" for anything else (a bug in our code around the call). An internal
+ * failure is logged with its message so it can be found — never the prompt.
+ */
+export function failureKindOf(error: unknown, where = "llm"): string {
+  if (error instanceof LlmError) return error.kind;
+  console.error(`[LLM] internal failure in ${where}:`, error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 200) : String(error).slice(0, 200));
+  return "internal";
 }
 
 /** Plain Uzbek message for any thrown value. */
@@ -584,6 +598,7 @@ async function trackOutcome(
         costUsd: cost(response.model, response.inputTokens, response.outputTokens),
         latencyMs: response.latencyMs,
         ok: true,
+        errorKind: null,
       });
     }
     return response;
@@ -596,6 +611,7 @@ async function trackOutcome(
         costUsd: 0,
         latencyMs: error instanceof LlmError && error.latencyMs ? error.latencyMs : Date.now() - started,
         ok: false,
+        errorKind: failureKindOf(error, req.usage.kind),
       });
     }
     throw error;
@@ -604,7 +620,7 @@ async function trackOutcome(
 
 async function writeUsage(
   ctx: NonNullable<LlmRequest["usage"]>,
-  row: { model: string; inputTokens: number; outputTokens: number; costUsd: number; latencyMs: number; ok: boolean }
+  row: { model: string; inputTokens: number; outputTokens: number; costUsd: number; latencyMs: number; ok: boolean; errorKind: string | null }
 ) {
   try {
     const { prisma } = await import("@/lib/db/client");
@@ -619,6 +635,7 @@ async function writeUsage(
         costUsd: Math.round(Math.max(0, row.costUsd) * 1_000_000) / 1_000_000,
         latencyMs: Math.max(0, Math.round(row.latencyMs) || 0),
         ok: row.ok,
+        errorKind: row.ok ? null : row.errorKind,
       },
     });
   } catch (error) {
@@ -632,6 +649,63 @@ export function fallbackModelsFromEnv(value = process.env.LLM_FALLBACK_MODELS): 
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean);
+}
+
+/**
+ * Primary provider with a second vendor behind it. The primary's own chain
+ * (retries, fallback models) runs first; on any LlmError the secondary gets
+ * one go with the same request. Usage is tracked once, here, for the call as a
+ * whole: the customer either got an answer (ok) or did not.
+ */
+export class FailoverProvider implements LLMProvider {
+  readonly name: string;
+  readonly model: string;
+  constructor(
+    private primary: LLMProvider,
+    private secondary: LLMProvider
+  ) {
+    this.name = `${primary.name}+${secondary.name}`;
+    this.model = primary.model;
+  }
+
+  costUsd(i: number, o: number, model = this.model) {
+    return model === this.secondary.model ? this.secondary.costUsd(i, o, model) : this.primary.costUsd(i, o, model);
+  }
+
+  complete(req: LlmRequest): Promise<LlmResponse> {
+    const inner: LlmRequest = { ...req, usage: undefined };
+    return trackOutcome(req, this.model, (m, i, o) => this.costUsd(i, o, m), async () => {
+      const started = Date.now();
+      try {
+        return await this.primary.complete(inner);
+      } catch (error) {
+        if (!(error instanceof LlmError)) throw error;
+        console.warn(`[LLM] primary ${this.primary.model} failed (${error.kind}), trying ${this.secondary.name}:${this.secondary.model}`);
+        try {
+          const response = await this.secondary.complete(inner);
+          return { ...response, latencyMs: Date.now() - started };
+        } catch (secondError) {
+          if (secondError instanceof LlmError) secondError.latencyMs = Date.now() - started;
+          throw secondError;
+        }
+      }
+    });
+  }
+}
+
+/** The configured second vendor (LLM_FALLBACK_PROVIDER), or null. */
+export function fallbackProviderFromEnv(env: NodeJS.ProcessEnv = process.env): LLMProvider | null {
+  const kind = (env.LLM_FALLBACK_PROVIDER ?? "").toLowerCase();
+  const key = env.LLM_FALLBACK_API_KEY;
+  if (!kind || !key) return null;
+  if (kind === "anthropic") return new AnthropicProvider(key, env.LLM_FALLBACK_MODEL || "claude-haiku-4-5-20251001", env.LLM_FALLBACK_BASE_URL || undefined);
+  if (kind === "openai") return new OpenAICompatibleProvider(key, env.LLM_FALLBACK_MODEL || "gpt-4o-mini", env.LLM_FALLBACK_BASE_URL || undefined);
+  return null;
+}
+
+function withFailover(primary: LLMProvider): LLMProvider {
+  const secondary = fallbackProviderFromEnv();
+  return secondary ? new FailoverProvider(primary, secondary) : primary;
 }
 
 let override: LLMProvider | null | undefined;
@@ -658,22 +732,15 @@ export function getLlmProviderFor(model?: string): LLMProvider | null {
   if (kind === "openai") {
     const key = process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY;
     if (!key) return null;
-    return new OpenAICompatibleProvider(
-      key,
-      model ?? "gpt-4o-mini",
-      process.env.LLM_BASE_URL ?? undefined,
-      fallbackModelsFromEnv()
+    return withFailover(
+      new OpenAICompatibleProvider(key, model ?? "gpt-4o-mini", process.env.LLM_BASE_URL ?? undefined, fallbackModelsFromEnv())
     );
   }
 
   const key = process.env.LLM_API_KEY ?? process.env.ANTHROPIC_API_KEY;
   if (kind === "anthropic" || (!kind && key)) {
     if (!key) return null;
-    return new AnthropicProvider(
-      key,
-      model ?? "claude-haiku-4-5-20251001",
-      process.env.LLM_BASE_URL ?? undefined
-    );
+    return withFailover(new AnthropicProvider(key, model ?? "claude-haiku-4-5-20251001", process.env.LLM_BASE_URL ?? undefined));
   }
   return null;
 }

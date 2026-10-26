@@ -17,6 +17,7 @@
  * every query is scoped by workspaceId.
  */
 
+import { isToolingLlmKind } from "@/lib/assistant/llm/stats";
 import { prisma } from "@/lib/db/client";
 import { toUsd } from "@/lib/javobai/usage";
 import { dayWindow } from "./time";
@@ -297,7 +298,7 @@ async function aiMetrics(workspaceId: string, w: Window, acc: Accumulator) {
   }
 
   // LLM usage, by kind. The account comes from the conversation when the row has one.
-  const usageRows = usage as unknown as Array<{ kind: string; conversationId: string | null; inputTokens: number; outputTokens: number; costUsd: unknown; latencyMs: number; ok: boolean }>;
+  const usageRows = usage as unknown as Array<{ kind: string; conversationId: string | null; inputTokens: number; outputTokens: number; costUsd: unknown; latencyMs: number; ok: boolean; errorKind?: string | null }>;
   const eventRows = events as unknown as Array<{ type: string; conversationId: string | null }>;
   const convIds = unique([...usageRows.map((u) => u.conversationId), ...eventRows.map((e) => e.conversationId)]);
   const convs = await byIds<ConversationRow>("conversation", convIds, { workspaceId });
@@ -307,9 +308,15 @@ async function aiMetrics(workspaceId: string, w: Window, acc: Accumulator) {
     const dims: Dim[] = [["kind", u.kind || "reply"]];
     acc.add(account, "ai.calls", 1, dims);
     if (!u.ok) {
-      acc.add(account, "ai.failed_calls", 1, dims);
+      acc.add(account, "ai.failed_calls", 1, [...dims, ["error", u.errorKind || "unknown"]]);
       // One source: a failed llm_usage row IS an LLM error (no separate llm_error event count).
       acc.add(account, "ai.llm_errors", 1);
+    }
+    // Customer-facing calls only (the audit's "39 %" mixed in sandbox / Flow Builder runs).
+    if (!isToolingLlmKind(u.kind)) {
+      acc.add(account, "ai.customer_calls", 1);
+      if (!u.ok) acc.add(account, "ai.customer_failed_calls", 1);
+      acc.add(account, "ai.customer_latency_ms_sum", Number(u.latencyMs) || 0);
     }
     acc.add(account, "ai.cost_usd", toUsd(u.costUsd), dims);
     acc.add(account, "ai.tokens_in", Number(u.inputTokens) || 0, dims);

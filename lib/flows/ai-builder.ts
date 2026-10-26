@@ -14,7 +14,7 @@
  * drops to the default (cheap) model.
  */
 
-import { describeLlmFailure, getLlmProviderFor, llmLongTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
+import { failureKindOf, describeLlmFailure, getLlmProviderFor, llmLongTimeoutMs, type LlmRequest, type LlmResponse } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { enforceBudgetBeforeCall } from "@/lib/javobai/budget";
 import { javobAiModel, javobAiSmartModel } from "@/lib/javobai/config";
@@ -104,6 +104,7 @@ export async function generateFlowFromPrompt(workspaceId: string, input: Generat
   let latencyMs = 0;
   let usedModel = provider.model;
   let ok = false;
+  let errorKind: string | null = null;
   const started = Date.now();
 
   const call = async (userMessage: string): Promise<unknown> => {
@@ -144,12 +145,13 @@ export async function generateFlowFromPrompt(workspaceId: string, input: Generat
     }
     ok = true;
   } catch (error) {
+    if (!ok) errorKind = failureKindOf(error, "flow_builder");
     if (error instanceof FlowServiceError) throw error;
     console.warn("[flow-builder] LLM call failed:", error instanceof Error ? error.message.slice(0, 200) : "unknown");
     throw new FlowServiceError(502, describeLlmFailure(error));
   } finally {
     // A failed call has no response latency: record the wall time spent (a timeout is 45 s, not 0).
-    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_FLOWBUILDER, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok });
+    await recordJavobAiUsage({ workspaceId, kind: USAGE_KIND_FLOWBUILDER, model: usedModel, inputTokens, outputTokens, costUsd, latencyMs: latencyMs || Date.now() - started, ok, errorKind });
   }
 
   const trigger = parsed.graph.nodes.find((n) => n.type === "trigger");

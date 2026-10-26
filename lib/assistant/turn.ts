@@ -19,7 +19,7 @@ import type { Collected } from "@/lib/leads/service";
 import { isRepeat } from "./humanize";
 import { detectLanguage, normalizeLang, type Lang } from "./language";
 import { LLM_JSON_SCHEMA, parseLlmOutput, type LlmOutput } from "./llm-output";
-import { LlmError, llmTimeoutMs, type LLMProvider, type LlmMessage } from "./llm/provider";
+import { failureKindOf, LlmError, llmTimeoutMs, type LLMProvider, type LlmMessage } from "./llm/provider";
 import { filterReply, type BlockReason } from "./post-filter";
 import {
   buildSystemPrompt,
@@ -61,6 +61,8 @@ export interface TurnUsage {
   costUsd: number;
   latencyMs: number;
   ok: boolean;
+  /** Set on a failed call (see failureKindOf). */
+  errorKind?: string | null;
 }
 
 export interface TurnEvent {
@@ -190,6 +192,7 @@ async function callLlm(
 
   let extraNudge = "";
   for (let attempt = 0; attempt < 2; attempt++) {
+    const callStarted = Date.now();
     try {
       const response = await ctx.llm.complete({
         system: system + extraNudge,
@@ -223,8 +226,9 @@ async function callLlm(
         inputTokens: 0,
         outputTokens: 0,
         costUsd: 0,
-        latencyMs: error instanceof LlmError ? error.latencyMs : 0,
+        latencyMs: error instanceof LlmError && error.latencyMs ? error.latencyMs : Date.now() - callStarted,
         ok: false,
+        errorKind: failureKindOf(error, "assistant_reply"),
       });
       events.push({
         type: "llm_error",
