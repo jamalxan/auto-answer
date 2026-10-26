@@ -572,7 +572,10 @@ export class MemoryDb {
         case "gt": return (actual as Date | number) > (expected as Date | number);
         case "gte": return (actual as Date | number) >= (expected as Date | number);
         case "contains": return String(actual ?? "").toLowerCase().includes(String(expected).toLowerCase());
-        case "startsWith": return String(actual ?? "").startsWith(String(expected));
+        case "startsWith":
+          return (cond as { mode?: string }).mode === "insensitive"
+            ? String(actual ?? "").toLowerCase().startsWith(String(expected).toLowerCase())
+            : String(actual ?? "").startsWith(String(expected));
         case "has": return Array.isArray(actual) && actual.includes(expected);
         case "mode": return true;
         default: return true;

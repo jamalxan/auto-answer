@@ -66,6 +66,7 @@ export default function AiCreate({ meta, canWrite, onOpen }: { meta: FlowsMeta; 
   return (
     <div className="space-y-6">
       <Notice tone="warning">
+        <strong>Beta.</strong> AI bilan yaratish hali sekin (10–20 soniya) va ba&apos;zan ishlatib bo&apos;lmaydigan oqim qaytaradi — tayyor shablonlardan boshlash tezroq va ishonchliroq.{" "}
         <strong>AI yaratgan versiya tasdiqsiz ishga tushmaydi.</strong> Qoralamani saqlagach uni Test bo&apos;limida sinab, o&apos;qib chiqib tasdiqlaysiz — shundan keyingina ishga tushirish mumkin. AI narx yoki manzilni o&apos;ylab topmaydi: faqat bilimlar bazasidagi ma&apos;lumotdan foydalanadi.
       </Notice>
 
