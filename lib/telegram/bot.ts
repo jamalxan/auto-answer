@@ -14,6 +14,18 @@ import { updateProfileFields } from "@/lib/assistant/profile-write";
 import { acceptHandoff, closeHandoff } from "@/lib/javobai/handoff";
 import { getRedisConnection } from "@/lib/queue/client";
 import { canManageWorkspace } from "@/lib/workspace-roles";
+import {
+  handleBusinessConnection,
+  handleBusinessMessage,
+  handleChannelMembership,
+  handleDeletedBusinessMessages,
+  recordEdit,
+  routeChannelMessage,
+  type TgBusinessConnection,
+  type TgChannelMessage,
+  type TgDeletedBusinessMessages,
+  type TgMyChatMember,
+} from "./channel";
 import { handleLadderCallback, handleLadderText } from "./ladder";
 import { consumeLinkCode } from "./link-code";
 import { buildLeadKeyboard, buildLeadText } from "./lead-message";
@@ -72,7 +84,12 @@ export interface TgUpdate {
   update_id: number;
   message?: TgMessage;
   callback_query?: { id: string; from: TgUser; message?: TgMessage; data?: string };
-  my_chat_member?: { chat: TgChat; new_chat_member: { status: string } };
+  edited_message?: TgChannelMessage;
+  my_chat_member?: TgMyChatMember;
+  business_connection?: TgBusinessConnection;
+  business_message?: TgChannelMessage;
+  edited_business_message?: TgChannelMessage;
+  deleted_business_messages?: TgDeletedBusinessMessages;
 }
 
 export const defaultIo: BotIO = {
@@ -648,10 +665,21 @@ export async function handleTelegramUpdate(update: TgUpdate, io: BotIO = default
           data: { active: false },
         });
       }
+      // T3: channels (ownership check) and their discussion groups.
+      await handleChannelMembership(update.my_chat_member);
       return;
     }
+    if (update.business_connection) return void (await handleBusinessConnection(update.business_connection));
+    if (update.business_message) return void (await handleBusinessMessage(update.business_message));
+    if (update.edited_business_message) return void (await recordEdit(update.edited_business_message));
+    if (update.deleted_business_messages) return void (await handleDeletedBusinessMessages(update.deleted_business_messages));
+    if (update.edited_message) return void (await recordEdit(update.edited_message));
     if (update.callback_query) return await handleCallback(io, update);
-    if (update.message) return await handleMessage(io, update.message);
+    if (update.message) {
+      // Discussion-group comments and channel DMs go to the inbox; commands and other groups fall through.
+      if (update.message.chat.type !== "private" && (await routeChannelMessage(update.message as TgChannelMessage))) return;
+      return await handleMessage(io, update.message);
+    }
   } catch (error) {
     if (error instanceof TelegramApiError && error.isForbidden) return;
     console.error("[Telegram bot] update failed:", error instanceof Error ? error.message : error);

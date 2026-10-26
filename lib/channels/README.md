@@ -12,6 +12,13 @@ logic never imports a channel SDK; a new channel is a new adapter registered in
 | `instagram.ts` | Instagram adapter over `lib/meta/*` + `normalizeInstagramWebhook` |
 | `vault.ts` | `ChannelCredential` envelope encryption (AES-256-GCM DEK per row, KEK by `keyVersion`), rotate, revoke (crypto-shred), tenant-scoped load |
 | `refresh.ts` | daily refresh / liveness pass, called from `/api/cron/refresh-tokens` |
+| `telegram.ts` | Telegram adapter (phase 4): text / photo / video / album publish, large-file upload, edit, delete, comment reply, channel DM |
+| `crosspost.ts` | `ChannelPostTarget`: a Content Scheduler post also goes to Telegram channels at its slot (content sweeper step 11) |
+
+Telegram's bot side lives in `lib/telegram/channel.ts`: `my_chat_member` ownership
+check (only a linked manager connects a channel, anyone else and the bot leaves),
+discussion-group comments, channel DMs (Bot API 9.2), Telegram Business, the
+`ChannelMessage` inbox and replies. Screen: `/developer/telegram`.
 
 Webhook gateway: `lib/webhooks/gateway.ts` (1 MB body limit, 48 h dedup,
 rate-limited rejection log without the body). Log redaction:
@@ -29,7 +36,11 @@ set `CREDENTIAL_KEKS=1:<key>` and `CREDENTIAL_KEK_VERSION=1`, then run `rewrapCr
 - The comment worker, JavobAI runtime and Content Scheduler still call
   `lib/meta/*` directly. The comment guard's hide already goes through the adapter.
 - Instagram tokens still live in `InstagramAccount.accessToken` (refreshed by the
-  existing cron); the vault holds the new channels' tokens (Telegram, Facebook,
-  Threads, YouTube) from phase 4 on.
+  existing cron); the vault holds the new channels' tokens (Facebook, Threads,
+  YouTube). Telegram uses the platform bot (audit variant A), so it has no
+  per-channel secret; a customer's own bot token (variant B) is not built.
+- Telegram inbox messages are answered by a person (panel or the Telegram alert
+  button); JavobAI auto-replies are Instagram-only until the runtime is
+  channel-neutral. Telegram post statistics need MTProto (audit: later).
 - Meta webhook processing still runs inline in the route (it enqueues per event);
   moving the whole parse into the worker is a separate change.

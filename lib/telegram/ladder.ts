@@ -9,6 +9,7 @@
  *   jai:ddrop:<draftId>   drop the draft
  *   jai:reply:<convId>    next text goes to the customer as the business
  *   jai:kb:<key>          propose the last typed answer as a fact
+ *   jai:treply:<msgId>    next text answers a Telegram channel comment / DM (T3)
  *
  * Every action needs a chat linked to the workspace and a presser linked to
  * a member of it: a forwarded card in a stranger's chat can do nothing.
@@ -23,7 +24,10 @@ import type { BotIO } from "./onboarding";
 const AWAIT_TTL_S = 30 * 60;
 const KB_TTL_S = 24 * 60 * 60;
 
-type Awaiting = { kind: "draft"; id: string; workspaceId: string } | { kind: "reply"; conversationId: string; workspaceId: string };
+type Awaiting =
+  | { kind: "draft"; id: string; workspaceId: string }
+  | { kind: "reply"; conversationId: string; workspaceId: string }
+  | { kind: "tgmsg"; id: string; workspaceId: string };
 
 function awaitKey(chatId: string, tgUserId: string) {
   return `jai:await:${chatId}:${tgUserId}`;
@@ -46,7 +50,17 @@ const NOT_ALLOWED = "Bu amal uchun avval botga /start yozib, SocialAuto akkaunti
 
 export async function handleLadderCallback(io: BotIO, chatId: string, tgUserId: string, data: string): Promise<boolean> {
   const [, action, id] = data.split(":");
-  if (!id || !["dsend", "dedit", "ddrop", "reply", "kb"].includes(action)) return false;
+  if (!id || !["dsend", "dedit", "ddrop", "reply", "kb", "treply"].includes(action)) return false;
+
+  if (action === "treply") {
+    const message = await prisma.channelMessage.findUnique({ where: { id }, select: { workspaceId: true, authorName: true } });
+    if (!message) return void (await io.send(chatId, "Xabar topilmadi.")), true;
+    if (!(await memberName(message.workspaceId, chatId, tgUserId))) return void (await io.send(chatId, NOT_ALLOWED)), true;
+    const awaiting: Awaiting = { kind: "tgmsg", id, workspaceId: message.workspaceId };
+    await getRedisConnection().set(awaitKey(chatId, tgUserId), JSON.stringify(awaiting), "EX", AWAIT_TTL_S);
+    await io.send(chatId, `💬 ${esc(message.authorName ?? "Mijoz")}ga javobni shu chatga yozing (30 daqiqa). Bekor qilish: /bekor`);
+    return true;
+  }
 
   if (action === "kb") {
     const raw = await getRedisConnection().get(`jai:kbtext:${id}`).catch(() => null);
@@ -111,6 +125,12 @@ export async function handleLadderText(io: BotIO, chatId: string, tgUserId: stri
   const awaiting = JSON.parse(raw) as Awaiting;
   const who = await memberName(awaiting.workspaceId, chatId, tgUserId);
   if (!who) return void (await io.send(chatId, NOT_ALLOWED)), true;
+  if (awaiting.kind === "tgmsg") {
+    const { replyToChannelMessage } = await import("./channel");
+    const sent = await replyToChannelMessage(awaiting.workspaceId, awaiting.id, text, `tg:${who}`);
+    await io.send(chatId, sent.ok ? "✅ Telegram'da javob berildi." : `❌ ${esc(sent.error)}`);
+    return true;
+  }
   const runtime = await import("@/lib/javobai/runtime");
   let conversationId: string;
   let result;
