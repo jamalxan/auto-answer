@@ -1,0 +1,62 @@
+{
+  "instagram": {
+    "supports_dm": true,
+    "private_reply_once": true,
+    "private_reply_window_days": 7,
+    "dm_window_hours": 24,
+    "publish_daily_limit": 50,
+    "supports_hide": true,
+    "supports_trial": true,
+    "supports_publish": true,
+    "supports_insights": true,
+    "publish_formats": ["image", "video", "carousel", "reel", "story"]
+  },
+  "facebook": {
+    "supports_dm": true,
+    "private_reply_once": true,
+    "private_reply_window_days": 7,
+    "dm_window_hours": 24,
+    "publish_daily_limit": null,
+    "supports_hide": true,
+    "supports_trial": false,
+    "supports_publish": true,
+    "supports_insights": true,
+    "publish_formats": ["text", "image", "video", "reel"]
+  },
+  "threads": {
+    "supports_dm": false,
+    "private_reply_once": false,
+    "private_reply_window_days": null,
+    "dm_window_hours": null,
+    "publish_daily_limit": 250,
+    "supports_hide": true,
+    "supports_trial": false,
+    "supports_publish": true,
+    "supports_insights": true,
+    "publish_formats": ["text", "image", "video", "carousel"]
+  },
+  "youtube": {
+    "supports_dm": false,
+    "private_reply_once": false,
+    "private_reply_window_days": null,
+    "dm_window_hours": null,
+    "publish_daily_limit": null,
+    "supports_hide": false,
+    "supports_trial": false,
+    "supports_publish": true,
+    "supports_insights": true,
+    "publish_formats": ["video", "short"]
+  },
+  "telegram": {
+    "supports_dm": true,
+    "private_reply_once": false,
+    "private_reply_window_days": null,
+    "dm_window_hours": null,
+    "publish_daily_limit": null,
+    "supports_hide": false,
+    "supports_trial": false,
+    "supports_publish": true,
+    "supports_insights": false,
+    "publish_formats": ["text", "image", "video", "carousel"]
+  }
+}

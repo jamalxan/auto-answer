@@ -1,3 +1,4 @@
+import { installConsoleRedaction } from "@/lib/security/redact";
 import { createDMWorker } from "@/lib/queue/dm-worker";
 import { createAssistantWorker, runAssistantMaintenance } from "@/lib/queue/assistant-worker";
 import { recordWorkerHeartbeat } from "@/lib/ops/worker-health";
@@ -17,6 +18,9 @@ import { registerEngagementReferralModule } from "@/lib/engagement/referral/modu
 import { runIntegrationHealthMaintenance } from "@/lib/integrations/health";
 import { createContentWorkers, isContentSchedulerEnabled, runContentMaintenance } from "@/lib/content/worker";
 import os from "node:os";
+
+// Tokens, phones and e-mails never reach the worker's logs (audit T7).
+installConsoleRedaction();
 
 const worker = createDMWorker();
 // Lead assistant + CRM deliveries run on their own queue so a slow CRM or LLM

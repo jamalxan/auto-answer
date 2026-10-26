@@ -23,6 +23,7 @@ import {
 } from "@/lib/triggers/ingest";
 import { Prisma } from "@/app/generated/prisma/client";
 import { openingDmReadWhere } from "@/lib/campaigns/read-fallback";
+import { bodyFingerprint, forgetSeen, logRejectedWebhook, readLimitedBody, seenBefore } from "@/lib/webhooks/gateway";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
@@ -43,7 +44,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const rawBody = await request.text();
+  // Gateway (audit T2): size limit before anything is parsed.
+  const read = await readLimitedBody(request);
+  if (!read.ok) {
+    await logRejectedWebhook("meta", read.status === 413 ? "body too large" : "body not utf-8");
+    return NextResponse.json({ success: false, error: read.status === 413 ? "Payload too large" : "Bad body" }, { status: read.status });
+  }
+  const rawBody = read.body;
   const signature = request.headers.get("x-hub-signature-256");
 
   let signatureValid: boolean;
@@ -69,27 +76,21 @@ export async function POST(request: NextRequest) {
   }
 
   if (!signatureValid) {
-    // Record the attempt so a signature mismatch is visible rather than a
-    // silent 401. This is the common symptom of FACEBOOK_APP_SECRET being
-    // set to the wrong app's secret for the webhook's signing key.
-    await prisma.operationalEvent
-      .create({
-        data: {
-          source: "SYSTEM",
-          level: "WARNING",
-          message: "Webhook signature verification failed",
-          payload: {
-            hadSignatureHeader: Boolean(signature),
-            bodyLength: rawBody.length,
-            bodyPreview: rawBody.slice(0, 200),
-          },
-        },
-      })
-      .catch(() => {});
+    // Visible, rate-limited and without the body (a forged request must not
+    // flood the database or plant text in it). A steady stream of these is the
+    // symptom of FACEBOOK_APP_SECRET set to the wrong app's secret.
+    await logRejectedWebhook("meta", "signature verification failed", { bodyLength: rawBody.length, hadSignature: Boolean(signature) });
     return NextResponse.json(
       { success: false, error: "Invalid signature" },
       { status: 401 }
     );
+  }
+
+  // Meta redelivers the same batch when it did not see our 200 in time: a
+  // byte-identical body within 48 h is acknowledged and not processed again.
+  const fingerprint = bodyFingerprint(rawBody);
+  if (await seenBefore("meta", fingerprint)) {
+    return NextResponse.json({ success: true, duplicate: true }, { status: 200 });
   }
 
   let payload: unknown;
@@ -371,6 +372,8 @@ export async function POST(request: NextRequest) {
         processedAt: new Date(),
       },
     });
+    // 500 makes Meta retry: that retry must not be swallowed by the dedup.
+    await forgetSeen("meta", fingerprint);
 
     return NextResponse.json(
       { success: false, error: "Webhook processing failed" },

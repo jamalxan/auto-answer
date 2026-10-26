@@ -98,6 +98,7 @@ model Workspace {
   aiEvalCases        AiEvalCase[]
   aiEvalRuns         AiEvalRun[]
   commentModerations CommentModeration[]
+  channelCredentials ChannelCredential[]
   dmLogs             DmLog[]
   trackedLinks       TrackedLink[]
   linkClicks         LinkClick[]
@@ -3534,4 +3535,44 @@ model CommentModeration {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt])
+}
+
+// --- Credential vault (audit 2026-10-26, T1): every channel token, envelope-encrypted ---
+
+enum ChannelCredentialStatus {
+  ACTIVE
+  EXPIRING
+  REVOKED
+  ERROR
+}
+
+/// One connected channel account's secrets. encryptedPayload is AES-256-GCM
+/// under a per-row data key (DEK); the DEK itself is encrypted with the key
+/// encryption key of `keyVersion` (KEK rotation re-wraps DEKs only).
+model ChannelCredential {
+  id                String                  @id @default(cuid())
+  workspaceId       String
+  /// instagram | facebook | threads | youtube | telegram
+  channel           String
+  externalAccountId String
+  label             String?
+  encryptedPayload  String
+  dekEncrypted      String
+  keyVersion        Int
+  scopes            String[]                @default([])
+  expiresAt         DateTime?
+  refreshedAt       DateTime?
+  checkedAt         DateTime?
+  status            ChannelCredentialStatus @default(ACTIVE)
+  lastErrorCode     String?
+  lastErrorAt       DateTime?
+  /// The owner was told about the current error (once per error).
+  alertedAt         DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, channel, externalAccountId])
+  @@index([status, expiresAt])
 }
