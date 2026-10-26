@@ -19,6 +19,7 @@ export const ru = {
     inbox: "Входящие",
     campaigns: "Кампании",
     newCampaign: "Новая кампания",
+    content: "Контент-план",
     dmLogs: "Журнал DM",
     settings: "Настройки",
     diagnostics: "Диагностика",

@@ -10,7 +10,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { MEDIA, storageQuotaBytes } from "./config";
 import { ContentError, MEDIA_NOT_FOUND, notFound } from "./errors";
-import { enqueueMediaProcess } from "./queue";
+import { enqueueMediaProcess, hasLiveMediaJob } from "./queue";
 import { getStorage, mediaKey } from "./storage";
 
 export const MIME_EXT: Record<string, { ext: string; kind: "IMAGE" | "VIDEO" }> = {
@@ -66,29 +66,40 @@ export async function presignUpload(workspaceId: string, userId: string | null, 
     throw new ContentError(413, mime.kind === "IMAGE" ? "Rasm 30 MB dan katta" : "Video 1 GB dan katta");
   }
 
-  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { mediaStorageBytes: true } });
-  if (!workspace) throw notFound("Workspace topilmadi");
-  const used = Number(workspace.mediaStorageBytes);
-  if (used + input.sizeBytes > storageQuotaBytes()) {
+  // Reserve the bytes first, in one conditional UPDATE: twenty files dropped
+  // at once cannot all pass a read-then-write quota check. A failed upload is
+  // released by deleteMedia / the abandoned-upload sweeper.
+  const size = BigInt(input.sizeBytes);
+  const quota = BigInt(storageQuotaBytes());
+  const reserved = await prisma.workspace.updateMany({
+    where: { id: workspaceId, mediaStorageBytes: { lte: quota - size } },
+    data: { mediaStorageBytes: { increment: size } },
+  });
+  if (reserved.count === 0) {
+    const exists = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+    if (!exists) throw notFound("Workspace topilmadi");
     throw new ContentError(413, "Ombor kvotasi to'ldi — keraksiz fayllarni o'chiring");
   }
 
   const key = mediaKey(workspaceId, mime.ext);
-  const asset = await prisma.mediaAsset.create({
-    data: {
-      workspaceId,
-      uploadedById: userId ?? undefined,
-      kind: mime.kind,
-      originalKey: key,
-      mimeType: input.mimeType,
-      sizeBytes: BigInt(input.sizeBytes),
-      status: "UPLOADING",
-      tags: [],
-    },
-  });
-  // The original is counted from the start so two parallel uploads cannot
-  // both pass the quota check; a failed upload is released by deleteMedia.
-  await prisma.workspace.update({ where: { id: workspaceId }, data: { mediaStorageBytes: { increment: BigInt(input.sizeBytes) } } });
+  let asset;
+  try {
+    asset = await prisma.mediaAsset.create({
+      data: {
+        workspaceId,
+        uploadedById: userId ?? undefined,
+        kind: mime.kind,
+        originalKey: key,
+        mimeType: input.mimeType,
+        sizeBytes: size,
+        status: "UPLOADING",
+        tags: [],
+      },
+    });
+  } catch (error) {
+    await prisma.workspace.update({ where: { id: workspaceId }, data: { mediaStorageBytes: { decrement: size } } }).catch(() => undefined);
+    throw error;
+  }
 
   const put = await getStorage().presignPut(key, { contentType: input.mimeType, contentLength: input.sizeBytes, expiresSec: PRESIGN_TTL_SEC });
   return { mediaId: asset.id, uploadUrl: put.url, headers: put.headers, expiresInSec: PRESIGN_TTL_SEC, key };
@@ -173,6 +184,45 @@ export async function listMedia(workspaceId: string, q: Partial<MediaQuery>): Pr
   return { items, total };
 }
 
+export interface MediaStatusRow {
+  id: string;
+  kind: string;
+  status: string;
+  error: string | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  thumbUrl: string | null;
+}
+
+export const MEDIA_STATUS_BATCH_MAX = 50;
+
+/**
+ * The upload queue's poll: the state of a handful of assets in one indexed
+ * lookup, instead of every file in flight re-reading the whole library.
+ * Ids of other workspaces are simply absent.
+ */
+export async function mediaStatuses(workspaceId: string, ids: string[]): Promise<MediaStatusRow[]> {
+  const unique = [...new Set(ids.filter((id) => typeof id === "string" && id.length > 0 && id.length <= 40))].slice(0, MEDIA_STATUS_BATCH_MAX);
+  if (unique.length === 0) return [];
+  const rows = await prisma.mediaAsset.findMany({
+    where: { id: { in: unique }, workspaceId },
+    select: { id: true, kind: true, status: true, error: true, width: true, height: true, durationMs: true, thumbKey: true },
+  });
+  return Promise.all(
+    rows.map(async (row) => ({
+      id: row.id,
+      kind: row.kind,
+      status: row.status,
+      error: row.error ?? null,
+      width: row.width ?? null,
+      height: row.height ?? null,
+      durationMs: row.durationMs ?? null,
+      thumbUrl: row.status === "READY" && row.thumbKey ? await signedMediaUrl(row.thumbKey) : null,
+    }))
+  );
+}
+
 /** FR-M5: delete only when no live post uses the asset; releases the quota. */
 export async function deleteMedia(workspaceId: string, mediaId: string): Promise<void> {
   const asset = await ownedAsset(workspaceId, mediaId);
@@ -222,6 +272,35 @@ export async function releaseAbandonedUploads(now: Date = new Date()): Promise<n
     }
   }
   return released;
+}
+
+/** A PROCESSING row untouched this long is checked against the queue. */
+export const STALLED_PROCESSING_MS = 20 * 60_000;
+export const STALLED_MESSAGE = "Qayta ishlash to'xtab qoldi — faylni qayta yuklang";
+
+/**
+ * A worker that died mid-job (out of memory, a deploy) leaves its asset in
+ * PROCESSING forever and the upload spinner never stops. Rows quiet for 20
+ * minutes whose job is no longer waiting or running are marked FAILED, so
+ * the screen says what happened. Queued-but-not-started jobs are left alone,
+ * however long the video queue is. Without the queue backend nothing is
+ * processed at all, so nothing is touched.
+ */
+export async function failStalledProcessing(now: Date, hasQueue: boolean): Promise<number> {
+  if (!hasQueue) return 0;
+  const stale = await prisma.mediaAsset.findMany({
+    where: { status: "PROCESSING", updatedAt: { lt: new Date(now.getTime() - STALLED_PROCESSING_MS) } },
+    orderBy: { updatedAt: "asc" },
+    take: 100,
+    select: { id: true },
+  });
+  let failed = 0;
+  for (const asset of stale) {
+    if (await hasLiveMediaJob(asset.id)) continue;
+    const res = await prisma.mediaAsset.updateMany({ where: { id: asset.id, status: "PROCESSING" }, data: { status: "FAILED", error: STALLED_MESSAGE } });
+    failed += res.count;
+  }
+  return failed;
 }
 
 /** Spec §7 "Saqlash muddati": a prepared copy outlives its last publish by 30 days. */

@@ -24,14 +24,14 @@ vi.mock("@/lib/content/storage", () => ({
   getStorageDriverName: () => "local",
 }));
 
-import { GET as bestTimesRoute } from "@/app/api/developer/content/accounts/[id]/best-times/route";
-import { GET as feedRoute } from "@/app/api/developer/content/accounts/[id]/feed/route";
+import { GET as bestTimesRoute } from "@/app/api/content/accounts/[id]/best-times/route";
+import { GET as feedRoute } from "@/app/api/content/accounts/[id]/feed/route";
 import { clearInsightsCache, gridFromOnlineFollowers, gridFromPosts, topCells, zonedWeekHour } from "@/lib/content/insights";
 
 const WS = "ws1";
 const DAY = 86_400_000;
 const ctx = (role: string, workspaceId = WS) => ({ userId: "u1", workspaceId, workspace: { id: workspaceId, name: "W", timezone: "Asia/Tashkent" }, role });
-const get = (path: string) => new NextRequest(`http://localhost/api/developer/content/${path}`);
+const get = (path: string) => new NextRequest(`http://localhost/api/content/${path}`);
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 type Handler = (url: URL) => { status?: number; body: unknown };

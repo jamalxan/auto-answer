@@ -31,15 +31,15 @@ vi.mock("@/lib/content/storage", () => ({
   mediaKey: (ws: string, ext: string) => `ws/${ws}/x.${ext}`,
 }));
 
-import { POST as previewRoute } from "@/app/api/developer/content/import/csv/route";
-import { POST as commitRoute } from "@/app/api/developer/content/import/csv/commit/route";
-import { GET as templateRoute } from "@/app/api/developer/content/import/csv/template/route";
-import { POST as captionRoute } from "@/app/api/developer/content/ai/caption/route";
+import { POST as previewRoute } from "@/app/api/content/import/csv/route";
+import { POST as commitRoute } from "@/app/api/content/import/csv/commit/route";
+import { GET as templateRoute } from "@/app/api/content/import/csv/template/route";
+import { POST as captionRoute } from "@/app/api/content/ai/caption/route";
 import { type LLMProvider, setLlmProviderForTests } from "@/lib/assistant/llm/provider";
 
 const WS = "ws1";
 const ctx = (role: string) => ({ userId: "u1", workspaceId: WS, workspace: { id: WS, name: "W", timezone: "Asia/Tashkent" }, role });
-const req = (path: string, body?: unknown) => new NextRequest(`http://localhost/api/developer/content/${path}`, { method: body === undefined ? "GET" : "POST", ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
+const req = (path: string, body?: unknown) => new NextRequest(`http://localhost/api/content/${path}`, { method: body === undefined ? "GET" : "POST", ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
 // A date a few days ahead in Tashkent (the time rules need now + 5 min … now + 1 year).
 const DAY = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
 const CSV = `text,date,time,account,type,media_url_1,draft\nSalom,${DAY},19:00,jamalxann,POST,https://x.uz/a.jpg,0\nBad,${DAY},19:00,nobody,POST,https://x.uz/a.jpg,0\n`;
@@ -86,7 +86,7 @@ describe("CSV import routes", () => {
   });
 
   it("non-JSON and empty bodies are 400", async () => {
-    const bad = new NextRequest("http://localhost/api/developer/content/import/csv", { method: "POST", body: "text,date", headers: { "content-type": "text/csv" } });
+    const bad = new NextRequest("http://localhost/api/content/import/csv", { method: "POST", body: "text,date", headers: { "content-type": "text/csv" } });
     expect((await previewRoute(bad)).status).toBe(400);
     expect((await previewRoute(req("import/csv", { csv: "" }))).status).toBe(400);
   });

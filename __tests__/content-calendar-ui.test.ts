@@ -3,7 +3,7 @@
  * bulk summary (FR-V4), best-time chips and heat map (FR-S7).
  */
 import { describe, expect, it } from "vitest";
-import { bestTimeLabel, bulkSummary, canMovePost, dropInstant, fromLocalInput, heatClass, nextOccurrence, toLocalInput } from "@/components/developer/content/shared";
+import { bestTimeLabel, bulkSummary, canMovePost, dropInstant, fromLocalInput, heatClass, nextOccurrence, toLocalInput } from "@/components/content/shared";
 
 const TZ = "Asia/Tashkent";
 

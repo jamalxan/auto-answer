@@ -2,8 +2,8 @@
  * ETAP 13 Faza 2 — composer logic of story series and recurrence (pure).
  */
 import { describe, expect, it } from "vitest";
-import { composerBlocked, emptyDraft, mediaRule, storySeriesLabel } from "@/components/developer/content/shared";
-import { emptyRecur, recurBody, recurPreview } from "@/components/developer/content/recurrence-fields";
+import { composerBlocked, emptyDraft, mediaRule, storySeriesLabel } from "@/components/content/shared";
+import { emptyRecur, recurBody, recurPreview } from "@/components/content/recurrence-fields";
 
 const limits = { captionChars: 2200, hashtags: 30, mentions: 20, firstCommentChars: 2200, altTextChars: 1000, carouselMax: 10, maxCollaborators: 3 };
 const item = (id: string) => ({ mediaId: id, kind: "IMAGE", status: "READY" });

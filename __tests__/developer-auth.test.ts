@@ -89,7 +89,11 @@ describe("developer module registry", () => {
     expect(new Set(DEVELOPER_MODULES.map((m) => m.key)).size).toBe(DEVELOPER_MODULES.length);
   });
 
-  it("only links modules under /developer", () => {
-    for (const m of navigableModules()) expect(m.href).toMatch(/^\/developer\//);
+  it("only links modules under /developer, or a promoted one to its main-dashboard page", () => {
+    const PROMOTED: Record<string, string> = { "content-scheduler": "/content" };
+    for (const m of navigableModules()) {
+      if (PROMOTED[m.key]) expect(m.href).toBe(PROMOTED[m.key]);
+      else expect(m.href).toMatch(/^\/developer\//);
+    }
   });
 });

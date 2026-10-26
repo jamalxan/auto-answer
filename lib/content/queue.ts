@@ -5,7 +5,9 @@
  *
  *   content-publish  prepare (container), publish (media_publish), first-comment,
  *                    manual-notify — one post per job, delayed to its time
- *   media-process    probe / convert / thumbnail one uploaded asset
+ *   media-process    probe / convert / thumbnail one uploaded VIDEO (ffmpeg, one at a time)
+ *   media-image      resize / thumbnail one uploaded IMAGE (sharp, a few in parallel) —
+ *                    its own queue so twenty photos never wait behind a 10-minute transcode
  *
  * Postgres is the source of truth: a lost job is recovered by the minute
  * sweeper (lib/content/sweep.ts). Job ids are deterministic
@@ -18,11 +20,13 @@
  */
 
 import { Queue, type JobsOptions } from "bullmq";
+import { prisma } from "@/lib/db/client";
 import { getRedisConnection } from "@/lib/queue/client";
 import { isContentSchedulerEnabled } from "./config";
 
 export const CONTENT_PUBLISH_QUEUE = "content-publish";
 export const MEDIA_PROCESS_QUEUE = "media-process";
+export const MEDIA_IMAGE_QUEUE = "media-image";
 
 export const PREPARE_JOB = "prepare";
 export const PUBLISH_JOB = "publish";
@@ -43,6 +47,7 @@ export interface MediaProcessJob {
 
 let publishQueue: Queue<PublishJob> | null = null;
 let mediaQueue: Queue<MediaProcessJob> | null = null;
+let imageQueue: Queue<MediaProcessJob> | null = null;
 
 export function getContentPublishQueue(): Queue<PublishJob> {
   if (!publishQueue) {
@@ -61,19 +66,25 @@ export function getContentPublishQueue(): Queue<PublishJob> {
   return publishQueue;
 }
 
+const MEDIA_JOB_OPTIONS: JobsOptions = {
+  removeOnComplete: { count: 500 },
+  removeOnFail: { age: 24 * 3600, count: 500 },
+  attempts: 2,
+  backoff: { type: "exponential", delay: 10_000 },
+};
+
 export function getMediaProcessQueue(): Queue<MediaProcessJob> {
   if (!mediaQueue) {
-    mediaQueue = new Queue<MediaProcessJob>(MEDIA_PROCESS_QUEUE, {
-      connection: getRedisConnection(),
-      defaultJobOptions: {
-        removeOnComplete: { count: 500 },
-        removeOnFail: { age: 24 * 3600, count: 500 },
-        attempts: 2,
-        backoff: { type: "exponential", delay: 10_000 },
-      },
-    });
+    mediaQueue = new Queue<MediaProcessJob>(MEDIA_PROCESS_QUEUE, { connection: getRedisConnection(), defaultJobOptions: MEDIA_JOB_OPTIONS });
   }
   return mediaQueue;
+}
+
+export function getMediaImageQueue(): Queue<MediaProcessJob> {
+  if (!imageQueue) {
+    imageQueue = new Queue<MediaProcessJob>(MEDIA_IMAGE_QUEUE, { connection: getRedisConnection(), defaultJobOptions: MEDIA_JOB_OPTIONS });
+  }
+  return imageQueue;
 }
 
 export function hasContentQueueBackend(): boolean {
@@ -136,9 +147,32 @@ export async function scheduleManualNotify(postId: string, attempt: number, at: 
   await addPublish(MANUAL_NOTIFY_JOB, { postId, attempt }, { jobId: publishJobId(postId, attempt, "manual"), delay: delayUntil(at) });
 }
 
+const mediaJobId = (mediaId: string) => safeJobId(`media_${mediaId}`);
+
+/** Images and videos go to their own queues (see the header); the kind is read from the row. */
 export async function enqueueMediaProcess(mediaId: string): Promise<void> {
   if (!hasContentQueueBackend()) return;
-  await getMediaProcessQueue().add(MEDIA_PROCESS_JOB, { mediaId }, { jobId: safeJobId(`media_${mediaId}`) });
+  const asset = await prisma.mediaAsset.findUnique({ where: { id: mediaId }, select: { kind: true } });
+  const queue = asset?.kind === "IMAGE" ? getMediaImageQueue() : getMediaProcessQueue();
+  // A finished job keeps its id for a while (removeOnComplete count): drop it so a re-prepare is not a silent no-op.
+  const old = await queue.getJob(mediaJobId(mediaId)).catch(() => null);
+  if (old) {
+    const state = await old.getState().catch(() => "unknown");
+    if (state === "completed" || state === "failed") await old.remove().catch(() => undefined);
+  }
+  await queue.add(MEDIA_PROCESS_JOB, { mediaId }, { jobId: mediaJobId(mediaId) });
+}
+
+/** Is a processing job for this asset still waiting or running (in either media queue)? */
+export async function hasLiveMediaJob(mediaId: string): Promise<boolean> {
+  if (!hasContentQueueBackend()) return false;
+  for (const queue of [getMediaImageQueue(), getMediaProcessQueue()]) {
+    const job = await queue.getJob(mediaJobId(mediaId)).catch(() => null);
+    if (!job) continue;
+    const state = await job.getState().catch(() => "unknown");
+    if (state === "waiting" || state === "delayed" || state === "active" || state === "prioritized") return true;
+  }
+  return false;
 }
 
 /** Drop every pending job of one attempt (pause, unschedule, delete). Live (active) jobs finish on their own. */
@@ -175,9 +209,12 @@ export interface QueueCounts {
 export async function contentQueueCounts(): Promise<{ publish: QueueCounts; media: QueueCounts } | null> {
   if (!hasContentQueueBackend()) return null;
   const pick = (c: Record<string, number>): QueueCounts => ({ waiting: c.waiting ?? 0, delayed: c.delayed ?? 0, active: c.active ?? 0, failed: c.failed ?? 0 });
-  const [publish, media] = await Promise.all([
+  const [publish, video, image] = await Promise.all([
     getContentPublishQueue().getJobCounts("waiting", "delayed", "active", "failed"),
     getMediaProcessQueue().getJobCounts("waiting", "delayed", "active", "failed"),
+    getMediaImageQueue().getJobCounts("waiting", "delayed", "active", "failed"),
   ]);
-  return { publish: pick(publish), media: pick(media) };
+  const v = pick(video);
+  const i = pick(image);
+  return { publish: pick(publish), media: { waiting: v.waiting + i.waiting, delayed: v.delayed + i.delayed, active: v.active + i.active, failed: v.failed + i.failed } };
 }

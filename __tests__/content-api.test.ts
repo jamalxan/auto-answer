@@ -47,17 +47,17 @@ vi.mock("@/lib/content/storage", () => ({
 vi.mock("@/lib/telegram/notify", () => ({ getWorkspaceChats: async () => [], alertWorkspace: vi.fn() }));
 vi.mock("@/lib/telegram/api", () => ({ isTelegramConfigured: () => false }));
 
-import { GET as metaRoute } from "@/app/api/developer/content/meta/route";
-import { GET as listRoute, POST as createRoute } from "@/app/api/developer/content/posts/route";
-import { DELETE as deleteRoute, GET as getRoute, PATCH as patchRoute } from "@/app/api/developer/content/posts/[id]/route";
-import { POST as actionRoute } from "@/app/api/developer/content/posts/[id]/[action]/route";
-import { POST as presignRoute } from "@/app/api/developer/content/media/presign/route";
-import { GET as queueStatsRoute } from "@/app/api/developer/content/queue-stats/route";
+import { GET as metaRoute } from "@/app/api/content/meta/route";
+import { GET as listRoute, POST as createRoute } from "@/app/api/content/posts/route";
+import { DELETE as deleteRoute, GET as getRoute, PATCH as patchRoute } from "@/app/api/content/posts/[id]/route";
+import { POST as actionRoute } from "@/app/api/content/posts/[id]/[action]/route";
+import { POST as presignRoute } from "@/app/api/content/media/presign/route";
+import { GET as queueStatsRoute } from "@/app/api/content/queue-stats/route";
 
 const WS = "ws1";
 const ctx = (role: string, workspaceId = WS) => ({ userId: "u1", workspaceId, workspace: { id: workspaceId, name: "W", timezone: "Asia/Tashkent" }, role });
 const req = (method: string, path: string, body?: unknown) =>
-  new NextRequest(`http://localhost/api/developer/content/${path}`, { method, ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
+  new NextRequest(`http://localhost/api/content/${path}`, { method, ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
 const params = <T extends Record<string, string>>(p: T) => ({ params: Promise.resolve(p) });
 
 beforeEach(() => {
@@ -79,9 +79,11 @@ async function createDraft() {
 }
 
 describe("guard", () => {
-  it("answers 404 without a developer session", async () => {
+  it("is a main-dashboard API: no developer login needed, the app session is", async () => {
     mocks.developerSession.mockResolvedValue(null);
-    expect((await listRoute(req("GET", "posts"))).status).toBe(404);
+    expect((await listRoute(req("GET", "posts"))).status).toBe(200);
+    mocks.workspaceContext.mockResolvedValue(null);
+    expect((await listRoute(req("GET", "posts"))).status).toBe(401);
   });
 
   it("answers 404 when the module is switched off", async () => {

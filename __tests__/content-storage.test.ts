@@ -123,7 +123,7 @@ describe("local driver", () => {
 
     const parsed = new URL(url);
     expect(parsed.origin).toBe("http://localhost:3000");
-    expect(parsed.pathname).toBe(`/api/developer/content/media/local/${KEY}`);
+    expect(parsed.pathname).toBe(`/api/content/media/local/${KEY}`);
     expect(parsed.searchParams.get("m")).toBe("put");
     const exp = Number(parsed.searchParams.get("exp"));
     expect(exp).toBeGreaterThanOrEqual(before + 600);
@@ -141,7 +141,7 @@ describe("local driver", () => {
   it("presignGet returns a GET-method URL", async () => {
     const storage = getStorage();
     const url = new URL(await storage.presignGet(KEY, 60));
-    expect(url.pathname).toBe(`/api/developer/content/media/local/${KEY}`);
+    expect(url.pathname).toBe(`/api/content/media/local/${KEY}`);
     expect(url.searchParams.get("m")).toBe("get");
     const exp = Number(url.searchParams.get("exp"));
     expect(verifyLocalToken(KEY, url.searchParams.get("token")!, exp, "get")).toBe(true);
@@ -164,7 +164,7 @@ describe("local driver", () => {
 
 describe("local route", () => {
   async function loadRoute() {
-    return import("@/app/api/developer/content/media/local/[...key]/route");
+    return import("@/app/api/content/media/local/[...key]/route");
   }
 
   function ctx(key: string) {
@@ -219,7 +219,7 @@ describe("local route", () => {
     const route = await loadRoute();
     const exp = Math.floor(Date.now() / 1000) + 60;
     const evil = "../x";
-    const url = `http://localhost:3000/api/developer/content/media/local/${evil}?exp=${exp}&m=get&token=${signLocalToken(evil, exp, "get")}`;
+    const url = `http://localhost:3000/api/content/media/local/${evil}?exp=${exp}&m=get&token=${signLocalToken(evil, exp, "get")}`;
     // an invalid key is "no such file" (404), so the route reveals nothing about what exists
     expect((await route.GET(new NextRequest(url), ctx(evil))).status).toBe(404);
 
@@ -253,7 +253,7 @@ describe("local route", () => {
     resetStorageForTests();
     const route = await loadRoute();
     const exp = Math.floor(Date.now() / 1000) + 60;
-    const url = `http://localhost:3000/api/developer/content/media/local/${KEY}?exp=${exp}&m=get&token=${signLocalToken(KEY, exp, "get")}`;
+    const url = `http://localhost:3000/api/content/media/local/${KEY}?exp=${exp}&m=get&token=${signLocalToken(KEY, exp, "get")}`;
     expect((await route.GET(new NextRequest(url), ctx(KEY))).status).toBe(404);
   });
 });

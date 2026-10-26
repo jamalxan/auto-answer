@@ -45,10 +45,10 @@ vi.mock("@/lib/telegram/api", () => ({ isTelegramConfigured: () => false, sendMe
 vi.mock("@/lib/email", () => ({ sendEmail: mocks.sendEmail }));
 
 import { GET as publicGet, POST as publicPost } from "@/app/api/content/reviews/[token]/route";
-import { GET as metaRoute } from "@/app/api/developer/content/meta/route";
-import { GET as actionGet, POST as actionRoute } from "@/app/api/developer/content/posts/[id]/[action]/route";
-import { POST as createRoute } from "@/app/api/developer/content/posts/route";
-import { GET as reviewsRoute } from "@/app/api/developer/content/reviews/route";
+import { GET as metaRoute } from "@/app/api/content/meta/route";
+import { GET as actionGet, POST as actionRoute } from "@/app/api/content/posts/[id]/[action]/route";
+import { POST as createRoute } from "@/app/api/content/posts/route";
+import { GET as reviewsRoute } from "@/app/api/content/reviews/route";
 
 const WS = "ws1";
 const ctx = (role: string, userId = "op", workspaceId = WS) => ({ userId, workspaceId, workspace: { id: workspaceId, name: "W", timezone: "Asia/Tashkent" }, role });

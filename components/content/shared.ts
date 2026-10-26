@@ -1,0 +1,600 @@
+/**
+ * Types, labels and pure helpers of the Content Scheduler (ETAP 13) screens.
+ * Client-safe: no server imports except pure modules (validate.ts matrix,
+ * time.ts, text.ts). The fetch helper is shared with Comment 2.0.
+ */
+
+import { FIELD_MATRIX, type FieldRules } from "@/lib/content/validate";
+import type { PostStatusValue, PostTypeValue } from "@/lib/content/schema";
+import { formatZoned, utcToZoned, zonedToUtc } from "@/lib/content/time";
+import { CONTENT_LIMITS } from "@/lib/content/config";
+
+export { jsonInit, requestJson, type JsonResult } from "@/components/developer/comments/shared";
+import { countCaption } from "@/lib/content/text";
+export { countCaption };
+export { utcToZoned, zonedToUtc, formatZoned } from "@/lib/content/time";
+
+export const CONTENT_API = "/api/content";
+
+export type { PostStatusValue, PostTypeValue };
+
+export type CardTone = "success" | "warning" | "error" | "muted" | "scheduled" | "busy";
+
+export const TYPE_LABEL: Record<PostTypeValue, string> = {
+  FEED_IMAGE: "Post",
+  FEED_VIDEO: "Video post",
+  CAROUSEL: "Karusel",
+  REEL: "Reels",
+  TRIAL_REEL: "Trial Reels",
+  STORY: "Story",
+};
+
+export const TYPE_ICON: Record<PostTypeValue, string> = {
+  FEED_IMAGE: "▣",
+  FEED_VIDEO: "▶",
+  CAROUSEL: "▣▣",
+  REEL: "▶",
+  TRIAL_REEL: "▶?",
+  STORY: "◯",
+};
+
+export const STATUS_LABEL: Record<PostStatusValue, string> = {
+  DRAFT: "Draft",
+  PENDING_REVIEW: "Tasdiq kutilmoqda",
+  SCHEDULED: "Rejalashtirilgan",
+  PAUSED: "Pauzada",
+  PREPARING: "Tayyorlanmoqda",
+  READY_TO_PUBLISH: "Tayyor, vaqt kutilmoqda",
+  PUBLISHING: "Chiqarilmoqda",
+  PUBLISHED: "Chiqdi",
+  NEEDS_MANUAL: "Qo'lda e'lon kerak",
+  PUBLISHED_MANUAL: "Qo'lda chiqarildi",
+  FAILED: "Xato",
+  REJECTED: "Rad etildi",
+  EXPIRED_REVIEW: "Tasdiq muddati o'tdi",
+  CANCELED: "Bekor qilindi",
+};
+
+export function postCardTone(status: PostStatusValue): CardTone {
+  switch (status) {
+    case "PUBLISHED":
+    case "PUBLISHED_MANUAL":
+      return "success";
+    case "FAILED":
+    case "REJECTED":
+    case "EXPIRED_REVIEW":
+      return "error";
+    case "NEEDS_MANUAL":
+    case "PENDING_REVIEW":
+    case "PAUSED":
+      return "warning";
+    case "SCHEDULED":
+      return "scheduled";
+    case "PREPARING":
+    case "READY_TO_PUBLISH":
+    case "PUBLISHING":
+      return "busy";
+    default:
+      return "muted";
+  }
+}
+
+// Filled tints, no hairlines (DESIGN.md "App pages"); `border-transparent` keeps
+// call sites that add `border` for layout from drawing a currentColor line.
+export const TONE_CLASS: Record<CardTone, string> = {
+  success: "border-transparent bg-lime/12 text-lime",
+  warning: "border-transparent bg-warning/12 text-warning",
+  error: "border-transparent bg-error/12 text-error",
+  muted: "border-transparent bg-white/[0.06] text-muted",
+  scheduled: "border-transparent bg-violet/25 text-white",
+  busy: "border-transparent bg-violet/12 text-cloud",
+};
+
+export const DOT_CLASS: Record<CardTone, string> = {
+  success: "bg-lime",
+  warning: "bg-warning",
+  error: "bg-error",
+  muted: "bg-muted",
+  scheduled: "bg-violet",
+  busy: "bg-violet/60",
+};
+
+/** Calendar bucket key = the wall-clock date in the workspace zone. Unscheduled posts are left out. */
+export function groupPostsByDay<T extends { scheduledAt: string | Date | null }>(posts: T[], tz: string): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const post of posts) {
+    if (!post.scheduledAt) continue;
+    const date = post.scheduledAt instanceof Date ? post.scheduledAt : new Date(post.scheduledAt);
+    if (Number.isNaN(date.getTime())) continue;
+    const key = utcToZoned(date, tz).date;
+    const list = out.get(key) ?? [];
+    list.push(post);
+    out.set(key, list);
+  }
+  for (const list of out.values()) list.sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime());
+  return out;
+}
+
+export type ComposerMode = "draft" | "schedule" | "now";
+
+export function composerButtonLabel(s: { mode: ComposerMode; at: Date | null; tz: string; canSchedule: boolean }): string {
+  if (s.mode === "draft") return "Draft sifatida saqlash";
+  if (!s.canSchedule) return "Tasdiqqa yuborish";
+  if (s.mode === "now") return "Hozir chiqarish";
+  return s.at ? `Rejalashtirish · ${formatZoned(s.at, s.tz)}` : "Rejalashtirish";
+}
+
+export type FieldKey = keyof Omit<FieldRules, "media" | "userTagCoords">;
+
+export function fieldVisible(type: PostTypeValue, field: FieldKey): boolean {
+  return FIELD_MATRIX[type][field] === true;
+}
+
+/**
+ * FR-C2: the type follows the media. A video in a feed post becomes a video
+ * post (Instagram publishes it as Reels), two or more files make a carousel,
+ * an image in a video type becomes a feed image. Types whose media rule
+ * already accepts the selection keep it.
+ */
+export function typeForMedia(current: PostTypeValue, kinds: string[]): PostTypeValue {
+  if (kinds.length === 0) return current;
+  if (current === "STORY" || current === "CAROUSEL") return current;
+  if (kinds.length > 1) return "CAROUSEL";
+  const kind = kinds[0];
+  const allowed = FIELD_MATRIX[current].media.kinds as string[];
+  if (allowed.includes(kind)) return current;
+  return kind === "VIDEO" ? "FEED_VIDEO" : "FEED_IMAGE";
+}
+
+export interface ComposerLimits {
+  captionChars: number;
+  hashtags: number;
+  mentions: number;
+  firstCommentChars: number;
+  altTextChars: number;
+  carouselMax: number;
+  maxCollaborators: number;
+}
+
+/**
+ * FR-C3: why the main button is disabled, or null. Only the limits the
+ * client can check without the server; the server's issues come on top.
+ */
+export function composerBlocked(draft: PostDraft, limits: ComposerLimits): string | null {
+  if (!draft.instagramAccountId) return "Akkaunt tanlanmagan";
+  const rule = mediaRule(draft.type);
+  if (draft.media.length === 0) return "Media tanlanmagan";
+  const max = rule.max === "carousel" ? limits.carouselMax : rule.max;
+  if (draft.media.length < rule.min) return `Kamida ${rule.min} ta media kerak`;
+  if (draft.media.length > max) return `Ko'pi bilan ${max} ta media`;
+  const notReady = draft.media.find((m) => m.status && m.status !== "READY");
+  if (notReady) return "Media hali tayyor emas";
+  if (fieldVisible(draft.type, "caption")) {
+    const c = countCaption(draft.caption);
+    if (c.chars > limits.captionChars) return `Caption ${limits.captionChars} belgidan oshdi`;
+    if (c.hashtags > limits.hashtags) return `Hashtag ${limits.hashtags} tadan ko'p`;
+    if (c.mentions > limits.mentions) return `@mention ${limits.mentions} tadan ko'p`;
+  }
+  if (fieldVisible(draft.type, "firstComment") && countCaption(draft.firstComment).chars > limits.firstCommentChars) return `Birinchi komment ${limits.firstCommentChars} belgidan oshdi`;
+  if (fieldVisible(draft.type, "collaborators") && draft.collaborators.length > limits.maxCollaborators) return `Hammualliflar ${limits.maxCollaborators} tadan ko'p`;
+  return null;
+}
+
+/**
+ * FR-S1: the slot the schedule picker opens on. A clicked future day → 19:00
+ * there; otherwise now + 30 min rounded up to five minutes, in the zone.
+ */
+export function defaultSlot(initialDate: string | null, tz: string, now: Date = new Date()): { date: string; time: string } {
+  const today = utcToZoned(now, tz).date;
+  if (initialDate && initialDate > today) return { date: initialDate, time: "19:00" };
+  const step = 5 * 60_000;
+  const t = Math.ceil((now.getTime() + 30 * 60_000) / step) * step;
+  return utcToZoned(new Date(t), tz);
+}
+
+/** FR-C9: in the composer a story takes several media — scheduling makes them a series. */
+export function mediaRule(type: PostTypeValue): FieldRules["media"] {
+  const rule = FIELD_MATRIX[type].media;
+  return type === "STORY" ? { ...rule, max: CONTENT_LIMITS.storySeriesMax } : rule;
+}
+
+/** "3 ta story, 1 daqiqa oraliq bilan · 19:00, 19:01, 19:02" (FR-C9). */
+export function storySeriesLabel(count: number, at: Date | null, tz: string): string {
+  const gapMin = Math.round(CONTENT_LIMITS.storySeriesGapMs / 60_000);
+  const base = `${count} ta story, ${gapMin} daqiqa oraliq bilan`;
+  if (!at) return base;
+  const times = Array.from({ length: Math.min(count, 5) }, (_, i) => utcToZoned(new Date(at.getTime() + i * CONTENT_LIMITS.storySeriesGapMs), tz).time);
+  return `${base} · ${times.join(", ")}${count > 5 ? " …" : ""}`;
+}
+
+export function tagCoords(type: PostTypeValue): FieldRules["userTagCoords"] {
+  return FIELD_MATRIX[type].userTagCoords;
+}
+
+// ─── API shapes (mirror lib/content/service.ts, dates as ISO strings) ───────
+
+export interface ContentMeta {
+  disabled: boolean;
+  me: { role: string; normalizedRole: string; roleLabel: string; canCreate: boolean; canSchedule: boolean; canApprove: boolean };
+  accounts: Array<{ id: string; username: string; tokenStatus: string; canPublish: boolean; accountType: string | null; publishQuotaUsed: number | null }>;
+  campaigns: Array<{ kind: "automation" | "trigger"; id: string; name: string; instagramAccountId: string; active: boolean; keywords: string[]; linkedPostId: string | null; bound: boolean }>;
+  savedTexts: SavedText[];
+  timezone: string;
+  storage: { usedBytes: number; quotaBytes: number; configured: boolean; driver: string };
+  telegramConnected: boolean;
+  limits: { captionChars: number; hashtags: number; mentions: number; firstCommentChars: number; altTextChars: number; carouselMax: number; maxCollaborators: number };
+}
+
+export interface SavedText {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  updatedAt: string;
+}
+
+export interface UserTag {
+  username: string;
+  x?: number;
+  y?: number;
+}
+
+export interface PostMediaView {
+  id: string;
+  mediaId: string;
+  position: number;
+  altText: string | null;
+  userTags: UserTag[];
+  cropRect: { x: number; y: number; w: number; h: number } | null;
+  kind: string;
+  status: string;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  thumbUrl: string | null;
+  previewUrl: string | null;
+}
+
+export interface PostCard {
+  id: string;
+  instagramAccountId: string;
+  accountUsername: string | null;
+  type: PostTypeValue;
+  status: PostStatusValue;
+  caption: string | null;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  permalink: string | null;
+  thumbUrl: string | null;
+  mediaCount: number;
+  linked: boolean;
+  autoPublish: boolean;
+  lastErrorCode: string | null;
+  version: number;
+  seriesId?: string | null;
+  seriesIndex?: number | null;
+}
+
+/** FR-C9 / FR-S8: the story series or recurrence of a post. */
+export interface SeriesInfo {
+  id: string;
+  position: number;
+  total: number;
+  items: Array<{ id: string; seriesIndex: number; status: PostStatusValue; scheduledAt: string | null }>;
+}
+
+export interface PostDetail {
+  id: string;
+  instagramAccountId: string;
+  accountUsername: string | null;
+  type: PostTypeValue;
+  status: PostStatusValue;
+  caption: string | null;
+  firstComment: string | null;
+  collaborators: string[];
+  shareToFeed: boolean;
+  coverMediaId: string | null;
+  thumbOffsetMs: number | null;
+  trialStrategy: string | null;
+  audioName: string | null;
+  locationId: string | null;
+  isAiGenerated: boolean;
+  autoPublish: boolean;
+  manualReason: string | null;
+  scheduledAt: string | null;
+  timezone: string;
+  igMediaId: string | null;
+  permalink: string | null;
+  publishedAt: string | null;
+  firstCommentStatus: string | null;
+  attempts: number;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  labels: string[];
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  media: PostMediaView[];
+  attemptsLog: Array<{ id: string; step: string; ok: boolean; metaCode: number | null; message: string | null; durationMs: number | null; createdAt: string }>;
+  linkedCampaign: { kind: "automation" | "trigger"; id: string; name: string; keywords: string[]; active: boolean; waiting: boolean } | null;
+  issues: Array<{ field: string; message: string }>;
+  warnings?: Array<{ field: string; message: string }>;
+  series?: SeriesInfo | null;
+}
+
+export interface MediaRow {
+  id: string;
+  kind: string;
+  status: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  tags: string[];
+  error: string | null;
+  thumbUrl: string | null;
+  createdAt: string;
+  usedByPostIds: string[];
+}
+
+export interface MediaItemDraft {
+  mediaId: string;
+  altText?: string;
+  userTags?: UserTag[];
+  /** FR-M4 frame on the full image (0–1); null = as uploaded. */
+  cropRect?: { x: number; y: number; w: number; h: number } | null;
+  /** Client-only, for previews. */
+  thumbUrl?: string | null;
+  previewUrl?: string | null;
+  kind?: string;
+  status?: string;
+  width?: number | null;
+  height?: number | null;
+  durationMs?: number | null;
+}
+
+export interface PostDraft {
+  instagramAccountId: string;
+  type: PostTypeValue;
+  caption: string;
+  firstComment: string;
+  collaborators: string[];
+  shareToFeed: boolean;
+  coverMediaId: string | null;
+  thumbOffsetMs: number | null;
+  trialStrategy: "MANUAL" | "SS_PERFORMANCE" | null;
+  isAiGenerated: boolean;
+  autoPublish: boolean;
+  manualReason: "STORY_STICKER" | "MUSIC" | "USER_CHOICE" | null;
+  media: MediaItemDraft[];
+  labels: string[];
+  linkCampaign: { automationId?: string; triggerCampaignId?: string; create?: NewCampaignDraft } | null;
+}
+
+/** FR-L1: the composer's inline "Yangi kampaniya" form. */
+export interface NewCampaignDraft {
+  keywords: string[];
+  publicReply: string;
+  dmMessage: string;
+  link: string;
+  linkButtonLabel: string;
+  requireFollow: boolean;
+}
+
+export function emptyDraft(instagramAccountId: string, type: PostTypeValue = "FEED_IMAGE"): PostDraft {
+  return {
+    instagramAccountId,
+    type,
+    caption: "",
+    firstComment: "",
+    collaborators: [],
+    shareToFeed: true,
+    coverMediaId: null,
+    thumbOffsetMs: null,
+    trialStrategy: null,
+    isAiGenerated: false,
+    autoPublish: true,
+    manualReason: null,
+    media: [],
+    labels: [],
+    linkCampaign: null,
+  };
+}
+
+export function draftOfDetail(d: PostDetail): PostDraft {
+  return {
+    instagramAccountId: d.instagramAccountId,
+    type: d.type,
+    caption: d.caption ?? "",
+    firstComment: d.firstComment ?? "",
+    collaborators: d.collaborators,
+    shareToFeed: d.shareToFeed,
+    coverMediaId: d.coverMediaId,
+    thumbOffsetMs: d.thumbOffsetMs,
+    trialStrategy: (d.trialStrategy as PostDraft["trialStrategy"]) ?? null,
+    isAiGenerated: d.isAiGenerated,
+    autoPublish: d.autoPublish,
+    manualReason: (d.manualReason as PostDraft["manualReason"]) ?? null,
+    media: d.media.map((m) => ({ mediaId: m.mediaId, altText: m.altText ?? undefined, userTags: m.userTags, cropRect: m.cropRect, thumbUrl: m.thumbUrl, previewUrl: m.previewUrl, kind: m.kind, status: m.status, width: m.width, height: m.height, durationMs: m.durationMs })),
+    labels: d.labels,
+    linkCampaign: d.linkedCampaign ? (d.linkedCampaign.kind === "automation" ? { automationId: d.linkedCampaign.id } : { triggerCampaignId: d.linkedCampaign.id }) : null,
+  };
+}
+
+/** The body the API wants (client-only fields stripped). */
+export function draftToBody(d: PostDraft) {
+  return {
+    instagramAccountId: d.instagramAccountId,
+    type: d.type,
+    caption: fieldVisible(d.type, "caption") ? d.caption : undefined,
+    firstComment: fieldVisible(d.type, "firstComment") ? d.firstComment : undefined,
+    collaborators: fieldVisible(d.type, "collaborators") ? d.collaborators : [],
+    shareToFeed: d.shareToFeed,
+    coverMediaId: fieldVisible(d.type, "cover") ? d.coverMediaId : null,
+    thumbOffsetMs: fieldVisible(d.type, "cover") ? d.thumbOffsetMs : null,
+    trialStrategy: fieldVisible(d.type, "trial") ? d.trialStrategy : null,
+    isAiGenerated: d.isAiGenerated,
+    autoPublish: d.autoPublish,
+    manualReason: d.manualReason,
+    media: d.media.map((m) => ({ mediaId: m.mediaId, altText: m.altText || undefined, userTags: m.userTags?.length ? m.userTags : undefined, cropRect: m.cropRect ?? undefined })),
+    labels: d.labels,
+    linkCampaign: d.linkCampaign,
+  };
+}
+
+export function formatBytes(n: number): string {
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GB`;
+  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
+export function formatDuration(ms: number | null | undefined): string {
+  if (!ms) return "";
+  const s = Math.round(ms / 1000);
+  return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s} s`;
+}
+
+export const WEEKDAYS = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"];
+export const MONTHS = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+
+/** "2026-10-24" → the 6×7 grid of ISO dates of that month's calendar (Monday first). */
+export function monthGrid(year: number, month0: number): string[] {
+  const first = new Date(Date.UTC(year, month0, 1));
+  const offset = (first.getUTCDay() + 6) % 7;
+  const start = new Date(Date.UTC(year, month0, 1 - offset));
+  return Array.from({ length: 42 }, (_, i) => new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10));
+}
+
+/** The Monday-to-Sunday week containing an ISO date. */
+export function weekOf(isoDate: string): string[] {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  const offset = (d.getUTCDay() + 6) % 7;
+  const start = new Date(d.getTime() - offset * 86_400_000);
+  return Array.from({ length: 7 }, (_, i) => new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10));
+}
+
+export function todayIso(tz: string): string {
+  return utcToZoned(new Date(), tz).date;
+}
+
+// ─── Calendar moves, bulk, insights (Faza 2 WP-D: FR-S6, FR-V4, FR-V3, FR-S7) ─
+
+/** FR-S6: which cards may be dragged — a SCHEDULED one needs schedule, a draft only create. */
+export function canMovePost(status: PostStatusValue, me: { canCreate: boolean; canSchedule: boolean }): boolean {
+  if (status === "SCHEDULED") return me.canSchedule;
+  if (status === "DRAFT") return me.canCreate;
+  return false;
+}
+
+/**
+ * Where a dropped card lands: on a month day it keeps its time of day; on a
+ * week cell it takes the cell's hour and keeps its minutes. A draft with no
+ * planned time gets 19:00 (month) or :00 (week).
+ */
+export function dropInstant(current: string | null, day: string, hour: number | null, tz: string): Date {
+  const was = current ? utcToZoned(new Date(current), tz).time : null;
+  const minutes = was ? was.slice(3, 5) : "00";
+  const time = hour === null ? (was ?? "19:00") : `${String(hour).padStart(2, "0")}:${minutes}`;
+  return zonedToUtc(day, time, tz);
+}
+
+/** The value a `datetime-local` input shows for an instant in the zone. */
+export function toLocalInput(at: string | null, tz: string): string {
+  if (!at) return "";
+  const { date, time } = utcToZoned(new Date(at), tz);
+  return `${date}T${time}`;
+}
+
+export function fromLocalInput(value: string, tz: string): Date | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(value);
+  return m ? zonedToUtc(m[1], m[2], tz) : null;
+}
+
+export type BulkAction = "shift" | "pause" | "delete" | "review";
+
+export interface BulkReport {
+  action: BulkAction;
+  done: number;
+  failed: number;
+  results: Array<{ id: string; ok: boolean; status?: PostStatusValue; scheduledAt?: string | null; error?: string }>;
+}
+
+/** "3 ta post surildi · 1 ta xato" */
+export function bulkSummary(r: Pick<BulkReport, "action" | "done" | "failed">): string {
+  const verb = { shift: "surildi", pause: "pauza qilindi", delete: "o'chirildi", review: "tasdiqqa yuborildi" }[r.action];
+  return `${r.done} ta post ${verb}${r.failed ? ` · ${r.failed} ta xato` : ""}`;
+}
+
+export interface BestTimeCell {
+  weekday: number;
+  hour: number;
+  score: number;
+}
+
+export interface BestTimes {
+  source: "online_followers" | "own_posts" | "none";
+  metric: "online_followers" | "reach" | "engagement" | null;
+  timezone: string;
+  scores: number[][] | null;
+  top: BestTimeCell[];
+  sample: number;
+  followers: number | null;
+  reason: string | null;
+  computedAt: string;
+}
+
+export const BEST_TIMES_SOURCE_LABEL: Record<BestTimes["source"], string> = {
+  online_followers: "obunachilar onlayn bo'lgan soatlar (30 kun)",
+  own_posts: "postlaringiz natijasi (90 kun)",
+  none: "Ma'lumot yetarli emas",
+};
+
+/** "Ju 19:00" */
+export function bestTimeLabel(cell: { weekday: number; hour: number }): string {
+  return `${WEEKDAYS[cell.weekday]} ${String(cell.hour).padStart(2, "0")}:00`;
+}
+
+/** The next such weekday + hour in the zone at least five minutes from now (composer chips). */
+export function nextOccurrence(weekday: number, hour: number, tz: string, now: Date = new Date()): { date: string; time: string } {
+  const time = `${String(hour).padStart(2, "0")}:00`;
+  const today = utcToZoned(now, tz).date;
+  for (let i = 0; i < 15; i++) {
+    const date = new Date(new Date(`${today}T00:00:00Z`).getTime() + i * 86_400_000).toISOString().slice(0, 10);
+    const wd = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+    if (wd !== weekday) continue;
+    if (zonedToUtc(date, time, tz).getTime() >= now.getTime() + 5 * 60_000) return { date, time };
+  }
+  return { date: today, time };
+}
+
+/** Heat-map background of a week cell; empty for no score. */
+export function heatClass(score: number | undefined): string {
+  if (!score || score <= 0) return "";
+  if (score >= 0.85) return "bg-accent/25";
+  if (score >= 0.6) return "bg-accent/15";
+  if (score >= 0.35) return "bg-accent/10";
+  return "bg-accent/5";
+}
+
+export interface FeedTile {
+  key: string;
+  source: "instagram" | "planned";
+  postId: string | null;
+  mediaType: string;
+  imageUrl: string | null;
+  permalink: string | null;
+  at: string;
+  status: PostStatusValue | null;
+  draft: boolean;
+}
+
+export interface AccountFeed {
+  accountId: string;
+  username: string;
+  timezone: string;
+  items: FeedTile[];
+  publishedSource: "instagram" | "local";
+  notice: string | null;
+}

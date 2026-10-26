@@ -8,11 +8,14 @@
  * ffmpeg / ffprobe are system binaries (FFMPEG_PATH / FFPROBE_PATH,
  * default on PATH; the Docker image installs them) called through an
  * injectable `exec`, so tests never spawn anything. One transcode at a time
- * (the media worker has concurrency 1) and a 10-minute ceiling.
+ * (the video worker has concurrency 1) and a 10-minute ceiling. A video is
+ * streamed to a temp file and back (StorageDriver.downloadToFile / putFile),
+ * never held in memory whole: twenty 500 MB Reels dropped at once must not
+ * take the worker down.
  */
 
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -188,6 +191,20 @@ async function grabFrame(exec: ExecFn, input: string, output: string, atMs: numb
 
 // ── Orchestration ────────────────────────────────────────────────────────────
 
+const MAGIC_MISMATCH = "Fayl turi mos emas — fayl e'lon qilingan formatda emas";
+
+/** The first `bytes` of a file on disk (magic number, moov-before-mdat scan). */
+async function readHead(file: string, bytes: number): Promise<Buffer> {
+  const handle = await open(file, "r");
+  try {
+    const buf = Buffer.alloc(bytes);
+    const { bytesRead } = await handle.read(buf, 0, bytes, 0);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 function variantKey(originalKey: string, variant: "prepared" | "thumb", ext: string): string {
   const dot = originalKey.lastIndexOf(".");
   return `${originalKey.slice(0, dot)}.${variant}.${ext}`;
@@ -201,18 +218,11 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
   if (!asset || asset.status === "DELETED" || asset.status === "READY") return;
 
   const fail = async (message: string) => {
-    await prisma.mediaAsset.update({ where: { id: mediaId }, data: { status: "FAILED", error: message.slice(0, 500) } });
+    await prisma.mediaAsset.updateMany({ where: { id: mediaId, status: { not: "DELETED" } }, data: { status: "FAILED", error: message.slice(0, 500) } });
   };
 
   let tmp: string | null = null;
   try {
-    const original = await storage.getObject(asset.originalKey);
-    const magic = detectMagic(original.subarray(0, 16));
-    if (kindOfMagic(magic) !== asset.kind) {
-      await fail("Fayl turi mos emas — fayl e'lon qilingan formatda emas");
-      return;
-    }
-
     let preparedKey: string;
     let thumbKey: string;
     let preparedBytes: number;
@@ -220,6 +230,11 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
     const facts: { width?: number; height?: number; durationMs?: number; codec?: string; fps?: number } = {};
 
     if (asset.kind === "IMAGE") {
+      const original = await storage.getObject(asset.originalKey);
+      if (kindOfMagic(detectMagic(original.subarray(0, 16))) !== "IMAGE") {
+        await fail(MAGIC_MISMATCH);
+        return;
+      }
       const prepared = await prepareImage(original);
       const thumb = await thumbFromImage(prepared.out);
       preparedKey = variantKey(asset.originalKey, "prepared", "jpg");
@@ -234,9 +249,15 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
       tmp = await mkdtemp(path.join(deps.tmpDir ?? os.tmpdir(), "socialauto-media-"));
       const inputExt = asset.originalKey.slice(asset.originalKey.lastIndexOf(".") + 1) || "mp4";
       const input = path.join(tmp, `in.${inputExt}`);
-      await writeFile(input, original);
+      if (storage.downloadToFile) await storage.downloadToFile(asset.originalKey, input);
+      else await writeFile(input, await storage.getObject(asset.originalKey));
+      const head = await readHead(input, 64 * 1024);
+      if (kindOfMagic(detectMagic(head.subarray(0, 16))) !== "VIDEO") {
+        await fail(MAGIC_MISMATCH);
+        return;
+      }
       const probe = await probeVideo(input, exec);
-      probe.faststart = hasFaststart(original.subarray(0, 64 * 1024));
+      probe.faststart = hasFaststart(head);
       facts.width = probe.width;
       facts.height = probe.height;
       facts.durationMs = probe.durationMs;
@@ -246,16 +267,16 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
       if (needsTranscode(probe)) {
         const output = path.join(tmp, "out.mp4");
         await exec(ffmpegBin(), ffmpegArgs(input, output, probe), { timeoutMs: FFMPEG_TIMEOUT_MS });
-        const transcoded = await readFile(output);
         preparedKey = variantKey(asset.originalKey, "prepared", "mp4");
-        await storage.putObject(preparedKey, transcoded, "video/mp4");
-        addedBytes += transcoded.length;
-        preparedBytes = transcoded.length;
+        if (storage.putFile) await storage.putFile(preparedKey, output, "video/mp4");
+        else await storage.putObject(preparedKey, await readFile(output), "video/mp4");
+        preparedBytes = (await stat(output)).size;
+        addedBytes += preparedBytes;
         facts.codec = "h264";
         if (probe.fps !== undefined) facts.fps = Math.min(60, Math.max(23, Math.round(probe.fps)));
       } else {
         preparedKey = asset.originalKey;
-        preparedBytes = original.length;
+        preparedBytes = (await stat(input)).size;
       }
 
       const framePath = path.join(tmp, "thumb.jpg");
@@ -267,10 +288,18 @@ export async function processMedia(mediaId: string, deps: ProcessDeps = {}): Pro
       addedBytes += thumb.length;
     }
 
-    await prisma.mediaAsset.update({
-      where: { id: mediaId },
+    // The user may have cancelled (deleted) the upload while it was processed:
+    // never resurrect the row, and drop the copies just written.
+    const done = await prisma.mediaAsset.updateMany({
+      where: { id: mediaId, status: { not: "DELETED" } },
       data: { status: "READY", error: null, preparedKey, thumbKey, preparedBytes, ...facts },
     });
+    if (done.count === 0) {
+      for (const key of [preparedKey, thumbKey]) {
+        if (key !== asset.originalKey) await storage.deleteObject(key).catch(() => undefined);
+      }
+      return;
+    }
     if (addedBytes > 0) {
       await prisma.workspace.update({ where: { id: asset.workspaceId }, data: { mediaStorageBytes: { increment: BigInt(addedBytes) } } });
     }

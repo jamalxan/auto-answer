@@ -2,9 +2,9 @@
  * ETAP 13 — Content Scheduler: kill switch, env-driven limits and the fixed
  * Instagram Content Publishing constraints every other content module reads.
  *
- * Invisible outside the developer area until the owner promotes it.
+ * Lives in the main dashboard at /content (promoted from /developer 2026-10-26).
  * CONTENT_SCHEDULER_DISABLED=1 is the kill switch: no queues, no sweeper, the
- * API answers 404 like any unknown developer route.
+ * API answers 404 like any unknown route.
  */
 
 export function isContentSchedulerEnabled(): boolean {

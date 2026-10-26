@@ -3,7 +3,7 @@
  *
  * Dev / self-host fallback for the S3 driver: objects live under
  * MEDIA_LOCAL_DIR (default `.media`) and the "presigned" URLs point at
- * /api/developer/content/media/local/<key> with an HMAC token so the browser
+ * /api/content/media/local/<key> with an HMAC token so the browser
  * can PUT / GET without a session, exactly like it would against a bucket.
  *
  * The token signs `${method}|${key}|${exp}` with NEXTAUTH_SECRET, so a PUT
@@ -32,7 +32,7 @@ export const MEDIA_KEY_RE =
 
 export type LocalTokenMethod = "put" | "get";
 
-export const LOCAL_ROUTE_PREFIX = "/api/developer/content/media/local";
+export const LOCAL_ROUTE_PREFIX = "/api/content/media/local";
 
 export function isValidMediaKey(key: string): boolean {
   return typeof key === "string" && MEDIA_KEY_RE.test(key);
@@ -110,8 +110,13 @@ export function verifyLocalToken(
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+/** GET links of one key stay identical for ten minutes, so the browser cache works across list reloads. */
+const GET_EXP_BUCKET_SEC = 600;
+
 function localUrl(key: string, expiresSec: number, method: LocalTokenMethod): string {
-  const exp = Math.floor(Date.now() / 1000) + Math.max(1, Math.floor(expiresSec));
+  const raw = Math.floor(Date.now() / 1000) + Math.max(1, Math.floor(expiresSec));
+  // Rounded UP, so a link never lives shorter than asked; only long-lived GETs are bucketed.
+  const exp = method === "get" && expiresSec >= GET_EXP_BUCKET_SEC ? Math.ceil(raw / GET_EXP_BUCKET_SEC) * GET_EXP_BUCKET_SEC : raw;
   const url = new URL(`${LOCAL_ROUTE_PREFIX}/${key}`, getBaseUrl());
   url.searchParams.set("exp", String(exp));
   url.searchParams.set("m", method);
@@ -147,6 +152,16 @@ export class LocalStorageDriver implements StorageDriver {
 
   async getObject(key: string): Promise<Buffer> {
     return fs.readFile(localFilePath(key));
+  }
+
+  async downloadToFile(key: string, file: string): Promise<void> {
+    await fs.copyFile(localFilePath(key), file);
+  }
+
+  async putFile(key: string, file: string, _contentType: string): Promise<void> {
+    const target = localFilePath(key);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.copyFile(file, target);
   }
 
   async putObject(key: string, body: Buffer, _contentType: string): Promise<void> {

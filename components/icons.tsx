@@ -10,6 +10,7 @@ export type IconName =
   | "chart"
   | "inbox"
   | "megaphone"
+  | "calendar"
   | "sparkles"
   | "users"
   | "plug"
@@ -26,6 +27,13 @@ export type IconName =
   | "chevronUp";
 
 const paths: Record<IconName, React.ReactNode> = {
+  calendar: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+      <path d="M8 3v4M16 3v4M3.5 10h17" />
+      <path d="M8 14h3M8 17h6" />
+    </>
+  ),
   home: (
     <>
       <path d="M3 10.5 12 3l9 7.5" />

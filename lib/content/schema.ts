@@ -125,8 +125,11 @@ export const postsQuerySchema = z.object({
   type: z.enum(POST_TYPES).optional(),
   q: z.string().trim().max(100).optional(),
   linked: z.enum(["yes", "no"]).optional(),
+  /** "1": only posts with no time yet (the planner's draft tray). */
+  unscheduled: z.enum(["1"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).default(100),
+  // The planner timeline loads a whole window at once (a busy account plans hundreds of stories).
+  pageSize: z.coerce.number().int().min(1).max(500).default(100),
 });
 export type PostsQuery = z.infer<typeof postsQuerySchema>;
 

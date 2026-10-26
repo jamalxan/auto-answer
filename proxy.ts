@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = [
   "/assistant",
   "/leads",
   "/integrations",
+  "/content",
   // Developer area: needs the app session too (its modules work on the
   // signed-in workspace); its own login is checked by the pages.
   "/developer",
@@ -53,6 +54,7 @@ export const config = {
     "/assistant/:path*",
     "/leads/:path*",
     "/integrations/:path*",
+    "/content/:path*",
     "/developer/:path*",
     "/login",
   ],
