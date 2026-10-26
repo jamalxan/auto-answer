@@ -1,9 +1,9 @@
-import { randomBytes } from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { jsonError, jsonOk, requireWorkspace } from "@/lib/api-auth";
 import { prisma } from "@/lib/db/client";
 import { getBotUsername, isTelegramConfigured } from "@/lib/telegram/api";
+import { createLinkCode } from "@/lib/telegram/link-code";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +31,13 @@ export async function POST(request: NextRequest) {
     if (!owns) return jsonError("Instagram account not found", 404);
   }
 
-  const code = `onb_${randomBytes(12).toString("base64url")}`;
-  await prisma.telegramLinkCode.create({
-    data: {
-      code,
-      workspaceId: auth.ctx.workspaceId,
-      purpose: "onboarding",
-      userId: auth.ctx.userId,
-      igAccountId,
-      expiresAt: new Date(Date.now() + ONBOARDING_CODE_TTL_MS),
-    },
+  const code = await createLinkCode({
+    workspaceId: auth.ctx.workspaceId,
+    purpose: "onboarding",
+    userId: auth.ctx.userId,
+    igAccountId,
+    ttlMs: ONBOARDING_CODE_TTL_MS,
+    prefix: "onb_",
   });
   return jsonOk({ url: `https://t.me/${getBotUsername()}?start=${code}`, expiresInMinutes: 30 });
 }

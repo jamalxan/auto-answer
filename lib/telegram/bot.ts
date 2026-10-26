@@ -15,6 +15,7 @@ import { acceptHandoff, closeHandoff } from "@/lib/javobai/handoff";
 import { getRedisConnection } from "@/lib/queue/client";
 import { canManageWorkspace } from "@/lib/workspace-roles";
 import { handleLadderCallback, handleLadderText } from "./ladder";
+import { consumeLinkCode } from "./link-code";
 import { buildLeadKeyboard, buildLeadText } from "./lead-message";
 import {
   TelegramApiError,
@@ -104,14 +105,7 @@ function langOfLink(link: { language: string }): BotLang {
 // ─── Linking chats (lead delivery) ─────────────────────────────────────────────
 
 async function consumeCode(code: string) {
-  const row = await prisma.telegramLinkCode.findUnique({ where: { code } });
-  if (!row || row.usedAt || row.expiresAt < new Date()) return null;
-  // Single use, race-safe.
-  const claimed = await prisma.telegramLinkCode.updateMany({
-    where: { code, usedAt: null },
-    data: { usedAt: new Date() },
-  });
-  return claimed.count === 1 ? row : null;
+  return consumeLinkCode(code);
 }
 
 async function linkChat(io: BotIO, message: TgMessage, code: string, lang: BotLang) {
