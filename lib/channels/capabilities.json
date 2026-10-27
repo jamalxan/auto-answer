@@ -21,7 +21,7 @@
     "supports_trial": false,
     "supports_publish": true,
     "supports_insights": true,
-    "publish_formats": ["text", "image", "video", "reel"]
+    "publish_formats": ["text", "image", "video", "carousel", "reel"]
   },
   "threads": {
     "supports_dm": false,
@@ -41,7 +41,7 @@
     "private_reply_window_days": null,
     "dm_window_hours": null,
     "publish_daily_limit": null,
-    "supports_hide": false,
+    "supports_hide": true,
     "supports_trial": false,
     "supports_publish": true,
     "supports_insights": true,

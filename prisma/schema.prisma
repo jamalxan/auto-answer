@@ -178,7 +178,7 @@ model Workspace {
   // Monthly AI-conversation quota (TZ section 13). null = default from
   // lib/assistant/limits. The counter resets with usagePeriodStart.
   aiConversationsLimit       Int?
-  aiConversationsThisPeriod  Int               @default(0)
+  aiConversationsThisPeriod  Int                   @default(0)
   // Set when the LLM provider keeps failing: the assistant answers from
   // templates only until this moment.
   assistantTemplateOnlyUntil DateTime?
@@ -187,6 +187,7 @@ model Workspace {
   contentReports             ContentReport[]
   contentPlans               ContentPlan[]
   hookExperiments            HookExperiment[]
+  channelPrivateReplies      ChannelPrivateReply[]
 
   @@index([ownerId])
 }
@@ -3578,6 +3579,8 @@ model ChannelCredential {
   lastErrorAt       DateTime?
   /// The owner was told about the current error (once per error).
   alertedAt         DateTime?
+  /// Comment polling cursor (YouTube has no comment webhooks).
+  pollCursor        DateTime?
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
@@ -3686,19 +3689,24 @@ enum ChannelPostTargetStatus {
 
 /// Cross-posting a Content Scheduler post to another channel at the same slot.
 model ChannelPostTarget {
-  id          String                  @id @default(cuid())
-  workspaceId String
-  postId      String
-  channel     String
-  accountRef  String
-  status      ChannelPostTargetStatus @default(PENDING)
+  id            String                  @id @default(cuid())
+  workspaceId   String
+  postId        String
+  channel       String
+  accountRef    String
+  status        ChannelPostTargetStatus @default(PENDING)
   /// Message ids on the channel (an album has several).
-  externalIds String[]                @default([])
-  attempts    Int                     @default(0)
-  lastError   String?
-  publishedAt DateTime?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
+  externalIds   String[]                @default([])
+  attempts      Int                     @default(0)
+  lastError     String?
+  /// Not before this time (a platform quota resets later, e.g. YouTube at Pacific midnight).
+  nextAttemptAt DateTime?
+  /// The platform is still processing the upload (Reels, Threads container, YouTube video).
+  pollToken     String?
+  pollStartedAt DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
 
   workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   post      ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -3833,4 +3841,26 @@ model HookExperiment {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, status])
+}
+
+/// A private reply to a comment (Facebook: one message per comment, within
+/// 7 days). The unique row is claimed before the send, so a retry or a
+/// second worker can never send twice.
+model ChannelPrivateReply {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  channel      String
+  commentId    String
+  credentialId String
+  /// SENDING | SENT | FAILED
+  status       String   @default("SENDING")
+  externalId   String?
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, commentId])
+  @@index([workspaceId])
 }

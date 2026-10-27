@@ -149,6 +149,15 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     status: "TESTING",
     href: "/developer/content-intel",
   },
+  {
+    key: "channel-adapters",
+    etap: 16,
+    title: "Facebook · Threads · YouTube",
+    summary:
+      "Kanal adapterlari: OAuth ulash (vault), kommentlar va Messenger inbox, shaxsiy javob (bir marta, 7 kun), Content Scheduler'dan kross-post (Reels, Shorts, kunlik limit va kvota).",
+    status: "TESTING",
+    href: "/developer/channels",
+  },
 ];
 
 export const MODULE_STATUS_LABEL: Record<ModuleStatus, string> = {

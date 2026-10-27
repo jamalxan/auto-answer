@@ -169,7 +169,7 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
   result.quotaWarnings = notices.quotaWarnings;
   result.brokenWarnings = notices.brokenWarnings;
 
-  // 11: Telegram cross-posts (independent of the Instagram outcome).
+  // 11: cross-posts to Telegram / Facebook / Threads / YouTube (independent of the Instagram outcome).
   try {
     const { sweepCrossPosts } = await import("@/lib/channels/crosspost");
     const cross = await sweepCrossPosts(now);
@@ -177,6 +177,14 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
     result.crossFailed = cross.failed;
   } catch (error) {
     console.error("[Content] cross-post sweep failed:", error instanceof Error ? error.message : error);
+  }
+
+  // 12: YouTube has no comment webhooks: poll new comments (each channel every 15 min).
+  try {
+    const { pollYoutubeInbox } = await import("@/lib/channels/inbox");
+    await pollYoutubeInbox(now);
+  } catch (error) {
+    console.error("[Content] youtube comment poll failed:", error instanceof Error ? error.message : error);
   }
 
   return result;
