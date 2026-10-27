@@ -91,6 +91,7 @@ model Workspace {
   invitations        WorkspaceInvitation[]
   instagramAccounts  InstagramAccount[]
   automations        Automation[]
+  legacyMigrations   LegacyCampaignMigration[]
   dmLogs             DmLog[]
   trackedLinks       TrackedLink[]
   linkClicks         LinkClick[]
@@ -338,6 +339,7 @@ model Automation {
   instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
   scheduledPost    ScheduledPost?   @relation(fields: [scheduledPostId], references: [id], onDelete: SetNull)
   dmLogs           DmLog[]
+  legacyMigration  LegacyCampaignMigration?
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
 
@@ -1047,6 +1049,8 @@ model LlmUsage {
   costUsd        Decimal  @default(0) @db.Decimal(12, 6)
   latencyMs      Int      @default(0)
   ok             Boolean  @default(true)
+  /// Why a failed call failed: an LlmErrorKind (timeout, rate_limit, upstream, ...), "bad_json", or "internal" for a code error before/around the call. Null on success.
+  errorKind      String?
   createdAt      DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -3285,4 +3289,57 @@ model PostingSlot {
   instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
 
   @@unique([instagramAccountId, weekday, minuteOfDay])
+}
+
+enum LegacyMigrationStatus {
+  SHADOW
+  CUTOVER
+  ROLLED_BACK
+}
+
+/// Audit 2026-10-26 "legacy engine → one engine": an old Automation copied into
+/// the Comment 2.0 engine. SHADOW = the copy exists switched off and every
+/// comment on the account records whether both engines decide alike; CUTOVER =
+/// copy on, Automation off (one transaction); ROLLED_BACK = the reverse.
+model LegacyCampaignMigration {
+  id                String                @id @default(cuid())
+  workspaceId       String
+  automationId      String                @unique
+  /// The Comment 2.0 copy (plain id: the campaign may be deleted in the dev UI).
+  triggerCampaignId String
+  status            LegacyMigrationStatus @default(SHADOW)
+  /// What the planner could not map 1:1 and the owner accepted (Uzbek notes).
+  notes             String[]              @default([])
+  shadowStartedAt   DateTime              @default(now())
+  cutoverAt         DateTime?
+  rolledBackAt      DateTime?
+  /// Set when the owner switched over before the comparison was clean.
+  forcedReason      String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  workspace  Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation Automation                @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  samples    LegacyMigrationSample[]
+
+  @@index([workspaceId, status])
+}
+
+/// One comment seen while a migration was in SHADOW: did the old engine match,
+/// would the copy have matched. Unique per comment so the webhook + the
+/// reconciler seeing the same comment count once.
+model LegacyMigrationSample {
+  id            String   @id @default(cuid())
+  migrationId   String
+  commentId     String
+  commentText   String
+  mediaId       String?
+  legacyMatched Boolean
+  newMatched    Boolean
+  createdAt     DateTime @default(now())
+
+  migration LegacyCampaignMigration @relation(fields: [migrationId], references: [id], onDelete: Cascade)
+
+  @@unique([migrationId, commentId])
+  @@index([migrationId, createdAt])
 }

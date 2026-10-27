@@ -16,6 +16,7 @@ import type { DiagnosticItem, DiagnosticStatus } from "@/lib/foundation/diagnost
 import type { ErrorFeedItem } from "@/lib/foundation/errors-feed";
 import type { FoundationOverview } from "@/lib/foundation/overview";
 import type { DisplayTone } from "@/lib/triggers/display";
+import TestDataTab from "./test-data-tab";
 import { DevBadge, EmptyState, formatDateTime, Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 
 // Same as lib/foundation/error-catalog's RECONNECT_HREF, kept here so this
@@ -27,6 +28,7 @@ const TABS = [
   ["diagnostics", "Diagnostika"],
   ["queue", "Navbat"],
   ["errors", "Xatolar"],
+  ["testdata", "Test ma'lumotlar"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -555,6 +557,8 @@ export default function FoundationDashboard() {
 
       {tab === "errors" ? (
         <ErrorsTab />
+      ) : tab === "testdata" ? (
+        <TestDataTab />
       ) : !overview ? (
         loading ? <p className="py-10 text-center text-sm text-muted">Yuklanmoqda…</p> : null
       ) : tab === "connections" ? (

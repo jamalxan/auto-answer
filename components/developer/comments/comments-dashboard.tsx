@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DevBadge, EmptyState, formatDateTime, Pill, primaryButton, secondaryButton, Toggle } from "@/components/developer/ui";
+import { LegacyMigrationPanel, type LegacyMigrationView } from "./legacy-migration";
 import { ConfirmButton, Notice } from "./parts";
 import { BACKTRACK_STATUS, jsonInit, MATCH_MODE_TEXT, requestJson, type Account } from "./shared";
 
@@ -220,15 +221,20 @@ interface LegacyRow {
   stats: { total: number; sent: number; failed: number; skipped: number };
 }
 
-/** B-34: production (old) campaigns, read-only. They already answer comments; Comment 2.0 never copies them (double-send). */
-function LegacySection({ rows }: { rows: LegacyRow[] }) {
+/**
+ * B-34: production (old) campaigns. Read-only here, except their move into
+ * this engine (audit 2026-10-26): a switched-off copy is compared on every
+ * comment before it takes over, so a comment never gets two answers.
+ */
+function LegacySection({ rows, migrations, onChanged }: { rows: LegacyRow[]; migrations: LegacyMigrationView[]; onChanged: () => void }) {
   if (rows.length === 0) return null;
+  const byId = new Map(migrations.map((m) => [m.automationId, m]));
   return (
     <section className="space-y-3">
       <div>
         <h2 className="text-sm font-semibold text-foreground">Production kampaniyalar (eski tizim)</h2>
         <p className="mt-0.5 text-xs text-muted">
-          Hozir ishlayotgan eski kampaniyalar — bu yerda faqat ko&apos;rinadi (o&apos;zgartirib bo&apos;lmaydi). Ular Comment 2.0&apos;ga ko&apos;chirilmagan, shuning uchun komment ikki marta javob olmaydi.
+          Eski kampaniyalar bu yerda o&apos;zgartirilmaydi. Ko&apos;chirish: avval yangi nusxa o&apos;chiq holda 14 kun har bir kommentda eskisi bilan taqqoslanadi, farq bo&apos;lmasa bir tugma bilan o&apos;tkaziladi va istalgan payt qaytariladi.
         </p>
       </div>
       <ul className="space-y-2">
@@ -246,6 +252,7 @@ function LegacySection({ rows }: { rows: LegacyRow[] }) {
             <p className="mt-1 text-xs text-muted">
               Yuborildi {row.stats.sent} · Xato {row.stats.failed} · O&apos;tkazib yuborildi {row.stats.skipped} · Jami {row.stats.total}
             </p>
+            {byId.get(row.id) && <LegacyMigrationPanel view={byId.get(row.id)!} onChanged={onChanged} />}
           </li>
         ))}
       </ul>
@@ -256,14 +263,19 @@ function LegacySection({ rows }: { rows: LegacyRow[] }) {
 export default function CommentsDashboard() {
   const [campaigns, setCampaigns] = useState<CampaignRow[] | null>(null);
   const [legacy, setLegacy] = useState<LegacyRow[]>([]);
+  const [migrations, setMigrations] = useState<LegacyMigrationView[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
     const mine = ++seq.current;
-    const res = await requestJson<{ campaigns: CampaignRow[]; accounts: Account[]; legacy?: LegacyRow[] }>("/api/developer/comments/campaigns");
+    const [res, moves] = await Promise.all([
+      requestJson<{ campaigns: CampaignRow[]; accounts: Account[]; legacy?: LegacyRow[] }>("/api/developer/comments/campaigns"),
+      requestJson<{ items: LegacyMigrationView[] }>("/api/developer/comments/legacy"),
+    ]);
     if (mine !== seq.current) return;
+    if (moves.ok) setMigrations(moves.data.items);
     if (res.ok) {
       setCampaigns(res.data.campaigns);
       setAccounts(res.data.accounts);
@@ -366,7 +378,7 @@ export default function CommentsDashboard() {
             </ul>
           )}
 
-          <LegacySection rows={legacy} />
+          <LegacySection rows={legacy} migrations={migrations} onChanged={load} />
         </>
       )}
     </div>

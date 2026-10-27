@@ -77,8 +77,8 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
   {
     key: "ai-flow-builder",
     etap: 7,
-    title: "AI Flow Builder",
-    summary: "Matndan flow yaratish, preview, AI audit, policy va spam tekshiruvi.",
+    title: "AI Flow Builder (Beta)",
+    summary: "Matndan flow yaratish, preview, AI audit, policy va spam tekshiruvi. Beta: sekin va ba'zan ishlatib bo'lmaydigan javob — tayyor shablonlar asosiy yo'l.",
     status: "TESTING",
     href: "/developer/flows?tab=ai",
   },

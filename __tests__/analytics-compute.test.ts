@@ -115,7 +115,7 @@ function seedWorld() {
   db.seed("aiConversationState", { conversationId: "conv_2", createdAt: at("2026-10-15T09:30:00Z") });
   db.seed("aiHandoff", { conversationId: "conv_2", reason: "price", openedAt: at("2026-10-15T11:00:00Z"), acceptedAt: at("2026-10-15T11:10:00Z"), status: "ACCEPTED" });
   db.seed("llmUsage", { workspaceId: WS, conversationId: "conv_1", kind: "javobai_reply", costUsd: 0.01, ok: true, latencyMs: 400, inputTokens: 100, outputTokens: 20, createdAt: at("2026-10-15T09:00:00Z") });
-  db.seed("llmUsage", { workspaceId: WS, conversationId: "conv_1", kind: "javobai_reply", costUsd: 0.02, ok: false, latencyMs: 600, inputTokens: 50, outputTokens: 0, createdAt: at("2026-10-15T09:01:00Z") });
+  db.seed("llmUsage", { workspaceId: WS, conversationId: "conv_1", kind: "javobai_reply", costUsd: 0.02, ok: false, errorKind: "timeout", latencyMs: 600, inputTokens: 50, outputTokens: 0, createdAt: at("2026-10-15T09:01:00Z") });
   db.seed("conversationMessage", { conversationId: "conv_1", author: "CUSTOMER", text: "salom", createdAt: at("2026-10-15T09:05:00Z") });
   db.seed("conversationMessage", { conversationId: "conv_1", author: "ASSISTANT", text: "salom!", createdAt: at("2026-10-15T09:06:00Z") });
   db.seed("assistantEvent", { workspaceId: WS, conversationId: "conv_1", type: "blocked_reply", createdAt: at("2026-10-15T09:07:00Z") });
@@ -186,6 +186,10 @@ describe("computeDayMetrics", () => {
     expect(value(rows, "ai.cost_usd")).toBeCloseTo(0.03, 6);
     expect(value(rows, "ai.calls", ["kind", "javobai_reply"])).toBe(2);
     expect(value(rows, "ai.latency_ms_sum")).toBe(1000);
+    expect(value(rows, "ai.failed_calls", ["error", "timeout"])).toBe(1);
+    expect(value(rows, "ai.customer_calls")).toBe(2);
+    expect(value(rows, "ai.customer_failed_calls")).toBe(1);
+    expect(value(rows, "ai.customer_latency_ms_sum")).toBe(1000);
     expect(value(rows, "msg.customer")).toBe(1);
     expect(value(rows, "msg.ai")).toBe(1);
     expect(value(rows, "ai.blocked_replies")).toBe(1);

@@ -53,6 +53,8 @@ export interface RecordJavobAiUsageInput {
   costUsd: number;
   latencyMs: number;
   ok: boolean;
+  /** Set on a failed call (see failureKindOf in lib/assistant/llm/provider). */
+  errorKind?: string | null;
 }
 
 /**
@@ -72,6 +74,7 @@ export async function recordJavobAiUsage(input: RecordJavobAiUsageInput): Promis
         costUsd: roundUsd(input.costUsd),
         latencyMs: Math.max(0, Math.round(input.latencyMs) || 0),
         ok: input.ok,
+        errorKind: input.ok ? null : (input.errorKind ?? "unknown"),
       },
     });
     return true;

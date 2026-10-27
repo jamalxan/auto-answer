@@ -13,6 +13,8 @@ import {
   ANALYTICS_TABS,
   COHORT_METRICS,
   DIM_KINDS,
+  LLM_ERROR_LABELS,
+  PRODUCTION_USAGE_KIND_LABELS,
   FUNNEL_NOTE,
   FUNNEL_STAGES,
   defaultDimKinds,
@@ -260,7 +262,8 @@ export async function resolveLabels(workspaceId: string, pairs: Array<{ dimKind:
   for (const p of pairs) {
     if (labels.has(key(p.dimKind, p.dimId))) continue;
     if (p.dimKind === "reason") labels.set(key("reason", p.dimId), REASON_LABELS[p.dimId] ?? p.dimId);
-    else if (p.dimKind === "kind") labels.set(key("kind", p.dimId), (JAVOBAI_USAGE_KIND_LABELS as Record<string, string>)[p.dimId] ?? p.dimId);
+    else if (p.dimKind === "kind") labels.set(key("kind", p.dimId), (JAVOBAI_USAGE_KIND_LABELS as Record<string, string>)[p.dimId] ?? PRODUCTION_USAGE_KIND_LABELS[p.dimId] ?? p.dimId);
+    else if (p.dimKind === "error") labels.set(key("error", p.dimId), LLM_ERROR_LABELS[p.dimId] ?? p.dimId);
     else labels.set(key(p.dimKind, p.dimId), "O'chirilgan");
   }
   return labels;

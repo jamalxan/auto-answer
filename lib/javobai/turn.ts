@@ -20,7 +20,7 @@ import { extractPhone, looksLikeBrokenPhone, stripPhone } from "@/lib/leads/phon
 import type { Collected } from "@/lib/leads/service";
 import { isRepeat } from "@/lib/assistant/humanize";
 import type { Lang } from "@/lib/assistant/language";
-import { LlmError, llmTimeoutMs, type LLMProvider, type LlmMessage } from "@/lib/assistant/llm/provider";
+import { failureKindOf, LlmError, llmTimeoutMs, type LLMProvider, type LlmMessage } from "@/lib/assistant/llm/provider";
 import { filterReply } from "@/lib/assistant/post-filter";
 import { pickTemplate, renderFinalMessage } from "@/lib/assistant/templates";
 import { askedQuestion, mergeHistory, sanitizeName, stripEmail, type TurnEvent, type TurnUsage } from "@/lib/assistant/turn";
@@ -191,6 +191,7 @@ async function callLlm(ctx: JavobAiTurnContext, system: string, llm: LLMProvider
 
   let extraNudge = "";
   for (let attempt = 0; attempt < 2; attempt++) {
+    const callStarted = Date.now();
     try {
       const response = await llm.complete({
         system: system + extraNudge,
@@ -219,7 +220,7 @@ async function callLlm(ctx: JavobAiTurnContext, system: string, llm: LLMProvider
       }
       events.push({ type: "llm_bad_json", payload: { attempt } });
     } catch (error) {
-      usages.push({ model: error instanceof LlmError && error.model ? error.model : llm.model, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: error instanceof LlmError ? error.latencyMs : 0, ok: false });
+      usages.push({ model: error instanceof LlmError && error.model ? error.model : llm.model, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: error instanceof LlmError && error.latencyMs ? error.latencyMs : Date.now() - callStarted, ok: false, errorKind: failureKindOf(error, "javobai_reply") });
       events.push({ type: "llm_error", payload: { message: error instanceof LlmError ? error.message : "LLM error", kind: error instanceof LlmError ? error.kind : "unknown", status: error instanceof LlmError ? (error.status ?? null) : null } });
       return { output: null, usages, events, failed: true };
     }

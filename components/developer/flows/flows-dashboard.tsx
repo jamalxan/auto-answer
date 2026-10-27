@@ -21,7 +21,7 @@ import TemplatesGallery from "./templates-gallery";
 const TABS = [
   ["list", "Oqimlar"],
   ["templates", "Shablonlar"],
-  ["ai", "AI bilan yaratish"],
+  ["ai", "AI bilan yaratish (Beta)"],
 ] as const;
 type DashTab = (typeof TABS)[number][0];
 

@@ -384,7 +384,8 @@ export async function listLeadsView(workspaceId: string, input: ListLeadsInput) 
       stage: c.status,
       tags: c.tags.map((t) => t.tag.name),
       lastMessageAt: iso(c.lastInteractionAt),
-      temperature: c.temperature,
+      // COLD is only the column default: a contact the AI never scored has no temperature (audit 2026-10-26).
+      temperature: c.hasAiState ? c.temperature : null,
     })),
   };
 }
