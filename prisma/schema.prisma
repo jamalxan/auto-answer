@@ -178,10 +178,15 @@ model Workspace {
   // Monthly AI-conversation quota (TZ section 13). null = default from
   // lib/assistant/limits. The counter resets with usagePeriodStart.
   aiConversationsLimit       Int?
-  aiConversationsThisPeriod  Int       @default(0)
+  aiConversationsThisPeriod  Int               @default(0)
   // Set when the LLM provider keeps failing: the assistant answers from
   // templates only until this moment.
   assistantTemplateOnlyUntil DateTime?
+  contentPostStats           ContentPostStat[]
+  contentAnalyses            ContentAnalysis[]
+  contentReports             ContentReport[]
+  contentPlans               ContentPlan[]
+  hookExperiments            HookExperiment[]
 
   @@index([ownerId])
 }
@@ -3701,4 +3706,131 @@ model ChannelPostTarget {
   @@unique([postId, channel, accountRef])
   @@index([status, updatedAt])
   @@index([workspaceId])
+}
+
+// ─── Content intelligence (audit 2026-10-26, "Kontent intellekti") ───────────
+
+/// One published Instagram post with its metrics (Meta `views`, never the old
+/// impressions) and its business result (comments → DMs → leads → sales).
+/// `score` is views ÷ the account's 30-day median, refreshed on every pass.
+model ContentPostStat {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  igMediaId          String
+  scheduledPostId    String?
+  mediaType          String
+  productType        String?
+  permalink          String?
+  caption            String?
+  publishedAt        DateTime
+  views              Int?
+  reach              Int?
+  likes              Int?
+  comments           Int?
+  saves              Int?
+  shares             Int?
+  follows            Int?
+  totalInteractions  Int?
+  avgWatchMs         Int?
+  skipRate           Float?
+  /// Business result from our own data.
+  bizComments        Int      @default(0)
+  bizDms             Int      @default(0)
+  bizLeads           Int      @default(0)
+  bizSales           Int      @default(0)
+  score              Float?
+  fetchedAt          DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  analysis  ContentAnalysis?
+
+  @@unique([instagramAccountId, igMediaId])
+  @@index([workspaceId, publishedAt])
+}
+
+/// What the multimodal model saw in a post (frames every second, the first
+/// three seconds apart, transcript, caption) and the typical-error checks.
+model ContentAnalysis {
+  id          String    @id @default(cuid())
+  workspaceId String
+  statId      String    @unique
+  /// PENDING | DONE | FAILED | SKIPPED
+  status      String    @default("PENDING")
+  /// hookType, format, topic, hasSubtitles, hasCta, ctaKeyword, hookStartSec,
+  /// firstFrameHasText, textInUnsafeZone, aspect, durationSec
+  tags        Json      @default("{}")
+  transcript  String?
+  /// Typical-error codes (lib/content-intel/checks.ts).
+  issues      String[]  @default([])
+  model       String?
+  costUsd     Float?
+  error       String?
+  analyzedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stat      ContentPostStat @relation(fields: [statId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([status])
+}
+
+model ContentReport {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  /// Monday 00:00 of the reported week (workspace zone, stored UTC).
+  weekStart          DateTime
+  body               Json
+  sentAt             DateTime?
+  createdAt          DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([instagramAccountId, weekStart])
+  @@index([workspaceId, weekStart])
+}
+
+/// A two-week plan; items carry their Reel scenario once generated.
+model ContentPlan {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  startsOn           DateTime
+  /// DRAFT | ACTIVE | ARCHIVED
+  status             String   @default("DRAFT")
+  items              Json     @default("[]")
+  model              String?
+  createdById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+/// Trial Reels A/B: hook variants shown to non-followers first; the winner is
+/// the variant with the most views 48 h after its publish.
+model HookExperiment {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  title              String
+  /// [{ hook, postId, igMediaId?, views? }]
+  variants           Json      @default("[]")
+  /// RUNNING | DONE | CANCELED
+  status             String    @default("RUNNING")
+  winnerIndex        Int?
+  decidedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
 }

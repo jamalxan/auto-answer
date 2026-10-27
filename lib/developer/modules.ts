@@ -140,6 +140,15 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     status: "TESTING",
     href: "/developer/telegram",
   },
+  {
+    key: "content-intel",
+    etap: 15,
+    title: "Kontent intellekti",
+    summary:
+      "Post natijasi akkaunt medianasiga nisbatan, comment → DM → lid → sotuv, video tahlil va tipik xatolar, haftalik hisobot, 2 haftalik reja, Reel senariy, Trial Reels hook testi.",
+    status: "TESTING",
+    href: "/developer/content-intel",
+  },
 ];
 
 export const MODULE_STATUS_LABEL: Record<ModuleStatus, string> = {
