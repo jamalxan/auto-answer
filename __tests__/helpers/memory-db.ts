@@ -309,6 +309,12 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   channelMessage: [["channel", "chatId", "externalId"]],
   channelPostTarget: [["postId", "channel", "accountRef"]],
   channelPrivateReply: [["channel", "commentId"]],
+  // Ads (audit phase 7)
+  adAccount: [["workspaceId", "adAccountId"]],
+  adProposal: [["accountId", "kind", "igMediaId"]],
+  adSpendDay: [["proposalId", "date"]],
+  adReferral: [["instagramAccountId", "igUserId", "adId"]],
+  capiEvent: [["dealId", "eventName"]],
   // Content intelligence (audit phase 5)
   contentPostStat: [["instagramAccountId", "igMediaId"]],
   contentAnalysis: [["statId"]],
@@ -447,6 +453,11 @@ const DEFAULTS: Record<string, () => Row> = {
   channelMessage: () => ({ direction: "IN", authorRef: null, authorName: null, text: "", replyToExternalId: null, sentByUserId: null, editedAt: null, deletedAt: null }),
   channelPostTarget: () => ({ status: "PENDING", externalIds: [], attempts: 0, lastError: null, nextAttemptAt: null, pollToken: null, pollStartedAt: null, publishedAt: null }),
   channelPrivateReply: () => ({ status: "SENDING", externalId: null, error: null }),
+  adAccount: () => ({ name: null, currency: "USD", pageId: null, igUserId: null, datasetId: null, dailyCapMinor: null, monthlyCapMinor: null, cplMaxMinor: null, defaultDailyBudgetMinor: null, saleValueMinor: null, status: "ACTIVE", lastError: null }),
+  adProposal: () => ({ kind: "BOOST", objective: "MESSAGES", statId: null, permalink: null, status: "PROPOSED", approvedById: null, approvedAt: null, startAt: null, endAt: null, campaignId: null, adSetId: null, creativeId: null, adId: null, pauseReason: null, spendMinor: 0, results: 0, insightsAt: null, error: null, expiresAt: null }),
+  adSpendDay: () => ({ spendMinor: 0, results: 0 }),
+  adReferral: () => ({ adTitle: null, postId: null, productId: null, source: null }),
+  capiEvent: () => ({ eventName: "Purchase", status: "PENDING", attempts: 0, error: null, sentAt: null }),
   channelCredential: () => ({ label: null, scopes: [], expiresAt: null, refreshedAt: null, checkedAt: null, status: "ACTIVE", lastErrorCode: null, lastErrorAt: null, alertedAt: null, pollCursor: null }),
   llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
   triggerFollowUpRun: () => ({ status: "SCHEDULED", sentAt: null, reason: null }),
@@ -766,6 +777,11 @@ export class MemoryDb {
       async findFirst(args: { where?: Row; orderBy?: unknown; include?: Record<string, unknown>; select?: Record<string, unknown> } = {}) {
         const row = find(args)[0];
         return row ? db.withInclude(name, row, args.include ?? db.selectAsInclude(name, args.select)) : null;
+      },
+      async findFirstOrThrow(args: { where?: Row; orderBy?: unknown; include?: Record<string, unknown>; select?: Record<string, unknown> } = {}) {
+        const row = await this.findFirst(args);
+        if (!row) throw new Error(`${name} not found`);
+        return row;
       },
       async findMany(args: { where?: Row; orderBy?: unknown; cursor?: Row; skip?: number; take?: number; include?: Record<string, unknown>; select?: Record<string, unknown> } = {}) {
         return find(args).map((r) => db.withInclude(name, r, args.include ?? db.selectAsInclude(name, args.select)));

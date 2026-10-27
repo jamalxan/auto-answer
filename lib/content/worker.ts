@@ -101,6 +101,24 @@ export async function runContentMaintenance(): Promise<void> {
     console.error("[Content] sweep failed:", error instanceof Error ? error.message : error);
   }
   runContentIntel();
+  runAds();
+}
+
+let adsRunning = false;
+
+/** Ads (audit phase 7): guard, boost suggestions and CAPI, every 15 min (off with ADS_DISABLED=1). */
+function runAds(): void {
+  if (adsRunning || process.env.ADS_DISABLED === "1") return;
+  adsRunning = true;
+  void import("@/lib/ads/tick")
+    .then(({ adsTick }) => adsTick())
+    .then((result) => {
+      if (result) console.log("[Ads] tick:", JSON.stringify(result));
+    })
+    .catch((error) => console.error("[Ads] tick failed:", error instanceof Error ? error.message : error))
+    .finally(() => {
+      adsRunning = false;
+    });
 }
 
 let intelRunning = false;

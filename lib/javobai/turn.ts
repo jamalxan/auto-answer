@@ -93,7 +93,7 @@ export interface JavobAiTurnContext {
   collected: Collected;
   /** `text` (4.2) = `contactMemoryBlock(...)`, rendered verbatim in the prompt. */
   memory: { summary: string; facts: Record<string, string>; returning: boolean; text?: string | null };
-  context: { campaignName?: string | null; cameFromAd?: boolean };
+  context: { campaignName?: string | null; cameFromAd?: boolean; adTitle?: string | null };
   /**
    * 4.3: what vision made of the photo(s) in this turn. `preferredFactIds`
    * (catalog matches, KB ids) satisfy the grounding rule when the model cites

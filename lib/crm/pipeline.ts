@@ -387,6 +387,13 @@ export async function moveDeal(
     },
   });
 
+  // Phase 7: a sale goes back to Meta (Conversions API) when an ad account runs this IG account.
+  if (stage.kind === "WON" && !deal.wonAt) {
+    await import("@/lib/ads/service")
+      .then(({ queueSaleEvent }) => queueSaleEvent(workspaceId, deal.id))
+      .catch((error) => console.warn("[crm] CAPI queue failed:", error instanceof Error ? error.message : error));
+  }
+
   const status = stage.kind === "WON" ? "CUSTOMER" : stage.kind === "LOST" ? "LOST" : "ACTIVE";
   if (deal.contact.status !== status && deal.contact.status !== "ARCHIVED") {
     await prisma.crmContact.update({ where: { id: deal.contactId }, data: { status } });
