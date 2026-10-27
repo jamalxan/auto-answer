@@ -298,6 +298,7 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   aiIntentPolicy: [["instagramAccountId", "intent"]],
   aiDraft: [["shadowTurnId"]],
   commentModeration: [["commentId"]],
+  channelCredential: [["workspaceId", "channel", "externalAccountId"]],
   // CRM (ETAP 5)
   crmContact: [["instagramAccountId", "igUserId"], ["conversationId"], ["instagramContactId"]],
   crmTag: [["workspaceId", "slug"]],
@@ -422,6 +423,7 @@ const DEFAULTS: Record<string, () => Row> = {
   aiEvalCase: () => ({ expectedIntent: null, mustContain: [], mustNotContain: [], referenceAnswer: null, source: "manual", active: true }),
   aiEvalRun: () => ({ status: "RUNNING", total: 0, passed: 0, failed: 0, results: [], triggeredBy: null, startedAt: new Date(), finishedAt: null }),
   commentModeration: () => ({ mediaId: null, error: null }),
+  channelCredential: () => ({ label: null, scopes: [], expiresAt: null, refreshedAt: null, checkedAt: null, status: "ACTIVE", lastErrorCode: null, lastErrorAt: null, alertedAt: null }),
   llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
   triggerFollowUpRun: () => ({ status: "SCHEDULED", sentAt: null, reason: null }),
   // Analytics (ETAP 10)

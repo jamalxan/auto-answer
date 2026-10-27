@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { handleTelegramUpdate, type TgUpdate } from "@/lib/telegram/bot";
+import { logRejectedWebhook, readLimitedBody } from "@/lib/webhooks/gateway";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +25,16 @@ export async function POST(
   const header = request.headers.get("x-telegram-bot-api-secret-token") ?? "";
 
   if (!expected || !safeEqual(secret, expected) || !safeEqual(header, expected)) {
+    await logRejectedWebhook("telegram", "secret mismatch", { hadSignature: Boolean(header) });
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
+  const read = await readLimitedBody(request);
+  if (!read.ok) return NextResponse.json({ ok: false }, { status: read.status });
+
   let update: TgUpdate;
   try {
-    update = (await request.json()) as TgUpdate;
+    update = JSON.parse(read.body) as TgUpdate;
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }

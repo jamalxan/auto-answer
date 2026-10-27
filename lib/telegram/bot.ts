@@ -634,7 +634,8 @@ async function handleMessage(io: BotIO, message: TgMessage) {
 /** Telegram retries slow webhooks: drop an update id we have already handled. */
 async function firstDelivery(updateId: number): Promise<boolean> {
   try {
-    const result = await getRedisConnection().set(`tg:update:${updateId}`, "1", "EX", 3600, "NX");
+    // 48 h like every webhook (audit T2): Telegram retries for up to a day.
+    const result = await getRedisConnection().set(`tg:update:${updateId}`, "1", "EX", 48 * 3600, "NX");
     return result === "OK";
   } catch {
     return true;

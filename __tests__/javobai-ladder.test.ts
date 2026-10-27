@@ -23,7 +23,9 @@ import { checkEvalCase } from "@/lib/javobai/eval";
 import { approveFactCandidate } from "@/lib/javobai/facts";
 import { judgeOne, saveFactCandidates } from "@/lib/javobai/judge";
 import { decideLadder, factCoverage, readiness, LADDER_MIN_SAMPLES } from "@/lib/javobai/ladder";
-import { LadderError, demoteIntent, loadIntentMode, pairOperatorReplies, setIntentMode } from "@/lib/javobai/ladder-service";
+import { LadderError, demoteIntent, discardDraft, loadIntentMode, pairOperatorReplies, setIntentMode } from "@/lib/javobai/ladder-service";
+import { rejectFactCandidate } from "@/lib/javobai/facts";
+import { createEvalCase, deleteEvalCase } from "@/lib/javobai/eval";
 import { validateReply } from "@/lib/javobai/validate";
 
 const WS = "ws1";
@@ -196,5 +198,21 @@ describe("comment guard classifier", () => {
     expect(classifyComment("Заказ не пришёл уже неделю").verdict).toBe("complaint");
     expect(classifyComment("Narxi qancha? 😍").verdict).toBe("ok");
     expect(classifyComment("Сукачёв").verdict).toBe("ok"); // short words match whole only
+  });
+});
+
+describe("tenant isolation (IDOR)", () => {
+  it("another workspace cannot touch drafts, facts, policies or eval cases", async () => {
+    db.seed("workspace", { id: "ws2", name: "Other" });
+    db.seed("aiDraft", { id: "d1", workspaceId: WS, instagramAccountId: ACC, conversationId: "c1", text: "x", status: "PENDING" });
+    db.seed("aiFactCandidate", { id: "f9", workspaceId: WS, profileId: "prof1", kind: "OTHER", title: "t", body: "b", status: "PENDING" });
+    expect(await discardDraft("ws2", "d1", "u")).toBe(false);
+    expect(await rejectFactCandidate("ws2", "f9", "u")).toBe(false);
+    await expect(approveFactCandidate("ws2", "f9", "u")).rejects.toMatchObject({ status: 404 });
+    await expect(setIntentMode("ws2", ACC, "greeting", "COPILOT", "u")).rejects.toMatchObject({ status: 404 });
+    await expect(createEvalCase("ws2", ACC, { question: "q" })).rejects.toMatchObject({ status: 404 });
+    const own = await createEvalCase(WS, ACC, { question: "q" });
+    expect(await deleteEvalCase("ws2", own.id)).toBe(false);
+    expect(db.rows("aiDraft")[0].status).toBe("PENDING");
   });
 });

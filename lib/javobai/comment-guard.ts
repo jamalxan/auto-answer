@@ -9,7 +9,7 @@
  */
 
 import { prisma } from "@/lib/db/client";
-import { setCommentHidden } from "@/lib/meta/client";
+import { instagramAdapter } from "@/lib/channels/instagram";
 import { decryptToken } from "@/lib/meta/oauth";
 import { esc } from "@/lib/telegram/api";
 import { notifyWorkspaceChats } from "@/lib/telegram/notify";
@@ -74,7 +74,7 @@ export async function guardComment(input: GuardInput): Promise<boolean> {
   if (verdict === "ok") return false;
   const account = await prisma.instagramAccount.findUnique({
     where: { instagramId: input.instagramId },
-    select: { id: true, workspaceId: true, username: true, accessToken: true },
+    select: { id: true, workspaceId: true, username: true, accessToken: true, instagramId: true },
   });
   if (!account) return false;
   const config = await loadAccountConfig(account.id);
@@ -105,7 +105,7 @@ export async function guardComment(input: GuardInput): Promise<boolean> {
     let error: string | null = null;
     try {
       if (!account.accessToken) throw new Error("token yo'q");
-      await setCommentHidden(decryptToken(account.accessToken), input.commentId, true);
+      await instagramAdapter.hideComment({ accessToken: decryptToken(account.accessToken), externalAccountId: account.instagramId }, input.commentId, true);
     } catch (e) {
       action = "failed";
       error = (e instanceof Error ? e.message : String(e)).slice(0, 300);

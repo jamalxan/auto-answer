@@ -5,6 +5,7 @@ import { TokenExpiredError, refreshLongLivedToken } from "@/lib/meta/client";
 import { markTokenBroken } from "@/lib/meta/token-health";
 import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 import { runInstagramTokenExpiryWarnings } from "@/lib/meta/token-expiry";
+import { runCredentialRefresh } from "@/lib/channels/refresh";
 
 const DAYS_BEFORE_EXPIRY = 10;
 
@@ -109,10 +110,14 @@ export async function GET(request: NextRequest) {
   // A refresh that failed leaves the old expiry: tell the owner at 7 and 1 day.
   const expiryWarnings = await runInstagramTokenExpiryWarnings(now).catch(() => 0);
 
+  // Credential vault (audit T1): the other channels' tokens. A vault failure never fails the Instagram pass above.
+  const vault = await runCredentialRefresh(now).catch((error) => ({ error: error instanceof Error ? error.message : "vault refresh failed" }));
+
   return NextResponse.json({
     success: true,
     data: {
       expiryWarnings,
+      vault,
       totalProcessed: accountsToRefresh.length,
       workspacesReset: usageReset.count,
       results,
