@@ -92,6 +92,11 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     triggerCampaigns: { model: "triggerCampaign", fk: "scheduledPostId", kind: "many" },
     reviews: { model: "postReview", fk: "postId", kind: "many" },
     notes: { model: "postNote", fk: "postId", kind: "many" },
+    channelTargets: { model: "channelPostTarget", fk: "postId", kind: "many" },
+  },
+  // Telegram channel (audit T3)
+  channelPostTarget: {
+    post: { model: "scheduledPost", fk: "postId", kind: "one" },
   },
   // Content approval (ETAP 13 Faza 2)
   postReview: {
@@ -299,6 +304,10 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   aiDraft: [["shadowTurnId"]],
   commentModeration: [["commentId"]],
   channelCredential: [["workspaceId", "channel", "externalAccountId"]],
+  telegramChannel: [["chatId"], ["dmChatId"]],
+  telegramBusinessConnection: [["connectionId"]],
+  channelMessage: [["channel", "chatId", "externalId"]],
+  channelPostTarget: [["postId", "channel", "accountRef"]],
   // CRM (ETAP 5)
   crmContact: [["instagramAccountId", "igUserId"], ["conversationId"], ["instagramContactId"]],
   crmTag: [["workspaceId", "slug"]],
@@ -423,6 +432,10 @@ const DEFAULTS: Record<string, () => Row> = {
   aiEvalCase: () => ({ expectedIntent: null, mustContain: [], mustNotContain: [], referenceAnswer: null, source: "manual", active: true }),
   aiEvalRun: () => ({ status: "RUNNING", total: 0, passed: 0, failed: 0, results: [], triggeredBy: null, startedAt: new Date(), finishedAt: null }),
   commentModeration: () => ({ mediaId: null, error: null }),
+  telegramChannel: () => ({ title: null, username: null, linkedChatId: null, discussionReady: false, dmChatId: null, status: "ACTIVE", rights: {}, missingRights: [] }),
+  telegramBusinessConnection: () => ({ canReply: false, isEnabled: true, rights: {} }),
+  channelMessage: () => ({ direction: "IN", authorRef: null, authorName: null, text: "", replyToExternalId: null, sentByUserId: null, editedAt: null, deletedAt: null }),
+  channelPostTarget: () => ({ status: "PENDING", externalIds: [], attempts: 0, lastError: null, publishedAt: null }),
   channelCredential: () => ({ label: null, scopes: [], expiresAt: null, refreshedAt: null, checkedAt: null, status: "ACTIVE", lastErrorCode: null, lastErrorAt: null, alertedAt: null }),
   llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
   triggerFollowUpRun: () => ({ status: "SCHEDULED", sentAt: null, reason: null }),

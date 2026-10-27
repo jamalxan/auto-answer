@@ -15,6 +15,7 @@
  *      PENDING_REVIEW posts 3 h past it → EXPIRED_REVIEW
  *   9. prepared copies of media published 30+ days ago → deleted, storage released (§7)
  *  10. notifications (§11, lib/content/notify): "Kvota 80%", "24 soatda X ta post, akkaunt BROKEN"
+ *  11. cross-posts to Telegram channels at the same slot (lib/channels/crosspost, audit T3)
  */
 
 import { prisma } from "@/lib/db/client";
@@ -42,6 +43,8 @@ export interface SweepResult {
   preparedCleaned?: number;
   quotaWarnings?: number;
   brokenWarnings?: number;
+  crossPosted?: number;
+  crossFailed?: number;
 }
 
 const STUCK_PREPARING_MS = CONTAINER_MAX_WAIT_MS.video + 5 * 60_000;
@@ -165,6 +168,16 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
   const notices = await sweepNotifications(now);
   result.quotaWarnings = notices.quotaWarnings;
   result.brokenWarnings = notices.brokenWarnings;
+
+  // 11: Telegram cross-posts (independent of the Instagram outcome).
+  try {
+    const { sweepCrossPosts } = await import("@/lib/channels/crosspost");
+    const cross = await sweepCrossPosts(now);
+    result.crossPosted = cross.published;
+    result.crossFailed = cross.failed;
+  } catch (error) {
+    console.error("[Content] cross-post sweep failed:", error instanceof Error ? error.message : error);
+  }
 
   return result;
 }

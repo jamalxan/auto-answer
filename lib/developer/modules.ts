@@ -131,6 +131,15 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     status: "READY",
     href: "/content",
   },
+  {
+    key: "telegram-channel",
+    etap: 14,
+    title: "Telegram kanal",
+    summary:
+      "Bot kanal admini sifatida: nashr (Content Scheduler'dan kross-post), muhokama kommentlari, kanal DM'lari, Telegram Business.",
+    status: "TESTING",
+    href: "/developer/telegram",
+  },
 ];
 
 export const MODULE_STATUS_LABEL: Record<ModuleStatus, string> = {

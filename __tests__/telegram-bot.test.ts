@@ -158,7 +158,7 @@ describe("connecting chats for lead delivery (TZ 7.1)", () => {
     code();
     const { io } = fakeIo();
     await handleTelegramUpdate(message("/start abc123", {}, OWNER_TG, { id: -1001, type: "group", title: "G" }), io);
-    await handleTelegramUpdate({ update_id: ++updateId, my_chat_member: { chat: { id: -1001, type: "group" }, new_chat_member: { status: "kicked" } } }, io);
+    await handleTelegramUpdate({ update_id: ++updateId, my_chat_member: { chat: { id: -1001, type: "group" }, from: { id: 1 }, new_chat_member: { status: "kicked" } } }, io);
     expect(db.rows("telegramChat")[0].active).toBe(false);
   });
 

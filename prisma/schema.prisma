@@ -87,33 +87,37 @@ model Workspace {
   timezone          String @default("Asia/Tashkent")
   mediaStorageBytes BigInt @default(0)
 
-  members            WorkspaceMember[]
-  invitations        WorkspaceInvitation[]
-  instagramAccounts  InstagramAccount[]
-  automations        Automation[]
-  legacyMigrations   LegacyCampaignMigration[]
-  aiIntentPolicies   AiIntentPolicy[]
-  aiDrafts           AiDraft[]
-  aiFactCandidates   AiFactCandidate[]
-  aiEvalCases        AiEvalCase[]
-  aiEvalRuns         AiEvalRun[]
-  commentModerations CommentModeration[]
-  channelCredentials ChannelCredential[]
-  dmLogs             DmLog[]
-  trackedLinks       TrackedLink[]
-  linkClicks         LinkClick[]
-  webhookEvents      WebhookEvent[]
-  operationalEvents  OperationalEvent[]
-  integrations       Integration[]
-  leads              Lead[]
-  conversations      Conversation[]
-  assistantProfiles  AssistantProfile[]
-  telegramUsers      TelegramUser[]
-  onboardingSessions OnboardingSession[]
-  knowledgeGaps      KnowledgeGap[]
-  llmUsage           LlmUsage[]
-  assistantEvents    AssistantEvent[]
-  telegramLinkCodes  TelegramLinkCode[]
+  members                     WorkspaceMember[]
+  invitations                 WorkspaceInvitation[]
+  instagramAccounts           InstagramAccount[]
+  automations                 Automation[]
+  legacyMigrations            LegacyCampaignMigration[]
+  aiIntentPolicies            AiIntentPolicy[]
+  aiDrafts                    AiDraft[]
+  aiFactCandidates            AiFactCandidate[]
+  aiEvalCases                 AiEvalCase[]
+  aiEvalRuns                  AiEvalRun[]
+  commentModerations          CommentModeration[]
+  channelCredentials          ChannelCredential[]
+  telegramChannels            TelegramChannel[]
+  telegramBusinessConnections TelegramBusinessConnection[]
+  channelMessages             ChannelMessage[]
+  channelPostTargets          ChannelPostTarget[]
+  dmLogs                      DmLog[]
+  trackedLinks                TrackedLink[]
+  linkClicks                  LinkClick[]
+  webhookEvents               WebhookEvent[]
+  operationalEvents           OperationalEvent[]
+  integrations                Integration[]
+  leads                       Lead[]
+  conversations               Conversation[]
+  assistantProfiles           AssistantProfile[]
+  telegramUsers               TelegramUser[]
+  onboardingSessions          OnboardingSession[]
+  knowledgeGaps               KnowledgeGap[]
+  llmUsage                    LlmUsage[]
+  assistantEvents             AssistantEvent[]
+  telegramLinkCodes           TelegramLinkCode[]
 
   // Instagram Trigger Engine (dev)
   instagramEvents      InstagramEvent[]
@@ -342,9 +346,9 @@ model Automation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
-  scheduledPost    ScheduledPost?   @relation(fields: [scheduledPostId], references: [id], onDelete: SetNull)
+  workspace        Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount         @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  scheduledPost    ScheduledPost?           @relation(fields: [scheduledPostId], references: [id], onDelete: SetNull)
   dmLogs           DmLog[]
   legacyMigration  LegacyCampaignMigration?
   trackedLinks     TrackedLink[]
@@ -1808,18 +1812,18 @@ model AiLeadInsight {
 
 /// SHADOW mode: JavobAI's reply next to production's, for review.
 model AiShadowTurn {
-  id              String   @id @default(cuid())
-  workspaceId     String
-  conversationId  String?
-  customerText    String
-  productionReply String?
-  aiReply         String?
-  intent          String?
-  confidence      Float?
-  score           Int?
-  handoff         String?
-  costUsd         Decimal  @default(0) @db.Decimal(12, 6)
-  error           String?
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  conversationId     String?
+  customerText       String
+  productionReply    String?
+  aiReply            String?
+  intent             String?
+  confidence         Float?
+  score              Int?
+  handoff            String?
+  costUsd            Decimal   @default(0) @db.Decimal(12, 6)
+  error              String?
   // -- Trust ladder (audit 2026-10-26): one row = one comparison sample --
   instagramAccountId String?
   /// shadow (account SHADOW mode) | observe (intent in OBSERVE) | copilot (a draft) | auto (sent; a later operator message is a correction)
@@ -1836,7 +1840,7 @@ model AiShadowTurn {
   judgeNotes         String?
   judgedAt           DateTime?
   factsExtractedAt   DateTime?
-  createdAt       DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -3120,29 +3124,29 @@ enum ReviewRule {
 }
 
 model MediaAsset {
-  id           String      @id @default(cuid())
-  workspaceId  String
-  uploadedById String?
+  id            String      @id @default(cuid())
+  workspaceId   String
+  uploadedById  String?
   // IMAGE | VIDEO
-  kind         String
+  kind          String
   // Bucket keys: the original upload, the Instagram-ready copy, the 640 px thumbnail.
-  originalKey  String
-  preparedKey  String?
-  thumbKey     String?
-  mimeType     String
-  sizeBytes    BigInt
+  originalKey   String
+  preparedKey   String?
+  thumbKey      String?
+  mimeType      String
+  sizeBytes     BigInt
   // Size of the Instagram-ready copy (preparedKey); Instagram's limits apply to this, not the upload.
   preparedBytes Int?
-  width        Int?
-  height       Int?
-  durationMs   Int?
-  codec        String?
-  fps          Float?
-  status       MediaStatus @default(UPLOADING)
-  error        String?
-  tags         String[]    @default([])
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  width         Int?
+  height        Int?
+  durationMs    Int?
+  codec         String?
+  fps           Float?
+  status        MediaStatus @default(UPLOADING)
+  error         String?
+  tags          String[]    @default([])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   usages    ScheduledPostMedia[]
@@ -3213,6 +3217,7 @@ model ScheduledPost {
   attemptsLog      PublishAttempt[]
   automations      Automation[]
   triggerCampaigns TriggerCampaign[]
+  channelTargets   ChannelPostTarget[]
 
   @@index([status, scheduledAt])
   @@index([workspaceId, scheduledAt])
@@ -3353,8 +3358,8 @@ model LegacyCampaignMigration {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
-  workspace  Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation Automation                @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  workspace  Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation Automation              @relation(fields: [automationId], references: [id], onDelete: Cascade)
   samples    LegacyMigrationSample[]
 
   @@index([workspaceId, status])
@@ -3575,4 +3580,125 @@ model ChannelCredential {
 
   @@unique([workspaceId, channel, externalAccountId])
   @@index([status, expiresAt])
+}
+
+// ─── Telegram channel (audit 2026-10-26, T3) ─────────────────────────────────
+
+enum TelegramChannelStatus {
+  ACTIVE
+  MISSING_RIGHTS
+  REMOVED
+}
+
+/// A Telegram channel connected by making the platform bot an admin. Only a
+/// linked TelegramUser who may manage the workspace can connect one
+/// (my_chat_member.from check); anyone else and the bot leaves.
+model TelegramChannel {
+  id              String                @id @default(cuid())
+  workspaceId     String
+  chatId          String                @unique
+  title           String?
+  username        String?
+  /// Discussion group (comments under posts).
+  linkedChatId    String?
+  /// The bot is an admin in the discussion group too.
+  discussionReady Boolean               @default(false)
+  /// Channel Direct Messages chat (Bot API 9.2), learned from the first message.
+  dmChatId        String?               @unique
+  addedByTgUserId String
+  status          TelegramChannelStatus @default(ACTIVE)
+  /// The bot's admin rights as Telegram reported them.
+  rights          Json                  @default("{}")
+  missingRights   String[]              @default([])
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([linkedChatId])
+}
+
+/// Telegram Business: the owner connected the bot to their personal account.
+model TelegramBusinessConnection {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  connectionId String   @unique
+  tgUserId     String
+  userChatId   String
+  canReply     Boolean  @default(false)
+  isEnabled    Boolean  @default(true)
+  rights       Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+/// Inbox of channels outside Instagram (Telegram comments, channel DMs,
+/// Business chats; later Facebook / Threads / YouTube). One row per message.
+model ChannelMessage {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  channel           String
+  /// Our side: TelegramChannel.id, TelegramBusinessConnection.id…
+  accountRef        String
+  /// comment | channel_dm | business_dm
+  kind              String
+  /// The chat the message lives in (discussion group, DM chat, business chat).
+  chatId            String
+  /// Post (comments), direct-messages topic, business chat: the thread key.
+  threadRef         String
+  externalId        String
+  /// IN from a customer, OUT from us / the owner.
+  direction         String    @default("IN")
+  authorRef         String?
+  authorName        String?
+  text              String    @default("")
+  replyToExternalId String?
+  sentByUserId      String?
+  editedAt          DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, chatId, externalId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, accountRef, threadRef])
+}
+
+enum ChannelPostTargetStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  SKIPPED
+  DELETED
+}
+
+/// Cross-posting a Content Scheduler post to another channel at the same slot.
+model ChannelPostTarget {
+  id          String                  @id @default(cuid())
+  workspaceId String
+  postId      String
+  channel     String
+  accountRef  String
+  status      ChannelPostTargetStatus @default(PENDING)
+  /// Message ids on the channel (an album has several).
+  externalIds String[]                @default([])
+  attempts    Int                     @default(0)
+  lastError   String?
+  publishedAt DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  post      ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, channel, accountRef])
+  @@index([status, updatedAt])
+  @@index([workspaceId])
 }

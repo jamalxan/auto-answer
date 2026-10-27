@@ -93,6 +93,21 @@ export interface SendOptions {
   removeReplyKeyboard?: boolean;
   parseMode?: "HTML" | null;
   disablePreview?: boolean;
+  /** Reply to this message (comments under a channel post). */
+  replyTo?: number;
+  /** Channel Direct Messages topic (Bot API 9.2). */
+  directMessagesTopicId?: number;
+  /** Telegram Business: answer on behalf of the connected account. */
+  businessConnectionId?: string;
+}
+
+/** Routing params shared by every send method. */
+function routing(options: SendOptions) {
+  return {
+    reply_parameters: options.replyTo ? { message_id: options.replyTo, allow_sending_without_reply: true } : undefined,
+    direct_messages_topic_id: options.directMessagesTopicId,
+    business_connection_id: options.businessConnectionId,
+  };
 }
 
 function buildMarkup(options: SendOptions) {
@@ -118,6 +133,7 @@ export async function sendMessage(
     parse_mode: options.parseMode === null ? undefined : "HTML",
     disable_web_page_preview: options.disablePreview ?? true,
     reply_markup: buildMarkup(options),
+    ...routing(options),
   });
 }
 
@@ -133,6 +149,7 @@ export async function sendPhoto(
     caption: options.caption,
     parse_mode: options.caption && options.parseMode !== null ? "HTML" : undefined,
     reply_markup: buildMarkup(options),
+    ...routing(options),
   });
 }
 
@@ -149,6 +166,7 @@ export async function sendVideo(
     parse_mode: options.caption && options.parseMode !== null ? "HTML" : undefined,
     supports_streaming: true,
     reply_markup: buildMarkup(options),
+    ...routing(options),
   });
 }
 
@@ -216,8 +234,110 @@ export async function setWebhook(url: string, secretToken: string) {
   return tgCall("setWebhook", {
     url,
     secret_token: secretToken,
-    allowed_updates: ["message", "callback_query", "my_chat_member"],
+    allowed_updates: TELEGRAM_ALLOWED_UPDATES,
   });
+}
+
+/** Everything the bot handles (T3 adds channel posts, discussion comments, channel DMs and Business). */
+export const TELEGRAM_ALLOWED_UPDATES = [
+  "message",
+  "edited_message",
+  "callback_query",
+  "my_chat_member",
+  "business_connection",
+  "business_message",
+  "edited_business_message",
+  "deleted_business_messages",
+];
+
+// ─── Channels (T3) ─────────────────────────────────────────────────────────────
+
+export interface TgChatFull {
+  id: number;
+  type: string;
+  title?: string;
+  username?: string;
+  linked_chat_id?: number;
+  is_direct_messages?: boolean;
+  parent_chat?: { id: number; type: string; title?: string };
+}
+
+export interface TgChatMember {
+  status: "creator" | "administrator" | "member" | "restricted" | "left" | "kicked";
+  user?: { id: number };
+  can_post_messages?: boolean;
+  can_edit_messages?: boolean;
+  can_delete_messages?: boolean;
+  can_manage_direct_messages?: boolean;
+  [key: string]: unknown;
+}
+
+export async function getMe() {
+  return tgCall<{ id: number; username?: string }>("getMe");
+}
+
+export async function getChat(chatId: string | number) {
+  return tgCall<TgChatFull>("getChat", { chat_id: chatId });
+}
+
+export async function getChatMember(chatId: string | number, userId: number) {
+  return tgCall<TgChatMember>("getChatMember", { chat_id: chatId, user_id: userId });
+}
+
+export async function leaveChat(chatId: string | number) {
+  return tgCall<boolean>("leaveChat", { chat_id: chatId });
+}
+
+export async function deleteMessage(chatId: string | number, messageId: number) {
+  return tgCall<boolean>("deleteMessage", { chat_id: chatId, message_id: messageId });
+}
+
+export async function editMessageCaption(chatId: string | number, messageId: number, caption: string) {
+  return tgCall("editMessageCaption", { chat_id: chatId, message_id: messageId, caption });
+}
+
+/**
+ * Multipart upload (files Telegram cannot fetch by URL: videos over 20 MB, up
+ * to the 50 MB Bot API limit). `files` are attached by field name.
+ */
+export async function tgUpload<T = unknown>(
+  method: string,
+  params: Record<string, unknown>,
+  files: Record<string, { data: Buffer; filename: string; contentType: string }>
+): Promise<T> {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    form.append(key, typeof value === "string" ? value : JSON.stringify(value));
+  }
+  for (const [key, file] of Object.entries(files)) {
+    form.append(key, new Blob([new Uint8Array(file.data)], { type: file.contentType }), file.filename);
+  }
+  const response = await fetch(`https://api.telegram.org/bot${getBotToken()}/${method}`, { method: "POST", body: form });
+  const data = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    result?: T;
+    description?: string;
+    error_code?: number;
+    parameters?: { retry_after?: number };
+  };
+  if (!response.ok || !data.ok) {
+    throw new TelegramApiError(method, data.error_code ?? response.status, data.description ?? "unknown error", data.parameters?.retry_after);
+  }
+  return data.result as T;
+}
+
+/** One retry after Telegram's retry_after when it is short; longer waits go back to the queue. */
+export async function withFloodRetry<T>(fn: () => Promise<T>, maxWaitSec = 10): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof TelegramApiError && error.isRateLimited && (error.retryAfter ?? 0) <= maxWaitSec) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(1, error.retryAfter ?? 1) * 1000));
+      return fn();
+    }
+    throw error;
+  }
 }
 
 /** Escape text for Telegram HTML parse mode. */

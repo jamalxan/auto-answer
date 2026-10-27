@@ -17,7 +17,8 @@ const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, 
   body: JSON.stringify({
     url,
     secret_token: secret,
-    allowed_updates: ["message", "callback_query", "my_chat_member"],
+    // Keep in sync with TELEGRAM_ALLOWED_UPDATES in lib/telegram/api.ts (T3: Business + channel comments).
+    allowed_updates: ["message", "edited_message", "callback_query", "my_chat_member", "business_connection", "business_message", "edited_business_message", "deleted_business_messages"],
     drop_pending_updates: false,
   }),
 });
