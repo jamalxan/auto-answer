@@ -68,6 +68,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Tariff channel count (phase 8): only a new account takes a slot.
+    const alreadyHere = await prisma.instagramAccount.findFirst({ where: { workspaceId: state.workspaceId, instagramId }, select: { id: true } });
+    if (!alreadyHere) {
+      const { assertChannelSlots, PlanLimitError } = await import("@/lib/billing/limits");
+      try {
+        await assertChannelSlots(state.workspaceId, 1);
+      } catch (limitError) {
+        if (limitError instanceof PlanLimitError) return NextResponse.redirect(`${baseUrl}/settings?instagram=plan_limit`);
+        throw limitError;
+      }
+    }
+
     const encryptedToken = encryptToken(longLivedToken);
     const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
 

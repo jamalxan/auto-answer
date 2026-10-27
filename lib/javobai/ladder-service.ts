@@ -140,6 +140,13 @@ export async function setIntentMode(workspaceId: string, instagramAccountId: str
   if (!overview.allowed.includes(mode)) {
     throw new LadderError(409, overview.readiness.missing[0] ?? "Bu rejim hozir mumkin emas");
   }
+  if (mode === "AUTO") {
+    // Tariff (phase 8): Start is observe + copilot only.
+    const { assertAiAuto, PlanLimitError } = await import("@/lib/billing/limits");
+    await assertAiAuto(workspaceId).catch((error: unknown) => {
+      throw error instanceof PlanLimitError ? new LadderError(402, error.message) : error;
+    });
+  }
   await prisma.aiIntentPolicy.upsert({
     where: { instagramAccountId_intent: { instagramAccountId, intent } },
     create: { workspaceId, instagramAccountId, intent, mode, changedBy: by, changedAt: new Date() },

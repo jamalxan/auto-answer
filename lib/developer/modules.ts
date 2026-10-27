@@ -167,6 +167,15 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     status: "TESTING",
     href: "/developer/ads",
   },
+  {
+    key: "billing",
+    etap: 18,
+    title: "Tariflar va to'lov",
+    summary:
+      "Start / Biznes / Pro / Agentlik: kanallar, AI javoblar, avto rejim, rejalashtirilgan post va video tahlil limitlari (BILLING_ENFORCED bilan), Click va Payme to'lovi (flag ortida).",
+    status: "TESTING",
+    href: "/developer/billing",
+  },
 ];
 
 export const MODULE_STATUS_LABEL: Record<ModuleStatus, string> = {

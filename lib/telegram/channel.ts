@@ -183,6 +183,16 @@ export async function handleChannelMembership(update: TgMyChatMember): Promise<C
       );
       return "left_foreign";
     }
+    // Tariff channel count (phase 8): a new channel over the limit is not connected.
+    const { assertChannelSlots, PlanLimitError } = await import("@/lib/billing/limits");
+    try {
+      await assertChannelSlots(fromWorkspace, 1);
+    } catch (error) {
+      if (!(error instanceof PlanLimitError)) throw error;
+      await leaveChat(chatId).catch(() => null);
+      await tellUser(update.from.id, `Kanal ulanmadi: ${error.message}.`);
+      return "left_foreign";
+    }
   }
 
   const info = await getChat(chatId).catch(() => null);
