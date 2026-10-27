@@ -308,6 +308,10 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   telegramBusinessConnection: [["connectionId"]],
   channelMessage: [["channel", "chatId", "externalId"]],
   channelPostTarget: [["postId", "channel", "accountRef"]],
+  // Content intelligence (audit phase 5)
+  contentPostStat: [["instagramAccountId", "igMediaId"]],
+  contentAnalysis: [["statId"]],
+  contentReport: [["instagramAccountId", "weekStart"]],
   // CRM (ETAP 5)
   crmContact: [["instagramAccountId", "igUserId"], ["conversationId"], ["instagramContactId"]],
   crmTag: [["workspaceId", "slug"]],
@@ -432,6 +436,11 @@ const DEFAULTS: Record<string, () => Row> = {
   aiEvalCase: () => ({ expectedIntent: null, mustContain: [], mustNotContain: [], referenceAnswer: null, source: "manual", active: true }),
   aiEvalRun: () => ({ status: "RUNNING", total: 0, passed: 0, failed: 0, results: [], triggeredBy: null, startedAt: new Date(), finishedAt: null }),
   commentModeration: () => ({ mediaId: null, error: null }),
+  contentPostStat: () => ({ scheduledPostId: null, productType: null, permalink: null, caption: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, follows: null, totalInteractions: null, avgWatchMs: null, skipRate: null, bizComments: 0, bizDms: 0, bizLeads: 0, bizSales: 0, score: null }),
+  contentAnalysis: () => ({ status: "PENDING", tags: {}, transcript: null, issues: [], model: null, costUsd: null, error: null, analyzedAt: null }),
+  contentReport: () => ({ sentAt: null }),
+  contentPlan: () => ({ status: "DRAFT", items: [], model: null, createdById: null }),
+  hookExperiment: () => ({ variants: [], status: "RUNNING", winnerIndex: null, decidedAt: null }),
   telegramChannel: () => ({ title: null, username: null, linkedChatId: null, discussionReady: false, dmChatId: null, status: "ACTIVE", rights: {}, missingRights: [] }),
   telegramBusinessConnection: () => ({ canReply: false, isEnabled: true, rights: {} }),
   channelMessage: () => ({ direction: "IN", authorRef: null, authorName: null, text: "", replyToExternalId: null, sentByUserId: null, editedAt: null, deletedAt: null }),

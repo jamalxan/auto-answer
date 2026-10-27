@@ -100,4 +100,22 @@ export async function runContentMaintenance(): Promise<void> {
   } catch (error) {
     console.error("[Content] sweep failed:", error instanceof Error ? error.message : error);
   }
+  runContentIntel();
+}
+
+let intelRunning = false;
+
+/** Content intelligence (audit phase 5) runs beside the sweep: a slow video analysis never delays a publish. */
+function runContentIntel(): void {
+  if (intelRunning) return;
+  intelRunning = true;
+  void import("@/lib/content-intel/tick")
+    .then(({ contentIntelTick }) => contentIntelTick())
+    .then((result) => {
+      if (result.analysed || result.accounts || result.experiments || result.reports) console.log("[ContentIntel] tick:", JSON.stringify(result));
+    })
+    .catch((error) => console.error("[ContentIntel] tick failed:", error instanceof Error ? error.message : error))
+    .finally(() => {
+      intelRunning = false;
+    });
 }

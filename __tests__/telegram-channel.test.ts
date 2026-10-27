@@ -4,7 +4,7 @@ vi.stubEnv("TELEGRAM_BOT_TOKEN", "777000:TESTTOKENTESTTOKENTESTTOKENTESTTOKEN");
 vi.stubEnv("TELEGRAM_BOT_USERNAME", "SocialAutoBot");
 
 const redisStore = vi.hoisted(() => new Map<string, string>());
-const notify = vi.hoisted(() => vi.fn(async (_workspaceId: string, _text: string, _options?: unknown) => 1));
+const notify = vi.hoisted(() => vi.fn(async (...args: [string, string, unknown?]) => args.length && 1));
 
 vi.mock("../lib/db/client", async () => {
   const { db } = await import("./helpers/db-instance");

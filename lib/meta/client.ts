@@ -932,6 +932,22 @@ export async function getAccountMedia(
   return data.data ?? [];
 }
 
+export interface MediaDetails {
+  id: string;
+  media_type: string;
+  media_url?: string;
+  thumbnail_url?: string;
+  children?: { data: Array<{ id: string; media_type: string; media_url?: string }> };
+}
+
+/** One media with fresh CDN URLs (they expire), carousel children included. */
+export async function getMediaDetails(accessToken: string, mediaId: string): Promise<MediaDetails> {
+  const url = new URL(`${instagramGraphBase()}/${mediaId}`);
+  url.searchParams.set("fields", "id,media_type,media_url,thumbnail_url,children{id,media_type,media_url}");
+  url.searchParams.set("access_token", accessToken);
+  return handleResponse<MediaDetails>(await fetch(url.toString()));
+}
+
 /** One day of `online_followers`: hour key "0"…"23" → followers online; `end_time` closes the day. */
 export interface OnlineFollowersDay {
   endTime: string;
