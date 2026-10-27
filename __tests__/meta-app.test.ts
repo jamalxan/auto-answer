@@ -1,0 +1,18 @@
+import { describe, expect, it } from "vitest";
+import { facebookChannelsApp } from "@/lib/channels/meta-app";
+
+describe("facebookChannelsApp", () => {
+  it("prefers the channels app over the Instagram app", () => {
+    const env = { FACEBOOK_APP_ID: "ig", FACEBOOK_APP_SECRET: "ig-secret", FACEBOOK_CHANNELS_APP_ID: " ch ", FACEBOOK_CHANNELS_APP_SECRET: "ch-secret" };
+    expect(facebookChannelsApp(env)).toEqual({ appId: "ch", secret: "ch-secret" });
+  });
+
+  it("falls back to FACEBOOK_APP_* when the channels app is not configured", () => {
+    const env = { FACEBOOK_APP_ID: "ig", FACEBOOK_APP_SECRET: "ig-secret" };
+    expect(facebookChannelsApp(env)).toEqual({ appId: "ig", secret: "ig-secret" });
+  });
+
+  it("returns empty strings when nothing is set", () => {
+    expect(facebookChannelsApp({})).toEqual({ appId: "", secret: "" });
+  });
+});

@@ -20,6 +20,7 @@
 import { getMetaGraphApiVersion } from "@/lib/env";
 import { metaJson } from "./api";
 import { capabilitiesOf } from "./capabilities";
+import { facebookChannelsApp } from "./meta-app";
 import { ChannelError, type ChannelAdapter, type ChannelCredentials, type InboundEvent, type PostVariant, type PublishResult } from "./types";
 
 const LABEL = "Facebook";
@@ -93,8 +94,7 @@ export const facebookAdapter: ChannelAdapter = {
 
   async checkCredentials(creds) {
     const { token, tenantId } = ctx(creds);
-    const appId = process.env.FACEBOOK_APP_ID?.trim();
-    const secret = process.env.FACEBOOK_APP_SECRET?.trim();
+    const { appId, secret } = facebookChannelsApp();
     try {
       if (appId && secret) {
         const debug = await metaJson<{ data?: { is_valid?: boolean } }>(facebookGraph("debug_token", { input_token: token, access_token: `${appId}|${secret}` }), LABEL, { tenantId });
@@ -211,9 +211,9 @@ export const facebookAdapter: ChannelAdapter = {
 // ─── OAuth: Facebook Login for Business ────────────────────────────────────────
 
 export function facebookAuthorizeUrl(redirectUri: string, state: string): string {
-  const appId = process.env.FACEBOOK_APP_ID?.trim();
+  const { appId } = facebookChannelsApp();
   const configId = process.env.FACEBOOK_LOGIN_CONFIG_ID?.trim();
-  if (!appId) throw new ChannelError("invalid", "FACEBOOK_APP_ID sozlanmagan");
+  if (!appId) throw new ChannelError("invalid", "FACEBOOK_CHANNELS_APP_ID sozlanmagan");
   const url = new URL(`https://www.facebook.com/${getMetaGraphApiVersion()}/dialog/oauth`);
   url.searchParams.set("client_id", appId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -237,9 +237,8 @@ export interface FacebookPageChoice {
 
 /** code → short user token → long-lived user token → the Pages it manages, with their tokens. */
 export async function facebookPagesFromCode(code: string, redirectUri: string): Promise<FacebookPageChoice[]> {
-  const appId = process.env.FACEBOOK_APP_ID?.trim() ?? "";
-  const secret = process.env.FACEBOOK_APP_SECRET?.trim() ?? "";
-  if (!appId || !secret) throw new ChannelError("invalid", "FACEBOOK_APP_ID / FACEBOOK_APP_SECRET sozlanmagan");
+  const { appId, secret } = facebookChannelsApp();
+  if (!appId || !secret) throw new ChannelError("invalid", "FACEBOOK_CHANNELS_APP_ID / FACEBOOK_CHANNELS_APP_SECRET sozlanmagan");
   const short = await metaJson<{ access_token: string }>(facebookGraph("oauth/access_token", { client_id: appId, client_secret: secret, redirect_uri: redirectUri, code }), LABEL);
   const long = await metaJson<{ access_token: string }>(
     facebookGraph("oauth/access_token", { grant_type: "fb_exchange_token", client_id: appId, client_secret: secret, fb_exchange_token: short.access_token }),

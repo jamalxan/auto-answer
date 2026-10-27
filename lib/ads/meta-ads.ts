@@ -14,6 +14,7 @@
 
 import { getMetaGraphApiVersion } from "@/lib/env";
 import { metaJson } from "@/lib/channels/api";
+import { facebookChannelsApp } from "@/lib/channels/meta-app";
 import { ChannelError } from "@/lib/channels/types";
 
 const LABEL = "Meta Ads";
@@ -201,8 +202,8 @@ export async function sendSaleEvent(token: string, datasetId: string, event: Sal
 // ─── OAuth ─────────────────────────────────────────────────────────────────────
 
 export function adsAuthorizeUrl(redirectUri: string, state: string): string {
-  const appId = process.env.FACEBOOK_APP_ID?.trim();
-  if (!appId) throw new ChannelError("invalid", "FACEBOOK_APP_ID sozlanmagan");
+  const { appId } = facebookChannelsApp();
+  if (!appId) throw new ChannelError("invalid", "FACEBOOK_CHANNELS_APP_ID sozlanmagan");
   const url = new URL(`https://www.facebook.com/${getMetaGraphApiVersion()}/dialog/oauth`);
   url.searchParams.set("client_id", appId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -220,9 +221,8 @@ export function adsAuthorizeUrl(redirectUri: string, state: string): string {
 
 /** code → long-lived user token with the ads scopes. */
 export async function adsTokenFromCode(code: string, redirectUri: string): Promise<string> {
-  const appId = process.env.FACEBOOK_APP_ID?.trim() ?? "";
-  const secret = process.env.FACEBOOK_APP_SECRET?.trim() ?? "";
-  if (!appId || !secret) throw new ChannelError("invalid", "FACEBOOK_APP_ID / FACEBOOK_APP_SECRET sozlanmagan");
+  const { appId, secret } = facebookChannelsApp();
+  if (!appId || !secret) throw new ChannelError("invalid", "FACEBOOK_CHANNELS_APP_ID / FACEBOOK_CHANNELS_APP_SECRET sozlanmagan");
   const short = await metaJson<{ access_token: string }>(adsGraph("oauth/access_token", { client_id: appId, client_secret: secret, redirect_uri: redirectUri, code }), LABEL);
   const long = await metaJson<{ access_token: string }>(
     adsGraph("oauth/access_token", { grant_type: "fb_exchange_token", client_id: appId, client_secret: secret, fb_exchange_token: short.access_token }),
