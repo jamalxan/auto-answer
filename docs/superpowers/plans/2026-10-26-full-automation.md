@@ -34,3 +34,34 @@ call has timeout + retry + 429 handling; tenant filter on every query; secrets n
 Owner-only, not code: YaTT → Business Verification, App Review screencasts, Google OAuth
 verification + YouTube audit, BotFather bots, privacy/terms text review by a lawyer, data
 localisation opinion.
+
+## Phase 9 runbook (keys + live checks)
+
+Order matters: keys only help once the code runs in production.
+
+1. **Merge the stack** #15 → #22 into master (owner; `gh pr merge` is blocked for Claude).
+   The Deploy workflow ships it and runs the migrations. Nothing changes for customers:
+   every new module sits under /developer, billing limits are off (`BILLING_ENFORCED` unset),
+   Payme/Click answer 404, the ads tick runs only for connected ad accounts.
+2. **Server env** (`~/socialauto/.env` on 48.217.83.167, then restart web + worker with `--no-deps`):
+
+   | Key | Where it comes from | Owner action needed |
+   |---|---|---|
+   | `CREDENTIAL_KEKS`, `CREDENTIAL_KEK_VERSION` | generated (`openssl rand -hex 32`) — vault for FB/Threads/YouTube/ads tokens | no |
+   | `LLM_FALLBACK_PROVIDER/MODEL/API_KEY/BASE_URL` | second LLM provider key | key |
+   | `FACEBOOK_APP_ID` (+ existing secret) | Meta app | — |
+   | `FACEBOOK_LOGIN_CONFIG_ID` | Meta app → Facebook Login for Business → configuration (pages_show_list, pages_manage_posts, pages_read_engagement, pages_manage_engagement, pages_messaging) | Meta console |
+   | `FACEBOOK_ADS_CONFIG_ID` | second configuration: ads_management, ads_read, business_management | Meta console |
+   | `THREADS_APP_ID`, `THREADS_APP_SECRET` | Meta app → Threads use case; redirect `/api/developer/channels/callback/threads`, webhook `/webhooks/threads` | Meta console |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Cloud → OAuth client (web), YouTube Data API v3 enabled; redirect `/api/developer/channels/callback/youtube` | Google console |
+   | `PAYME_ENABLED`, `PAYME_MERCHANT_ID`, `PAYME_KEY`, `PAYME_TEST=1` first | Payme Business cabinet; endpoint `https://socialauto.uz/api/billing/payme` | merchant contract (legal entity / YaTT) |
+   | `CLICK_ENABLED`, `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `CLICK_SECRET_KEY` | Click merchant cabinet; prepare/complete `https://socialauto.uz/api/billing/click/{prepare,complete}` | merchant contract |
+   | Telegram bot token(s) | BotFather; bot added as channel admin | owner's Telegram |
+
+   Webhooks to register in the Meta app: `/webhooks/facebook` (page feed, messages), `/webhooks/threads`.
+3. **Live checks** (Claude can run these once 1–2 are done): connect FB Page / Threads / YouTube in
+   /developer/channels, cross-post one test post, private-reply test comment; Payme sandbox
+   (`PAYME_TEST=1`) full Create → Perform → Cancel from the Payme test cabinet; Click test payment;
+   ads: connect ad account, build one boost (stays PAUSED), reject it; reconnect amoCRM + Telegram alerts.
+4. **Turn on billing** only after the owner fixes the final prices: `BILLING_ENFORCED=1`, update the
+   DB PricingPlan rows and the /settings "no plan limits" line.
