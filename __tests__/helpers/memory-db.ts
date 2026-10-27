@@ -308,6 +308,7 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   telegramBusinessConnection: [["connectionId"]],
   channelMessage: [["channel", "chatId", "externalId"]],
   channelPostTarget: [["postId", "channel", "accountRef"]],
+  channelPrivateReply: [["channel", "commentId"]],
   // Content intelligence (audit phase 5)
   contentPostStat: [["instagramAccountId", "igMediaId"]],
   contentAnalysis: [["statId"]],
@@ -444,8 +445,9 @@ const DEFAULTS: Record<string, () => Row> = {
   telegramChannel: () => ({ title: null, username: null, linkedChatId: null, discussionReady: false, dmChatId: null, status: "ACTIVE", rights: {}, missingRights: [] }),
   telegramBusinessConnection: () => ({ canReply: false, isEnabled: true, rights: {} }),
   channelMessage: () => ({ direction: "IN", authorRef: null, authorName: null, text: "", replyToExternalId: null, sentByUserId: null, editedAt: null, deletedAt: null }),
-  channelPostTarget: () => ({ status: "PENDING", externalIds: [], attempts: 0, lastError: null, publishedAt: null }),
-  channelCredential: () => ({ label: null, scopes: [], expiresAt: null, refreshedAt: null, checkedAt: null, status: "ACTIVE", lastErrorCode: null, lastErrorAt: null, alertedAt: null }),
+  channelPostTarget: () => ({ status: "PENDING", externalIds: [], attempts: 0, lastError: null, nextAttemptAt: null, pollToken: null, pollStartedAt: null, publishedAt: null }),
+  channelPrivateReply: () => ({ status: "SENDING", externalId: null, error: null }),
+  channelCredential: () => ({ label: null, scopes: [], expiresAt: null, refreshedAt: null, checkedAt: null, status: "ACTIVE", lastErrorCode: null, lastErrorAt: null, alertedAt: null, pollCursor: null }),
   llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
   triggerFollowUpRun: () => ({ status: "SCHEDULED", sentAt: null, reason: null }),
   // Analytics (ETAP 10)

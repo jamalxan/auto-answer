@@ -38,7 +38,8 @@ export interface RefreshSummary {
 async function fail(row: { id: string; workspaceId: string; channel: string; label: string | null; externalAccountId: string; alertedAt: Date | null; expiresAt: Date | null }, error: unknown, now: Date) {
   const kind = error instanceof ChannelError ? error.kind : "transient";
   const permanent = kind === "auth" || kind === "permission";
-  const expiringSoon = row.expiresAt !== null && row.expiresAt.getTime() - now.getTime() < EXPIRING_DAYS * DAY_MS;
+  // YouTube's expiresAt is the 1-hour access token; only the refresh token matters there.
+  const expiringSoon = REFRESH_CHANNELS.has(row.channel as ChannelId) && row.expiresAt !== null && row.expiresAt.getTime() - now.getTime() < EXPIRING_DAYS * DAY_MS;
   await prisma.channelCredential.update({
     where: { id: row.id },
     data: { lastErrorCode: kind, lastErrorAt: now, checkedAt: now, ...(permanent ? { status: "ERROR" as const } : expiringSoon ? { status: "EXPIRING" as const } : {}) },
