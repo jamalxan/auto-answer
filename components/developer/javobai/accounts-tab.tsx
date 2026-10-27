@@ -189,6 +189,33 @@ function ConfigForm({
         <Toggle on={config.isTest} onChange={(on) => set("isTest", on)} label="Test akkaunt" />
       </div>
 
+      {(
+        [
+          ["ladderEnabled", "Ishonch zinapoyasi", "Har bir mavzu alohida: kuzatish → copilot (qoralama) → avto. O'chiq bo'lsa hamma javob avval qanday bo'lsa shunday yuboriladi."],
+          ["hideOffensiveComments", "Haqoratli kommentlarni yashirish", "Postlar ostidagi so'kinish / haqorat avtomatik yashiriladi, Telegram'ga xabar keladi."],
+          ["notifyCommentComplaints", "Kommentdagi shikoyat → Telegram", "\"Aldadingiz\", \"kelmadi\" kabi kommentlar menejerlarga darhol yuboriladi."],
+        ] as const
+      ).map(([key, title, hint]) => (
+        <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+          <div className="min-w-0 text-sm">
+            <p className="font-medium text-foreground">{title}</p>
+            <p className="text-xs text-muted">{hint}</p>
+          </div>
+          <Toggle on={config[key]} onChange={(on) => set(key, on)} label={title} />
+        </div>
+      ))}
+
+      <Field label="Javobsiz handoff → ikkinchi menejer (daqiqa, 0 = yo'q)">
+        <input
+          type="number"
+          min={0}
+          max={240}
+          className={inputClass}
+          value={config.escalateAfterMinutes}
+          onChange={(e) => set("escalateAfterMinutes", num(e.target.value, config.escalateAfterMinutes))}
+        />
+      </Field>
+
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={primaryButton} disabled={saving} onClick={() => void save()}>
           {saving ? "Saqlanmoqda…" : "Sozlamalarni saqlash"}

@@ -91,7 +91,7 @@ import { DEBOUNCE_MS } from "../lib/assistant/humanize";
 import { forgetJavobAiGate, getJavobAiMode, routeAssistantEcho, routeAssistantInbound } from "../lib/javobai/gate";
 import { acceptHandoff, closeHandoff, openHandoff } from "../lib/javobai/handoff";
 import { previewKnowledge } from "../lib/javobai/knowledge";
-import { handJavobAiThread, handleJavobAiEcho, handleJavobAiInbound, runJavobAiReply } from "../lib/javobai/runtime";
+import { handJavobAiThread, handleJavobAiEcho, handleJavobAiInbound, runJavobAiReply, sendJavobAiDraft } from "../lib/javobai/runtime";
 import { runJavobAiSandbox } from "../lib/javobai/sandbox";
 import { sendDirectMessage } from "../lib/meta/client";
 import { db, resetDb } from "./helpers/db-instance";
@@ -530,6 +530,71 @@ describe("LIVE: scenario B + C end to end", () => {
     await inbound("salom");
     expect(db.rows("conversation")).toHaveLength(0);
     expect(queues.scheduleJavobAiReply).not.toHaveBeenCalled();
+  });
+});
+
+describe("trust ladder (audit 2026-10-26)", () => {
+  it("off: every model reply is sent as before, no samples", async () => {
+    seedWorld("LIVE");
+    setLlmProviderForTests(llm([{ reply: "Salom! Qanday yordam bera olaman?", intent: "greeting" }]));
+    await say("salom");
+    expect(sent()).toHaveLength(1);
+    expect(db.rows("aiShadowTurn")).toHaveLength(0);
+  });
+
+  it("OBSERVE (no policy row): nothing is sent, the draft is a sample", async () => {
+    seedWorld("LIVE", { ladderEnabled: true });
+    setLlmProviderForTests(llm([{ reply: "Salom! Qanday yordam bera olaman?", intent: "greeting" }]));
+    await say("salom");
+    expect(sendDirectMessage).not.toHaveBeenCalled();
+    expect(db.rows("aiShadowTurn")[0]).toMatchObject({ source: "observe", intent: "greeting", instagramAccountId: "a1", aiReply: "Salom! Qanday yordam bera olaman?" });
+    expect(conv().botMessageCount ?? 0).toBe(0);
+  });
+
+  it("COPILOT: a draft + Telegram card; one send delivers it once and counts as a judged match", async () => {
+    seedWorld("LIVE", { ladderEnabled: true });
+    db.seed("aiIntentPolicy", { workspaceId: "w1", instagramAccountId: "a1", intent: "greeting", mode: "COPILOT" });
+    setLlmProviderForTests(llm([{ reply: "Salom! Qanday yordam bera olaman?", intent: "greeting" }]));
+    await say("salom");
+    expect(sendDirectMessage).not.toHaveBeenCalled();
+    const draft = db.rows("aiDraft")[0];
+    expect(draft).toMatchObject({ status: "PENDING", intent: "greeting" });
+    const card = queues.notifyWorkspaceChats.mock.calls.find((c) => String((c as unknown[])[1]).includes("qoralama")) as unknown as [string, string, { keyboard: Array<Array<{ callback_data?: string }>> }];
+    expect(card[2].keyboard[0][0].callback_data).toBe(`jai:dsend:${draft.id}`);
+
+    expect(await sendJavobAiDraft("w1", String(draft.id), "user:x")).toEqual({ ok: true });
+    expect(sent()).toEqual(["Salom! Qanday yordam bera olaman?"]);
+    expect(await sendJavobAiDraft("w1", String(draft.id), "user:x")).toMatchObject({ ok: false });
+    expect(sent()).toHaveLength(1);
+    expect(db.rows("aiShadowTurn")[0]).toMatchObject({ source: "copilot", judgeMatch: true, operatorReply: "Salom! Qanday yordam bera olaman?" });
+  });
+
+  it("AUTO sends, but a reply with a number outside the knowledge becomes a draft", async () => {
+    seedWorld("LIVE", { ladderEnabled: true });
+    db.seed("aiIntentPolicy", { workspaceId: "w1", instagramAccountId: "a1", intent: "greeting", mode: "AUTO" });
+    setLlmProviderForTests(llm([{ reply: "Salom! Bugun 25% chegirma bor!", intent: "greeting" }]));
+    await say("salom");
+    expect(sendDirectMessage).not.toHaveBeenCalled();
+    expect(db.rows("aiDraft")).toHaveLength(1);
+    expect(String(db.rows("aiShadowTurn")[0].judgeNotes)).toMatch(/foiz/);
+
+    setLlmProviderForTests(llm([{ reply: "Salom! Xush kelibsiz.", intent: "greeting" }]));
+    await say("assalomu alaykum");
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toMatch(/^Salom! Xush kelibsiz\./);
+    expect(db.rows("aiShadowTurn").some((r) => r.source === "auto")).toBe(true);
+    expect(db.rows("aiDraft")[0].status).toBe("SUPERSEDED");
+  });
+
+  it("while an operator holds the thread the AI still drafts in silence", async () => {
+    seedWorld("LIVE", { ladderEnabled: true });
+    db.seed("conversation", { id: "c1", workspaceId: "w1", instagramAccountId: "a1", igUserId: "u1", operatorActiveUntil: new Date(Date.now() + 3600_000) });
+    setLlmProviderForTests(llm([{ reply: "Milan 4 500 000 so'm", intent: "price_question", used_facts: ["P1"] }]));
+    await inbound("Milan narxi?");
+    expect(queues.scheduleJavobAiReply).not.toHaveBeenCalled();
+    expect(sendDirectMessage).not.toHaveBeenCalled();
+    expect(db.rows("aiShadowTurn")[0]).toMatchObject({ source: "observe", conversationId: "c1" });
+    expect(db.rows("aiShadowTurn")[0].customerMessageId).toBeTruthy();
   });
 });
 

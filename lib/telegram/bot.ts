@@ -14,6 +14,7 @@ import { updateProfileFields } from "@/lib/assistant/profile-write";
 import { acceptHandoff, closeHandoff } from "@/lib/javobai/handoff";
 import { getRedisConnection } from "@/lib/queue/client";
 import { canManageWorkspace } from "@/lib/workspace-roles";
+import { handleLadderCallback, handleLadderText } from "./ladder";
 import { buildLeadKeyboard, buildLeadText } from "./lead-message";
 import {
   TelegramApiError,
@@ -368,6 +369,8 @@ async function handleAssistantCallback(io: BotIO, tgUserId: string, parts: strin
 async function handleJavobAiCallback(io: BotIO, cb: NonNullable<TgUpdate["callback_query"]>, data: string) {
   const chatId = cb.message ? String(cb.message.chat.id) : null;
   if (!chatId || !cb.message) return;
+  // Trust ladder: copilot drafts, manager replies, "add to KB" (lib/telegram/ladder.ts).
+  if (await handleLadderCallback(io, chatId, String(cb.from.id), data)) return;
   const [, action, conversationId] = data.split(":");
   if (!conversationId || (action !== "take" && action !== "close")) return;
 
@@ -559,6 +562,9 @@ async function handleMessage(io: BotIO, message: TgMessage) {
       keyboard: [[{ text: "🇺🇿 O'zbekcha", callback_data: "lang:uz" }, { text: "🇷🇺 Русский", callback_data: "lang:ru" }]],
     }));
   }
+
+  // A manager's typed answer to a draft / handoff the bot is waiting for (or /bekor).
+  if (text && (!text.startsWith("/") || /^\/bekor\b/i.test(text)) && (await handleLadderText(io, chatId, tgUserId, text))) return;
 
   const cmd = command(text);
   if (cmd && OWNER_COMMANDS.has(cmd)) {

@@ -477,6 +477,16 @@ export async function sendCommentReply(
   return handleResponse(response);
 }
 
+/** Hide (or unhide) a comment under the account's own media (comment guard). */
+export async function setCommentHidden(accessToken: string, commentId: string, hide: boolean): Promise<{ success: boolean }> {
+  const response = await fetch(`${instagramGraphBase()}/${commentId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ hide }),
+  });
+  return handleResponse(response);
+}
+
 export async function getMediaComments(
   accessToken: string,
   mediaId: string

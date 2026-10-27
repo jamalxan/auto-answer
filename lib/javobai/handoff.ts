@@ -66,7 +66,10 @@ async function alertHandoff(conversationId: string, input: OpenHandoffInput): Pr
         { text: "✅ Qabul qildim", callback_data: `jai:take:${conversationId}` },
         { text: "✖ Yopish", callback_data: `jai:close:${conversationId}` },
       ],
-      [{ text: "💬 Instagram suhbat", url: `${getBaseUrl()}/inbox?conversation=${conversationId}` }],
+      [
+        { text: "✍️ Shu yerdan javob", callback_data: `jai:reply:${conversationId}` },
+        { text: "💬 Instagram suhbat", url: `${getBaseUrl()}/inbox?conversation=${conversationId}` },
+      ],
     ],
   }).catch(() => 0);
   try {
@@ -230,4 +233,58 @@ export async function autoCloseInactiveHandoffs(now = new Date()): Promise<numbe
     closed++;
   }
   return closed;
+}
+
+// ─── Escalation (audit 2026-10-26) ────────────────────────────────────────────
+
+/**
+ * A handoff nobody accepted within the account's `escalateAfterMinutes`
+ * (working hours only: an off-hours handoff waits for the morning) goes to
+ * every linked member personally, not only the group chat. Once per handoff.
+ */
+export async function escalatePendingHandoffs(now = new Date()): Promise<number> {
+  const open = (await prisma.aiHandoff.findMany({
+    where: { status: "OPEN", acceptedAt: null, escalatedAt: null, openedAt: { lte: new Date(now.getTime() - 60_000), gte: new Date(now.getTime() - 24 * HOUR_MS) } },
+    orderBy: { openedAt: "asc" },
+    take: 100,
+    select: { id: true, reason: true, openedAt: true, conversation: { select: { id: true, workspaceId: true, instagramAccountId: true, igUsername: true, igName: true, igUserId: true } } },
+  })) as Array<{
+    id: string;
+    reason: string;
+    openedAt: Date;
+    conversation: { id: string; workspaceId: string; instagramAccountId: string; igUsername: string | null; igName: string | null; igUserId: string };
+  }>;
+  let escalated = 0;
+  for (const h of open) {
+    const c = h.conversation;
+    const config = await loadAccountConfig(c.instagramAccountId);
+    if (!config.escalateAfterMinutes || now.getTime() - h.openedAt.getTime() < config.escalateAfterMinutes * 60_000) continue;
+    const state = await prisma.aiConversationState.findUnique({ where: { conversationId: c.id }, select: { handoffState: true } });
+    if (state?.handoffState !== "HANDOFF_PENDING") continue;
+    const { findProfile, isWithinWorkingHours, readWorkingHours } = await import("@/lib/assistant/profile");
+    const profile = await findProfile(c.workspaceId, c.instagramAccountId);
+    if (profile && !isWithinWorkingHours(readWorkingHours(profile.workingHours), now)) continue;
+    // Claim first: two workers never escalate the same handoff twice.
+    const claimed = await prisma.aiHandoff.updateMany({ where: { id: h.id, escalatedAt: null }, data: { escalatedAt: now } });
+    if (claimed.count === 0) continue;
+    const who = c.igUsername ? `@${c.igUsername}` : (c.igName ?? c.igUserId);
+    const minutes = Math.round((now.getTime() - h.openedAt.getTime()) / 60_000);
+    const html =
+      `⏰ <b>JavobAI: ${minutes} daqiqa javob yo'q</b>\nMijoz: ${esc(who)}\nSabab: ${esc(handoffReasonLabel(h.reason as HandoffReason))}\n` +
+      `Hech kim qabul qilmadi — iltimos, kimdir javob bersin.`;
+    const keyboard = [
+      [
+        { text: "✅ Qabul qildim", callback_data: `jai:take:${c.id}` },
+        { text: "✍️ Shu yerdan javob", callback_data: `jai:reply:${c.id}` },
+      ],
+      [{ text: "💬 Instagram suhbat", url: `${getBaseUrl()}/inbox?conversation=${c.id}` }],
+    ];
+    await notifyWorkspaceChats(c.workspaceId, html, { keyboard }).catch(() => 0);
+    // The second manager: every linked member in a private chat.
+    const { sendWithRetry } = await import("@/lib/telegram/notify");
+    const people = (await prisma.telegramUser.findMany({ where: { workspaceId: c.workspaceId }, select: { tgUserId: true } })) as Array<{ tgUserId: string }>;
+    for (const p of people) await sendWithRetry(p.tgUserId, html, { keyboard }).catch(() => null);
+    escalated++;
+  }
+  return escalated;
 }

@@ -29,6 +29,10 @@ describe("config", () => {
       postHandoffReplies: 0,
       resumeAfterCloseHours: 24,
       isTest: true,
+      ladderEnabled: false,
+      escalateAfterMinutes: 15,
+      hideOffensiveComments: false,
+      notifyCommentComplaints: false,
     });
     expect(javobAiConfigSchema.safeParse({ confidenceThreshold: 0.95 }).success).toBe(false);
     expect(javobAiConfigSchema.safeParse({ maxTurns: 3 }).success).toBe(false);
