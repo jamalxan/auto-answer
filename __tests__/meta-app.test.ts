@@ -16,3 +16,17 @@ describe("facebookChannelsApp", () => {
     expect(facebookChannelsApp({})).toEqual({ appId: "", secret: "" });
   });
 });
+
+describe("metaAppSecrets", () => {
+  it("includes the channels and Threads app secrets for deauthorize / data-deletion callbacks", async () => {
+    const { metaAppSecrets } = await import("@/lib/meta/signed-request");
+    process.env.FACEBOOK_CHANNELS_APP_SECRET = "channels-s";
+    process.env.THREADS_APP_SECRET = "threads-s";
+    try {
+      expect(metaAppSecrets()).toEqual(expect.arrayContaining(["channels-s", "threads-s"]));
+    } finally {
+      delete process.env.FACEBOOK_CHANNELS_APP_SECRET;
+      delete process.env.THREADS_APP_SECRET;
+    }
+  });
+});

@@ -37,9 +37,17 @@ export function parseSignedRequest(signedRequest: string, secrets: string[]): Si
   }
 }
 
-/** Instagram Login callbacks are signed with the Instagram app secret; older setups with the Facebook one. */
+/**
+ * Instagram Login callbacks are signed with the Instagram app secret; older setups with the Facebook one.
+ * The channels app (Pages, Threads, Ads) has its own secrets and points its callbacks at the same routes.
+ */
 export function metaAppSecrets(): string[] {
-  return [process.env.INSTAGRAM_APP_SECRET ?? "", process.env.FACEBOOK_APP_SECRET ?? ""];
+  return [
+    process.env.INSTAGRAM_APP_SECRET ?? "",
+    process.env.FACEBOOK_APP_SECRET ?? "",
+    process.env.FACEBOOK_CHANNELS_APP_SECRET ?? "",
+    process.env.THREADS_APP_SECRET ?? "",
+  ];
 }
 
 /** Reads `signed_request` from a form-encoded (or JSON) callback body. */
