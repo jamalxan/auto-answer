@@ -904,6 +904,10 @@ async function replyInner(conversationId: string): Promise<void> {
     loadConversationMemory(conversationId, caps.maxHistory + pending.length),
   ]);
   if (!kb) return;
+  // Click-to-Direct ad the customer came from (phase 7); a lookup failure only loses the hint.
+  const adReferral = await import("@/lib/ads/referral")
+    .then(({ latestAdReferral }) => latestAdReferral(account.id, conversation.igUserId))
+    .catch(() => null);
   const postHandoffReplies = countersFrom(conversation.messages, openHandoffRow?.openedAt ?? null).postHandoffReplies;
 
   // AI-conversation quota, counted like production: once per conversation,
@@ -946,7 +950,8 @@ async function replyInner(conversationId: string): Promise<void> {
     },
     context: {
       campaignName: typeof context.campaignName === "string" ? context.campaignName : null,
-      cameFromAd: Boolean(context.cameFromAd),
+      cameFromAd: Boolean(context.cameFromAd) || Boolean(adReferral),
+      adTitle: adReferral?.adTitle ?? null,
     },
     media: mediaContextFor(mediaMetas, kb),
     // The window from the memory loader minus this turn's own messages.

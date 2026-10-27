@@ -158,6 +158,15 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     status: "TESTING",
     href: "/developer/channels",
   },
+  {
+    key: "ads",
+    etap: 17,
+    title: "Reklama",
+    summary:
+      "Medianadan 2× yaxshi post uchun boost taklifi, egasining tasdig'i bilan ishga tushirish, kunlik / oylik chegara va CPL bo'yicha avto-pauza, Click-to-Direct konteksti AI'ga, CRM sotuvi → Conversions API.",
+    status: "TESTING",
+    href: "/developer/ads",
+  },
 ];
 
 export const MODULE_STATUS_LABEL: Record<ModuleStatus, string> = {

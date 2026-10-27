@@ -155,6 +155,14 @@ export async function POST(request: NextRequest) {
     // messages are kept away from the keyword autoreply and the assistant
     // below. Its own queue and its own try/catch: on any failure nothing is
     // claimed and the production paths run as before.
+    // Click-to-Direct ad context for JavobAI (phase 7). Best effort.
+    try {
+      const { storeAdReferrals } = await import("@/lib/ads/referral");
+      await storeAdReferrals(payload);
+    } catch (referralError) {
+      console.error("[Webhook] Ad referral store failed:", referralError instanceof Error ? referralError.message : referralError);
+    }
+
     let dmTriggerClaims = new Map<string, string>();
     try {
       dmTriggerClaims = (await ingestWebhookPayload(payload)).claimed;

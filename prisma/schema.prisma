@@ -188,6 +188,9 @@ model Workspace {
   contentPlans               ContentPlan[]
   hookExperiments            HookExperiment[]
   channelPrivateReplies      ChannelPrivateReply[]
+  adAccounts                 AdAccount[]
+  adProposals                AdProposal[]
+  capiEvents                 CapiEvent[]
 
   @@index([ownerId])
 }
@@ -3863,4 +3866,140 @@ model ChannelPrivateReply {
 
   @@unique([channel, commentId])
   @@index([workspaceId])
+}
+
+// ─── Ads (audit 2026-10-26, phase 7) ───────────────────────────────────────────
+
+/// A Meta ad account the owner connected. The user token (ads_management)
+/// is envelope-encrypted like ChannelCredential. No spend is possible until
+/// all three caps are set.
+model AdAccount {
+  id                      String   @id @default(cuid())
+  workspaceId             String
+  /// act_<id>
+  adAccountId             String
+  name                    String?
+  currency                String   @default("USD")
+  /// Facebook Page and Instagram user the ads run as.
+  pageId                  String?
+  igUserId                String?
+  /// Conversions API dataset (pixel) for "sold" events.
+  datasetId               String?
+  encryptedPayload        String
+  dekEncrypted            String
+  keyVersion              Int
+  /// Minor units of `currency`. null = not set = nothing can be approved.
+  dailyCapMinor           Int?
+  monthlyCapMinor         Int?
+  /// Cost per lead above which a campaign is paused automatically.
+  cplMaxMinor             Int?
+  defaultDailyBudgetMinor Int?
+  /// Average sale value sent with the CAPI Purchase event.
+  saleValueMinor          Int?
+  /// ACTIVE | ERROR | REVOKED
+  status                  String   @default("ACTIVE")
+  lastError               String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proposals AdProposal[]
+
+  @@unique([workspaceId, adAccountId])
+}
+
+/// One spend decision. The AI only proposes; a workspace OWNER approves every
+/// launch, resume and budget change. Pausing never needs approval.
+///   PROPOSED → APPROVED → LAUNCHING → LIVE → PAUSED | DONE
+///   PROPOSED → REJECTED | EXPIRED,  LAUNCHING → FAILED
+model AdProposal {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  accountId        String
+  /// BOOST (a winning organic post)
+  kind             String    @default("BOOST")
+  /// MESSAGES (click-to-Instagram-Direct) | ENGAGEMENT
+  objective        String    @default("MESSAGES")
+  statId           String?
+  igMediaId        String
+  permalink        String?
+  reason           String
+  dailyBudgetMinor Int
+  durationDays     Int
+  status           String    @default("PROPOSED")
+  approvedById     String?
+  approvedAt       DateTime?
+  startAt          DateTime?
+  endAt            DateTime?
+  campaignId       String?
+  adSetId          String?
+  creativeId       String?
+  adId             String?
+  /// Why the guard paused it: daily_cap | monthly_cap | cpl | owner
+  pauseReason      String?
+  spendMinor       Int       @default(0)
+  results          Int       @default(0)
+  insightsAt       DateTime?
+  error            String?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account   AdAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  days      AdSpendDay[]
+
+  @@unique([accountId, kind, igMediaId])
+  @@index([workspaceId, status])
+}
+
+/// Spend and results per proposal per day (account timezone date), from insights.
+model AdSpendDay {
+  id         String   @id @default(cuid())
+  proposalId String
+  date       String
+  spendMinor Int      @default(0)
+  results    Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  proposal AdProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, date])
+}
+
+/// Click-to-Instagram-Direct: the ad a customer's thread came from.
+model AdReferral {
+  id                 String   @id @default(cuid())
+  instagramAccountId String
+  igUserId           String
+  adId               String
+  adTitle            String?
+  postId             String?
+  productId          String?
+  source             String?
+  createdAt          DateTime @default(now())
+
+  @@unique([instagramAccountId, igUserId, adId])
+  @@index([instagramAccountId, igUserId, createdAt])
+}
+
+/// Conversions API event ("sold" → Purchase), sent once per deal.
+model CapiEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  accountId   String
+  dealId      String
+  eventName   String    @default("Purchase")
+  /// PENDING | SENT | FAILED
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([dealId, eventName])
+  @@index([status])
 }
