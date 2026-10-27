@@ -742,9 +742,9 @@ export const en = {
     dashboardBody:
       "Every comment event is traceable: queued, matched, sent, skipped, failed, or rate-limited. No black box.",
     featuresEyebrow: "What's included",
-    featuresTitle: "The full toolset, every plan",
+    featuresTitle: "From comment to sale, on one platform",
     featuresBody:
-      "No feature is locked behind a higher plan — pricing only scales with how many Instagram accounts you connect.",
+      "Instagram, Facebook, Threads, YouTube and Telegram: AI replies, content planning and CRM. Plans scale with channels, AI replies and video analyses.",
     ctaTitle: "Turn your next reel's comments into DMs",
     ctaBody:
       "Connect your Instagram professional account and ship your first campaign in minutes.",
@@ -757,7 +757,7 @@ export const en = {
       "Per-account rate limiting",
       "Tracked links with click stats",
       "DM logs with full status",
-      "No plan limits",
+      "Free Start plan",
     ],
     trustEyebrow: "Why teams choose SocialAuto",
     trustTitle: "Built on the rails Instagram actually allows",
@@ -782,9 +782,9 @@ export const en = {
       },
     ],
     pricingEyebrow: "Pricing",
-    pricingTitle: "Simple pricing that scales with your accounts",
+    pricingTitle: "Pricing by channels and AI replies",
     pricingBody:
-      "No feature is locked behind a plan — pricing only reflects how many Instagram accounts you connect.",
+      "Try it free on Start, move to Business, Pro or Agency as you grow. Paid in UZS via Click and Payme.",
     pricingMostPopular: "Most popular",
     demo: {
       username: "maya.studio",

@@ -182,6 +182,10 @@ model Workspace {
   // Set when the LLM provider keeps failing: the assistant answers from
   // templates only until this moment.
   assistantTemplateOnlyUntil DateTime?
+  /// Tariff (audit phase 8): start | biznes | pro | agentlik. A paid plan holds
+  /// until planExpiresAt, then the workspace is on Start (lib/billing/plans).
+  planSlug                   String                @default("start")
+  planExpiresAt              DateTime?
   contentPostStats           ContentPostStat[]
   contentAnalyses            ContentAnalysis[]
   contentReports             ContentReport[]
@@ -191,6 +195,7 @@ model Workspace {
   adAccounts                 AdAccount[]
   adProposals                AdProposal[]
   capiEvents                 CapiEvent[]
+  payments                   Payment[]
 
   @@index([ownerId])
 }
@@ -4002,4 +4007,34 @@ model CapiEvent {
 
   @@unique([dealId, eventName])
   @@index([status])
+}
+
+/// A tariff payment through Click or Payme (audit phase 8). Amounts in tiyin
+/// (1 so'm = 100 tiyin). The provider's transaction id is unique, so a
+/// repeated callback can never extend the plan twice.
+///   CREATED → PENDING (provider transaction opened) → PAID | CANCELED
+model Payment {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  plan            String
+  months          Int
+  amountTiyin     Int
+  /// CLICK | PAYME
+  provider        String
+  status          String    @default("CREATED")
+  providerTransId String?
+  /// Payme state: 1 created, 2 performed, -1 cancelled, -2 cancelled after perform.
+  state           Int       @default(0)
+  providerTime    DateTime?
+  performedAt     DateTime?
+  canceledAt      DateTime?
+  cancelReason    Int?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerTransId])
+  @@index([workspaceId, createdAt])
 }

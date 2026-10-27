@@ -477,6 +477,15 @@ export async function schedulePost(workspaceId: string, postId: string, at: Date
   const issues = issuesOfRow(row, now);
   if (issues.length) throw new ContentError(400, issues.map((i) => i.message).join("; "));
 
+  // Tariff: posts scheduled per month (phase 8). A post already out of DRAFT was counted.
+  const { assertCanSchedule, PlanLimitError } = await import("@/lib/billing/limits");
+  try {
+    await assertCanSchedule(workspaceId, row.status !== "DRAFT", now);
+  } catch (error) {
+    if (error instanceof PlanLimitError) throw new ContentError(402, error.message, "PLAN_LIMIT");
+    throw error;
+  }
+
   const slot = await spacedSlot(row.instagramAccountId, row.id, at);
   const manual = !row.autoPublish || Boolean(row.manualReason);
   if (!manual) {

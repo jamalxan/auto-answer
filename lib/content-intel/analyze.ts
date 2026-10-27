@@ -53,7 +53,9 @@ export class AnalysisError extends Error {
 
 /** Queue posts for analysis (the owner's button). Returns how many were queued. */
 export async function queueAnalyses(workspaceId: string, statIds: string[], now = new Date()): Promise<number> {
-  const limit = monthlyAnalysisLimit();
+  // The tariff's cap once billing is enforced (phase 8), else the env default.
+  const { videoAnalysisCap } = await import("@/lib/billing/limits");
+  const limit = (await videoAnalysisCap(workspaceId)) ?? monthlyAnalysisLimit();
   const used = await analysesUsed(workspaceId, now);
   const room = Math.max(0, limit - used);
   if (room === 0) throw new AnalysisError(429, `Bu oy uchun video tahlil limiti tugadi (${limit} ta)`);

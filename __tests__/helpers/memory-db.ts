@@ -315,6 +315,7 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   adSpendDay: [["proposalId", "date"]],
   adReferral: [["instagramAccountId", "igUserId", "adId"]],
   capiEvent: [["dealId", "eventName"]],
+  payment: [["provider", "providerTransId"]],
   // Content intelligence (audit phase 5)
   contentPostStat: [["instagramAccountId", "igMediaId"]],
   contentAnalysis: [["statId"]],
@@ -382,7 +383,7 @@ const DEFAULTS: Record<string, () => Row> = {
   }),
   assistantProduct: () => ({ note: null, price: null, priceIsFrom: false, currency: "UZS", unit: null, priceUpdatedAt: new Date(), sort: 0 }),
   assistantFaq: () => ({ source: "OWNER", sort: 0 }),
-  workspace: () => ({ aiConversationsThisPeriod: 0, aiConversationsLimit: null, assistantTemplateOnlyUntil: null, timezone: "Asia/Tashkent", mediaStorageBytes: BigInt(0) }),
+  workspace: () => ({ aiConversationsThisPeriod: 0, aiConversationsLimit: null, assistantTemplateOnlyUntil: null, timezone: "Asia/Tashkent", mediaStorageBytes: BigInt(0), planSlug: "start", planExpiresAt: null }),
   instagramAccount: () => ({ tokenStatus: "ACTIVE", accessToken: "", canPublish: false, grantedScopes: [], publishQuotaUsed: null, publishQuotaCheckedAt: null }),
   // Content Scheduler (ETAP 13)
   scheduledPost: () => ({
@@ -458,6 +459,7 @@ const DEFAULTS: Record<string, () => Row> = {
   adSpendDay: () => ({ spendMinor: 0, results: 0 }),
   adReferral: () => ({ adTitle: null, postId: null, productId: null, source: null }),
   capiEvent: () => ({ eventName: "Purchase", status: "PENDING", attempts: 0, error: null, sentAt: null }),
+  payment: () => ({ status: "CREATED", providerTransId: null, state: 0, providerTime: null, performedAt: null, canceledAt: null, cancelReason: null, createdById: null }),
   channelCredential: () => ({ label: null, scopes: [], expiresAt: null, refreshedAt: null, checkedAt: null, status: "ACTIVE", lastErrorCode: null, lastErrorAt: null, alertedAt: null, pollCursor: null }),
   llmUsage: () => ({ kind: "reply", conversationId: null, inputTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, ok: true }),
   triggerFollowUpRun: () => ({ status: "SCHEDULED", sentAt: null, reason: null }),

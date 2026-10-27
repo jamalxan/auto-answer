@@ -1,3 +1,4 @@
+import { billingEnforced, effectivePlan } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db/client";
 import type { ProfileSnapshot } from "./prompt";
 import { readLearnedExamples } from "./learning";
@@ -106,8 +107,14 @@ export function defaultAiConversationLimit(): number {
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 300;
 }
 
-export function aiConversationLimit(workspace: { aiConversationsLimit: number | null }): number {
-  return workspace.aiConversationsLimit ?? defaultAiConversationLimit();
+/**
+ * Per-workspace override first; then, with BILLING_ENFORCED=1, the tariff's
+ * AI quota (phase 8); otherwise the env default.
+ */
+export function aiConversationLimit(workspace: { aiConversationsLimit: number | null; planSlug?: string | null; planExpiresAt?: Date | null }): number {
+  if (workspace.aiConversationsLimit !== null && workspace.aiConversationsLimit !== undefined) return workspace.aiConversationsLimit;
+  if (billingEnforced() && workspace.planSlug !== undefined) return effectivePlan(workspace).limits.aiReplies;
+  return defaultAiConversationLimit();
 }
 
 /** FEATURE_FLAGS='{"integrations":false}' disables a feature; default is on. */

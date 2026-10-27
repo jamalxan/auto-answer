@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { FACEBOOK_SCOPES, facebookPagesFromCode, subscribePage } from "@/lib/channels/facebook";
 import { THREADS_SCOPES, threadsTokenFromCode } from "@/lib/channels/threads";
+import { PlanLimitError, assertChannelSlots } from "@/lib/billing/limits";
+import { prisma } from "@/lib/db/client";
 import { putCredential } from "@/lib/channels/vault";
 import { youtubeTokenFromCode } from "@/lib/channels/youtube";
 import { requireDeveloper } from "@/lib/developer/access";
@@ -32,11 +34,17 @@ export async function GET(request: NextRequest, { params }: Props) {
   if (!code) return back({ error: search.get("error_description") ?? search.get("error") ?? "Ruxsat berilmadi" });
 
   const workspaceId = auth.ctx.workspaceId;
+  /** Tariff channel count (phase 8): reconnecting a known account is free. */
+  const slots = async (channelId: string, ids: string[]) => {
+    const known = await prisma.channelCredential.findMany({ where: { workspaceId, channel: channelId, externalAccountId: { in: ids }, status: { not: "REVOKED" } }, select: { externalAccountId: true } });
+    await assertChannelSlots(workspaceId, ids.length - known.length);
+  };
   const redirectUri = `${getBaseUrl()}/api/developer/channels/callback/${channel}`;
   try {
     if (channel === "facebook") {
       const pages = (await facebookPagesFromCode(code, redirectUri)).filter((p) => p.tasks.length === 0 || p.tasks.some((t) => USEFUL_TASKS.has(t)));
       if (pages.length === 0) return back({ error: "Boshqaradigan Facebook sahifa topilmadi" });
+      await slots("facebook", pages.map((p) => p.id));
       let unsubscribed = 0;
       for (const page of pages) {
         await putCredential({ workspaceId, channel: "facebook", externalAccountId: page.id, label: page.name, scopes: FACEBOOK_SCOPES, secret: { accessToken: page.accessToken, extra: { pageName: page.name, tasks: page.tasks } } });
@@ -46,16 +54,19 @@ export async function GET(request: NextRequest, { params }: Props) {
     }
     if (channel === "threads") {
       const account = await threadsTokenFromCode(code, redirectUri);
+      await slots("threads", [account.userId]);
       await putCredential({ workspaceId, channel: "threads", externalAccountId: account.userId, label: account.username ? `@${account.username}` : null, scopes: THREADS_SCOPES, expiresAt: account.expiresAt, secret: { accessToken: account.accessToken, extra: { username: account.username } } });
       return back({ connected: "threads", count: "1" });
     }
     if (channel === "youtube") {
       const account = await youtubeTokenFromCode(code, redirectUri);
+      await slots("youtube", [account.channelId]);
       await putCredential({ workspaceId, channel: "youtube", externalAccountId: account.channelId, label: account.title, scopes: account.scopes, expiresAt: account.expiresAt, secret: { accessToken: account.accessToken, refreshToken: account.refreshToken, extra: { title: account.title } } });
       return back({ connected: "youtube", count: "1" });
     }
     return back({ error: "Noma'lum kanal" });
   } catch (error) {
+    if (error instanceof PlanLimitError) return back({ error: error.message });
     return back({ error: error instanceof Error ? error.message.slice(0, 200) : "Ulanmadi" });
   }
 }

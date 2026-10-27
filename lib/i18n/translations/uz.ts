@@ -739,9 +739,9 @@ export const uz = {
     dashboardBody:
       "Har bir izoh hodisasi kuzatiladi: navbatda, mos keldi, yuborildi, o'tkazib yuborildi, xato yoki chegaralandi. Hech qanday qora quti yo'q.",
     featuresEyebrow: "Nimalar kiradi",
-    featuresTitle: "Har qanday rejada to'liq vositalar to'plami",
+    featuresTitle: "Kommentdan sotuvgacha — bitta platformada",
     featuresBody:
-      "Hech qanday funksiya yuqori rejaga qulflanmagan — narx faqat ulangan Instagram akkauntlar soniga qarab o'sadi.",
+      "Instagram, Facebook, Threads, YouTube va Telegram: AI javoblar, kontent rejasi va CRM. Tarif kanallar, AI javoblar va video tahlil soniga qarab tanlanadi.",
     ctaTitle: "Keyingi reelingiz izohlarini DM ga aylantiring",
     ctaBody:
       "Instagram professional akkauntingizni ulang va birinchi kampaniyangizni bir necha daqiqada ishga tushiring.",
@@ -754,7 +754,7 @@ export const uz = {
       "Har bir akkaunt uchun tezlik chegarasi",
       "Bosish statistikasi bilan kuzatiladigan havolalar",
       "To'liq holatga ega DM jurnallari",
-      "Tarif chegarasi yo'q",
+      "Start tarifi bepul",
     ],
     trustEyebrow: "Nega SocialAuto'ni tanlashadi",
     trustTitle: "Instagram haqiqatan ruxsat bergan yo'l bilan qurilgan",
@@ -779,9 +779,9 @@ export const uz = {
       },
     ],
     pricingEyebrow: "Narxlar",
-    pricingTitle: "Akkauntlaringiz soniga qarab o'sadigan sodda narxlar",
+    pricingTitle: "Kanallar va AI javoblar soniga qarab narx",
     pricingBody:
-      "Hech qanday funksiya rejaga qulflanmagan — narx faqat ulangan Instagram akkauntlar soniga bog'liq.",
+      "Bepul Start bilan sinab ko'ring, biznes o'sganda Biznes, Pro yoki Agentlikka o'ting. To'lov so'mda — Click va Payme orqali.",
     pricingMostPopular: "Eng ommabop",
     demo: {
       username: "dilnoza.shop",

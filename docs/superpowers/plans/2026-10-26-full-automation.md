@@ -28,7 +28,7 @@ call has timeout + retry + 429 handling; tenant filter on every query; secrets n
 | 5 | Content intelligence: insights (`views` metric), median-relative score, multimodal tags (hook, format, subtitles, CTA, 9:16), typical-error checks, weekly report, 2-week plan + Reel scenario template, Trial Reels A/B | Kontent intellekti | done (PR) |
 | 6 | T4 Facebook Page, T5 Threads, T6 YouTube adapters (fixtures, no live keys): OAuth → vault, webhooks, inbox, private-reply / DM-window policy, cross-post with processing poll, daily limits, YouTube quota + comment polling | T4–T6 | done (PR) |
 | 7 | Ads: boost suggestion (2× median), CTD context into the agent, CAPI "sold" events, guardrails (daily/monthly cap, CPL auto-pause, owner approval for every spend) | Reklama | done (PR) |
-| 8 | Monetization: Start / Biznes / Pro / Agentlik limits (channels, AI replies, video analyses, scheduled posts) enforced; Click / Payme adapters behind flags; landing repositioning (drop "hech qanday funksiya qulflanmagan") | Monetizatsiya, Landing | todo |
+| 8 | Monetization: Start / Biznes / Pro / Agentlik limits (channels, AI replies, video analyses, scheduled posts) enforced; Click / Payme adapters behind flags; landing repositioning (drop "hech qanday funksiya qulflanmagan") | Monetizatsiya, Landing | done (PR #22) |
 | 9 | Keys + live checks (owner): Telegram bot tokens, FB Login for Business config_id, Threads app, Google OAuth, Click/Payme, Meta ads scopes; reconnect amoCRM + Telegram alerts | Tokenlar | owner |
 
 Owner-only, not code: YaTT → Business Verification, App Review screencasts, Google OAuth
