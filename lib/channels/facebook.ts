@@ -244,16 +244,34 @@ export async function facebookPagesFromCode(code: string, redirectUri: string): 
     facebookGraph("oauth/access_token", { grant_type: "fb_exchange_token", client_id: appId, client_secret: secret, fb_exchange_token: short.access_token }),
     LABEL
   );
+  const fromLong = await pagesOf(long.access_token, appId, secret);
+  if (fromLong.length > 0) return fromLong;
+  // The exchange to a long-lived token may drop what the dialog granted: ask with the short token too,
+  // then re-read each Page with the long one so the Page tokens do not expire with the short token.
+  const fromShort = await pagesOf(short.access_token, appId, secret);
+  // Ids, counts and task names only: enough to tell why Meta returned no Page, no token.
+  console.warn(`[facebook] no Page with the long token; short token found ${fromShort.length}: ${fromShort.map((p) => `${p.id}[${p.tasks.join(",")}]`).join(" ") || "none"}`);
+  const upgraded = await Promise.all(fromShort.map(async (p) => (await pageById(p.id, long.access_token)) ?? p));
+  return upgraded;
+}
+
+/** Pages a user token can manage: me/accounts, then the Pages named by its granular scopes. */
+async function pagesOf(userToken: string, appId: string, secret: string): Promise<FacebookPageChoice[]> {
   const pages = await metaJson<{ data?: Array<{ id: string; name: string; access_token: string; tasks?: string[] }> }>(
-    facebookGraph("me/accounts", { fields: "id,name,access_token,tasks", limit: "100", access_token: long.access_token }),
+    facebookGraph("me/accounts", { fields: "id,name,access_token,tasks", limit: "100", access_token: userToken }),
     LABEL
   );
   const listed = (pages.data ?? []).map((p) => ({ id: p.id, name: p.name, accessToken: p.access_token, tasks: p.tasks ?? [] }));
   if (listed.length > 0) return listed;
-  const granted = await pagesFromGrantedScopes(long.access_token, appId, secret);
-  // Ids, counts and task names only: enough to tell why Meta returned no Page, no token.
-  console.warn(`[facebook] me/accounts empty; granted-scope fallback found ${granted.length} Page(s): ${granted.map((p) => `${p.id}[${p.tasks.join(",")}]`).join(" ") || "none"}`);
-  return granted;
+  return pagesFromGrantedScopes(userToken, appId, secret);
+}
+
+async function pageById(id: string, userToken: string): Promise<FacebookPageChoice | null> {
+  const page = await metaJson<{ id: string; name?: string; access_token?: string; tasks?: string[] }>(
+    facebookGraph(id, { fields: "id,name,access_token,tasks", access_token: userToken }),
+    LABEL
+  ).catch(() => null);
+  return page?.access_token ? { id: page.id, name: page.name ?? page.id, accessToken: page.access_token, tasks: page.tasks ?? [] } : null;
 }
 
 /**
@@ -273,11 +291,8 @@ async function pagesFromGrantedScopes(userToken: string, appId: string, secret: 
   console.warn(`[facebook] debug_token granular scopes: ${(debug.data?.granular_scopes ?? []).map((g) => `${g.scope}=${(g.target_ids ?? []).length}`).join(" ") || "none"}`);
   const found: FacebookPageChoice[] = [];
   for (const id of ids) {
-    const page = await metaJson<{ id: string; name?: string; access_token?: string; tasks?: string[] }>(
-      facebookGraph(id, { fields: "id,name,access_token,tasks", access_token: userToken }),
-      LABEL
-    ).catch(() => null);
-    if (page?.access_token) found.push({ id: page.id, name: page.name ?? page.id, accessToken: page.access_token, tasks: page.tasks ?? [] });
+    const page = await pageById(id, userToken);
+    if (page) found.push(page);
   }
   return found;
 }
