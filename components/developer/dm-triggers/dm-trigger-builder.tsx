@@ -394,7 +394,7 @@ export default function DmTriggerBuilder({
       setForm(next);
       setSavedForm(next);
       if (!campaignId) {
-        router.replace(`/developer/triggers/dm/${id}`);
+        router.replace(`/triggers/dm/${id}`);
       } else {
         setNote("Saqlandi");
         router.refresh();
@@ -408,7 +408,7 @@ export default function DmTriggerBuilder({
     return (
       <div className="panel rounded-xl p-6 text-sm text-muted">
         Avval Instagram akkaunt ulang:{" "}
-        <Link className="text-accent" href="/developer/foundation">
+        <Link className="text-accent" href="/diagnostics">
           Foundation → Ulanishlar
         </Link>
         .
@@ -752,7 +752,7 @@ export default function DmTriggerBuilder({
             <button type="button" className={primaryButton} onClick={() => void save()} disabled={saving}>
               {saving ? "Saqlanmoqda…" : campaignId ? "Saqlash" : "Kampaniya yaratish"}
             </button>
-            <Link href="/developer/triggers" className={secondaryButton}>
+            <Link href="/triggers" className={secondaryButton}>
               Orqaga
             </Link>
             {/* A div, not a label: the text must not toggle the switch (the hit area is the switch only). */}

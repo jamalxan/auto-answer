@@ -1,4 +1,5 @@
 import type { NextResponse } from "next/server";
+import { redirect } from "next/navigation";
 import { jsonError } from "@/lib/api-auth";
 import { canManageWorkspace, getCurrentWorkspaceContext, type WorkspaceContext } from "@/lib/workspace-access";
 
@@ -18,4 +19,11 @@ export async function requireWorkspace(manage = false): Promise<WorkspaceAuth> {
     return { ok: false, response: jsonError("Faqat workspace egasi yoki admin o'zgartira oladi", 403) };
   }
   return { ok: true, ctx };
+}
+
+/** Page guard for promoted modules: the dashboard layout already needs a session, this adds the workspace context. */
+export async function requireWorkspacePage(): Promise<WorkspaceContext> {
+  const ctx = await getCurrentWorkspaceContext();
+  if (!ctx) redirect("/login");
+  return ctx;
 }

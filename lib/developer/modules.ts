@@ -38,7 +38,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Kuchli keywordlar, bir nechta javob varianti, AI javoblar, eski kommentlar, quick reply, follow-up.",
     status: "TESTING",
-    href: "/developer/comments",
+    href: "/comments",
   },
   {
     key: "triggers",
@@ -47,7 +47,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Direct, reklama xabari, ig.me havola, Story Mention / Reply va Live kommentlar — bitta ro'yxatda. Story Reaction kuzatuv rejimida.",
     status: "TESTING",
-    href: "/developer/triggers",
+    href: "/triggers",
   },
   {
     key: "javobai",
@@ -56,7 +56,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Knowledge base, AI sales agent, ko'p tillilik, suhbat xotirasi, lead scoring, operatorga topshirish.",
     status: "TESTING",
-    href: "/developer/javobai",
+    href: "/javobai",
   },
   {
     key: "crm",

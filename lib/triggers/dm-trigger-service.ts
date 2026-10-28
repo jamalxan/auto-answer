@@ -3,7 +3,7 @@
  * Mention (TZ 16), click-to-Direct ads and ig.me links (TZ 18). Campaign
  * CRUD with stats, reply variants, quick replies, follow-up steps, logs and
  * the dry-run simulator; plus the one list of every ETAP 3 automation the
- * /developer/triggers home shows.
+ * /triggers home shows.
  *
  * Every query is scoped to one workspace and to `DIRECT_MESSAGE` /
  * `STORY_MENTION`, so a comment or Story Reply campaign can never be read or
@@ -388,7 +388,7 @@ export async function simulateDmDryRun(workspaceId: string, input: z.infer<typeo
   );
 }
 
-// ─── All ETAP 3 automations (the /developer/triggers home) ────────────────────
+// ─── All ETAP 3 automations (the /triggers home) ────────────────────
 
 /**
  * How the home list names a campaign. Ad messages and ig.me links are Direct
@@ -411,9 +411,9 @@ export function automationKind(campaign: { triggerType: string; sourceFilter?: s
 
 /** Where a campaign is edited: each kind keeps its own builder. */
 export function automationHref(kind: AutomationKind, id: string): string {
-  if (kind === "STORY_REPLY") return `/developer/triggers/${id}`;
-  if (kind === "LIVE_COMMENT") return `/developer/comments/${id}`;
-  return `/developer/triggers/dm/${id}`;
+  if (kind === "STORY_REPLY") return `/triggers/${id}`;
+  if (kind === "LIVE_COMMENT") return `/comments/${id}`;
+  return `/triggers/dm/${id}`;
 }
 
 const ETAP3_TYPES: InstagramEventType[] = ["DIRECT_MESSAGE", "STORY_MENTION", "STORY_REPLY", "LIVE_COMMENT"];

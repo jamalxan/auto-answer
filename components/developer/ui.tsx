@@ -4,17 +4,16 @@
  * Small building blocks shared by every /developer module screen.
  */
 
+import { usePathname } from "next/navigation";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import type { DisplayTone } from "@/lib/triggers/display";
 
-export const inputClass =
-  "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent/40 focus:outline-none";
+// Brand primitives (globals.css): module screens look the same in the main dashboard and in /developer.
+export const inputClass = "input placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-violet/60";
 
-export const primaryButton =
-  "inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background disabled:opacity-50";
+export const primaryButton = "btn btn-lime btn-sm";
 
-export const secondaryButton =
-  "inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50";
+export const secondaryButton = "btn btn-ghost btn-sm";
 
 const TONE_CLASS: Record<DisplayTone, string> = {
   success: "text-success",
@@ -34,7 +33,10 @@ export function Pill({ tone, children }: { tone: DisplayTone; children: ReactNod
   );
 }
 
+/** Marks screens inside /developer only; promoted modules in the main dashboard render nothing. */
 export function DevBadge() {
+  const pathname = usePathname();
+  if (!pathname?.startsWith("/developer")) return null;
   return (
     <span className="label-mono rounded-md bg-gold/15 px-1.5 py-0.5 text-[10px] font-bold text-gold ring-1 ring-inset ring-gold/30">
       DEV

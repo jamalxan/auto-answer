@@ -115,14 +115,14 @@ function OverviewStrip({ overview }: { overview: Overview | null }) {
 
 /** Which route family toggles / deletes a campaign of this kind. */
 function campaignApi(automation: Automation): string {
-  if (automation.kind === "STORY_REPLY") return `/api/developer/triggers/campaigns/${automation.id}`;
-  if (automation.kind === "LIVE_COMMENT") return `/api/developer/comments/campaigns/${automation.id}`;
-  return `/api/developer/triggers/dm/campaigns/${automation.id}`;
+  if (automation.kind === "STORY_REPLY") return `/api/triggers/campaigns/${automation.id}`;
+  if (automation.kind === "LIVE_COMMENT") return `/api/comments/campaigns/${automation.id}`;
+  return `/api/triggers/dm/campaigns/${automation.id}`;
 }
 
 function logsHref(automation: Automation): string {
   return automation.kind === "STORY_REPLY"
-    ? `/developer/triggers?tab=logs&campaign=${automation.id}`
+    ? `/triggers?tab=logs&campaign=${automation.id}`
     : `${automation.href}?tab=logs`;
 }
 
@@ -303,7 +303,7 @@ function CampaignsTab({
         />
         {accounts.length > 0 && (
           <div className="pb-8 text-center">
-            <Link href="/developer/triggers/new" className={primaryButton}>
+            <Link href="/triggers/new" className={primaryButton}>
               + Yangi automation
             </Link>
           </div>
@@ -359,7 +359,7 @@ function ContactsTab() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/developer/triggers/contacts?page=${page}`)
+    fetch(`/api/triggers/contacts?page=${page}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -486,7 +486,7 @@ function SimulatorTab({ accounts }: { accounts: Account[] }) {
     try {
       let view: SimView;
       if (type === "STORY_REPLY") {
-        const data = await post("/api/developer/triggers/simulate", { instagramAccountId: accountId, text, storyId: storyId.trim() || null });
+        const data = await post("/api/triggers/simulate", { instagramAccountId: accountId, text, storyId: storyId.trim() || null });
         if (!data.success) throw new Error(data.error ?? "Xato");
         const d = data.data as unknown as { selected: { name: string; matchedKeyword: string | null; responseMessage: string } | null; ignoredReason: string | null; campaigns: SimView["others"] };
         view = {
@@ -497,8 +497,8 @@ function SimulatorTab({ accounts }: { accounts: Account[] }) {
       } else {
         const comment = type === "COMMENT" || type === "LIVE_COMMENT";
         const data = comment
-          ? await post("/api/developer/comments/simulate", { instagramAccountId: accountId, text, mediaId: type === "COMMENT" ? mediaId.trim() || null : null, eventType: type })
-          : await post("/api/developer/triggers/dm/simulate", {
+          ? await post("/api/comments/simulate", { instagramAccountId: accountId, text, mediaId: type === "COMMENT" ? mediaId.trim() || null : null, eventType: type })
+          : await post("/api/triggers/dm/simulate", {
               instagramAccountId: accountId,
               eventType: type === "STORY_MENTION" ? "STORY_MENTION" : "DIRECT_MESSAGE",
               text: noText ? "" : text,
@@ -643,8 +643,8 @@ export default function TriggerDashboard() {
 
   const load = useCallback(async () => {
     const [c, o] = await Promise.all([
-      fetch("/api/developer/triggers/automations").then((r) => r.json()).catch(() => null),
-      fetch("/api/developer/triggers/overview").then((r) => r.json()).catch(() => null),
+      fetch("/api/triggers/automations").then((r) => r.json()).catch(() => null),
+      fetch("/api/triggers/overview").then((r) => r.json()).catch(() => null),
     ]);
     if (c?.success) {
       setAutomations(c.data.automations);
@@ -659,7 +659,7 @@ export default function TriggerDashboard() {
     void load();
   }, [load]);
 
-  const setTab = (next: Tab) => router.replace(`/developer/triggers?tab=${next}`, { scroll: false });
+  const setTab = (next: Tab) => router.replace(`/triggers?tab=${next}`, { scroll: false });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -674,13 +674,13 @@ export default function TriggerDashboard() {
           </p>
           <p className="mt-1 text-xs text-muted">
             Post kommentlari{" "}
-            <Link href="/developer/comments" className="text-accent hover:underline">
+            <Link href="/comments" className="text-accent hover:underline">
               Comment Automation 2.0
             </Link>{" "}
             bo&apos;limida (Live kampaniyalar shu ro&apos;yxatda ham ko&apos;rinadi).
           </p>
         </div>
-        <Link href="/developer/triggers/new" className={primaryButton}>
+        <Link href="/triggers/new" className={primaryButton}>
           + Yangi automation
         </Link>
       </div>

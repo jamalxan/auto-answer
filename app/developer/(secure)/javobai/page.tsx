@@ -1,15 +1,6 @@
-import { Suspense } from "react";
-import JavobAiDashboard from "@/components/developer/javobai/javobai-dashboard";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "JavobAI (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout. Suspense: the dashboard reads ?tab= / ?account=.
-export default function JavobAiPage() {
-  return (
-    <Suspense fallback={null}>
-      <JavobAiDashboard />
-    </Suspense>
-  );
+// Promoted to the main dashboard.
+export default function Page() {
+  redirect("/javobai");
 }

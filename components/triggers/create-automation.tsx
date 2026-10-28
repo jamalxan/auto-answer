@@ -29,7 +29,7 @@ const TRIGGERS: Array<{ key: string; href?: string }> = [
   { key: "LINK" },
   { key: "STORY_MENTION" },
   { key: "STORY_REPLY" },
-  { key: "LIVE_COMMENT", href: "/developer/comments/new?source=live" },
+  { key: "LIVE_COMMENT", href: "/comments/new?source=live" },
 ];
 
 export default function CreateAutomation({
@@ -59,7 +59,7 @@ export default function CreateAutomation({
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <Link href="/developer/triggers" className="text-sm text-muted hover:text-foreground">
+        <Link href="/triggers" className="text-sm text-muted hover:text-foreground">
           ← Instagram Triggers
         </Link>
         <div className="mt-2 flex items-center gap-2">
@@ -106,7 +106,7 @@ export default function CreateAutomation({
                 description="Kuzatuv rejimi — Meta hali tasdiqlamagan"
               />
               <Link
-                href="/developer/triggers?tab=logs&type=MESSAGE_REACTION"
+                href="/triggers?tab=logs&type=MESSAGE_REACTION"
                 className="mt-1 inline-block px-1 text-xs text-accent hover:underline"
               >
                 Kelgan reaksiyalarni logda ko&apos;rish →
@@ -115,7 +115,7 @@ export default function CreateAutomation({
           </div>
           <p className="text-xs text-muted">
             Post ostidagi kommentlar uchun:{" "}
-            <Link href="/developer/comments/new" className="text-accent hover:underline">
+            <Link href="/comments/new" className="text-accent hover:underline">
               Comment Automation 2.0
             </Link>
             .

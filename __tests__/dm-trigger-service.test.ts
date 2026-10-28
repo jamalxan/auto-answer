@@ -320,8 +320,8 @@ describe("automation kinds", () => {
     expect(automationKind({ triggerType: "DIRECT_MESSAGE", sourceFilter: "LINK" })).toBe("LINK");
     expect(automationKind({ triggerType: "STORY_MENTION" })).toBe("STORY_MENTION");
     expect(automationKind({ triggerType: "COMMENT" })).toBeNull();
-    expect(automationHref("STORY_REPLY", "a")).toBe("/developer/triggers/a");
-    expect(automationHref("LIVE_COMMENT", "a")).toBe("/developer/comments/a");
-    expect(automationHref("LINK", "a")).toBe("/developer/triggers/dm/a");
+    expect(automationHref("STORY_REPLY", "a")).toBe("/triggers/a");
+    expect(automationHref("LIVE_COMMENT", "a")).toBe("/comments/a");
+    expect(automationHref("LINK", "a")).toBe("/triggers/dm/a");
   });
 });

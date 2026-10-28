@@ -73,6 +73,11 @@ export default function Sidebar({
       { label: t.nav.ads, href: "/ads", icon: "trending" },
     ],
     [
+      { label: t.nav.javobai, href: "/javobai", icon: "sparkles" },
+      { label: t.nav.comments, href: "/comments", icon: "inbox" },
+      { label: t.nav.triggers, href: "/triggers", icon: "activity" },
+    ],
+    [
       { label: t.assistant.nav.assistant, href: "/assistant", icon: "sparkles" },
       { label: t.assistant.nav.leads, href: "/leads", icon: "users" },
       { label: t.assistant.nav.integrations, href: "/integrations", icon: "plug" },

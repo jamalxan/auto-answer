@@ -325,7 +325,7 @@ export default function CommentBuilder({
 
   async function approveSaved(item: VariantItem): Promise<string | null> {
     if (!item.id) return null;
-    const res = await requestJson(`/api/developer/comments/variants/${item.id}/approve`, jsonInit("POST", { approved: true }));
+    const res = await requestJson(`/api/comments/variants/${item.id}/approve`, jsonInit("POST", { approved: true }));
     if (!res.ok) return res.error;
     // The stored row is approved now: mirror it in the saved copy so it does not read as unsaved.
     const mark = (v: VariantItem) => (v.key === item.key ? { ...v, approved: true } : v);
@@ -351,7 +351,7 @@ export default function CommentBuilder({
       const next: FormState = { ...current, responseMessage: body.responseMessage };
       const putVariants = (campaign: string) =>
         requestJson<{ variants: SavedVariant[] }>(
-          `/api/developer/comments/campaigns/${campaign}/variants`,
+          `/api/comments/campaigns/${campaign}/variants`,
           jsonInit("PUT", { variants: variantsBody(current) })
         );
       // The server checks DM variants against Meta's 640-character button
@@ -362,7 +362,7 @@ export default function CommentBuilder({
       // server, in the same transaction as the campaign.
       let variants: Awaited<ReturnType<typeof putVariants>> | null = null;
       if (!id) {
-        const res = await requestJson<{ campaign: { id: string } }>("/api/developer/comments/campaigns", jsonInit("POST", body));
+        const res = await requestJson<{ campaign: { id: string } }>("/api/comments/campaigns", jsonInit("POST", body));
         if (!res.ok) {
           setError(res.error);
           return;
@@ -382,7 +382,7 @@ export default function CommentBuilder({
             return;
           }
         }
-        const res = await requestJson(`/api/developer/comments/campaigns/${id}`, jsonInit("PATCH", body));
+        const res = await requestJson(`/api/comments/campaigns/${id}`, jsonInit("PATCH", body));
         if (!res.ok) {
           setError(variants ? `Variantlar saqlandi, lekin kampaniya saqlanmadi: ${res.error}` : res.error);
           return;
@@ -399,7 +399,7 @@ export default function CommentBuilder({
 
       if (current.buttonOn) {
         const replies = await requestJson<{ quickReplies: SavedQuickReply[] }>(
-          `/api/developer/comments/campaigns/${id}/quick-replies`,
+          `/api/comments/campaigns/${id}/quick-replies`,
           jsonInit("PUT", { quickReplies: quickRepliesBody(current) })
         );
         if (!replies.ok) {
@@ -408,7 +408,7 @@ export default function CommentBuilder({
         }
         next.quickReplies = replies.data.quickReplies.map(toQuickReplyItem);
         const steps = await requestJson<{ steps: SavedFollowUpStep[] }>(
-          `/api/developer/comments/campaigns/${id}/follow-ups`,
+          `/api/comments/campaigns/${id}/follow-ups`,
           jsonInit("PUT", { steps: followUpsBody(current) })
         );
         if (!steps.ok) {
@@ -424,7 +424,7 @@ export default function CommentBuilder({
       setForm(next);
       setSavedForm(next);
       if (!campaignId) {
-        router.replace(`/developer/comments/${id}`);
+        router.replace(`/comments/${id}`);
       } else {
         setNote("Saqlandi");
         router.refresh();
@@ -438,7 +438,7 @@ export default function CommentBuilder({
     return (
       <div className="panel rounded-xl p-6 text-sm text-muted">
         Avval Instagram akkaunt ulang:{" "}
-        <Link className="text-accent" href="/developer/foundation">
+        <Link className="text-accent" href="/diagnostics">
           Foundation → Ulanishlar
         </Link>
         .
@@ -802,7 +802,7 @@ export default function CommentBuilder({
             <button type="button" className={primaryButton} onClick={() => void save()} disabled={saving}>
               {saving ? "Saqlanmoqda…" : campaignId ? "Saqlash" : "Kampaniya yaratish"}
             </button>
-            <Link href="/developer/comments" className={secondaryButton}>
+            <Link href="/comments" className={secondaryButton}>
               Orqaga
             </Link>
             {/* A div, not a label: the text must not toggle the switch (the hit area is the switch only). */}

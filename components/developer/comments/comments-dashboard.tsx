@@ -70,7 +70,7 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
     setBusy(true);
     setError(null);
     try {
-      const res = await requestJson(`/api/developer/comments/campaigns/${campaign.id}`, init);
+      const res = await requestJson(`/api/comments/campaigns/${campaign.id}`, init);
       if (!res.ok) setError(res.error || fallback);
     } finally {
       setBusy(false);
@@ -94,7 +94,7 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/developer/comments/${campaign.id}`} className="break-words font-semibold text-foreground hover:text-accent">
+            <Link href={`/comments/${campaign.id}`} className="break-words font-semibold text-foreground hover:text-accent">
               {campaign.name}
             </Link>
             <Pill tone={campaign.active ? "success" : "muted"}>{campaign.active ? "Faol" : "O'chiq"}</Pill>
@@ -188,10 +188,10 @@ function CampaignCard({ campaign, onChanged }: { campaign: CampaignRow; onChange
             : `Yaratildi: ${formatDateTime(campaign.createdAt)}`}
         </span>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/developer/comments/${campaign.id}?tab=logs`} className={secondaryButton}>
+          <Link href={`/comments/${campaign.id}?tab=logs`} className={secondaryButton}>
             Loglar
           </Link>
-          <Link href={`/developer/comments/${campaign.id}`} className={secondaryButton}>
+          <Link href={`/comments/${campaign.id}`} className={secondaryButton}>
             Tahrirlash
           </Link>
           <ConfirmButton
@@ -271,8 +271,8 @@ export default function CommentsDashboard() {
   const load = useCallback(async () => {
     const mine = ++seq.current;
     const [res, moves] = await Promise.all([
-      requestJson<{ campaigns: CampaignRow[]; accounts: Account[]; legacy?: LegacyRow[] }>("/api/developer/comments/campaigns"),
-      requestJson<{ items: LegacyMigrationView[] }>("/api/developer/comments/legacy"),
+      requestJson<{ campaigns: CampaignRow[]; accounts: Account[]; legacy?: LegacyRow[] }>("/api/comments/campaigns"),
+      requestJson<{ items: LegacyMigrationView[] }>("/api/comments/legacy"),
     ]);
     if (mine !== seq.current) return;
     if (moves.ok) setMigrations(moves.data.items);
@@ -320,10 +320,10 @@ export default function CommentsDashboard() {
         </div>
         {accounts.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            <Link href="/developer/comments/new?source=live" className={secondaryButton}>
+            <Link href="/comments/new?source=live" className={secondaryButton}>
               + Live kampaniya
             </Link>
-            <Link href="/developer/comments/new" className={primaryButton}>
+            <Link href="/comments/new" className={primaryButton}>
               + Yangi kampaniya
             </Link>
           </div>
@@ -364,7 +364,7 @@ export default function CommentsDashboard() {
               />
               {accounts.length > 0 && (
                 <div className="pb-8 text-center">
-                  <Link href="/developer/comments/new" className={primaryButton}>
+                  <Link href="/comments/new" className={primaryButton}>
                     + Yangi kampaniya
                   </Link>
                 </div>

@@ -11,6 +11,9 @@ const PROTECTED_PREFIXES = [
   "/content",
   "/channels",
   "/ads",
+  "/javobai",
+  "/comments",
+  "/triggers",
   // Developer area: needs the app session too (its modules work on the
   // signed-in workspace); its own login is checked by the pages.
   "/developer",
@@ -59,6 +62,9 @@ export const config = {
     "/content/:path*",
     "/channels/:path*",
     "/ads/:path*",
+    "/javobai/:path*",
+    "/comments/:path*",
+    "/triggers/:path*",
     "/developer/:path*",
     "/login",
   ],
