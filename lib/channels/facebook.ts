@@ -250,7 +250,10 @@ export async function facebookPagesFromCode(code: string, redirectUri: string): 
   );
   const listed = (pages.data ?? []).map((p) => ({ id: p.id, name: p.name, accessToken: p.access_token, tasks: p.tasks ?? [] }));
   if (listed.length > 0) return listed;
-  return pagesFromGrantedScopes(long.access_token, appId, secret);
+  const granted = await pagesFromGrantedScopes(long.access_token, appId, secret);
+  // Ids, counts and task names only: enough to tell why Meta returned no Page, no token.
+  console.warn(`[facebook] me/accounts empty; granted-scope fallback found ${granted.length} Page(s): ${granted.map((p) => `${p.id}[${p.tasks.join(",")}]`).join(" ") || "none"}`);
+  return granted;
 }
 
 /**
@@ -267,6 +270,7 @@ async function pagesFromGrantedScopes(userToken: string, appId: string, secret: 
   for (const granted of debug.data?.granular_scopes ?? []) {
     if (granted.scope.startsWith("pages_")) for (const id of granted.target_ids ?? []) ids.add(id);
   }
+  console.warn(`[facebook] debug_token granular scopes: ${(debug.data?.granular_scopes ?? []).map((g) => `${g.scope}=${(g.target_ids ?? []).length}`).join(" ") || "none"}`);
   const found: FacebookPageChoice[] = [];
   for (const id of ids) {
     const page = await metaJson<{ id: string; name?: string; access_token?: string; tasks?: string[] }>(
