@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FACEBOOK_CLASSIC_SCOPES, facebookAuthorizeUrl, facebookPagesFromCode } from "@/lib/channels/facebook";
 
-const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /** Answers each Graph path in order of the OAuth flow. */
 function stubGraph(accounts: unknown[]) {
@@ -14,7 +14,11 @@ function stubGraph(accounts: unknown[]) {
       if (url.pathname.endsWith("/oauth/access_token")) return json({ access_token: "user-token" });
       if (url.pathname.endsWith("/me/accounts")) return json({ data: accounts });
       if (url.pathname.endsWith("/debug_token")) return json({ data: { granular_scopes: [{ scope: "pages_show_list", target_ids: ["111"] }, { scope: "business_management", target_ids: ["999"] }] } });
-      if (url.pathname.endsWith("/111")) return json({ id: "111", name: "Javob-AI", access_token: "page-token", tasks: ["MANAGE"] });
+      if (url.pathname.endsWith("/111")) {
+        // Like Meta: the Page node has no `tasks` field.
+        if (url.searchParams.get("fields")?.split(",").includes("tasks")) return json({ error: { message: "(#100) Tried accessing nonexisting field (tasks)", code: 100 } }, 400);
+        return json({ id: "111", name: "Javob-AI", access_token: "page-token" });
+      }
       return json({});
     })
   );
@@ -32,7 +36,7 @@ describe("facebookPagesFromCode", () => {
     vi.stubEnv("FACEBOOK_CHANNELS_APP_SECRET", "secret");
     const calls = stubGraph([]);
     const pages = await facebookPagesFromCode("code", "https://x/cb");
-    expect(pages).toEqual([{ id: "111", name: "Javob-AI", accessToken: "page-token", tasks: ["MANAGE"] }]);
+    expect(pages).toEqual([{ id: "111", name: "Javob-AI", accessToken: "page-token", tasks: [] }]);
     expect(calls.some((c) => c.endsWith("/debug_token"))).toBe(true);
   });
 
@@ -56,12 +60,12 @@ describe("facebookPagesFromCode", () => {
         if (url.pathname.endsWith("/oauth/access_token")) return json({ access_token: url.searchParams.get("grant_type") === "fb_exchange_token" ? "long-token" : "short-token" });
         if (url.pathname.endsWith("/me/accounts")) return json({ data: token === "short-token" ? [{ id: "7", name: "Listed", access_token: "page-from-short", tasks: ["MANAGE"] }] : [] });
         if (url.pathname.endsWith("/debug_token")) return json({ data: { granular_scopes: [] } });
-        if (url.pathname.endsWith("/7")) return json({ id: "7", name: "Listed", access_token: "page-from-long", tasks: ["MANAGE"] });
+        if (url.pathname.endsWith("/7")) return json({ id: "7", name: "Listed", access_token: "page-from-long" });
         return json({});
       })
     );
     const pages = await facebookPagesFromCode("code", "https://x/cb");
-    expect(pages).toEqual([{ id: "7", name: "Listed", accessToken: "page-from-long", tasks: ["MANAGE"] }]);
+    expect(pages).toEqual([{ id: "7", name: "Listed", accessToken: "page-from-long", tasks: [] }]);
   });
 
   it("classic login asks for the scopes directly and ignores the Login for Business config", () => {
