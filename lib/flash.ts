@@ -16,7 +16,7 @@ export function takeFlash(): Flash | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.split("; ").find((c) => c.startsWith(`${FLASH_COOKIE}=`));
   if (!match) return null;
-  document.cookie = `${FLASH_COOKIE}=; path=/developer; max-age=0`;
+  document.cookie = `${FLASH_COOKIE}=; path=/; max-age=0`;
   try {
     const flash = JSON.parse(decodeURIComponent(match.slice(FLASH_COOKIE.length + 1))) as Flash;
     if (typeof flash.text !== "string" || !["error", "success", "warning"].includes(flash.tone)) return null;

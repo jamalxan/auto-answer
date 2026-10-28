@@ -146,25 +146,7 @@ export function formatDelay(minutes: number): string {
   return `${m} daqiqa`;
 }
 
-export type JsonResult<T> = { ok: true; data: T } | { ok: false; error: string; status: number };
-
-/** fetch + `{ success, data | error }` unwrap. Never throws. */
-export async function requestJson<T>(url: string, init?: RequestInit): Promise<JsonResult<T>> {
-  try {
-    const res = await fetch(url, init);
-    const body = await res.json().catch(() => null);
-    if (!res.ok || !body?.success) {
-      return { ok: false, status: res.status, error: body?.error ?? `So'rov bajarilmadi (${res.status})` };
-    }
-    return { ok: true, data: body.data as T };
-  } catch {
-    return { ok: false, status: 0, error: "Server bilan aloqa yo'q — internetni tekshirib, qayta urinib ko'ring" };
-  }
-}
-
-export function jsonInit(method: string, body: unknown): RequestInit {
-  return { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
-}
+export { jsonInit, requestJson, type JsonResult } from "@/lib/request-json";
 
 let uidCounter = 0;
 /** Stable React key for list rows that have no database id yet. */

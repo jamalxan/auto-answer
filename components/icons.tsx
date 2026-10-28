@@ -24,7 +24,9 @@ export type IconName =
   | "instagram"
   | "arrowRight"
   | "logout"
-  | "chevronUp";
+  | "chevronUp"
+  | "share"
+  | "trending";
 
 const paths: Record<IconName, React.ReactNode> = {
   calendar: (
@@ -141,6 +143,20 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   chevronUp: <path d="m18 15-6-6-6 6" />,
+  share: (
+    <>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+    </>
+  ),
+  trending: (
+    <>
+      <path d="m22 7-8.5 8.5-5-5L2 17" />
+      <path d="M16 7h6v6" />
+    </>
+  ),
 };
 
 export default function Icon({

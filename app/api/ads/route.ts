@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { AdsError, adsOverview, approveProposal, pauseProposal, rejectProposal, resumeProposal, revokeAdAccount, updateAdAccount, type AccountSettings } from "@/lib/ads/service";
 import { jsonError, jsonOk } from "@/lib/api-auth";
-import { requireDeveloper } from "@/lib/developer/access";
+import { requireWorkspace } from "@/lib/channels/guard";
 
 export const dynamic = "force-dynamic";
 
 /** Ad accounts (caps, today / month spend) and boost proposals. */
 export async function GET() {
-  const auth = await requireDeveloper();
+  const auth = await requireWorkspace();
   if (!auth.ok) return auth.response;
   return jsonOk({ ...(await adsOverview(auth.ctx.workspaceId)), role: auth.ctx.role });
 }
@@ -20,7 +20,7 @@ const int = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.
  * Approve, resume and settings: workspace OWNER only (checked in the service).
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireDeveloper(true);
+  const auth = await requireWorkspace(true);
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body.id !== "string") return jsonError("id kerak", 400);

@@ -20,6 +20,8 @@ export const en = {
     campaigns: "Campaigns",
     newCampaign: "New Campaign",
     content: "Content plan",
+    channels: "Channels",
+    ads: "Ads",
     dmLogs: "DM Logs",
     settings: "Settings",
     diagnostics: "Diagnostics",

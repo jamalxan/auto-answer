@@ -3,13 +3,13 @@ import { jsonError, jsonOk } from "@/lib/api-auth";
 import { usableCredentials } from "@/lib/channels/access";
 import { draftSelfTest } from "@/lib/channels/facebook";
 import { ChannelError } from "@/lib/channels/types";
-import { requireDeveloper } from "@/lib/developer/access";
+import { requireWorkspace } from "@/lib/channels/guard";
 
 export const dynamic = "force-dynamic";
 
 /** { id } — Facebook Page only: creates an unpublished post and deletes it again (nothing becomes public). */
 export async function POST(request: NextRequest) {
-  const auth = await requireDeveloper(true);
+  const auth = await requireWorkspace(true);
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as { id?: unknown } | null;
   if (!body || typeof body.id !== "string") return jsonError("id kerak", 400);
