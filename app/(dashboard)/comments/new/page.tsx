@@ -21,7 +21,7 @@ export default async function NewCommentCampaignPage({ searchParams }: Props) {
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
         <Link href={live ? "/triggers" : "/comments"} className="text-sm text-muted hover:text-foreground">
-          {live ? "← Instagram Triggers" : "← Comment Automation 2.0"}
+          {live ? "← Instagram triggerlar" : "← Komment avtomatika"}
         </Link>
         <div className="mt-2 flex items-center gap-2">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">

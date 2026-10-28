@@ -42,7 +42,7 @@ export default function DmCampaignDetail({
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
         <Link href="/triggers" className="text-sm text-muted hover:text-foreground">
-          ← Instagram Triggers
+          ← Instagram triggerlar
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <h1 className="break-words font-display text-2xl font-extrabold tracking-tight text-foreground">{campaign.name}</h1>

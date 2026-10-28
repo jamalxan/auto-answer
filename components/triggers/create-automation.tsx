@@ -60,7 +60,7 @@ export default function CreateAutomation({
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <Link href="/triggers" className="text-sm text-muted hover:text-foreground">
-          ← Instagram Triggers
+          ← Instagram triggerlar
         </Link>
         <div className="mt-2 flex items-center gap-2">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
@@ -116,7 +116,7 @@ export default function CreateAutomation({
           <p className="text-xs text-muted">
             Post ostidagi kommentlar uchun:{" "}
             <Link href="/comments/new" className="text-accent hover:underline">
-              Comment Automation 2.0
+              Komment avtomatika
             </Link>
             .
           </p>

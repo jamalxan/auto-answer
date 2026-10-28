@@ -39,7 +39,7 @@ export default function CampaignDetail({
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
         <Link href="/comments" className="text-sm text-muted hover:text-foreground">
-          ← Comment Automation 2.0
+          ← Komment avtomatika
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <h1 className="break-words font-display text-2xl font-extrabold tracking-tight text-foreground">{campaign.name}</h1>
