@@ -239,6 +239,27 @@ export interface FacebookPageChoice {
   tasks: string[];
 }
 
+/**
+ * Live check that needs nothing public: an unpublished Page post (visible only to
+ * the Page's admins) is created and removed again. Proves the token can publish
+ * and delete, without a single visitor seeing anything.
+ */
+export async function draftSelfTest(creds: ChannelCredentials): Promise<{ draftId: string; deleted: boolean }> {
+  const { page, token, tenantId } = ctx(creds);
+  const created = await metaJson<{ id: string }>(facebookGraph(`${page}/feed`), LABEL, {
+    form: { message: "SocialAuto test (e'lon qilinmagan, o'chiriladi)", published: "false", access_token: token },
+    tenantId,
+  });
+  let deleted = false;
+  try {
+    const removed = await metaJson<{ success?: boolean }>(facebookGraph(created.id, { access_token: token }), LABEL, { method: "DELETE", tenantId });
+    deleted = removed.success === true;
+  } catch {
+    deleted = false;
+  }
+  return { draftId: created.id, deleted };
+}
+
 /** code → short user token → long-lived user token → the Pages it manages, with their tokens. */
 export async function facebookPagesFromCode(code: string, redirectUri: string): Promise<FacebookPageChoice[]> {
   const { appId, secret } = facebookChannelsApp();
