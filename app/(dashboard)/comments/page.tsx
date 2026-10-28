@@ -2,7 +2,7 @@ import CommentsDashboard from "@/components/developer/comments/comments-dashboar
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Comment Automation 2.0", robots: { index: false } };
+export const metadata = { title: "Komment avtomatika", robots: { index: false } };
 
 // Guarded by the dashboard layout (app session).
 export default function CommentAutomationPage() {

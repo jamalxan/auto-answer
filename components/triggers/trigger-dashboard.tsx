@@ -666,7 +666,7 @@ export default function TriggerDashboard() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">Instagram Triggers</h1>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">Instagram triggerlar</h1>
             <DevBadge />
           </div>
           <p className="mt-1 text-sm text-muted">
@@ -675,7 +675,7 @@ export default function TriggerDashboard() {
           <p className="mt-1 text-xs text-muted">
             Post kommentlari{" "}
             <Link href="/comments" className="text-accent hover:underline">
-              Comment Automation 2.0
+              Komment avtomatika
             </Link>{" "}
             bo&apos;limida (Live kampaniyalar shu ro&apos;yxatda ham ko&apos;rinadi).
           </p>

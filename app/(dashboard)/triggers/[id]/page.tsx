@@ -41,7 +41,7 @@ export default async function EditTriggerCampaignPage({ params }: Props) {
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <Link href="/triggers?tab=campaigns" className="text-sm text-muted hover:text-foreground">
-          ← Instagram Triggers
+          ← Instagram triggerlar
         </Link>
         <div className="mt-2 flex items-center gap-2">
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">{campaign.name}</h1>
