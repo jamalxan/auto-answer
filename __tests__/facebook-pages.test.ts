@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FACEBOOK_CLASSIC_SCOPES, facebookAuthorizeUrl, facebookPagesFromCode } from "@/lib/channels/facebook";
+import { FACEBOOK_CLASSIC_SCOPES, draftSelfTest, facebookAuthorizeUrl, facebookPagesFromCode } from "@/lib/channels/facebook";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -77,5 +77,22 @@ describe("facebookPagesFromCode", () => {
     expect(classic.searchParams.get("config_id")).toBeNull();
     expect(classic.searchParams.get("scope")).toBe(FACEBOOK_CLASSIC_SCOPES.join(","));
     expect(classic.searchParams.get("scope")).not.toContain("read_insights");
+  });
+
+  it("self-test creates an unpublished post and deletes it again", async () => {
+    const seen: Array<{ method: string; path: string; body: string }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        seen.push({ method: init?.method ?? "GET", path: url.pathname, body: String(init?.body ?? "") });
+        if (url.pathname.endsWith("/feed")) return json({ id: "1242037548984484_99" });
+        return json({ success: true });
+      })
+    );
+    const result = await draftSelfTest({ externalAccountId: "1242037548984484", accessToken: "page-token" } as never);
+    expect(result).toEqual({ draftId: "1242037548984484_99", deleted: true });
+    expect(seen[0].body).toContain("published=false");
+    expect(seen[1]).toMatchObject({ method: "DELETE" });
   });
 });
