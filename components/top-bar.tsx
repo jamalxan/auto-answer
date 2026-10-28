@@ -33,6 +33,8 @@ export default function TopBar({
     "/inbox": t.nav.inbox,
     "/campaigns": t.nav.campaigns,
     "/content": t.nav.content,
+    "/channels": t.nav.channels,
+    "/ads": t.nav.ads,
     "/campaigns/new": t.nav.newCampaign,
     "/campaigns/import": t.campaignImport.title,
     "/automations": t.nav.campaigns,

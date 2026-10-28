@@ -156,7 +156,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Kanal adapterlari: OAuth ulash (vault), kommentlar va Messenger inbox, shaxsiy javob (bir marta, 7 kun), Content Scheduler'dan kross-post (Reels, Shorts, kunlik limit va kvota).",
     status: "TESTING",
-    href: "/developer/channels",
+    href: "/channels",
   },
   {
     key: "ads",
@@ -165,7 +165,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Medianadan 2× yaxshi post uchun boost taklifi, egasining tasdig'i bilan ishga tushirish, kunlik / oylik chegara va CPL bo'yicha avto-pauza, Click-to-Direct konteksti AI'ga, CRM sotuvi → Conversions API.",
     status: "TESTING",
-    href: "/developer/ads",
+    href: "/ads",
   },
   {
     key: "billing",

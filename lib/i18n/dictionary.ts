@@ -24,6 +24,8 @@ export interface Dictionary {
     campaigns: string;
     newCampaign: string;
     content: string;
+    channels: string;
+    ads: string;
     dmLogs: string;
     settings: string;
     diagnostics: string;

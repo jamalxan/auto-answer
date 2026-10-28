@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { jsonError, jsonOk } from "@/lib/api-auth";
 import { hideInboxComment, listChannelInbox, replyToInboxMessage, type ReplyMode } from "@/lib/channels/inbox";
 import { ChannelError, type ChannelId } from "@/lib/channels/types";
-import { requireDeveloper } from "@/lib/developer/access";
+import { requireWorkspace } from "@/lib/channels/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ const MODES = new Set<ReplyMode>(["public", "private", "dm"]);
 
 /** Facebook / Threads / YouTube inbox (comments, Messenger). */
 export async function GET(request: NextRequest) {
-  const auth = await requireDeveloper();
+  const auth = await requireWorkspace();
   if (!auth.ok) return auth.response;
   const channel = request.nextUrl.searchParams.get("channel");
   return jsonOk({ messages: await listChannelInbox(auth.ctx.workspaceId, channel && CHANNELS.has(channel) ? (channel as ChannelId) : undefined) });
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
 /** { action: "reply", id, text, mode } | { action: "hide", id, hide } */
 export async function POST(request: NextRequest) {
-  const auth = await requireDeveloper(true);
+  const auth = await requireWorkspace(true);
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as { action?: unknown; id?: unknown; text?: unknown; mode?: unknown; hide?: unknown } | null;
   if (!body || typeof body.id !== "string") return jsonError("id kerak", 400);

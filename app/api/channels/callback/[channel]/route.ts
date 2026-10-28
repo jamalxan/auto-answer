@@ -1,12 +1,12 @@
 import type { NextRequest } from "next/server";
-import { flashRedirect } from "@/lib/developer/flash-server";
+import { flashRedirect } from "@/lib/flash-server";
 import { FACEBOOK_SCOPES, facebookPagesFromCode, subscribePage } from "@/lib/channels/facebook";
 import { THREADS_SCOPES, threadsTokenFromCode } from "@/lib/channels/threads";
 import { PlanLimitError, assertChannelSlots } from "@/lib/billing/limits";
 import { prisma } from "@/lib/db/client";
 import { putCredential } from "@/lib/channels/vault";
 import { youtubeTokenFromCode } from "@/lib/channels/youtube";
-import { requireDeveloper } from "@/lib/developer/access";
+import { requireWorkspace } from "@/lib/channels/guard";
 import { getBaseUrl } from "@/lib/env";
 import { verifyOAuthState } from "@/lib/meta/oauth";
 
@@ -24,14 +24,14 @@ const CHANNEL_NAME: Record<string, string> = { facebook: "Facebook", threads: "T
  * signed-in one. Tokens go straight into the vault, never into the URL or a log.
  */
 export async function GET(request: NextRequest, { params }: Props) {
-  const auth = await requireDeveloper(true);
+  const auth = await requireWorkspace(true);
   if (!auth.ok) return auth.response;
   const { channel } = await params;
   // The outcome travels in a one-shot cookie, never in the URL (nobody can edit the wording).
   const back = (query: Record<string, string>) => {
-    if (query.error) return flashRedirect("/developer/channels", { tone: "error", text: query.error });
+    if (query.error) return flashRedirect("/channels", { tone: "error", text: query.error });
     const name = CHANNEL_NAME[query.connected] ?? query.connected;
-    return flashRedirect("/developer/channels", { tone: query.warning ? "warning" : "success", text: `${name} ulandi (${query.count ?? 1})${query.warning ? ` — ${query.warning}` : ""}` });
+    return flashRedirect("/channels", { tone: query.warning ? "warning" : "success", text: `${name} ulandi (${query.count ?? 1})${query.warning ? ` — ${query.warning}` : ""}` });
   };
 
   const search = request.nextUrl.searchParams;
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest, { params }: Props) {
     const known = await prisma.channelCredential.findMany({ where: { workspaceId, channel: channelId, externalAccountId: { in: ids }, status: { not: "REVOKED" } }, select: { externalAccountId: true } });
     await assertChannelSlots(workspaceId, ids.length - known.length);
   };
-  const redirectUri = `${getBaseUrl()}/api/developer/channels/callback/${channel}`;
+  const redirectUri = `${getBaseUrl()}/api/channels/callback/${channel}`;
   try {
     if (channel === "facebook") {
       const pages = (await facebookPagesFromCode(code, redirectUri)).filter((p) => p.tasks.length === 0 || p.tasks.some((t) => USEFUL_TASKS.has(t)));

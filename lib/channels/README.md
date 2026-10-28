@@ -22,8 +22,8 @@ logic never imports a channel SDK; a new channel is a new adapter registered in
 | `policy.ts` | private reply once per comment within the window (claimed `ChannelPrivateReply` row), DM only inside the 24 h window |
 | `inbox.ts` | Facebook / Threads / YouTube events → `ChannelMessage`, panel replies, hide, YouTube poll (content sweeper step 12) |
 
-Facebook / Threads / YouTube screen: `/developer/channels` (connect via
-`/api/developer/channels/connect/<channel>`, OAuth callback stores the tokens in
+Facebook / Threads / YouTube screen: `/channels` (connect via
+`/api/channels/connect/<channel>`, OAuth callback stores the tokens in
 the vault). Webhooks: `/webhooks/facebook` (FACEBOOK_APP_SECRET) and
 `/webhooks/threads` (THREADS_APP_SECRET), both through
 `lib/webhooks/channel-webhook.ts`. All built against fixtures; live keys are phase 9.

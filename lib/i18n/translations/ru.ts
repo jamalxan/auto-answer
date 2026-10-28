@@ -20,6 +20,8 @@ export const ru = {
     campaigns: "Кампании",
     newCampaign: "Новая кампания",
     content: "Контент-план",
+    channels: "Каналы",
+    ads: "Реклама",
     dmLogs: "Журнал DM",
     settings: "Настройки",
     diagnostics: "Диагностика",

@@ -20,6 +20,8 @@ export const uz = {
     campaigns: "Kampaniyalar",
     newCampaign: "Yangi kampaniya",
     content: "Kontent reja",
+    channels: "Kanallar",
+    ads: "Reklama",
     dmLogs: "DM jurnali",
     settings: "Sozlamalar",
     diagnostics: "Diagnostika",
