@@ -77,10 +77,10 @@ export default function FinishStep({ project, canWrite, onDeleted }: { project: 
           <Link className={secondaryButton} href="/developer/flows">
             Flows
           </Link>
-          <Link className={secondaryButton} href="/developer/comments">
+          <Link className={secondaryButton} href="/comments">
             Comment 2.0
           </Link>
-          <Link className={secondaryButton} href="/developer/triggers">
+          <Link className={secondaryButton} href="/triggers">
             Triggerlar
           </Link>
         </div>

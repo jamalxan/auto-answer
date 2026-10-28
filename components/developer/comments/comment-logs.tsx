@@ -195,7 +195,7 @@ function ExecutionCard({ row, apiBase, onChanged }: { row: ExecutionRow; apiBase
 
 export default function CommentLogs({
   campaignId,
-  apiBase = "/api/developer/comments",
+  apiBase = "/api/comments",
   emptyBody = "Mos komment kelganda yoki eski kommentlar skanerlanganda shu yerda paydo bo'ladi.",
 }: {
   campaignId: string;

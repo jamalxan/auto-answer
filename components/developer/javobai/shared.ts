@@ -7,7 +7,7 @@ import type { DisplayTone } from "@/lib/triggers/display";
 
 export { jsonInit, requestJson, uid } from "@/components/developer/comments/shared";
 
-export const JAVOBAI_API = "/api/developer/javobai";
+export const JAVOBAI_API = "/api/javobai";
 
 export type JavobAiMode = "OFF" | "SHADOW" | "LIVE";
 export type HandoffState = "AI_ACTIVE" | "HANDOFF_PENDING" | "OPERATOR_ACTIVE" | "CLOSED";

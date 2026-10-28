@@ -13,7 +13,7 @@ export type DmKind = "DIRECT" | "AD_MESSAGE" | "LINK" | "STORY_MENTION";
 
 export const DM_KINDS: DmKind[] = ["DIRECT", "AD_MESSAGE", "LINK", "STORY_MENTION"];
 
-export const DM_API = "/api/developer/triggers/dm";
+export const DM_API = "/api/triggers/dm";
 
 export function kindToTrigger(kind: DmKind): {
   triggerType: "DIRECT_MESSAGE" | "STORY_MENTION";

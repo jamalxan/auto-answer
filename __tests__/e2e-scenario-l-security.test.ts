@@ -4,7 +4,7 @@
  *  (b) deploy config: server version hidden (Caddy / nginx files that are versioned);
  *  (c) /api/mcp and EVERY route under app/api/developer answer 401/403/404 (never 200/500)
  *      without a token / session - routes are discovered on disk, handlers called for real;
- *  (d) static responsive guard on /developer/comments/new and developer-shell.
+ *  (d) static responsive guard on /comments/new and developer-shell.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -123,6 +123,9 @@ function walkRoutes(dir: string, out: string[] = []): string[] {
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 const developerRoutes = walkRoutes(path.join(ROOT, "app", "api", "developer")).sort();
+/** Modules promoted out of /developer: their API lives at /api/<name> and answers to the app session alone. */
+const PROMOTED_API = ["javobai", "comments", "triggers"];
+const promotedRoutes = PROMOTED_API.flatMap((name) => walkRoutes(path.join(ROOT, "app", "api", name))).sort();
 const rel = (file: string) => path.relative(ROOT, file).split(path.sep).join("/");
 
 /** params whose every key is a plain string, so `await params` + destructuring works for any route. */
@@ -147,13 +150,14 @@ describe("L(c): /api/developer/** without a session", () => {
   });
 
   it("finds the route files on disk", () => {
-    expect(developerRoutes.length).toBeGreaterThan(150);
+    expect(developerRoutes.length).toBeGreaterThan(50);
+    expect(promotedRoutes.length).toBeGreaterThan(45);
   });
 
-  async function sweep(label: string, allowed: number[]) {
+  async function sweep(label: string, allowed: number[], routes: string[] = developerRoutes, minHandlers = 50) {
     const offenders: string[] = [];
     let handlers = 0;
-    for (const file of developerRoutes) {
+    for (const file of routes) {
       let mod: Record<string, unknown>;
       try {
         mod = (await import(/* @vite-ignore */ pathToImport(file))) as Record<string, unknown>;
@@ -176,7 +180,7 @@ describe("L(c): /api/developer/** without a session", () => {
         }
       }
     }
-    expect(handlers, `${label}: handlers exercised`).toBeGreaterThan(200);
+    expect(handlers, `${label}: handlers exercised`).toBeGreaterThan(minHandlers);
     expect(offenders, `${label} offenders:\n${offenders.join("\n")}`).toEqual([]);
   }
 
@@ -184,6 +188,12 @@ describe("L(c): /api/developer/** without a session", () => {
     mocks.developerSession.mockResolvedValue(null);
     mocks.workspaceContext.mockResolvedValue({ workspaceId: "w1", userId: "u1", role: "OWNER" }); // even with an app session
     await sweep("no developer session", [404]);
+  }, 120_000);
+
+  it("promoted modules: no app session -> every handler answers 401", async () => {
+    mocks.developerSession.mockResolvedValue(null); // the developer login no longer matters
+    mocks.workspaceContext.mockResolvedValue(null);
+    await sweep("promoted, no app session", [401], promotedRoutes, 60);
   }, 120_000);
 
   it("developer login but no app session -> every handler answers 401/403/404", async () => {
@@ -305,7 +315,7 @@ function fixedWidthOffenders(files: string[]): string[] {
 
 describe("L(d): responsive guard (no fixed width > 375px without a responsive prefix)", () => {
   const entries = [
-    path.join(ROOT, "app/developer/(secure)/comments/new/page.tsx"),
+    path.join(ROOT, "app/(dashboard)/comments/new/page.tsx"),
     path.join(ROOT, "components/developer/developer-shell.tsx"),
   ];
 
@@ -325,7 +335,7 @@ describe("L(d): responsive guard (no fixed width > 375px without a responsive pr
     expect(fixedWidthPx("w-[320px]")).toBe(320);
   });
 
-  it("/developer/comments/new tree and developer-shell have no fixed width above 375px", () => {
+  it("/comments/new tree and developer-shell have no fixed width above 375px", () => {
     const tree = componentTree(entries);
     const offenders = fixedWidthOffenders(tree);
     expect(offenders, `Fixed widths > ${MAX_MOBILE_PX}px without sm:/md:/lg: prefix:\n${offenders.join("\n")}`).toEqual([]);

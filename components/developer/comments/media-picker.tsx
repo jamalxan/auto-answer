@@ -48,7 +48,7 @@ export default function MediaPicker({
     const mine = ++seq.current;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the fetch below
     setLoading(true);
-    requestJson<MediaResponse>(`/api/developer/comments/media?accountId=${encodeURIComponent(accountId)}`)
+    requestJson<MediaResponse>(`/api/comments/media?accountId=${encodeURIComponent(accountId)}`)
       .then((res) => {
         if (mine !== seq.current) return;
         setData(res.ok ? res.data : null);

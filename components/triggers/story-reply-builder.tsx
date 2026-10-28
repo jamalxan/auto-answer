@@ -92,7 +92,7 @@ function StoryPicker({
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the fetch below
     setLoading(true);
-    fetch(`/api/developer/triggers/stories?accountId=${encodeURIComponent(accountId)}`)
+    fetch(`/api/triggers/stories?accountId=${encodeURIComponent(accountId)}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -245,7 +245,7 @@ export default function StoryReplyBuilder({
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(isEdit ? `/api/developer/triggers/campaigns/${campaign!.id}` : "/api/developer/triggers/campaigns", {
+      const res = await fetch(isEdit ? `/api/triggers/campaigns/${campaign!.id}` : "/api/triggers/campaigns", {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -266,7 +266,7 @@ export default function StoryReplyBuilder({
         setError(data.error ?? "Saqlab bo'lmadi");
         return;
       }
-      router.push("/developer/triggers?tab=campaigns");
+      router.push("/triggers?tab=campaigns");
       router.refresh();
     } catch {
       setError("Tarmoq xatosi — qayta urinib ko'ring");
@@ -390,7 +390,7 @@ export default function StoryReplyBuilder({
           <button type="button" className={primaryButton} onClick={save} disabled={saving}>
             {saving ? "Saqlanmoqda…" : isEdit ? "Saqlash" : "Kampaniya yaratish"}
           </button>
-          <Link href="/developer/triggers?tab=campaigns" className={secondaryButton}>
+          <Link href="/triggers?tab=campaigns" className={secondaryButton}>
             Bekor qilish
           </Link>
           <DevBadge />

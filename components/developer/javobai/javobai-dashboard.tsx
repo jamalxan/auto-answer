@@ -92,7 +92,7 @@ export default function JavobAiDashboard() {
     const accountId = next.account === undefined ? account?.id : next.account;
     if (accountId) params.set("account", accountId);
     if (next.conversation) params.set("conversation", next.conversation);
-    router.replace(`/developer/javobai?${params.toString()}`, { scroll: false });
+    router.replace(`/javobai?${params.toString()}`, { scroll: false });
   };
 
   const live = accounts.filter((a) => a.mode === "LIVE").length;

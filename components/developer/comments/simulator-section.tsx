@@ -53,7 +53,7 @@ export default function SimulatorSection({
     setError(null);
     try {
       const res = await requestJson<SimulationResult>(
-        "/api/developer/comments/simulate",
+        "/api/comments/simulate",
         jsonInit("POST", {
           instagramAccountId: accountId,
           text,

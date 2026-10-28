@@ -35,13 +35,13 @@ export default function DmCampaignDetail({
 
   function select(next: Tab) {
     setTab(next);
-    router.replace(`/developer/triggers/dm/${campaign.id}${next === "logs" ? "?tab=logs" : ""}`, { scroll: false });
+    router.replace(`/triggers/dm/${campaign.id}${next === "logs" ? "?tab=logs" : ""}`, { scroll: false });
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <Link href="/developer/triggers" className="text-sm text-muted hover:text-foreground">
+        <Link href="/triggers" className="text-sm text-muted hover:text-foreground">
           ← Instagram Triggers
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">

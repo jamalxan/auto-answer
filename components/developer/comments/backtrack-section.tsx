@@ -44,7 +44,7 @@ export default function BacktrackSection({
   const load = useCallback(async () => {
     if (!campaignId) return;
     const mine = ++seq.current;
-    const res = await requestJson<{ runs: BacktrackRun[] }>(`/api/developer/comments/campaigns/${campaignId}/backtrack`);
+    const res = await requestJson<{ runs: BacktrackRun[] }>(`/api/comments/campaigns/${campaignId}/backtrack`);
     if (mine !== seq.current) return;
     if (res.ok) setRuns(res.data.runs);
     else setError(res.error);
@@ -68,7 +68,7 @@ export default function BacktrackSection({
     setError(null);
     try {
       const res = await requestJson<{ runId: string }>(
-        `/api/developer/comments/campaigns/${campaignId}/backtrack`,
+        `/api/comments/campaigns/${campaignId}/backtrack`,
         jsonInit("POST", { days })
       );
       if (!res.ok) setError(res.error);

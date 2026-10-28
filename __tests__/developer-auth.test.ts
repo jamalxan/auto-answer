@@ -90,7 +90,7 @@ describe("developer module registry", () => {
   });
 
   it("only links modules under /developer, or a promoted one to its main-dashboard page", () => {
-    const PROMOTED: Record<string, string> = { "content-scheduler": "/content", "channel-adapters": "/channels", ads: "/ads" };
+    const PROMOTED: Record<string, string> = { "content-scheduler": "/content", "channel-adapters": "/channels", ads: "/ads", javobai: "/javobai", "comment-automation": "/comments", triggers: "/triggers" };
     for (const m of navigableModules()) {
       if (PROMOTED[m.key]) expect(m.href).toBe(PROMOTED[m.key]);
       else expect(m.href).toMatch(/^\/developer\//);

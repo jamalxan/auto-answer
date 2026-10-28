@@ -3,7 +3,7 @@
 /**
  * Quick-reply buttons on the main message (Meta: max 13, 20 characters).
  * FLOW arrives with ETAP 6 and is listed, disabled. AI (ETAP 4) hands the
- * thread to JavobAI — only on an account switched to LIVE in /developer/javobai;
+ * thread to JavobAI — only on an account switched to LIVE in /javobai;
  * anywhere else it behaves like HANDOFF.
  */
 

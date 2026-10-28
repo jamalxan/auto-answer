@@ -26,6 +26,9 @@ export interface Dictionary {
     content: string;
     channels: string;
     ads: string;
+    javobai: string;
+    comments: string;
+    triggers: string;
     dmLogs: string;
     settings: string;
     diagnostics: string;

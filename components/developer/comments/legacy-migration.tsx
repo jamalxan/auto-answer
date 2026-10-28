@@ -105,7 +105,7 @@ export function LegacyMigrationPanel({ view, onChanged }: { view: LegacyMigratio
 
       <div className="flex flex-wrap items-center gap-2">
         {!active && view.plan.blockers.length === 0 && (
-          <button type="button" className={primaryButton} disabled={busy} onClick={() => call("/api/developer/comments/legacy", { automationId: view.automationId })}>
+          <button type="button" className={primaryButton} disabled={busy} onClick={() => call("/api/comments/legacy", { automationId: view.automationId })}>
             {busy ? "Kuting…" : "Kuzatuvni boshlash"}
           </button>
         )}
@@ -114,7 +114,7 @@ export function LegacyMigrationPanel({ view, onChanged }: { view: LegacyMigratio
             label="Yangi dvigatelga o'tkazish"
             question="Yangi kampaniya yoqiladi, eskisi o'chiriladi. Davom etamizmi?"
             busy={busy}
-            onConfirm={() => call(`/api/developer/comments/legacy/${active.id}`, { action: "cutover" })}
+            onConfirm={() => call(`/api/comments/legacy/${active.id}`, { action: "cutover" })}
           />
         )}
         {active?.status === "SHADOW" && !active.readyForCutover && !forcing && (
@@ -128,7 +128,7 @@ export function LegacyMigrationPanel({ view, onChanged }: { view: LegacyMigratio
             question={active.status === "CUTOVER" ? "Yangi kampaniya o'chiriladi, eskisi qayta yoqiladi. Davom etamizmi?" : "Kuzatuv to'xtatiladi (eski kampaniya ishlashda davom etadi)."}
             busy={busy}
             danger
-            onConfirm={() => call(`/api/developer/comments/legacy/${active.id}`, { action: "rollback" })}
+            onConfirm={() => call(`/api/comments/legacy/${active.id}`, { action: "rollback" })}
           />
         )}
       </div>
@@ -140,7 +140,7 @@ export function LegacyMigrationPanel({ view, onChanged }: { view: LegacyMigratio
             type="button"
             className={primaryButton}
             disabled={busy || reason.trim().length < 5}
-            onClick={() => call(`/api/developer/comments/legacy/${active.id}`, { action: "cutover", force: true, reason })}
+            onClick={() => call(`/api/comments/legacy/${active.id}`, { action: "cutover", force: true, reason })}
           >
             O&apos;tkazish
           </button>

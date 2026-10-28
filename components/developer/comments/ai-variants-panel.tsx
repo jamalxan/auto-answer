@@ -73,7 +73,7 @@ export default function AiVariantsPanel({
     setError(null);
     try {
       const res = await requestJson<{ drafts: string[] }>(
-        "/api/developer/comments/ai/variants",
+        "/api/comments/ai/variants",
         jsonInit("POST", {
           kind,
           count,

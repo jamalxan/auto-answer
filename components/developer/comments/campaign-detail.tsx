@@ -32,13 +32,13 @@ export default function CampaignDetail({
 
   function select(next: Tab) {
     setTab(next);
-    router.replace(`/developer/comments/${campaign.id}${next === "logs" ? "?tab=logs" : ""}`, { scroll: false });
+    router.replace(`/comments/${campaign.id}${next === "logs" ? "?tab=logs" : ""}`, { scroll: false });
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <Link href="/developer/comments" className="text-sm text-muted hover:text-foreground">
+        <Link href="/comments" className="text-sm text-muted hover:text-foreground">
           ← Comment Automation 2.0
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-2">

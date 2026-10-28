@@ -35,6 +35,9 @@ export default function TopBar({
     "/content": t.nav.content,
     "/channels": t.nav.channels,
     "/ads": t.nav.ads,
+    "/javobai": t.nav.javobai,
+    "/comments": t.nav.comments,
+    "/triggers": t.nav.triggers,
     "/campaigns/new": t.nav.newCampaign,
     "/campaigns/import": t.campaignImport.title,
     "/automations": t.nav.campaigns,
@@ -60,6 +63,8 @@ export default function TopBar({
     ["/leads/", t.assistant.nav.leads],
     ["/integrations/", t.assistant.nav.integrations],
     ["/overview/", t.nav.overview],
+    ["/comments/", t.nav.comments],
+    ["/triggers/", t.nav.triggers],
   ];
   const title =
     exactTitles[pathname] ??
