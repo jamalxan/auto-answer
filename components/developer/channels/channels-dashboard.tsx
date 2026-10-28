@@ -127,8 +127,10 @@ export default function ChannelsDashboard() {
 
   useEffect(() => {
     // The OAuth outcome arrives in a one-shot cookie (never the URL); drop any stale query string.
+    // Strict Mode runs effects twice: the second read finds the cookie gone and must not wipe the notice.
+    const flash = takeFlash();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after hydration
-    setNotice(takeFlash());
+    if (flash) setNotice(flash);
     if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
     void load();
   }, [load]);

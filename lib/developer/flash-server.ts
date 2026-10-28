@@ -4,8 +4,9 @@ import { FLASH_COOKIE, type Flash } from "@/lib/developer/flash";
 
 /** Redirect to a /developer page carrying a one-shot notice in a cookie, not in the URL. */
 export function flashRedirect(path: string, flash: Flash): NextResponse {
+  // cookies.set percent-encodes the value itself; the page decodes it once.
   const response = NextResponse.redirect(`${getBaseUrl()}${path}`);
-  response.cookies.set(FLASH_COOKIE, encodeURIComponent(JSON.stringify(flash)), {
+  response.cookies.set(FLASH_COOKIE, JSON.stringify(flash), {
     path: "/developer",
     maxAge: 120,
     sameSite: "lax",
