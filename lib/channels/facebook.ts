@@ -248,7 +248,34 @@ export async function facebookPagesFromCode(code: string, redirectUri: string): 
     facebookGraph("me/accounts", { fields: "id,name,access_token,tasks", limit: "100", access_token: long.access_token }),
     LABEL
   );
-  return (pages.data ?? []).map((p) => ({ id: p.id, name: p.name, accessToken: p.access_token, tasks: p.tasks ?? [] }));
+  const listed = (pages.data ?? []).map((p) => ({ id: p.id, name: p.name, accessToken: p.access_token, tasks: p.tasks ?? [] }));
+  if (listed.length > 0) return listed;
+  return pagesFromGrantedScopes(long.access_token, appId, secret);
+}
+
+/**
+ * Facebook Login for Business can return an empty `me/accounts` even though the
+ * user picked Pages in the dialog: the picked Pages are only listed as target ids
+ * of the token's granular scopes. Read them from debug_token and fetch each Page.
+ */
+async function pagesFromGrantedScopes(userToken: string, appId: string, secret: string): Promise<FacebookPageChoice[]> {
+  const debug = await metaJson<{ data?: { granular_scopes?: Array<{ scope: string; target_ids?: string[] }> } }>(
+    facebookGraph("debug_token", { input_token: userToken, access_token: `${appId}|${secret}` }),
+    LABEL
+  );
+  const ids = new Set<string>();
+  for (const granted of debug.data?.granular_scopes ?? []) {
+    if (granted.scope.startsWith("pages_")) for (const id of granted.target_ids ?? []) ids.add(id);
+  }
+  const found: FacebookPageChoice[] = [];
+  for (const id of ids) {
+    const page = await metaJson<{ id: string; name?: string; access_token?: string; tasks?: string[] }>(
+      facebookGraph(id, { fields: "id,name,access_token,tasks", access_token: userToken }),
+      LABEL
+    ).catch(() => null);
+    if (page?.access_token) found.push({ id: page.id, name: page.name ?? page.id, accessToken: page.access_token, tasks: page.tasks ?? [] });
+  }
+  return found;
 }
 
 /** Webhooks for the Page: comments (feed) and Messenger (messages). */
