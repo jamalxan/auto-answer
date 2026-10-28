@@ -274,7 +274,12 @@ async function pageById(id: string, userToken: string): Promise<FacebookPageChoi
   const page = await metaJson<{ id: string; name?: string; access_token?: string; tasks?: string[] }>(
     facebookGraph(id, { fields: "id,name,access_token,tasks", access_token: userToken }),
     LABEL
-  ).catch(() => null);
+  ).catch((error) => {
+    // Message only (Meta error text, no token): shows why a granted Page could not be read.
+    console.warn(`[facebook] Page ${id} could not be read: ${error instanceof Error ? error.message.slice(0, 300) : String(error)}`);
+    return null;
+  });
+  if (page && !page.access_token) console.warn(`[facebook] Page ${id} came back without an access_token (tasks: ${(page.tasks ?? []).join(",") || "none"})`);
   return page?.access_token ? { id: page.id, name: page.name ?? page.id, accessToken: page.access_token, tasks: page.tasks ?? [] } : null;
 }
 
