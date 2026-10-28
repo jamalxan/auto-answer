@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
+import { flashRedirect } from "@/lib/developer/flash-server";
 import { FACEBOOK_SCOPES, facebookPagesFromCode, subscribePage } from "@/lib/channels/facebook";
 import { THREADS_SCOPES, threadsTokenFromCode } from "@/lib/channels/threads";
 import { PlanLimitError, assertChannelSlots } from "@/lib/billing/limits";
@@ -15,6 +16,7 @@ type Props = { params: Promise<{ channel: string }> };
 
 /** Page tasks that let us publish or answer; a Page with none of them is not stored. */
 const USEFUL_TASKS = new Set(["CREATE_CONTENT", "MODERATE", "MANAGE", "MESSAGING"]);
+const CHANNEL_NAME: Record<string, string> = { facebook: "Facebook", threads: "Threads", youtube: "YouTube" };
 
 /**
  * OAuth callback of Facebook / Threads / YouTube. The signed state binds the
@@ -25,7 +27,12 @@ export async function GET(request: NextRequest, { params }: Props) {
   const auth = await requireDeveloper(true);
   if (!auth.ok) return auth.response;
   const { channel } = await params;
-  const back = (query: Record<string, string>) => NextResponse.redirect(`${getBaseUrl()}/developer/channels?${new URLSearchParams(query)}`);
+  // The outcome travels in a one-shot cookie, never in the URL (nobody can edit the wording).
+  const back = (query: Record<string, string>) => {
+    if (query.error) return flashRedirect("/developer/channels", { tone: "error", text: query.error });
+    const name = CHANNEL_NAME[query.connected] ?? query.connected;
+    return flashRedirect("/developer/channels", { tone: query.warning ? "warning" : "success", text: `${name} ulandi (${query.count ?? 1})${query.warning ? ` — ${query.warning}` : ""}` });
+  };
 
   const search = request.nextUrl.searchParams;
   const state = verifyOAuthState(search.get("state"));
@@ -43,7 +50,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   try {
     if (channel === "facebook") {
       const pages = (await facebookPagesFromCode(code, redirectUri)).filter((p) => p.tasks.length === 0 || p.tasks.some((t) => USEFUL_TASKS.has(t)));
-      if (pages.length === 0) return back({ error: "Boshqaradigan Facebook sahifa topilmadi" });
+      if (pages.length === 0) return back({ error: "Boshqaradigan Facebook sahifa topilmadi. Ulash oynasida sahifani belgilang va akkaunt sahifada to'liq boshqaruv huquqiga ega ekanini tekshiring." });
       await slots("facebook", pages.map((p) => p.id));
       let unsubscribed = 0;
       for (const page of pages) {
