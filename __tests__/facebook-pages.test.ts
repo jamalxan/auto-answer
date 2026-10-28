@@ -44,4 +44,23 @@ describe("facebookPagesFromCode", () => {
     expect(pages.map((p) => p.id)).toEqual(["7"]);
     expect(calls.some((c) => c.endsWith("/debug_token"))).toBe(false);
   });
+
+  it("asks with the short token when the long-lived one lists nothing, and re-reads the Page with the long one", async () => {
+    vi.stubEnv("FACEBOOK_CHANNELS_APP_ID", "app");
+    vi.stubEnv("FACEBOOK_CHANNELS_APP_SECRET", "secret");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        const token = url.searchParams.get("access_token");
+        if (url.pathname.endsWith("/oauth/access_token")) return json({ access_token: url.searchParams.get("grant_type") === "fb_exchange_token" ? "long-token" : "short-token" });
+        if (url.pathname.endsWith("/me/accounts")) return json({ data: token === "short-token" ? [{ id: "7", name: "Listed", access_token: "page-from-short", tasks: ["MANAGE"] }] : [] });
+        if (url.pathname.endsWith("/debug_token")) return json({ data: { granular_scopes: [] } });
+        if (url.pathname.endsWith("/7")) return json({ id: "7", name: "Listed", access_token: "page-from-long", tasks: ["MANAGE"] });
+        return json({});
+      })
+    );
+    const pages = await facebookPagesFromCode("code", "https://x/cb");
+    expect(pages).toEqual([{ id: "7", name: "Listed", accessToken: "page-from-long", tasks: ["MANAGE"] }]);
+  });
 });
