@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FACEBOOK_SCOPES, facebookAuthorizeUrl, facebookPagesFromCode } from "@/lib/channels/facebook";
+import { FACEBOOK_CLASSIC_SCOPES, facebookAuthorizeUrl, facebookPagesFromCode } from "@/lib/channels/facebook";
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
@@ -71,6 +71,7 @@ describe("facebookPagesFromCode", () => {
     expect(configured.searchParams.get("config_id")).toBe("cfg");
     const classic = new URL(facebookAuthorizeUrl("https://x/cb", "s", { classic: true }));
     expect(classic.searchParams.get("config_id")).toBeNull();
-    expect(classic.searchParams.get("scope")).toBe(FACEBOOK_SCOPES.join(","));
+    expect(classic.searchParams.get("scope")).toBe(FACEBOOK_CLASSIC_SCOPES.join(","));
+    expect(classic.searchParams.get("scope")).not.toContain("read_insights");
   });
 });
