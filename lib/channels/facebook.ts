@@ -48,6 +48,9 @@ export const FACEBOOK_SCOPES = [
   "read_insights",
 ];
 
+/** Scopes plain Facebook Login accepts today: read_insights is not enabled for the app, and Meta rejects the whole dialog on an invalid scope. */
+export const FACEBOOK_CLASSIC_SCOPES = FACEBOOK_SCOPES.filter((scope) => scope !== "read_insights");
+
 /** Reels publishing through the API: 30 a Page per 24 h (audit, Meta Reels guide). */
 export const FACEBOOK_REELS_DAILY_LIMIT = 30;
 
@@ -224,7 +227,7 @@ export function facebookAuthorizeUrl(redirectUri: string, state: string, options
     url.searchParams.set("config_id", configId);
     url.searchParams.set("override_default_response_type", "true");
   } else {
-    url.searchParams.set("scope", FACEBOOK_SCOPES.join(","));
+    url.searchParams.set("scope", (options.classic ? FACEBOOK_CLASSIC_SCOPES : FACEBOOK_SCOPES).join(","));
   }
   return url.toString();
 }
