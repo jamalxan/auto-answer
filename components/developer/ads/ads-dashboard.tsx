@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { takeFlash, type Flash } from "@/lib/developer/flash";
 import { jsonInit, requestJson } from "@/components/developer/comments/shared";
 import { DevBadge, Pill, formatDateTime, inputClass, primaryButton, secondaryButton } from "@/components/developer/ui";
 
@@ -77,15 +77,10 @@ const toMinor = (major: string, account: Account) => (major.trim() === "" ? null
 const toMajor = (minor: number | null, account: Account) => (minor === null ? "" : String(minor / account.offset));
 
 export default function AdsDashboard() {
-  const params = useSearchParams();
   const [tab, setTab] = useState<"proposals" | "accounts">("proposals");
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState<{ tone: "error" | "success"; text: string } | null>(() => {
-    if (params.get("error")) return { tone: "error", text: params.get("error")! };
-    if (params.get("connected")) return { tone: "success", text: `${params.get("connected")} ta reklama akkaunti ulandi — endi chegaralarni belgilang` };
-    return null;
-  });
+  const [notice, setNotice] = useState<Flash | null>(null);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -99,7 +94,10 @@ export default function AdsDashboard() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch
+    // The OAuth outcome arrives in a one-shot cookie (never the URL); drop any stale query string.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after hydration
+    setNotice(takeFlash());
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
     void load();
   }, [load]);
 

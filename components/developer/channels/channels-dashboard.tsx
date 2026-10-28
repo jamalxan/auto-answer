@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { takeFlash, type Flash } from "@/lib/developer/flash";
 import { jsonInit, requestJson } from "@/components/developer/comments/shared";
 import { DevBadge, Pill, formatDateTime, inputClass, primaryButton, secondaryButton } from "@/components/developer/ui";
 
@@ -96,20 +96,13 @@ const TARGET_TONE: Record<Target["status"], "success" | "warning" | "error" | "m
 const KIND_LABEL: Record<string, string> = { comment: "Komment", reply: "Javob", mention: "Eslatish", dm: "Messenger", postback: "Tugma" };
 
 export default function ChannelsDashboard() {
-  const params = useSearchParams();
   const [tab, setTab] = useState<Tab>("accounts");
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [caps, setCaps] = useState<Record<string, Capabilities>>({});
   const [inbox, setInbox] = useState<InboxMessage[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState<{ tone: "error" | "success" | "warning"; text: string } | null>(() => {
-    const error = params.get("error");
-    if (error) return { tone: "error", text: error };
-    const connected = params.get("connected");
-    if (connected) return { tone: params.get("warning") ? "warning" : "success", text: `${CHANNEL_NAME[connected] ?? connected} ulandi (${params.get("count") ?? 1})${params.get("warning") ? ` — ${params.get("warning")}` : ""}` };
-    return null;
-  });
+  const [notice, setNotice] = useState<Flash | null>(null);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -133,7 +126,10 @@ export default function ChannelsDashboard() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch
+    // The OAuth outcome arrives in a one-shot cookie (never the URL); drop any stale query string.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after hydration
+    setNotice(takeFlash());
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
     void load();
   }, [load]);
 

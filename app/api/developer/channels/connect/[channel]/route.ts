@@ -3,6 +3,7 @@ import { facebookAuthorizeUrl } from "@/lib/channels/facebook";
 import { threadsAuthorizeUrl } from "@/lib/channels/threads";
 import { youtubeAuthorizeUrl } from "@/lib/channels/youtube";
 import { requireDeveloper } from "@/lib/developer/access";
+import { flashRedirect } from "@/lib/developer/flash-server";
 import { getBaseUrl } from "@/lib/env";
 import { createOAuthState } from "@/lib/meta/oauth";
 
@@ -22,12 +23,11 @@ export async function GET(_request: NextRequest, { params }: Props) {
   if (!auth.ok) return auth.response;
   const { channel } = await params;
   const authorize = AUTHORIZE[channel];
-  const back = `${getBaseUrl()}/developer/channels`;
-  if (!authorize) return NextResponse.redirect(`${back}?error=${encodeURIComponent("Noma'lum kanal")}`);
+  if (!authorize) return flashRedirect("/developer/channels", { tone: "error", text: "Noma'lum kanal" });
   try {
     const state = createOAuthState(auth.ctx.workspaceId, "/developer/channels");
     return NextResponse.redirect(authorize(`${getBaseUrl()}/api/developer/channels/callback/${channel}`, state));
   } catch (error) {
-    return NextResponse.redirect(`${back}?error=${encodeURIComponent(error instanceof Error ? error.message : "Sozlanmagan")}`);
+    return flashRedirect("/developer/channels", { tone: "error", text: error instanceof Error ? error.message : "Sozlanmagan" });
   }
 }
