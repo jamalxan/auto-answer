@@ -271,16 +271,18 @@ async function pagesOf(userToken: string, appId: string, secret: string): Promis
 }
 
 async function pageById(id: string, userToken: string): Promise<FacebookPageChoice | null> {
-  const page = await metaJson<{ id: string; name?: string; access_token?: string; tasks?: string[] }>(
-    facebookGraph(id, { fields: "id,name,access_token,tasks", access_token: userToken }),
+  // `tasks` only exists on the me/accounts edge, not on the Page node (Meta: #100 nonexisting field).
+  const page = await metaJson<{ id: string; name?: string; access_token?: string }>(
+    facebookGraph(id, { fields: "id,name,access_token", access_token: userToken }),
     LABEL
   ).catch((error) => {
     // Message only (Meta error text, no token): shows why a granted Page could not be read.
     console.warn(`[facebook] Page ${id} could not be read: ${error instanceof Error ? error.message.slice(0, 300) : String(error)}`);
     return null;
   });
-  if (page && !page.access_token) console.warn(`[facebook] Page ${id} came back without an access_token (tasks: ${(page.tasks ?? []).join(",") || "none"})`);
-  return page?.access_token ? { id: page.id, name: page.name ?? page.id, accessToken: page.access_token, tasks: page.tasks ?? [] } : null;
+  if (page && !page.access_token) console.warn(`[facebook] Page ${id} came back without an access_token`);
+  // No tasks to filter on: a granted Page is kept (the callback lets a Page with no tasks through).
+  return page?.access_token ? { id: page.id, name: page.name ?? page.id, accessToken: page.access_token, tasks: [] } : null;
 }
 
 /**
