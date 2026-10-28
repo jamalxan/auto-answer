@@ -210,9 +210,10 @@ export const facebookAdapter: ChannelAdapter = {
 
 // ─── OAuth: Facebook Login for Business ────────────────────────────────────────
 
-export function facebookAuthorizeUrl(redirectUri: string, state: string): string {
+/** `classic` skips the Login for Business configuration and asks for the scopes directly (plain Facebook Login). */
+export function facebookAuthorizeUrl(redirectUri: string, state: string, options: { classic?: boolean } = {}): string {
   const { appId } = facebookChannelsApp();
-  const configId = process.env.FACEBOOK_LOGIN_CONFIG_ID?.trim();
+  const configId = options.classic ? undefined : process.env.FACEBOOK_LOGIN_CONFIG_ID?.trim();
   if (!appId) throw new ChannelError("invalid", "FACEBOOK_CHANNELS_APP_ID sozlanmagan");
   const url = new URL(`https://www.facebook.com/${getMetaGraphApiVersion()}/dialog/oauth`);
   url.searchParams.set("client_id", appId);

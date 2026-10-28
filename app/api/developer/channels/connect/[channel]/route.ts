@@ -11,14 +11,14 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ channel: string }> };
 
-const AUTHORIZE: Record<string, (redirectUri: string, state: string) => string> = {
+const AUTHORIZE: Record<string, (redirectUri: string, state: string, options?: { classic?: boolean }) => string> = {
   facebook: facebookAuthorizeUrl,
   threads: threadsAuthorizeUrl,
   youtube: youtubeAuthorizeUrl,
 };
 
 /** Start the OAuth flow of a vault channel; the callback stores the tokens in the vault. */
-export async function GET(_request: NextRequest, { params }: Props) {
+export async function GET(request: NextRequest, { params }: Props) {
   const auth = await requireDeveloper(true);
   if (!auth.ok) return auth.response;
   const { channel } = await params;
@@ -26,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: Props) {
   if (!authorize) return flashRedirect("/developer/channels", { tone: "error", text: "Noma'lum kanal" });
   try {
     const state = createOAuthState(auth.ctx.workspaceId, "/developer/channels");
-    return NextResponse.redirect(authorize(`${getBaseUrl()}/api/developer/channels/callback/${channel}`, state));
+    return NextResponse.redirect(authorize(`${getBaseUrl()}/api/developer/channels/callback/${channel}`, state, { classic: request.nextUrl.searchParams.get("classic") === "1" }));
   } catch (error) {
     return flashRedirect("/developer/channels", { tone: "error", text: error instanceof Error ? error.message : "Sozlanmagan" });
   }

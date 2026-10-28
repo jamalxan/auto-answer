@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { facebookPagesFromCode } from "@/lib/channels/facebook";
+import { FACEBOOK_SCOPES, facebookAuthorizeUrl, facebookPagesFromCode } from "@/lib/channels/facebook";
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
@@ -62,5 +62,15 @@ describe("facebookPagesFromCode", () => {
     );
     const pages = await facebookPagesFromCode("code", "https://x/cb");
     expect(pages).toEqual([{ id: "7", name: "Listed", accessToken: "page-from-long", tasks: ["MANAGE"] }]);
+  });
+
+  it("classic login asks for the scopes directly and ignores the Login for Business config", () => {
+    vi.stubEnv("FACEBOOK_CHANNELS_APP_ID", "app");
+    vi.stubEnv("FACEBOOK_LOGIN_CONFIG_ID", "cfg");
+    const configured = new URL(facebookAuthorizeUrl("https://x/cb", "s"));
+    expect(configured.searchParams.get("config_id")).toBe("cfg");
+    const classic = new URL(facebookAuthorizeUrl("https://x/cb", "s", { classic: true }));
+    expect(classic.searchParams.get("config_id")).toBeNull();
+    expect(classic.searchParams.get("scope")).toBe(FACEBOOK_SCOPES.join(","));
   });
 });
