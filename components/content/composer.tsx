@@ -52,6 +52,8 @@ import RecurrenceFields, { emptyRecur, recurBody, recurPreview, type RecurState 
 import { formatZoned, storySeriesLabel } from "./shared";
 import CropEditor, { presetsFor } from "./crop-editor";
 import { centerCrop, type CropRect } from "@/lib/content/crop-geometry";
+import { channelBlocker, PLATFORM_LABEL, type PreviewPlatform } from "@/lib/content/platform-preview";
+import CrossTargets, { CROSS_CHANNELS, EMPTY_CROSS, useCrossCredentials, type CrossSelection } from "./cross-targets";
 
 const TYPE_CHOICES: PostTypeValue[] = ["FEED_IMAGE", "CAROUSEL", "REEL", "TRIAL_REEL", "STORY"];
 const AUTOSAVE_MS = 5_000;
@@ -101,8 +103,8 @@ function bodyOf(draft: PostDraft, purpose: "save" | "validate" | "autosave" = "s
   return { ...body, linkCampaign: link && (link.automationId || link.triggerCampaignId) ? { automationId: link.automationId, triggerCampaignId: link.triggerCampaignId } : null };
 }
 
-function rowToItem(row: Pick<MediaRow, "id" | "kind" | "status" | "thumbUrl" | "width" | "height" | "durationMs">): MediaItemDraft {
-  return { mediaId: row.id, kind: row.kind, status: row.status, thumbUrl: row.thumbUrl, previewUrl: row.thumbUrl, width: row.width, height: row.height, durationMs: row.durationMs, userTags: [] };
+function rowToItem(row: Pick<MediaRow, "id" | "kind" | "status" | "thumbUrl" | "width" | "height" | "durationMs"> & { previewUrl?: string | null }): MediaItemDraft {
+  return { mediaId: row.id, kind: row.kind, status: row.status, thumbUrl: row.thumbUrl, previewUrl: row.previewUrl ?? row.thumbUrl, width: row.width, height: row.height, durationMs: row.durationMs, userTags: [] };
 }
 
 export default function Composer({
@@ -141,9 +143,22 @@ export default function Composer({
   const [createdCampaigns, setCreatedCampaigns] = useState<ContentMeta["campaigns"]>([]);
   // Approval (Faza 2): null = schedule directly; OPERATOR always sends to review.
   const [review, setReview] = useState<ReviewDraft | null>(meta.me.canSchedule ? null : EMPTY_REVIEW);
+  // Other networks that get this post at the same slot (cross-post targets); saved after the post itself.
+  const crossCreds = useCrossCredentials();
+  const [cross, setCross] = useState<CrossSelection>(EMPTY_CROSS);
+  const crossSaved = useRef<CrossSelection | null>(postId ? null : EMPTY_CROSS);
+  const [crossReady, setCrossReady] = useState(!postId);
+  const [previewOn, setPreviewOn] = useState<PreviewPlatform>("instagram");
   const dirty = useRef(false);
   const serverId = useRef<string | undefined>(postId);
   const versionRef = useRef<number | null>(null);
+
+  const previewTabs: PreviewPlatform[] = [
+    "instagram",
+    ...CROSS_CHANNELS.filter((c) => cross[c].length > 0 && !channelBlocker(c, draft.type, draft.media.length > 0)),
+  ];
+  const shownPlatform: PreviewPlatform = previewTabs.includes(previewOn) ? previewOn : "instagram";
+  const previewLabel = shownPlatform === "instagram" ? undefined : crossCreds?.find((c) => c.id === cross[shownPlatform][0])?.label ?? undefined;
 
   const account = meta.accounts.find((a) => a.id === draft.instagramAccountId) ?? null;
   const canPublish = Boolean(account?.canPublish);
@@ -191,6 +206,14 @@ export default function Composer({
       }
       setDetail(res.data);
       versionRef.current = res.data.version;
+      const targets = await requestJson<{ targets: Array<{ channel: string; accountRef: string; status: string }> }>(`/api/channels/targets?postId=${postId}`);
+      if (!cancelled && targets.ok) {
+        const current: CrossSelection = { facebook: [], threads: [], youtube: [] };
+        for (const t of targets.data.targets) if (t.status !== "DELETED" && t.channel in current) current[t.channel as keyof CrossSelection].push(t.accountRef);
+        crossSaved.current = current;
+        setCross(current);
+        setCrossReady(true);
+      }
       setDraft(draftOfDetail(res.data));
       if (res.data.scheduledAt) {
         setSlot(utcToZoned(new Date(res.data.scheduledAt), tz));
@@ -327,6 +350,20 @@ export default function Composer({
   const keywordMissing = campaignKeywords.length > 0 && fieldVisible(draft.type, "caption") && !campaignKeywords.some((k) => draft.caption.toLowerCase().includes(k.toLowerCase()));
 
   // ── save ────────────────────────────────────────────────────────────────
+  /** Replace the targets of every channel whose selection changed; returns the first problem. */
+  async function saveCross(id: string): Promise<string | null> {
+    const before = crossSaved.current;
+    if (!before || draft.type === "STORY") return null;
+    for (const channel of CROSS_CHANNELS) {
+      const same = before[channel].length === cross[channel].length && before[channel].every((x) => cross[channel].includes(x));
+      if (same) continue;
+      const res = await requestJson<unknown>("/api/channels/targets", jsonInit("POST", { postId: id, channel, accountIds: cross[channel] }));
+      if (!res.ok) return `${PLATFORM_LABEL[channel]}: ${res.error}`;
+      before[channel] = [...cross[channel]];
+    }
+    return null;
+  }
+
   async function save(as: ComposerMode | "queue" = mode) {
     setSaving(true);
     setError(null);
@@ -384,9 +421,15 @@ export default function Composer({
       } else if (as !== "draft" && !canSchedule) {
         setNotice("Draft saqlandi. Tasdiqqa yuborish uchun vaqtni tanlang.");
       }
+      const crossProblem = await saveCross(saved.id);
       writeBackup(postId, null);
       writeBackup(undefined, null);
       dirty.current = false;
+      if (crossProblem) {
+        setNotice(`Post saqlandi, lekin boshqa tarmoqlar: ${crossProblem}`);
+        setError(crossProblem);
+        return;
+      }
       onSaved(saved.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Saqlanmadi");
@@ -754,6 +797,17 @@ export default function Composer({
             )}
           </section>
 
+          {/* 5b. Boshqa tarmoqlar */}
+          {draft.type !== "STORY" && (
+            <section className="space-y-3 panel rounded-3xl p-4">
+              <div>
+                <h3 className="text-sm font-semibold">Boshqa tarmoqlarga ham</h3>
+                <p className="text-xs text-muted">Shu video/rasm va matn bir vaqtda Facebook, Threads yoki YouTube&apos;ga ham chiqadi. O&apos;ngdagi preview har bir tarmoqda qanday ko&apos;rinishini ko&apos;rsatadi.</p>
+              </div>
+              <CrossTargets creds={crossCreds} value={cross} onChange={(next) => { dirty.current = true; setCross(next); }} type={draft.type} hasMedia={draft.media.length > 0} disabled={locked || !crossReady} />
+            </section>
+          )}
+
           {/* 6. Vaqt va rejim */}
           <section className="space-y-3 panel rounded-3xl p-4">
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Qachon">
@@ -853,7 +907,16 @@ export default function Composer({
 
         <aside className="lg:sticky lg:top-4 lg:self-start">
           <p className="mb-2 text-center text-[11px] text-muted">Jonli preview</p>
-          <Preview draft={draft} username={account?.username ?? ""} />
+          {previewTabs.length > 1 && (
+            <div className="mb-2 flex flex-wrap justify-center gap-1" role="tablist" aria-label="Tarmoq">
+              {previewTabs.map((p) => (
+                <button key={p} type="button" role="tab" aria-selected={p === shownPlatform} onClick={() => setPreviewOn(p)} className={`rounded-full px-3 py-1 text-xs font-medium ${p === shownPlatform ? "bg-accent text-background" : "border border-border text-muted"}`}>
+                  {PLATFORM_LABEL[p]}
+                </button>
+              ))}
+            </div>
+          )}
+          <Preview key={shownPlatform} draft={draft} username={account?.username ?? ""} platform={shownPlatform} accountLabel={previewLabel} />
         </aside>
       </div>
 

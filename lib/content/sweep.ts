@@ -187,5 +187,13 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
     console.error("[Content] youtube comment poll failed:", error instanceof Error ? error.message : error);
   }
 
+  // 13: auto-replies to the new Facebook / Threads / YouTube comments and messages.
+  try {
+    const { sweepAutoReplies } = await import("@/lib/channels/auto-reply");
+    await sweepAutoReplies(now);
+  } catch (error) {
+    console.error("[Content] channel auto-reply sweep failed:", error instanceof Error ? error.message : error);
+  }
+
   return result;
 }

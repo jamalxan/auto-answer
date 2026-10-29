@@ -216,7 +216,7 @@ async function toDetail(row: PostRow): Promise<PostDetail> {
       height: m.media.height ?? null,
       durationMs: m.media.durationMs ?? null,
       thumbUrl: m.media.thumbKey ? await signedMediaUrl(m.media.thumbKey) : null,
-      previewUrl: m.media.preparedKey ? await signedMediaUrl(m.media.preparedKey) : null,
+      previewUrl: m.media.status === "READY" || m.media.preparedKey ? await signedMediaUrl(m.media.preparedKey ?? m.media.originalKey) : null,
     }))
   );
   return {

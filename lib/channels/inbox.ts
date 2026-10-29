@@ -1,8 +1,8 @@
 /**
  * Inbox of the vault channels (Facebook, Threads, YouTube): normalised
  * InboundEvents land in ChannelMessage (the table Telegram already uses),
- * a person answers from the panel. JavobAI auto-replies stay Instagram-only
- * until the runtime is channel-neutral (lib/channels/README.md).
+ * a person answers from the panel, or auto-reply rules do (auto-reply.ts).
+ * JavobAI (Instagram) itself stays Instagram-only.
  *
  *   accountRef  ChannelCredential.id
  *   chatId      ChannelCredential.id too: one Page connected to two

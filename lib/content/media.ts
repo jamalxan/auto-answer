@@ -137,6 +137,8 @@ export interface MediaRow {
   tags: string[];
   error: string | null;
   thumbUrl: string | null;
+  /** Playable / full-size copy for the live preview (the Instagram-ready file, else the upload); null until READY. */
+  previewUrl: string | null;
   createdAt: Date;
   usedByPostIds: string[];
 }
@@ -177,6 +179,7 @@ export async function listMedia(workspaceId: string, q: Partial<MediaQuery>): Pr
       tags: row.tags ?? [],
       error: row.error ?? null,
       thumbUrl: row.thumbKey ? await signedMediaUrl(row.thumbKey) : null,
+      previewUrl: row.status === "READY" ? await signedMediaUrl(row.preparedKey ?? row.originalKey) : null,
       createdAt: row.createdAt,
       usedByPostIds: [...new Set((row.usages ?? []).map((u) => u.postId))],
     }))
@@ -193,6 +196,7 @@ export interface MediaStatusRow {
   height: number | null;
   durationMs: number | null;
   thumbUrl: string | null;
+  previewUrl: string | null;
 }
 
 export const MEDIA_STATUS_BATCH_MAX = 50;
@@ -207,7 +211,7 @@ export async function mediaStatuses(workspaceId: string, ids: string[]): Promise
   if (unique.length === 0) return [];
   const rows = await prisma.mediaAsset.findMany({
     where: { id: { in: unique }, workspaceId },
-    select: { id: true, kind: true, status: true, error: true, width: true, height: true, durationMs: true, thumbKey: true },
+    select: { id: true, kind: true, status: true, error: true, width: true, height: true, durationMs: true, thumbKey: true, preparedKey: true, originalKey: true },
   });
   return Promise.all(
     rows.map(async (row) => ({
@@ -219,6 +223,7 @@ export async function mediaStatuses(workspaceId: string, ids: string[]): Promise
       height: row.height ?? null,
       durationMs: row.durationMs ?? null,
       thumbUrl: row.status === "READY" && row.thumbKey ? await signedMediaUrl(row.thumbKey) : null,
+      previewUrl: row.status === "READY" ? await signedMediaUrl(row.preparedKey ?? row.originalKey) : null,
     }))
   );
 }
