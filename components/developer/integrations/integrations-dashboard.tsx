@@ -76,7 +76,7 @@ export default function IntegrationsDashboard() {
       params.set("tab", next.tab ?? tab);
       const integration = next.integration === undefined ? integrationParam : next.integration;
       if (integration) params.set("integration", integration);
-      router.replace(`/developer/integrations?${params.toString()}`, { scroll: false });
+      router.replace(`/connectors?${params.toString()}`, { scroll: false });
     },
     [router, tab, integrationParam]
   );

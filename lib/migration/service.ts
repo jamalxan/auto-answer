@@ -1,5 +1,5 @@
 /**
- * ETAP 11 — the migration DB layer the /api/developer/migration routes talk
+ * ETAP 11 — the migration DB layer the /api/migration routes talk
  * to: connect a ManyChat key, analyse, map, read flow text (typed or from
  * screenshots), convert (preview) and import as DRAFT flows.
  *

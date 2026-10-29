@@ -1,5 +1,5 @@
 /**
- * ETAP 9 — the thin façade the /api/developer/engagement routes talk to. It
+ * ETAP 9 — the thin façade the /api/engagement routes talk to. It
  * owns giveaway CRUD (create / edit while DRAFT / list with counters / detail /
  * entries paging / delete while DRAFT), the zod schemas of the route bodies,
  * the overview, and turns thrown EngagementServiceError into the

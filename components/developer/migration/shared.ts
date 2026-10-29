@@ -9,7 +9,7 @@ import type { FlowGraph } from "@/lib/flows/schema";
 
 export { jsonInit, requestJson, type JsonResult } from "@/components/developer/comments/shared";
 
-export const MIGRATION_API = "/api/developer/migration";
+export const MIGRATION_API = "/api/migration";
 
 export type ItemKind = "TAG" | "CUSTOM_FIELD" | "BOT_FIELD" | "FLOW" | "GROWTH_TOOL";
 export type ItemStatus = "PENDING" | "MAPPED" | "CONVERTED" | "IMPORTED" | "SKIPPED" | "UNSUPPORTED" | "FAILED";

@@ -52,22 +52,22 @@ vi.mock("../lib/migration/service", async (importOriginal) => ({
 
 import { MigrationServiceError } from "../lib/migration/errors";
 import { MAX_FLOW_TEXT, MAX_SCREENSHOT_BYTES, MAX_SCREENSHOTS } from "../lib/migration/config";
-import { GET as metaGet } from "../app/api/developer/migration/meta/route";
-import { GET as listGet, POST as connectPost } from "../app/api/developer/migration/projects/route";
-import { DELETE as projectDelete, GET as projectGet } from "../app/api/developer/migration/projects/[id]/route";
-import { POST as analyzePost } from "../app/api/developer/migration/projects/[id]/analyze/route";
-import { POST as basicsPost } from "../app/api/developer/migration/projects/[id]/import-basics/route";
-import { PATCH as itemPatch } from "../app/api/developer/migration/projects/[id]/items/[itemId]/route";
-import { PUT as textPut } from "../app/api/developer/migration/projects/[id]/items/[itemId]/text/route";
-import { POST as analyzeTextPost } from "../app/api/developer/migration/projects/[id]/items/[itemId]/analyze-text/route";
-import { POST as convertPost } from "../app/api/developer/migration/projects/[id]/items/[itemId]/convert/route";
-import { POST as importPost } from "../app/api/developer/migration/projects/[id]/items/[itemId]/import/route";
+import { GET as metaGet } from "../app/api/migration/meta/route";
+import { GET as listGet, POST as connectPost } from "../app/api/migration/projects/route";
+import { DELETE as projectDelete, GET as projectGet } from "../app/api/migration/projects/[id]/route";
+import { POST as analyzePost } from "../app/api/migration/projects/[id]/analyze/route";
+import { POST as basicsPost } from "../app/api/migration/projects/[id]/import-basics/route";
+import { PATCH as itemPatch } from "../app/api/migration/projects/[id]/items/[itemId]/route";
+import { PUT as textPut } from "../app/api/migration/projects/[id]/items/[itemId]/text/route";
+import { POST as analyzeTextPost } from "../app/api/migration/projects/[id]/items/[itemId]/analyze-text/route";
+import { POST as convertPost } from "../app/api/migration/projects/[id]/items/[itemId]/convert/route";
+import { POST as importPost } from "../app/api/migration/projects/[id]/items/[itemId]/import/route";
 
 const project = { params: Promise.resolve({ id: "p1" }) };
 const item = { params: Promise.resolve({ id: "p1", itemId: "i1" }) };
 
 function req(method: string, body?: unknown, raw?: string): NextRequest {
-  return new NextRequest("http://localhost/api/developer/migration/x", {
+  return new NextRequest("http://localhost/api/migration/x", {
     method,
     headers: { "content-type": "application/json" },
     body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
@@ -94,9 +94,9 @@ afterEach(() => {
 });
 
 describe("guard matrix", () => {
-  it("answers 404 without the developer session", async () => {
-    mocks.developerSession.mockResolvedValue(null);
-    expect((await listGet()).status).toBe(404);
+  it("answers 401 without an app session", async () => {
+    mocks.workspaceContext.mockResolvedValue(null);
+    expect((await listGet()).status).toBe(401);
   });
 
   it("VIEWER reads but every write is refused with an Uzbek 403", async () => {
@@ -142,7 +142,7 @@ describe("guard matrix", () => {
     expect((await convertPost(req("POST", {}), item)).status).toBe(200);
     const imported = await importPost(req("POST", { instagramAccountId: "a1" }), item);
     expect(imported.status).toBe(201);
-    expect((await json(imported)).data).toMatchObject({ flowId: "f1", link: "/developer/flows?flow=f1" });
+    expect((await json(imported)).data).toMatchObject({ flowId: "f1", link: "/flows?flow=f1" });
     expect(mocks.convert).toHaveBeenCalledWith("w1", "p1", "i1", {});
     expect(mocks.importFlow).toHaveBeenCalledWith("w1", "p1", "i1", { instagramAccountId: "a1" }, "u1");
   });

@@ -1,15 +1,6 @@
-import { Suspense } from "react";
-import FlowsDashboard from "@/components/developer/flows/flows-dashboard";
+import { redirectPromoted } from "@/lib/developer/promoted";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "Flow Builder (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout. Suspense: the dashboard reads ?tab= / ?flow= / ?view=.
-export default function FlowsPage() {
-  return (
-    <Suspense fallback={null}>
-      <FlowsDashboard />
-    </Suspense>
-  );
+// Promoted to the main dashboard.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await redirectPromoted("/flows", searchParams);
 }

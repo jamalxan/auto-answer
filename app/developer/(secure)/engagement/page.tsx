@@ -1,15 +1,6 @@
-import { Suspense } from "react";
-import EngagementDashboard from "@/components/developer/engagement/engagement-dashboard";
+import { redirectPromoted } from "@/lib/developer/promoted";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "Engagement (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout. Suspense: the dashboard reads ?tab= / ?giveaway= / ?new=.
-export default function EngagementPage() {
-  return (
-    <Suspense fallback={null}>
-      <EngagementDashboard />
-    </Suspense>
-  );
+// Promoted to the main dashboard.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await redirectPromoted("/engagement", searchParams);
 }

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { jsonInit, requestJson } from "@/components/developer/comments/shared";
 import { DevBadge, Pill, formatDateTime, inputClass, primaryButton, secondaryButton } from "@/components/developer/ui";
 
-const API = "/api/developer/billing";
+const API = "/api/billing";
 
 interface Limits {
   channels: number;

@@ -1,10 +1,6 @@
-import ContentIntelDashboard from "@/components/developer/content-intel/content-intel-dashboard";
+import { redirectPromoted } from "@/lib/developer/promoted";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "Kontent intellekti (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout.
-export default function ContentIntelPage() {
-  return <ContentIntelDashboard />;
+// Promoted to the main dashboard.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await redirectPromoted("/content-intel", searchParams);
 }

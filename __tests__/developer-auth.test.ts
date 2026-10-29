@@ -90,7 +90,7 @@ describe("developer module registry", () => {
   });
 
   it("only links modules under /developer, or a promoted one to its main-dashboard page", () => {
-    const PROMOTED: Record<string, string> = { "content-scheduler": "/content", "channel-adapters": "/channels", ads: "/ads", javobai: "/javobai", "comment-automation": "/comments", triggers: "/triggers" };
+    const PROMOTED: Record<string, string> = { "content-scheduler": "/content", "channel-adapters": "/channels", ads: "/ads", javobai: "/javobai", "comment-automation": "/comments", triggers: "/triggers", crm: "/crm", "flow-builder": "/flows", "ai-flow-builder": "/flows?tab=ai", integrations: "/connectors", engagement: "/engagement", "content-analytics": "/analytics", migration: "/migration", "telegram-channel": "/telegram", "content-intel": "/content-intel", billing: "/billing" };
     for (const m of navigableModules()) {
       if (PROMOTED[m.key]) expect(m.href).toBe(PROMOTED[m.key]);
       else expect(m.href).toMatch(/^\/developer\//);

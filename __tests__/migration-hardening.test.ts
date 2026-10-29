@@ -35,11 +35,11 @@ import { ManychatError, type ManychatClient } from "../lib/migration/manychat-cl
 import { connectManychat, convertFlow, getProject, importFlow, run, setManychatClientFactoryForTests, submitFlowText, truncateAtBoundary } from "../lib/migration/service";
 import type { FlowGraph } from "../lib/flows/schema";
 import { findStarterTemplate } from "../lib/flows/templates";
-import { POST as basicsPost } from "../app/api/developer/migration/projects/[id]/import-basics/route";
-import { POST as connectPost } from "../app/api/developer/migration/projects/route";
-import { PUT as textPut } from "../app/api/developer/migration/projects/[id]/items/[itemId]/text/route";
-import { POST as convertPost } from "../app/api/developer/migration/projects/[id]/items/[itemId]/convert/route";
-import { POST as importPost } from "../app/api/developer/migration/projects/[id]/items/[itemId]/import/route";
+import { POST as basicsPost } from "../app/api/migration/projects/[id]/import-basics/route";
+import { POST as connectPost } from "../app/api/migration/projects/route";
+import { PUT as textPut } from "../app/api/migration/projects/[id]/items/[itemId]/text/route";
+import { POST as convertPost } from "../app/api/migration/projects/[id]/items/[itemId]/convert/route";
+import { POST as importPost } from "../app/api/migration/projects/[id]/items/[itemId]/import/route";
 
 const WS = "w1";
 const KEY = "99999:SuperSecretManyChatKey1234";
@@ -101,7 +101,7 @@ async function readyFlow(text = FLOW_TEXT) {
 }
 
 function jsonReq(payload: unknown): NextRequest {
-  return new NextRequest("http://localhost/api/developer/migration/x", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  return new NextRequest("http://localhost/api/migration/x", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
 }
 
 /** A body that claims 10 bytes but streams `chunks` x `size` bytes. */
@@ -114,7 +114,7 @@ function spoofed(chunks: number, size: number, method = "POST"): NextRequest {
       controller.enqueue(new Uint8Array(size).fill(0x61));
     },
   });
-  return new NextRequest("http://localhost/api/developer/migration/x", {
+  return new NextRequest("http://localhost/api/migration/x", {
     method,
     headers: { "content-type": "application/json", "content-length": "10" },
     body: stream,

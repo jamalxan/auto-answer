@@ -27,7 +27,7 @@ sources (DmLog, TriggerExecution, Lead, CrmDeal, AiLeadInsight, LlmUsage, ...)
  AnalyticsDaily  (rollup.ts: delete (workspace, day) + createMany in one transaction)
         |
         v  read.ts (ranges, zero-filled series, compare, derived rates, labels)
- GET /api/developer/analytics  ->  components/developer/analytics
+ GET /api/analytics  ->  components/developer/analytics
 ```
 
 * Rows are sums and counts only; rates (CTR, conversion, success, averages)
@@ -49,8 +49,8 @@ sources (DmLog, TriggerExecution, Lead, CrmDeal, AiLeadInsight, LlmUsage, ...)
 |---|---|---|
 | Yesterday + today, every active workspace | every 10 minutes (self-throttled) | worker maintenance tick (`lib/analytics/worker.ts`) |
 | Trailing 3 days | nightly 00:15 Asia/Tashkent (19:15 UTC) | `GET /api/cron/analytics-rollup` (vercel.json + scripts/cron.sh) |
-| Last N days (default 90, max 366) | on demand | `POST /api/developer/analytics/backfill?days=` -> "analytics" queue (202) |
-| Up to 7 days inline | on demand | `POST /api/developer/analytics/recompute?from&to` |
+| Last N days (default 90, max 366) | on demand | `POST /api/analytics/backfill?days=` -> "analytics" queue (202) |
+| Up to 7 days inline | on demand | `POST /api/analytics/recompute?from&to` |
 
 Recomputing a day REPLACES its rows (idempotent). Kill switch:
 `ANALYTICS_DISABLED=1` stops the worker, the maintenance tick, the cron and the
@@ -91,7 +91,7 @@ the previous). AI vs human uses the nightly `cohort.ai_only.*` /
 
 ## Observability (TZ 65)
 
-`GET /api/developer/analytics/kpi` reads live tables over short windows:
+`GET /api/analytics/kpi` reads live tables over short windows:
 connections, active campaigns, messages/min (+ 10-point sparkline), DM queue,
 queue depths (platform-wide: dm-processing, lead-assistant, instagram-triggers,
 javobai, crm, analytics), errors 1h/24h, Meta error rate, AI latency / cost today,

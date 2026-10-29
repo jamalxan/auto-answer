@@ -7,7 +7,7 @@ import type { DisplayTone } from "@/lib/triggers/display";
 
 export { jsonInit, requestJson, uid, type JsonResult } from "@/components/developer/comments/shared";
 
-export const CRM_API = "/api/developer/crm";
+export const CRM_API = "/api/crm";
 
 export type Temperature = "COLD" | "WARM" | "HOT" | "CUSTOMER" | "LOST";
 export type ContactStatus = "NEW" | "ACTIVE" | "CUSTOMER" | "LOST" | "ARCHIVED";

@@ -160,7 +160,7 @@ row written (`buildHeaderWriteRequest`). Rows are RAW strings, dates in
 | `deliver.ts` | Lease-claim, retry schedule, DEAD, alert throttle, rate limit, redeliver per delivery / event / all DEAD, BROKEN hold + resume. |
 | `connectors/` | `index.ts` registry; `webhook.ts` (WEBHOOK / MAKE / ZAPIER), `sheets.ts`, `telegram-hot.ts`, `enrich-amo.ts` / `enrich-bitrix.ts` (+ `enrichment.ts`), contract in `types.ts`. |
 | `crm-listener.ts` | `registerCrmListener` for `score.becameHot` → lead.hot and `stage_changed` → deal.stage_changed (registered by the worker). |
-| `service.ts` | The developer API's rules (create / edit / test / subscriptions / enrichment / deliveries); routes in `app/api/developer/integrations`. |
+| `service.ts` | The developer API's rules (create / edit / test / subscriptions / enrichment / deliveries); routes in `app/api/connectors`. |
 | `secrets.ts` / `kv.ts` | Encrypted credentials + rotation overlap; Redis key/value with a memory fallback (token cache, rate window, alert throttle). |
 
 Hook sites in production code (each one `void emit…(…)` line): `lib/leads/service.ts` (lead.created, also the test lead),

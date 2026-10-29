@@ -1,5 +1,5 @@
 /**
- * Scenario K (route level): PATCH /api/developer/flows/[id].
+ * Scenario K (route level): PATCH /api/flows/[id].
  * A mode-only body switches simple <-> advanced (200, graph untouched); an empty
  * body is a plain Uzbek 400, never a raw zod message.
  */
@@ -18,14 +18,14 @@ vi.mock("../lib/workspace-access", () => ({
   canManageWorkspace: (role: string) => role === "OWNER" || role === "ADMIN",
 }));
 
-import { PATCH } from "../app/api/developer/flows/[id]/route";
+import { PATCH } from "../app/api/flows/[id]/route";
 import { createFlow } from "../lib/flows/service";
 
 const WS = "w1";
 const RAW_ZOD = /Invalid input|expected (string|object)|received undefined|ZodError|"code"\s*:|too_small|invalid_type/i;
 
 function patch(id: string, body?: unknown, raw?: string): [NextRequest, { params: Promise<{ id: string }> }] {
-  const request = new NextRequest(`http://localhost/api/developer/flows/${id}`, {
+  const request = new NextRequest(`http://localhost/api/flows/${id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
@@ -48,7 +48,7 @@ beforeEach(async () => {
   flowId = created.flow.id;
 });
 
-describe("PATCH /api/developer/flows/[id] - mode switch", () => {
+describe("PATCH /api/flows/[id] - mode switch", () => {
   it("{mode:'ADVANCED'} then {mode:'SIMPLE'} -> 200 each, graph kept", async () => {
     const before = versionGraphs();
     const nameBefore = flowRow(flowId).name;
@@ -86,7 +86,7 @@ describe("PATCH /api/developer/flows/[id] - mode switch", () => {
   });
 });
 
-describe("PATCH /api/developer/flows/[id] - bad bodies", () => {
+describe("PATCH /api/flows/[id] - bad bodies", () => {
   it("empty object -> plain Uzbek 400, no raw zod text", async () => {
     const res = await PATCH(...patch(flowId, {}));
     expect(res.status).toBe(400);
@@ -122,9 +122,7 @@ describe("PATCH /api/developer/flows/[id] - bad bodies", () => {
     expect(String(flowRow(flowId).mode).toUpperCase()).toBe("SIMPLE");
   });
 
-  it("auth: no developer session -> 404, no app session -> 401, VIEWER -> 403, and nothing changes", async () => {
-    mocks.developerSession.mockResolvedValueOnce(null);
-    expect((await PATCH(...patch(flowId, { mode: "ADVANCED" }))).status).toBe(404);
+  it("auth: no app session -> 401, VIEWER -> 403, and nothing changes", async () => {
     mocks.workspaceContext.mockResolvedValueOnce(null);
     expect((await PATCH(...patch(flowId, { mode: "ADVANCED" }))).status).toBe(401);
     mocks.workspaceContext.mockResolvedValueOnce({ workspaceId: WS, userId: "u3", role: "VIEWER" });

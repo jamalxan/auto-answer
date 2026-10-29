@@ -89,7 +89,7 @@ export default function AnalyticsDashboard() {
         if (value === null || value === "") params.delete(key);
         else params.set(key, value);
       }
-      router.replace(`/developer/analytics?${params.toString()}`, { scroll: false });
+      router.replace(`/analytics?${params.toString()}`, { scroll: false });
     },
     [router, searchParams]
   );

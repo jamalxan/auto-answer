@@ -1,11 +1,11 @@
 import { jsonError } from "@/lib/api-auth";
 import { can, isReadOnlyRole, PERMISSION_LABELS, type Permission } from "@/lib/workspace-permissions";
-import { requireDeveloper, type DeveloperAuth } from "./access";
+import { requireWorkspace, type WorkspaceAuth } from "@/lib/channels/guard";
 
 export { NOT_JSON, parseBody, readJson, respond } from "./crm-guard";
 
 /**
- * Guards for /api/developer/integrations (ETAP 8). On top of the developer
+ * Guards for /api/connectors (ETAP 8). On top of the developer
  * login and the app session every handler names what it needs:
  *
  *   read      `view_analytics` (every role incl. VIEWER): connectors, events, delivery list
@@ -21,8 +21,8 @@ const PERMISSION_OF: Record<IntegrationsAccess, Permission> = {
   write: "manage_campaigns",
 };
 
-export async function requireIntegrations(access: IntegrationsAccess): Promise<DeveloperAuth> {
-  const auth = await requireDeveloper();
+export async function requireIntegrations(access: IntegrationsAccess): Promise<WorkspaceAuth> {
+  const auth = await requireWorkspace();
   if (!auth.ok) return auth;
   if (access === "write" && isReadOnlyRole(auth.ctx.role)) {
     return { ok: false, response: jsonError("Kuzatuvchi (VIEWER) rolida o'zgartirish mumkin emas", 403) };

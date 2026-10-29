@@ -69,7 +69,7 @@ export default function FlowsDashboard() {
         params.set("flow", next.flow);
         params.set("view", next.view ?? "builder");
       } else params.set("tab", next.tab ?? "list");
-      router.replace(`/developer/flows?${params.toString()}`, { scroll: false });
+      router.replace(`/flows?${params.toString()}`, { scroll: false });
     },
     [router]
   );

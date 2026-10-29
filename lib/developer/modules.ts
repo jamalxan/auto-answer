@@ -64,7 +64,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "CRM / Lead Management",
     summary: "Kontaktlar, taglar, segmentlar, pipeline, operator biriktirish, broadcast.",
     status: "TESTING",
-    href: "/developer/crm",
+    href: "/crm",
   },
   {
     key: "flow-builder",
@@ -72,7 +72,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "Flow Builder",
     summary: "Vizual builder: shartlar, harakatlar, delay, tarmoqlar, Simple va Advanced Mode.",
     status: "TESTING",
-    href: "/developer/flows",
+    href: "/flows",
   },
   {
     key: "ai-flow-builder",
@@ -80,7 +80,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "AI Flow Builder (Beta)",
     summary: "Matndan flow yaratish, preview, AI audit, policy va spam tekshiruvi. Beta: sekin va ba'zan ishlatib bo'lmaydigan javob — tayyor shablonlar asosiy yo'l.",
     status: "TESTING",
-    href: "/developer/flows?tab=ai",
+    href: "/flows?tab=ai",
   },
   {
     key: "integrations",
@@ -88,7 +88,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "Integrations",
     summary: "Telegram, Google Sheets, Webhook, amoCRM, Bitrix24, Make, Zapier.",
     status: "TESTING",
-    href: "/developer/integrations",
+    href: "/connectors",
   },
   {
     key: "engagement",
@@ -96,7 +96,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "Engagement",
     summary: "Giveaway, referral, gamification.",
     status: "TESTING",
-    href: "/developer/engagement",
+    href: "/engagement",
   },
   {
     key: "content-analytics",
@@ -104,7 +104,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "Analitika",
     summary: "Kampaniya, AI va sotuv analitikasi, funnel, KPI va ogohlantirishlar.",
     status: "TESTING",
-    href: "/developer/analytics",
+    href: "/analytics",
   },
   {
     key: "migration",
@@ -112,7 +112,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     title: "ManyChat Migration",
     summary: "ManyChat flow, trigger va taglarini import qilish.",
     status: "TESTING",
-    href: "/developer/migration",
+    href: "/migration",
   },
   {
     key: "mcp",
@@ -138,7 +138,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Bot kanal admini sifatida: nashr (Content Scheduler'dan kross-post), muhokama kommentlari, kanal DM'lari, Telegram Business.",
     status: "TESTING",
-    href: "/developer/telegram",
+    href: "/telegram",
   },
   {
     key: "content-intel",
@@ -147,7 +147,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Post natijasi akkaunt medianasiga nisbatan, comment → DM → lid → sotuv, video tahlil va tipik xatolar, haftalik hisobot, 2 haftalik reja, Reel senariy, Trial Reels hook testi.",
     status: "TESTING",
-    href: "/developer/content-intel",
+    href: "/content-intel",
   },
   {
     key: "channel-adapters",
@@ -174,7 +174,7 @@ export const DEVELOPER_MODULES: DeveloperModule[] = [
     summary:
       "Start / Biznes / Pro / Agentlik: kanallar, AI javoblar, avto rejim, rejalashtirilgan post va video tahlil limitlari (BILLING_ENFORCED bilan), Click va Payme to'lovi (flag ortida).",
     status: "TESTING",
-    href: "/developer/billing",
+    href: "/billing",
   },
 ];
 

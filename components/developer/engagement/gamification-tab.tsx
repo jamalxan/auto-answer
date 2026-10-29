@@ -238,7 +238,7 @@ function LeaderboardPanel() {
           {rows.map((r, i) => (
             <li key={r.contactId} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
               <span className="w-6 text-center font-bold tabular-nums text-muted">{i + 1}</span>
-              <Link href={`/developer/crm?tab=contacts&contact=${r.contactId}`} className="min-w-0 break-all font-medium text-foreground hover:underline">
+              <Link href={`/crm?tab=contacts&contact=${r.contactId}`} className="min-w-0 break-all font-medium text-foreground hover:underline">
                 {r.username ? `@${r.username}` : (r.name ?? r.contactId)}
               </Link>
               <span className="flex flex-wrap gap-1">
@@ -305,7 +305,7 @@ function LedgerPanel({ reasons }: { reasons: Record<string, string> }) {
             <li key={it.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
               <span className="font-bold tabular-nums text-foreground">{it.points > 0 ? `+${it.points}` : it.points}</span>
               <span className="text-foreground">{reasons[it.reason] ?? it.reason}</span>
-              <Link href={`/developer/crm?tab=contacts&contact=${it.contactId}`} className="text-xs text-accent hover:underline">
+              <Link href={`/crm?tab=contacts&contact=${it.contactId}`} className="text-xs text-accent hover:underline">
                 Kontakt
               </Link>
               <span className="ml-auto text-xs text-muted">{formatDateTime(it.occurredAt)}</span>

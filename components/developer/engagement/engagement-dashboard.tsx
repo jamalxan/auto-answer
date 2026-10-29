@@ -76,7 +76,7 @@ export default function EngagementDashboard() {
       if (giveaway) params.set("giveaway", giveaway);
       else if (wantsNew) params.set("new", "1");
     }
-    router.replace(`/developer/engagement?${params.toString()}`, { scroll: false });
+    router.replace(`/engagement?${params.toString()}`, { scroll: false });
   };
 
   return (

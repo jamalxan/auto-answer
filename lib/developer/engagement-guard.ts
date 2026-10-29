@@ -2,13 +2,13 @@ import type { NextResponse } from "next/server";
 import { jsonError, jsonOk } from "@/lib/api-auth";
 import type { ServiceResult } from "@/lib/crm/result";
 import { can, isReadOnlyRole, PERMISSION_LABELS, type Permission } from "@/lib/workspace-permissions";
-import { requireDeveloper, type DeveloperAuth } from "./access";
+import { requireWorkspace, type WorkspaceAuth } from "@/lib/channels/guard";
 
 export { NOT_JSON, parseBody, readJson } from "./crm-guard";
 
 /**
- * Guards for /api/developer/engagement (ETAP 9). On top of the developer
- * login and the app session (requireDeveloper) every handler names the TZ 53
+ * Guards for /api/engagement (ETAP 9). On top of the developer
+ * login and the app session (requireWorkspace) every handler names the TZ 53
  * permission it needs; writes additionally refuse the read-only VIEWER role.
  *
  *   read    -> view_contacts   (every role)
@@ -27,9 +27,9 @@ export const ENGAGEMENT_ACCESS = {
 
 export type EngagementAccess = keyof typeof ENGAGEMENT_ACCESS;
 
-export async function requireEngagement(access: EngagementAccess): Promise<DeveloperAuth> {
+export async function requireEngagement(access: EngagementAccess): Promise<WorkspaceAuth> {
   const { permission, write } = ENGAGEMENT_ACCESS[access];
-  const auth = await requireDeveloper();
+  const auth = await requireWorkspace();
   if (!auth.ok) return auth;
   if (write && isReadOnlyRole(auth.ctx.role)) {
     return { ok: false, response: jsonError("Kuzatuvchi (VIEWER) rolida o'zgartirish mumkin emas", 403) };

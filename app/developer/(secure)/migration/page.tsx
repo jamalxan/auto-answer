@@ -1,15 +1,6 @@
-import { Suspense } from "react";
-import MigrationDashboard from "@/components/developer/migration/migration-dashboard";
+import { redirectPromoted } from "@/lib/developer/promoted";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "ManyChat Migration (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout. Suspense: the dashboard reads ?project= / ?step=.
-export default function MigrationPage() {
-  return (
-    <Suspense fallback={null}>
-      <MigrationDashboard />
-    </Suspense>
-  );
+// Promoted to the main dashboard.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await redirectPromoted("/migration", searchParams);
 }

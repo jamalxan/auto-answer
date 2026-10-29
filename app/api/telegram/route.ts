@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { jsonError, jsonOk } from "@/lib/api-auth";
 import { CrossPostError, deleteCrossPost, editCrossPost, listCrossPosts, setTelegramTargets } from "@/lib/channels/crosspost";
 import { ChannelError } from "@/lib/channels/types";
-import { requireDeveloper } from "@/lib/developer/access";
+import { requireWorkspace } from "@/lib/channels/guard";
 import { getBotUsername, isTelegramConfigured } from "@/lib/telegram/api";
 import {
   RIGHT_LABELS,
@@ -20,7 +20,7 @@ const KINDS = new Set(["comment", "channel_dm", "business_dm"]);
 
 /** Telegram channel module (audit T3): channels, Business connections, inbox, cross-posts. */
 export async function GET(request: NextRequest) {
-  const auth = await requireDeveloper();
+  const auth = await requireWorkspace();
   if (!auth.ok) return auth.response;
   const kind = request.nextUrl.searchParams.get("kind");
   const workspaceId = auth.ctx.workspaceId;
@@ -46,7 +46,7 @@ type Body = { action?: unknown; id?: unknown; text?: unknown; postId?: unknown; 
 const str = (value: unknown) => (typeof value === "string" && value.trim() ? value : null);
 
 export async function POST(request: NextRequest) {
-  const auth = await requireDeveloper(true);
+  const auth = await requireWorkspace(true);
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as Body | null;
   const workspaceId = auth.ctx.workspaceId;

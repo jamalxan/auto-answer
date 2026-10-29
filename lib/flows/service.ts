@@ -1,5 +1,5 @@
 /**
- * ETAP 6/7 — the Flow DB layer the /api/developer/flows routes talk to:
+ * ETAP 6/7 — the Flow DB layer the /api/flows routes talk to:
  * flows, draft versions (hash, audit, policy), test, approval, publish
  * gating, versions + diff, templates and the editor's `meta`.
  *

@@ -378,7 +378,7 @@ function CodesPanel({ programId, accountId, canManage }: { programId: string; ac
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await requestJson<{ items: ContactHit[] }>(`/api/developer/crm/contacts?q=${encodeURIComponent(q.replace(/^@/, ""))}&limit=8`);
+        const res = await requestJson<{ items: ContactHit[] }>(`/api/crm/contacts?q=${encodeURIComponent(q.replace(/^@/, ""))}&limit=8`);
         if (mine !== searchSeq.current) return;
         setHits(res.ok ? res.data.items.filter((c) => c.instagramAccountId === accountId) : []);
       } finally {

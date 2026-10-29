@@ -92,7 +92,7 @@ export default function CrmDashboard() {
       if (broadcast) params.set("broadcast", broadcast);
       if (segment) params.set("segment", segment);
     }
-    router.replace(`/developer/crm?${params.toString()}`, { scroll: false });
+    router.replace(`/crm?${params.toString()}`, { scroll: false });
   };
 
   return (
