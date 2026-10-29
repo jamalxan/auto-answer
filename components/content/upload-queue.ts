@@ -42,6 +42,7 @@ export interface ReadyAsset {
   kind: string;
   status: string;
   thumbUrl: string | null;
+  previewUrl: string | null;
   width: number | null;
   height: number | null;
   durationMs: number | null;
@@ -174,7 +175,7 @@ export function useUploadQueue(onReady: (assets: ReadyAsset[]) => void) {
         if (!current || current.phase !== "process") continue;
         const row = byId.get(item.mediaId!);
         if (row?.status === "READY") {
-          patch(item.key, { phase: "done", pct: 100, asset: { id: row.id, kind: row.kind, status: row.status, thumbUrl: row.thumbUrl, width: row.width, height: row.height, durationMs: row.durationMs } });
+          patch(item.key, { phase: "done", pct: 100, asset: { id: row.id, kind: row.kind, status: row.status, thumbUrl: row.thumbUrl, previewUrl: row.previewUrl, width: row.width, height: row.height, durationMs: row.durationMs } });
         } else if (row?.status === "FAILED" || row?.status === "DELETED" || !row) {
           patch(item.key, { phase: "error", error: row?.error ?? "Fayl qayta ishlanmadi" });
         } else if (current.processSince && now - current.processSince > PROCESS_GIVE_UP_MS) {

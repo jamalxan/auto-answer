@@ -334,6 +334,7 @@ export interface MediaRow {
   tags: string[];
   error: string | null;
   thumbUrl: string | null;
+  previewUrl: string | null;
   createdAt: string;
   usedByPostIds: string[];
 }

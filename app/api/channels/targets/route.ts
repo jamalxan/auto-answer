@@ -3,13 +3,17 @@ import { jsonError, jsonOk } from "@/lib/api-auth";
 import { CrossPostError, VAULT_CHANNELS, listCrossPosts, setChannelTargets } from "@/lib/channels/crosspost";
 import type { ChannelId } from "@/lib/channels/types";
 import { requireWorkspace } from "@/lib/channels/guard";
+import { prisma } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
 /** Content Scheduler posts with their cross-post targets. */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireWorkspace();
   if (!auth.ok) return auth.response;
+  const postId = request.nextUrl.searchParams.get("postId");
+  // One post's targets (the composer), scoped to this workspace.
+  if (postId) return jsonOk({ targets: await prisma.channelPostTarget.findMany({ where: { workspaceId: auth.ctx.workspaceId, postId } }) });
   return jsonOk({ posts: await listCrossPosts(auth.ctx.workspaceId) });
 }
 
