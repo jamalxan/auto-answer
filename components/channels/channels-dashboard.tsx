@@ -2,15 +2,16 @@
 
 /**
  * Channels: Facebook Page, Threads and YouTube on the main dashboard.
- * Three tabs: connected accounts (OAuth connect, status from the vault,
+ * Four tabs: connected accounts (OAuth connect, status from the vault,
  * disconnect), the inbox (comments and Messenger; public / private reply,
- * hide) and cross-posting Content Plan posts to those accounts.
+ * hide), auto-reply rules and cross-posting Content Plan posts to those accounts.
  * Reads are open to every role; connecting and replying need owner/admin.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, inputClass } from "@/components/assistant-ui";
 import { Card, EmptyState, Label, PageHeader } from "@/components/ui/page";
+import { AutoRepliesTab } from "@/components/channels/auto-replies-tab";
 import { CHANNEL_NAME, ChannelMark, FlashNotice, Tabs, formatDateTime, type ChannelKey } from "@/components/channels/ui";
 import { takeFlash, type Flash } from "@/lib/flash";
 import { jsonInit, requestJson } from "@/lib/request-json";
@@ -101,7 +102,7 @@ const POST_STATUS: Record<string, string> = {
 };
 const KIND_LABEL: Record<string, string> = { comment: "Komment", reply: "Javob", mention: "Eslatish", dm: "Messenger", postback: "Tugma" };
 
-type Tab = "accounts" | "inbox" | "crosspost";
+type Tab = "accounts" | "inbox" | "autoreply" | "crosspost";
 type Post = (url: string, body: Record<string, unknown>, ok: string) => Promise<boolean>;
 
 const isChannel = (value: string): value is ChannelKey => value in CHANNEL_NAME;
@@ -178,12 +179,14 @@ export default function ChannelsDashboard() {
       <FlashNotice flash={notice} />
       {!canManage && !loading && credentials.length > 0 && <FlashNotice flash={{ tone: "warning", text: "Ulash va javob yozishni faqat workspace egasi yoki admin qila oladi. Siz ko'ra olasiz." }} />}
 
-      <Tabs tabs={[["accounts", "Akkauntlar", connected], ["inbox", "Xabarlar", unread], ["crosspost", "Kross-post"]]} value={tab} onChange={setTab} />
+      <Tabs tabs={[["accounts", "Akkauntlar", connected], ["inbox", "Xabarlar", unread], ["autoreply", "Avto-javoblar"], ["crosspost", "Kross-post"]]} value={tab} onChange={setTab} />
 
       {tab === "accounts" ? (
         <AccountsTab credentials={credentials} canManage={canManage} onRevoke={(id) => void post("/api/channels/credentials", { action: "revoke", id }, "Akkaunt uzildi")} />
       ) : tab === "inbox" ? (
         <InboxTab inbox={inbox} caps={caps} canManage={canManage} accountName={accountName} post={post} />
+      ) : tab === "autoreply" ? (
+        <AutoRepliesTab credentials={credentials} caps={caps} canManage={canManage} accountName={accountName} />
       ) : (
         <CrossPostTab posts={posts} credentials={credentials} canManage={canManage} accountName={accountName} post={post} />
       )}

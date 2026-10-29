@@ -20,6 +20,7 @@ logic never imports a channel SDK; a new channel is a new adapter registered in
 | `youtube.ts` | YouTube adapter: resumable upload (video / Shorts), processing poll, comment reply, moderation, statistics; Google OAuth; project quota counter; comment polling |
 | `access.ts` | `usableCredentials`: vault load + usable gate + tenant tag + on-demand access-token refresh (YouTube) |
 | `policy.ts` | private reply once per comment within the window (claimed `ChannelPrivateReply` row), DM only inside the 24 h window |
+| `auto-reply.ts` | auto-reply rules per channel (keywords → fixed variants or AI from the JavobAI knowledge base), sweeper (content sweep step 13) answers comments publicly / privately and Messenger DMs, claims `ChannelAutoReplyLog.messageId` before sending, hourly caps, AI text only if validated |
 | `inbox.ts` | Facebook / Threads / YouTube events → `ChannelMessage`, panel replies, hide, YouTube poll (content sweeper step 12) |
 
 Facebook / Threads / YouTube screen: `/channels` (connect via
@@ -53,7 +54,7 @@ set `CREDENTIAL_KEKS=1:<key>` and `CREDENTIAL_KEK_VERSION=1`, then run `rewrapCr
   YouTube). Telegram uses the platform bot (audit variant A), so it has no
   per-channel secret; a customer's own bot token (variant B) is not built.
 - Telegram inbox messages are answered by a person (panel or the Telegram alert
-  button); JavobAI auto-replies are Instagram-only until the runtime is
-  channel-neutral. Telegram post statistics need MTProto (audit: later).
+  button); Facebook / Threads / YouTube have keyword + AI auto-replies
+  (`auto-reply.ts`, Avto-javoblar tab); JavobAI proper stays Instagram-only. Telegram post statistics need MTProto (audit: later).
 - Meta webhook processing still runs inline in the route (it enqueues per event);
   moving the whole parse into the worker is a separate change.

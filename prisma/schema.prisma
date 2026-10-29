@@ -103,6 +103,8 @@ model Workspace {
   telegramBusinessConnections TelegramBusinessConnection[]
   channelMessages             ChannelMessage[]
   channelPostTargets          ChannelPostTarget[]
+  channelAutoReplies          ChannelAutoReply[]
+  channelAutoReplyLogs        ChannelAutoReplyLog[]
   dmLogs                      DmLog[]
   trackedLinks                TrackedLink[]
   linkClicks                  LinkClick[]
@@ -3871,6 +3873,62 @@ model ChannelPrivateReply {
 
   @@unique([channel, commentId])
   @@index([workspaceId])
+}
+
+/// Auto-reply rule of a vault channel (Facebook, Threads, YouTube): a keyword
+/// (or any message) leads to fixed reply variants or an AI reply grounded in
+/// the JavobAI knowledge base. credentialId null = every account of the channel.
+model ChannelAutoReply {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  channel        String
+  credentialId   String?
+  name           String
+  enabled        Boolean   @default(true)
+  /// comment | dm | both
+  appliesTo      String    @default("comment")
+  /// Empty = every message of that kind.
+  keywords       String[]  @default([])
+  wholeWord      Boolean   @default(true)
+  doPublic       Boolean   @default(true)
+  /// Comments: private reply (Messenger); DMs: the answer itself.
+  doPrivate      Boolean   @default(false)
+  publicReplies  String[]  @default([])
+  privateReplies String[]  @default([])
+  useAi          Boolean   @default(false)
+  aiInstruction  String?
+  priority       Int       @default(0)
+  sentCount      Int       @default(0)
+  lastFiredAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, channel, enabled])
+}
+
+/// One row per inbox message the auto-reply runtime has looked at (the unique
+/// messageId makes it idempotent across sweeps and workers).
+model ChannelAutoReplyLog {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  channel      String
+  credentialId String
+  messageId    String   @unique
+  ruleId       String?
+  /// SENT | SKIPPED | FAILED
+  status       String
+  /// public | private | dm that went out
+  actions      String[] @default([])
+  usedAi       Boolean  @default(false)
+  error        String?
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([credentialId, createdAt])
 }
 
 // ─── Ads (audit 2026-10-26, phase 7) ───────────────────────────────────────────

@@ -309,6 +309,7 @@ const UNIQUE_KEYS: Record<string, string[][]> = {
   channelMessage: [["channel", "chatId", "externalId"]],
   channelPostTarget: [["postId", "channel", "accountRef"]],
   channelPrivateReply: [["channel", "commentId"]],
+  channelAutoReplyLog: [["messageId"]],
   // Ads (audit phase 7)
   adAccount: [["workspaceId", "adAccountId"]],
   adProposal: [["accountId", "kind", "igMediaId"]],
@@ -454,6 +455,8 @@ const DEFAULTS: Record<string, () => Row> = {
   channelMessage: () => ({ direction: "IN", authorRef: null, authorName: null, text: "", replyToExternalId: null, sentByUserId: null, editedAt: null, deletedAt: null }),
   channelPostTarget: () => ({ status: "PENDING", externalIds: [], attempts: 0, lastError: null, nextAttemptAt: null, pollToken: null, pollStartedAt: null, publishedAt: null }),
   channelPrivateReply: () => ({ status: "SENDING", externalId: null, error: null }),
+  channelAutoReply: () => ({ enabled: true, appliesTo: "comment", keywords: [], wholeWord: true, doPublic: true, doPrivate: false, publicReplies: [], privateReplies: [], useAi: false, aiInstruction: null, priority: 0, sentCount: 0, lastFiredAt: null, credentialId: null }),
+  channelAutoReplyLog: () => ({ ruleId: null, actions: [], usedAi: false, error: null }),
   adAccount: () => ({ name: null, currency: "USD", pageId: null, igUserId: null, datasetId: null, dailyCapMinor: null, monthlyCapMinor: null, cplMaxMinor: null, defaultDailyBudgetMinor: null, saleValueMinor: null, status: "ACTIVE", lastError: null }),
   adProposal: () => ({ kind: "BOOST", objective: "MESSAGES", statId: null, permalink: null, status: "PROPOSED", approvedById: null, approvedAt: null, startAt: null, endAt: null, campaignId: null, adSetId: null, creativeId: null, adId: null, pauseReason: null, spendMinor: 0, results: 0, insightsAt: null, error: null, expiresAt: null }),
   adSpendDay: () => ({ spendMinor: 0, results: 0 }),
