@@ -90,9 +90,9 @@ describe("requireCrm (permission guard)", () => {
     return auth.ok ? 200 : auth.response.status;
   }
 
-  it("answers 404 without a developer session and 401 without an app session", async () => {
+  it("answers 401 without an app session, whatever the developer login says", async () => {
     mocks.developerSession.mockResolvedValueOnce(null);
-    expect(await status("OWNER", "view_contacts")).toBe(404);
+    expect(await status("OWNER", "view_contacts")).toBe(200);
     mocks.workspaceContext.mockResolvedValueOnce(null);
     const auth = await requireCrm("view_contacts");
     expect(auth.ok ? 200 : auth.response.status).toBe(401);

@@ -19,5 +19,5 @@ export async function POST(request: NextRequest, { params }: Props) {
   const result = await run(() => importFlow(auth.ctx.workspaceId, id, itemId, body, auth.ctx.userId));
   if (!result.ok) return respondSafe(result);
   const flowId = (result.data as { flowId?: string | null }).flowId;
-  return respondSafe({ ok: true, data: { ...(result.data as object), link: flowId ? `/developer/flows?flow=${flowId}` : null } }, 201);
+  return respondSafe({ ok: true, data: { ...(result.data as object), link: flowId ? `/flows?flow=${flowId}` : null } }, 201);
 }

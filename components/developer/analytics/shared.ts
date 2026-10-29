@@ -9,7 +9,7 @@ import type { KpiData } from "@/lib/analytics/kpi";
 export { requestJson, jsonInit, type JsonResult } from "@/components/developer/comments/shared";
 export type { AnalyticsResult, KpiData };
 
-export const ANALYTICS_API = "/api/developer/analytics";
+export const ANALYTICS_API = "/api/analytics";
 
 export const TABS = [
   ["campaign", "Kampaniya"],

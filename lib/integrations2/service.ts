@@ -1,6 +1,6 @@
 /**
  * ETAP 8 — the developer API's service layer (routes in
- * app/api/developer/integrations). Every function takes the caller's
+ * app/api/connectors). Every function takes the caller's
  * workspace id, scopes every lookup to it (foreign ids are 404), never
  * returns credentials, and answers `{ ok, data } | { ok: false, status, error }`
  * with Uzbek messages: 400 bad body, 404 foreign id, 422 business rule.

@@ -43,7 +43,7 @@ export default function FinishStep({ project, canWrite, onDeleted }: { project: 
               <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span className="min-w-0 break-words text-foreground">{f.name}</span>
                 {f.flowId && (
-                  <Link className="text-accent hover:underline" href={`/developer/flows?flow=${f.flowId}`}>
+                  <Link className="text-accent hover:underline" href={`/flows?flow=${f.flowId}`}>
                     Flows&apos;da ochish
                   </Link>
                 )}
@@ -74,7 +74,7 @@ export default function FinishStep({ project, canWrite, onDeleted }: { project: 
           ))}
         </ol>
         <div className="flex flex-wrap gap-2">
-          <Link className={secondaryButton} href="/developer/flows">
+          <Link className={secondaryButton} href="/flows">
             Flows
           </Link>
           <Link className={secondaryButton} href="/comments">

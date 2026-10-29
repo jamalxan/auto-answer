@@ -76,6 +76,17 @@ export default function Sidebar({
       { label: t.nav.javobai, href: "/javobai", icon: "sparkles" },
       { label: t.nav.comments, href: "/comments", icon: "inbox" },
       { label: t.nav.triggers, href: "/triggers", icon: "activity" },
+      { label: t.nav.flows, href: "/flows", icon: "share" },
+    ],
+    [
+      { label: t.nav.crm, href: "/crm", icon: "users" },
+      { label: t.nav.engagement, href: "/engagement", icon: "megaphone" },
+      { label: t.nav.analytics, href: "/analytics", icon: "chart" },
+      { label: t.nav.contentIntel, href: "/content-intel", icon: "sparkles" },
+      { label: t.nav.telegram, href: "/telegram", icon: "inbox" },
+      { label: t.nav.connectors, href: "/connectors", icon: "plug" },
+      { label: t.nav.migration, href: "/migration", icon: "list" },
+      { label: t.nav.billing, href: "/billing", icon: "trending" },
     ],
     [
       { label: t.assistant.nav.assistant, href: "/assistant", icon: "sparkles" },

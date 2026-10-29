@@ -7,7 +7,7 @@ import type { DisplayTone } from "@/lib/triggers/display";
 
 export { jsonInit, requestJson, type JsonResult } from "@/components/developer/comments/shared";
 
-export const INTEGRATIONS_API = "/api/developer/integrations";
+export const INTEGRATIONS_API = "/api/connectors";
 
 export type EventType =
   | "lead.created"

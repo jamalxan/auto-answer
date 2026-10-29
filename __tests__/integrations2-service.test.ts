@@ -429,9 +429,10 @@ describe("permission mapping", () => {
     return auth.ok ? 200 : auth.response.status;
   }
 
-  it("is a plain 404 without a developer session and 401 without a workspace", async () => {
+  it("is a plain 401 without a workspace, whatever the developer login says", async () => {
     mocks.developerSession.mockResolvedValue(null);
-    expect((await requireIntegrations("read") as { response: Response }).response.status).toBe(404);
+    mocks.workspaceContext.mockResolvedValue(ctx("OWNER"));
+    expect((await requireIntegrations("read")).ok).toBe(true);
     mocks.developerSession.mockResolvedValue({ ok: true });
     mocks.workspaceContext.mockResolvedValue(null);
     expect((await requireIntegrations("read") as { response: Response }).response.status).toBe(401);

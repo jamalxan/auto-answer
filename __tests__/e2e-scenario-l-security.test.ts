@@ -124,8 +124,12 @@ function walkRoutes(dir: string, out: string[] = []): string[] {
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 const developerRoutes = walkRoutes(path.join(ROOT, "app", "api", "developer")).sort();
 /** Modules promoted out of /developer: their API lives at /api/<name> and answers to the app session alone. */
-const PROMOTED_API = ["javobai", "comments", "triggers"];
-const promotedRoutes = PROMOTED_API.flatMap((name) => walkRoutes(path.join(ROOT, "app", "api", name))).sort();
+const PROMOTED_API = ["javobai", "comments", "triggers", "analytics", "content-intel", "crm", "engagement", "flows", "migration", "telegram", "connectors"];
+// /api/billing also holds the public Payme / Click webhooks, so only its session-guarded route.ts is swept.
+const promotedRoutes = [
+  ...PROMOTED_API.flatMap((name) => walkRoutes(path.join(ROOT, "app", "api", name))),
+  path.join(ROOT, "app", "api", "billing", "route.ts"),
+].sort();
 const rel = (file: string) => path.relative(ROOT, file).split(path.sep).join("/");
 
 /** params whose every key is a plain string, so `await params` + destructuring works for any route. */
@@ -150,11 +154,11 @@ describe("L(c): /api/developer/** without a session", () => {
   });
 
   it("finds the route files on disk", () => {
-    expect(developerRoutes.length).toBeGreaterThan(50);
-    expect(promotedRoutes.length).toBeGreaterThan(45);
+    expect(developerRoutes.length).toBeGreaterThan(5);
+    expect(promotedRoutes.length).toBeGreaterThan(120);
   });
 
-  async function sweep(label: string, allowed: number[], routes: string[] = developerRoutes, minHandlers = 50) {
+  async function sweep(label: string, allowed: number[], routes: string[] = developerRoutes, minHandlers = 5) {
     const offenders: string[] = [];
     let handlers = 0;
     for (const file of routes) {
@@ -193,7 +197,7 @@ describe("L(c): /api/developer/** without a session", () => {
   it("promoted modules: no app session -> every handler answers 401", async () => {
     mocks.developerSession.mockResolvedValue(null); // the developer login no longer matters
     mocks.workspaceContext.mockResolvedValue(null);
-    await sweep("promoted, no app session", [401], promotedRoutes, 60);
+    await sweep("promoted, no app session", [401], promotedRoutes, 200);
   }, 120_000);
 
   it("developer login but no app session -> every handler answers 401/403/404", async () => {

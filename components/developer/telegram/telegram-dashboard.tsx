@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { jsonInit, requestJson } from "@/components/developer/comments/shared";
 import { DevBadge, inputClass, Pill, primaryButton, secondaryButton } from "@/components/developer/ui";
 
-const API = "/api/developer/telegram";
+const API = "/api/telegram";
 
 interface Channel {
   id: string;

@@ -42,7 +42,7 @@ import {
   verifyBodySchema,
 } from "@/lib/engagement/service";
 import { createCommitment, drawWinners } from "@/lib/engagement/giveaway/draw";
-import { POST as verifyRoute } from "@/app/api/developer/engagement/verify/route";
+import { POST as verifyRoute } from "@/app/api/engagement/verify/route";
 
 type Row = Record<string, unknown>;
 const rows = (model: string) => db.rows(model) as Row[];
@@ -141,9 +141,9 @@ describe("requireEngagement (permission matrix)", () => {
     return auth.ok ? 200 : auth.response.status;
   }
 
-  it("answers 404 without a developer session and 401 without an app session", async () => {
+  it("answers 401 without an app session, whatever the developer login says", async () => {
     mocks.developerSession.mockResolvedValueOnce(null);
-    expect(await status("OWNER", "read")).toBe(404);
+    expect(await status("OWNER", "read")).toBe(200);
     mocks.workspaceContext.mockResolvedValueOnce(null);
     const auth = await requireEngagement("read");
     expect(auth.ok ? 200 : auth.response.status).toBe(401);
@@ -360,7 +360,7 @@ describe("the encrypted seed never leaves", () => {
 
 describe("POST /verify (pure)", () => {
   function post(body: unknown) {
-    return verifyRoute(new NextRequest("http://localhost/api/developer/engagement/verify", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) }));
+    return verifyRoute(new NextRequest("http://localhost/api/engagement/verify", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) }));
   }
 
   const entrants = Array.from({ length: 12 }, (_, i) => `ig${100 + i}`);
@@ -390,10 +390,10 @@ describe("POST /verify (pure)", () => {
     expect(verifyBodySchema.safeParse({ seedHex, entrants: [], winners: [] }).success).toBe(true);
   });
 
-  it("needs the developer login (404) but no write permission", async () => {
+  it("needs the app session (401) but no write permission", async () => {
     mocks.workspaceContext.mockResolvedValue(ctx("VIEWER"));
     expect((await post({ seedHex, commitment, entrants, winners: drawn.winnerIds })).status).toBe(200);
-    mocks.developerSession.mockResolvedValueOnce(null);
-    expect((await post({ seedHex, commitment, entrants, winners: drawn.winnerIds })).status).toBe(404);
+    mocks.workspaceContext.mockResolvedValueOnce(null);
+    expect((await post({ seedHex, commitment, entrants, winners: drawn.winnerIds })).status).toBe(401);
   });
 });

@@ -7,7 +7,7 @@ import type { DisplayTone } from "@/lib/triggers/display";
 
 export { jsonInit, requestJson, type JsonResult } from "@/components/developer/comments/shared";
 
-export const ENGAGEMENT_API = "/api/developer/engagement";
+export const ENGAGEMENT_API = "/api/engagement";
 
 export type PermissionRole = "OWNER" | "ADMIN" | "MANAGER" | "OPERATOR" | "VIEWER";
 

@@ -8,7 +8,7 @@ import { collectAccountStats, scoreLabel } from "@/lib/content-intel/metrics";
 import { PlanError, generatePlan, generateScenario, itemToDraft, listPlans } from "@/lib/content-intel/plan";
 import { buildWeeklyReport, tagCorrelations, weekStartOf } from "@/lib/content-intel/report";
 import { prisma } from "@/lib/db/client";
-import { requireDeveloper } from "@/lib/developer/access";
+import { requireWorkspace } from "@/lib/channels/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ const DAY_MS = 86_400_000;
 
 /** Content intelligence (audit phase 5) for one Instagram account. */
 export async function GET(request: NextRequest) {
-  const auth = await requireDeveloper();
+  const auth = await requireWorkspace();
   if (!auth.ok) return auth.response;
   const workspaceId = auth.ctx.workspaceId;
   const accounts = await prisma.instagramAccount.findMany({ where: { workspaceId }, select: { id: true, username: true, tokenStatus: true }, orderBy: { connectedAt: "asc" } });
@@ -58,7 +58,7 @@ type Body = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 export async function POST(request: NextRequest) {
-  const auth = await requireDeveloper(true);
+  const auth = await requireWorkspace(true);
   if (!auth.ok) return auth.response;
   const body = ((await request.json().catch(() => null)) ?? {}) as Body;
   const { workspaceId, userId } = auth.ctx;

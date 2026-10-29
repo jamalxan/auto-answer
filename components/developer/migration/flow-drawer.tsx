@@ -367,7 +367,7 @@ export default function FlowDrawer({
               {imported ? (
                 <div className="space-y-2 rounded-lg border border-success/30 bg-success/5 p-3" role="status">
                   <p className="text-sm font-semibold text-success">Qoralama sifatida saqlandi — nashr qilinmadi.</p>
-                  <Link className={primaryButton} href={imported.link ?? `/developer/flows?flow=${imported.flowId}`}>
+                  <Link className={primaryButton} href={imported.link ?? `/flows?flow=${imported.flowId}`}>
                     Flows&apos;da ochish va sinash
                   </Link>
                 </div>

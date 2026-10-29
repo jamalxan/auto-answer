@@ -1,15 +1,6 @@
-import { Suspense } from "react";
-import IntegrationsDashboard from "@/components/developer/integrations/integrations-dashboard";
+import { redirectPromoted } from "@/lib/developer/promoted";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "Integrations (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout. Suspense: the dashboard reads ?tab=.
-export default function IntegrationsPage() {
-  return (
-    <Suspense fallback={null}>
-      <IntegrationsDashboard />
-    </Suspense>
-  );
+// Promoted to the main dashboard.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await redirectPromoted("/connectors", searchParams);
 }

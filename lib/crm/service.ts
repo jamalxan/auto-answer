@@ -1,5 +1,5 @@
 /**
- * ETAP 5 — the thin façade the /api/developer/crm routes talk to. It
+ * ETAP 5 — the thin façade the /api/crm routes talk to. It
  * re-exports the DB layer (contacts, activity, tags, segments, export, team,
  * assignment, pipeline, timeline, backfill, broadcast), turns the thrown
  * CrmServiceError of the tag / segment / team / assignment modules into the

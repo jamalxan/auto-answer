@@ -1,10 +1,6 @@
-import BillingDashboard from "@/components/developer/billing/billing-dashboard";
+import { redirectPromoted } from "@/lib/developer/promoted";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "Tariflar (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout.
-export default function BillingPage() {
-  return <BillingDashboard />;
+// Promoted to the main dashboard.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await redirectPromoted("/billing", searchParams);
 }

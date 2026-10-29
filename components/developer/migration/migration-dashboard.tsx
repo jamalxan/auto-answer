@@ -84,7 +84,7 @@ export default function MigrationDashboard() {
       const id = next.project === undefined ? projectId : next.project;
       if (id) params.set("project", id);
       params.set("step", String(next.step));
-      router.replace(`/developer/migration?${params.toString()}`, { scroll: false });
+      router.replace(`/migration?${params.toString()}`, { scroll: false });
     },
     [router, projectId]
   );

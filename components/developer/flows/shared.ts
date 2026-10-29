@@ -10,7 +10,7 @@ import type { FlowFieldSpec } from "@/lib/flows/conditions";
 
 export { jsonInit, requestJson, uid, type JsonResult } from "@/components/developer/comments/shared";
 
-export const FLOWS_API = "/api/developer/flows";
+export const FLOWS_API = "/api/flows";
 
 export type FlowStatus = "DRAFT" | "REVIEW" | "PUBLISHED" | "ARCHIVED";
 export type FlowMode = "SIMPLE" | "ADVANCED";

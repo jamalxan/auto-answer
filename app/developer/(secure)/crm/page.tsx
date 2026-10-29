@@ -1,15 +1,6 @@
-import { Suspense } from "react";
-import CrmDashboard from "@/components/developer/crm/crm-dashboard";
+import { redirectPromoted } from "@/lib/developer/promoted";
 
-export const dynamic = "force-dynamic";
-
-export const metadata = { title: "CRM (dev)", robots: { index: false } };
-
-// Guarded by the /developer (secure) layout. Suspense: the dashboard reads ?tab= / ?contact= / ?broadcast=.
-export default function CrmPage() {
-  return (
-    <Suspense fallback={null}>
-      <CrmDashboard />
-    </Suspense>
-  );
+// Promoted to the main dashboard.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await redirectPromoted("/crm", searchParams);
 }

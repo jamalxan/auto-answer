@@ -29,6 +29,15 @@ export interface Dictionary {
     javobai: string;
     comments: string;
     triggers: string;
+    crm: string;
+    flows: string;
+    engagement: string;
+    analytics: string;
+    contentIntel: string;
+    telegram: string;
+    migration: string;
+    connectors: string;
+    billing: string;
     dmLogs: string;
     settings: string;
     diagnostics: string;

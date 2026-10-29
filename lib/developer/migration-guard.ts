@@ -4,13 +4,13 @@ import { readLimitedJson } from "@/lib/utils/limited-body";
 import { isMigrationEnabled } from "@/lib/migration/config";
 import { can, isReadOnlyRole, PERMISSION_LABELS, type Permission } from "@/lib/workspace-permissions";
 import type { ServiceResult } from "@/lib/crm/result";
-import { requireDeveloper, type DeveloperAuth } from "./access";
+import { requireWorkspace, type WorkspaceAuth } from "@/lib/channels/guard";
 
 export { NOT_JSON, parseBody, readJson } from "./crm-guard";
 
 /**
- * Guards for /api/developer/migration (ETAP 11). On top of the developer
- * login and the app session (requireDeveloper):
+ * Guards for /api/migration (ETAP 11). On top of the developer
+ * login and the app session (requireWorkspace):
  *
  *   read     `view_contacts` (every role): projects, items, meta
  *   write    `manage_campaigns`, not VIEWER: connect, analyze, mapping, text, basics import
@@ -26,8 +26,8 @@ export type MigrationAccess = "read" | "write" | "convert" | "preview" | "delete
 export const MIGRATION_OFF_MESSAGE =
   "Migratsiya o'chirilgan (MIGRATION_DISABLED). Yechim: serverda MIGRATION_DISABLED ni olib tashlab, web'ni qayta ishga tushiring. Loyihani o'chirish mumkin.";
 
-export async function requireMigration(access: MigrationAccess): Promise<DeveloperAuth> {
-  const auth = await requireDeveloper();
+export async function requireMigration(access: MigrationAccess): Promise<WorkspaceAuth> {
+  const auth = await requireWorkspace();
   if (!auth.ok) return auth;
   const permission: Permission = access === "read" ? "view_contacts" : "manage_campaigns";
   if (access !== "read" && isReadOnlyRole(auth.ctx.role)) {
