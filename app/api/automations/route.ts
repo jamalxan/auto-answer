@@ -6,6 +6,7 @@ import { calculateCtr, normalizeTopKeywords } from "@/lib/tracking/analytics";
 import { buildTrackedUrl } from "@/lib/tracking/message";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { buildReportUrl, generateReportShareSlug } from "@/lib/reports/share";
+import { deleteDmFile, isWorkspaceDmFileKey } from "@/lib/campaigns/dm-file";
 import { createAutomationRecord, createAutomationSchema } from "@/lib/campaigns/create-automation";
 import {
   canManageWorkspace,
@@ -28,6 +29,10 @@ const updateAutomationSchema = z.object({
   dmTriggerEnabled: z.boolean().optional(),
   handoffToAssistant: z.boolean().optional(),
   dmMessage: z.string().min(1).max(1000).optional(),
+  dmFileKey: z.string().max(200).optional().nullable(),
+  dmFileName: z.string().max(120).optional().nullable(),
+  dmFileMime: z.string().max(100).optional().nullable(),
+  dmFileSize: z.number().int().positive().optional().nullable(),
   openingDmEnabled: z.boolean().optional(),
   openingDmMessage: z.string().max(1000).optional().nullable(),
   openingDmButtonLabel: z.string().max(64).optional().nullable(),
@@ -377,10 +382,37 @@ export async function PATCH(request: NextRequest) {
     automationData.publicReplyMessage = null;
   }
 
+  // File attachment: a new key must live in this workspace; clearing it drops
+  // the file's metadata too. The replaced/removed object is deleted afterwards.
+  if (automationData.dmFileKey !== undefined) {
+    if (
+      automationData.dmFileKey &&
+      !isWorkspaceDmFileKey(workspaceId, automationData.dmFileKey)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Invalid file" },
+        { status: 400 }
+      );
+    }
+    if (!automationData.dmFileKey) {
+      automationData.dmFileKey = null;
+      automationData.dmFileName = null;
+      automationData.dmFileMime = null;
+      automationData.dmFileSize = null;
+    }
+  }
+
   const updated = await prisma.automation.update({
     where: { id: automationId },
     data: automationData,
   });
+  if (
+    automationData.dmFileKey !== undefined &&
+    existing.dmFileKey &&
+    existing.dmFileKey !== automationData.dmFileKey
+  ) {
+    await deleteDmFile(existing.dmFileKey);
+  }
 
   // Update, create, or clear the campaign's primary tracked link when a
   // destination URL was supplied. `undefined` means "leave it alone".

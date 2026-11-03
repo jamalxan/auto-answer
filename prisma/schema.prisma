@@ -335,6 +335,12 @@ model Automation {
   // Hand people who reply to this campaign's DM over to the lead assistant.
   handoffToAssistant      Boolean  @default(false)
   dmMessage               String
+  // Optional file sent in the DM right after the reveal message. The key is a
+  // storage key (lib/content/storage) under this workspace's prefix.
+  dmFileKey               String?
+  dmFileName              String?
+  dmFileMime              String?
+  dmFileSize              Int?
   openingDmEnabled        Boolean  @default(false)
   openingDmMessage        String?
   openingDmButtonLabel    String?

@@ -343,6 +343,11 @@ export const uz = {
       "Aytgancha, obuna bo'lganingiz uchun rahmat aytmoqchi edim, qo'llab-quvvatlashingiz uchun minnatdorman 🙌",
     openingMessageEmptyPlaceholder: "Kirish xabaringiz…",
     minutesLaterCaption: (min) => `${min} daqiqa keyin`,
+    attachFileToggle: "xabarga fayl biriktirish",
+    attachFileHelp: "Kalit so'z yozilganda xabardan keyin shu fayl ham yuboriladi (PDF, rasm, video, audio — 25 MB gacha).",
+    attachFilePick: "Fayl tanlash",
+    attachFileUploading: "Yuklanmoqda…",
+    attachFileRemove: "Olib tashlash",
   },
   campaignDetail: {
     backLink: "← Kampaniyalar",

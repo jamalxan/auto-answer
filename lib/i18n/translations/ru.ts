@@ -343,6 +343,11 @@ export const ru = {
       "Кстати, хотел(а) сказать спасибо за подписку, ценю вашу поддержку 🙌",
     openingMessageEmptyPlaceholder: "Ваше вступительное сообщение…",
     minutesLaterCaption: (min) => `через ${min} мин.`,
+    attachFileToggle: "прикрепить файл к сообщению",
+    attachFileHelp: "Когда напишут ключевое слово, после сообщения будет отправлен и этот файл (PDF, фото, видео, аудио — до 25 МБ).",
+    attachFilePick: "Выбрать файл",
+    attachFileUploading: "Загрузка…",
+    attachFileRemove: "Убрать",
   },
   campaignDetail: {
     backLink: "← Кампании",

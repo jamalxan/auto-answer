@@ -346,6 +346,11 @@ export const en = {
       "Btw just wanted to say thanks for following me, I appreciate the support 🙌",
     openingMessageEmptyPlaceholder: "Your opening message…",
     minutesLaterCaption: (min) => `${min} min later`,
+    attachFileToggle: "attach a file to the message",
+    attachFileHelp: "When the keyword is written, this file is sent after the message (PDF, image, video, audio — up to 25 MB).",
+    attachFilePick: "Choose file",
+    attachFileUploading: "Uploading…",
+    attachFileRemove: "Remove",
   },
   campaignDetail: {
     backLink: "← Campaigns",
