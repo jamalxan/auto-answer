@@ -28,6 +28,10 @@ interface Rule {
   privateReplies: string[];
   useAi: boolean;
   aiInstruction: string | null;
+  fileKey: string | null;
+  fileName: string | null;
+  fileMime: string | null;
+  fileSize: number | null;
   priority: number;
   sentCount: number;
   lastFiredAt: string | null;
@@ -57,6 +61,19 @@ interface CapsLite {
   private_reply_window_days: number | null;
 }
 
+interface DraftFile {
+  key: string;
+  name: string;
+  mime: string;
+  size: number;
+}
+
+/** Facebook sends any of these in Messenger; Threads takes JPG / PNG on the public reply. */
+const FILE_ACCEPT: Partial<Record<ChannelKey, string>> = {
+  facebook: "application/pdf,image/jpeg,image/png,image/webp,video/mp4,audio/mpeg,audio/mp4",
+  threads: "image/jpeg,image/png",
+};
+
 interface Draft {
   id: string | null;
   channel: ChannelKey;
@@ -71,10 +88,11 @@ interface Draft {
   privateReplies: string;
   useAi: boolean;
   aiInstruction: string;
+  file: DraftFile | null;
   priority: number;
 }
 
-const ACTION_LABEL: Record<string, string> = { public: "ochiq javob", private: "shaxsiy javob", dm: "xabar" };
+const ACTION_LABEL: Record<string, string> = { public: "ochiq javob", private: "shaxsiy javob", dm: "xabar", file: "fayl" };
 const STATUS_TONE: Record<LogRow["status"], "success" | "error" | "muted"> = { SENT: "success", FAILED: "error", SENDING: "muted" };
 const STATUS_LABEL: Record<LogRow["status"], string> = { SENT: "Yuborildi", FAILED: "Xato", SENDING: "Yuborilmoqda" };
 
@@ -92,6 +110,7 @@ const blank = (channel: ChannelKey = "facebook"): Draft => ({
   privateReplies: "",
   useAi: false,
   aiInstruction: "",
+  file: null,
   priority: 0,
 });
 
@@ -113,6 +132,7 @@ function toDraft(rule: Rule): Draft {
     privateReplies: rule.privateReplies.join("\n"),
     useAi: rule.useAi,
     aiInstruction: rule.aiInstruction ?? "",
+    file: rule.fileKey ? { key: rule.fileKey, name: rule.fileName ?? "Fayl", mime: rule.fileMime ?? "", size: rule.fileSize ?? 1 } : null,
     priority: rule.priority,
   };
 }
@@ -122,6 +142,7 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
   const [log, setLog] = useState<LogRow[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<Flash | null>(null);
   const seq = useRef(0);
 
@@ -152,6 +173,24 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
     return res.ok;
   };
 
+  const uploadFile = async (picked: File | undefined) => {
+    if (!picked) return;
+    setUploading(true);
+    setNotice(null);
+    try {
+      const form = new FormData();
+      form.append("file", picked);
+      const res = await fetch("/api/automations/file", { method: "POST", body: form });
+      const data = (await res.json().catch(() => null)) as { success?: boolean; data?: DraftFile; error?: string } | null;
+      if (data?.success && data.data) setDraft((d) => (d ? { ...d, file: data.data! } : d));
+      else setNotice({ tone: "error", text: data?.error ?? "Faylni yuklab bo'lmadi" });
+    } catch {
+      setNotice({ tone: "error", text: "Faylni yuklab bo'lmadi" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const save = async () => {
     if (!draft) return;
     const rule = {
@@ -167,6 +206,7 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
       privateReplies: lines(draft.privateReplies),
       useAi: draft.useAi,
       aiInstruction: draft.aiInstruction.trim() || null,
+      file: FILE_ACCEPT[draft.channel] ? draft.file : null,
       priority: draft.priority,
     };
     const ok = await send(draft.id ? { action: "update", id: draft.id, rule } : { action: "create", rule }, "Qoida saqlandi");
@@ -202,6 +242,7 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
                 <Badge tone={rule.enabled ? "success" : "muted"}>{rule.enabled ? "Yoqilgan" : "O'chiq"}</Badge>
                 <Badge tone="accent">{CHANNEL_NAME[rule.channel]}</Badge>
                 {rule.useAi && <Badge tone="accent">AI</Badge>}
+                {rule.fileKey && <Badge tone="muted">📎 {rule.fileName ?? "fayl"}</Badge>}
                 <h3 className="text-[15px] font-medium text-white">{rule.name}</h3>
                 <span className="text-xs text-muted">{rule.credentialId ? accountName(rule.credentialId) : "barcha akkauntlar"}</span>
               </div>
@@ -268,7 +309,7 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
   const accounts = credentials.filter((c) => c.channel === draft.channel && c.status !== "REVOKED");
   const changeChannel = (channel: ChannelKey) => {
     const next = caps[channel];
-    setDraft((d) => (d ? { ...d, channel, credentialId: "", appliesTo: next?.supports_dm ? d.appliesTo : "comment", doPrivate: next?.private_reply_window_days != null || next?.supports_dm ? d.doPrivate : false } : d));
+    setDraft((d) => (d ? { ...d, channel, credentialId: "", file: d.file && FILE_ACCEPT[channel]?.split(",").includes(d.file.mime) ? d.file : null, appliesTo: next?.supports_dm ? d.appliesTo : "comment", doPrivate: next?.private_reply_window_days != null || next?.supports_dm ? d.doPrivate : false } : d));
   };
 
   return (
@@ -353,6 +394,39 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
         )}
       </div>
 
+      {FILE_ACCEPT[draft.channel] && (
+        <div className="inset mt-5 space-y-2 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm text-white">Fayl biriktirish (ixtiyoriy)</span>
+            {draft.file ? (
+              <Button tone="ghost" disabled={busy} onClick={() => set("file", null)}>
+                Faylni olib tashlash
+              </Button>
+            ) : (
+              <label className="btn btn-sm btn-ghost cursor-pointer">
+                {uploading ? "Yuklanmoqda…" : "Fayl tanlash"}
+                <input
+                  type="file"
+                  accept={FILE_ACCEPT[draft.channel]}
+                  className="hidden"
+                  disabled={uploading || busy}
+                  onChange={(e) => {
+                    void uploadFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
+          </div>
+          {draft.file && <p className="truncate text-sm text-white">📎 {draft.file.name}</p>}
+          <p className="text-xs text-muted">
+            {draft.channel === "threads"
+              ? "Threads: JPG yoki PNG rasm ochiq javobga qo'shiladi (25 MB gacha)."
+              : "Facebook: PDF, rasm, video yoki audio (25 MB gacha) Messenger'da matndan keyin yuboriladi. Kommentga shaxsiy javob bitta xabar bo'lgani uchun u yerda fayl havola sifatida boradi."}
+          </p>
+        </div>
+      )}
+
       <div className="inset mt-5 space-y-3 p-4">
         <label className="flex items-center gap-2 text-sm text-white">
           <input type="checkbox" checked={draft.useAi} onChange={(e) => set("useAi", e.target.checked)} /> AI bilan javob yozish (bilim bazasidan)
@@ -369,7 +443,7 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
           <input type="number" className={`${inputClass} w-20`} min={-100} max={100} value={draft.priority} onChange={(e) => set("priority", Math.max(-100, Math.min(100, Number(e.target.value) || 0)))} />
           <span>(katta raqam birinchi tekshiriladi)</span>
         </label>
-        <Button disabled={busy || !draft.name.trim()} onClick={() => void save()}>
+        <Button disabled={busy || uploading || !draft.name.trim()} onClick={() => void save()}>
           {busy ? "Saqlanmoqda…" : "Saqlash"}
         </Button>
       </div>

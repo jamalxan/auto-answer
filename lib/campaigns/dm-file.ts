@@ -23,6 +23,10 @@ const ALLOWED: Record<string, { ext: string; type: DmFileType }> = {
 
 export const DM_FILE_ACCEPT = Object.keys(ALLOWED).join(",");
 
+export function isAllowedDmFileMime(mime: string): boolean {
+  return Object.prototype.hasOwnProperty.call(ALLOWED, mime);
+}
+
 export class DmFileError extends Error {}
 
 export interface StoredDmFile {

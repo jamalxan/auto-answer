@@ -49,6 +49,19 @@ async function container(user: string, token: string, tenantId: string | null, f
   return created.id;
 }
 
+/** Image containers are fetched and processed by Meta first; publish only once FINISHED. */
+export const REPLY_IMAGE_WAIT = { tries: 10, delayMs: 2_000 };
+
+async function waitForContainer(id: string, token: string, tenantId: string | null): Promise<void> {
+  for (let i = 0; i < REPLY_IMAGE_WAIT.tries; i++) {
+    const state = await metaJson<{ status?: string; error_message?: string }>(threadsGraph(id, { fields: "status,error_message", access_token: token }), LABEL, { tenantId });
+    if (state.status === "FINISHED") return;
+    if (state.status === "ERROR" || state.status === "EXPIRED") throw new ChannelError("invalid", `Threads rasmni qabul qilmadi: ${state.error_message ?? state.status}`);
+    if (REPLY_IMAGE_WAIT.delayMs > 0) await new Promise((r) => setTimeout(r, REPLY_IMAGE_WAIT.delayMs));
+  }
+  throw new ChannelError("transient", "Threads rasmni hali tayyorlamadi");
+}
+
 async function publishContainer(user: string, token: string, tenantId: string | null, creationId: string): Promise<PublishResult> {
   const media = await metaJson<{ id: string }>(threadsGraph(`${user}/threads_publish`), LABEL, { form: { creation_id: creationId, access_token: token }, tenantId });
   const info = await metaJson<{ permalink?: string }>(threadsGraph(media.id, { fields: "permalink", access_token: token }), LABEL, { tenantId }).catch(() => ({ permalink: undefined }));
@@ -122,10 +135,13 @@ export const threadsAdapter: ChannelAdapter = {
     return publishContainer(user, token, tenantId, id);
   },
 
-  async replyComment(creds, commentId, text) {
+  async replyComment(creds, commentId, text, opts) {
     const { user, token, tenantId } = ctx(creds);
     if (text.length > THREADS_TEXT_LIMIT) throw new ChannelError("invalid", `Javob ${THREADS_TEXT_LIMIT} belgidan oshmasin`);
-    const id = await container(user, token, tenantId, { media_type: "TEXT", text, reply_to_id: commentId });
+    const id = opts?.imageUrl
+      ? await container(user, token, tenantId, { media_type: "IMAGE", image_url: opts.imageUrl, text, reply_to_id: commentId })
+      : await container(user, token, tenantId, { media_type: "TEXT", text, reply_to_id: commentId });
+    if (opts?.imageUrl) await waitForContainer(id, token, tenantId);
     const published = await publishContainer(user, token, tenantId, id);
     return { externalId: published.status === "published" ? published.externalId : id };
   },
