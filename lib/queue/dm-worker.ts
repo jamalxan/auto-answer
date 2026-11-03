@@ -20,12 +20,14 @@ import {
   getUserFollowStatus,
   sendCommentReply,
   sendDirectMessage,
+  sendDirectMessageAttachment,
   sendDirectMessageWithButton,
   sendDirectMessageWithLinkButton,
   sendPrivateReply,
   sendPrivateReplyWithButton,
   sendPrivateReplyWithLinkButton,
 } from "@/lib/meta/client";
+import { dmFileAttachmentType, signedDmFileUrl } from "@/lib/campaigns/dm-file";
 import { decryptToken } from "@/lib/meta/oauth";
 import { markTokenBroken } from "@/lib/meta/token-health";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
@@ -160,10 +162,60 @@ function buildInlineLinkFallback(
 
 type RevealAutomation = {
   dmMessage: string;
+  dmFileKey?: string | null;
+  dmFileName?: string | null;
+  dmFileMime?: string | null;
   linkButtonLabel: string | null;
   trackedLinks: WorkerTrackedLink[];
   instagramAccount: { instagramId: string };
 };
+
+/**
+ * Send the campaign's attached file (if any) as a DM right after the reveal
+ * message. Best-effort and never throws: the reveal is already delivered, so a
+ * failure here must not fail the job (BullMQ would re-send the reveal). If
+ * Meta rejects the attachment, the file goes out as a link instead. Returns an
+ * error description when neither worked, else null.
+ */
+async function sendCampaignFile(
+  accessToken: string,
+  automation: RevealAutomation,
+  userId: string
+): Promise<string | null> {
+  if (!automation.dmFileKey) return null;
+  const igId = automation.instagramAccount.instagramId;
+  try {
+    const url = await signedDmFileUrl(automation.dmFileKey);
+    try {
+      await sendDirectMessageAttachment(
+        accessToken,
+        igId,
+        userId,
+        dmFileAttachmentType(automation.dmFileMime),
+        url
+      );
+      return null;
+    } catch (attachmentError) {
+      if (!isTemplateRejection(attachmentError)) throw attachmentError;
+      console.log(
+        "[DM Worker] File attachment rejected, falling back to link:",
+        formatError(attachmentError)
+      );
+      // 7 days is the longest a presigned URL can live.
+      const longUrl = await signedDmFileUrl(automation.dmFileKey, 7 * 24 * 3600);
+      await sendDirectMessage(
+        accessToken,
+        igId,
+        userId,
+        `${automation.dmFileName || "File"}: ${longUrl}`
+      );
+      return null;
+    }
+  } catch (error) {
+    console.error("[DM Worker] Failed to send campaign file:", formatError(error));
+    return `File not delivered: ${formatError(error)}`;
+  }
+}
 
 /**
  * Deliver a campaign's reveal message as a direct message. Shared by the
@@ -171,6 +223,17 @@ type RevealAutomation = {
  * have an open conversation with the user, so neither uses a private reply.
  */
 async function sendRevealDirectMessage(
+  accessToken: string,
+  automation: RevealAutomation,
+  userId: string,
+  commenterName: string | null,
+  context: string
+): Promise<string | null> {
+  await sendRevealText(accessToken, automation, userId, commenterName, context);
+  return sendCampaignFile(accessToken, automation, userId);
+}
+
+async function sendRevealText(
   accessToken: string,
   automation: RevealAutomation,
   userId: string,
@@ -780,6 +843,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         );
       }
 
+      // The reveal went out as the private reply; the attached file follows as
+      // a normal DM into the conversation that reply just opened. Not after
+      // the opening DM or the follow prompt — the file is part of the reveal.
+      const fileError =
+        useOpeningDm || sendFollowPrompt
+          ? null
+          : await sendCampaignFile(accessToken, automation, commenterId);
+
       await prisma.dmLog.update({
         where: {
           automationId_commentId: {
@@ -790,7 +861,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         data: {
           status: "SENT",
           dmSentAt: new Date(),
-          errorMessage: null,
+          errorMessage: fileError,
         },
       });
     } catch (error) {
@@ -949,7 +1020,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   }
 
   try {
-    await sendRevealDirectMessage(
+    const fileError = await sendRevealDirectMessage(
       accessToken,
       automation,
       userId,
@@ -970,8 +1041,9 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
         commentId: dedupeId,
         status: "SENT",
         dmSentAt: new Date(),
+        errorMessage: fileError,
       },
-      update: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+      update: { status: "SENT", dmSentAt: new Date(), errorMessage: fileError },
     });
   } catch (error) {
     await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
@@ -1258,6 +1330,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       continue;
     }
 
+    let fileError: string | null = null;
     try {
       if (sendFollowPrompt) {
         const promptText = renderMessageWithoutLink({
@@ -1275,7 +1348,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           `followcheck:${automation.id}`
         );
       } else {
-        await sendRevealDirectMessage(
+        fileError = await sendRevealDirectMessage(
           accessToken,
           automation,
           senderId,
@@ -1296,11 +1369,12 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           commenterName,
           status: "SENT",
           dmSentAt: new Date(),
+          errorMessage: fileError,
         },
         update: {
           status: "SENT",
           dmSentAt: new Date(),
-          errorMessage: null,
+          errorMessage: fileError,
         },
       });
     } catch (error) {

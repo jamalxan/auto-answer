@@ -8,6 +8,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
+import { isWorkspaceDmFileKey } from "@/lib/campaigns/dm-file";
 import { generateReportShareSlug } from "@/lib/reports/share";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 
@@ -25,6 +26,11 @@ export const createAutomationBaseSchema = z
     dmTriggerEnabled: z.boolean().optional().default(false),
     handoffToAssistant: z.boolean().optional().default(false),
     dmMessage: z.string().min(1).max(1000),
+    // File sent in the DM after the message (uploaded via POST /api/automations/file).
+    dmFileKey: z.string().max(200).optional().nullable(),
+    dmFileName: z.string().max(120).optional().nullable(),
+    dmFileMime: z.string().max(100).optional().nullable(),
+    dmFileSize: z.number().int().positive().optional().nullable(),
     openingDmEnabled: z.boolean().optional().default(false),
     openingDmMessage: z.string().max(1000).optional().nullable(),
     openingDmButtonLabel: z.string().max(64).optional().nullable(),
@@ -138,6 +144,9 @@ export async function createAutomationRecord(
     .map((m) => m.trim())
     .filter(Boolean);
 
+  const hasFile = Boolean(
+    parsed.data.dmFileKey && isWorkspaceDmFileKey(workspaceId, parsed.data.dmFileKey)
+  );
   const automation = await prisma.automation.create({
     data: {
       name: parsed.data.name,
@@ -152,6 +161,10 @@ export async function createAutomationRecord(
       dmTriggerEnabled: parsed.data.dmTriggerEnabled,
       handoffToAssistant: parsed.data.handoffToAssistant,
       dmMessage: parsed.data.dmMessage,
+      dmFileKey: hasFile ? parsed.data.dmFileKey : null,
+      dmFileName: hasFile ? parsed.data.dmFileName || null : null,
+      dmFileMime: hasFile ? parsed.data.dmFileMime || null : null,
+      dmFileSize: hasFile ? parsed.data.dmFileSize || null : null,
       openingDmEnabled,
       openingDmMessage: openingDmEnabled
         ? parsed.data.openingDmMessage || null

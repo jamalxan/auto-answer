@@ -72,6 +72,9 @@ const CONTENT_TYPES: Record<string, string> = {
   m4v: "video/x-m4v",
   mov: "video/quicktime",
   webm: "video/webm",
+  pdf: "application/pdf",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
 };
 
 /** Content type from the key's extension (the local driver keeps no metadata). */

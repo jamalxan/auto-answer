@@ -41,6 +41,10 @@ interface LoadedCampaign {
   dmTriggerEnabled: boolean;
   handoffToAssistant?: boolean;
   dmMessage: string;
+  dmFileKey?: string | null;
+  dmFileName?: string | null;
+  dmFileMime?: string | null;
+  dmFileSize?: number | null;
   openingDmEnabled: boolean;
   openingDmMessage: string | null;
   openingDmButtonLabel: string | null;
@@ -178,6 +182,13 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [openingDmButtonLabel, setOpeningDmButtonLabel] = useState("");
 
   const [dmMessage, setDmMessage] = useState("");
+  const [dmFile, setDmFile] = useState<{
+    key: string;
+    name: string;
+    mime: string;
+    size: number;
+  } | null>(null);
+  const [fileUploading, setFileUploading] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [trackedDestinationUrl, setTrackedDestinationUrl] = useState("");
   const [linkButtonLabel, setLinkButtonLabel] = useState("Open link");
@@ -283,6 +294,16 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setOpeningDmMessage(c.openingDmMessage ?? "");
         setOpeningDmButtonLabel(c.openingDmButtonLabel ?? "");
         setDmMessage(c.dmMessage);
+        setDmFile(
+          c.dmFileKey
+            ? {
+                key: c.dmFileKey,
+                name: c.dmFileName ?? "file",
+                mime: c.dmFileMime ?? "",
+                size: c.dmFileSize ?? 0,
+              }
+            : null
+        );
         setLinkButtonLabel(c.linkButtonLabel ?? "Open link");
         setIsActive(c.isActive);
         const link = c.trackedLinks?.[0]?.destinationUrl ?? "";
@@ -391,6 +412,24 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     setPostCaption(caption ?? "");
   }
 
+  async function handleFilePick(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setFileUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/automations/file", { method: "POST", body: form });
+      const data = await res.json();
+      if (data.success) setDmFile(data.data);
+      else setError(data.error ?? "Upload failed");
+    } catch {
+      setError("Upload failed");
+    } finally {
+      setFileUploading(false);
+    }
+  }
+
   function ensureLinkToken() {
     setDmMessage((cur) => (cur.includes("{link}") ? cur : `${cur.trim()} {link}`.trim()));
   }
@@ -421,6 +460,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       dmTriggerEnabled,
       handoffToAssistant,
       dmMessage,
+      dmFileKey: dmFile?.key ?? null,
+      dmFileName: dmFile?.name ?? null,
+      dmFileMime: dmFile?.mime ?? null,
+      dmFileSize: dmFile?.size ?? null,
       openingDmEnabled,
       openingDmMessage: openingDmEnabled ? openingDmMessage : null,
       openingDmButtonLabel: openingDmEnabled ? openingDmButtonLabel : null,
@@ -948,6 +991,44 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               </button>
             )}
             <p className="text-xs text-muted">{t.builder.linkTokenHelp}</p>
+          </div>
+          <div className="inset p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-white">
+                {t.builder.attachFileToggle}
+              </span>
+              {dmFile ? (
+                <button
+                  type="button"
+                  onClick={() => setDmFile(null)}
+                  className="btn btn-sm btn-ghost"
+                >
+                  {t.builder.attachFileRemove}
+                </button>
+              ) : (
+                <label className="btn btn-sm btn-ghost cursor-pointer">
+                  {fileUploading
+                    ? t.builder.attachFileUploading
+                    : t.builder.attachFilePick}
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp,video/mp4,audio/mpeg,audio/mp4"
+                    className="hidden"
+                    disabled={fileUploading}
+                    onChange={(e) => {
+                      void handleFilePick(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            {dmFile && (
+              <p className="mt-2 truncate text-sm text-white">
+                📎 {dmFile.name}
+              </p>
+            )}
+            <p className="mt-2 text-xs text-muted">{t.builder.attachFileHelp}</p>
           </div>
           <div className="inset p-4">
             <div className="flex items-center justify-between gap-3">

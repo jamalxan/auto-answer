@@ -370,6 +370,35 @@ export async function sendDirectMessage(
 }
 
 /**
+ * Send a file (PDF, image, video, audio) to a user as a DM attachment. Meta
+ * downloads it from `url`, so the URL must be publicly reachable for a while.
+ */
+export async function sendDirectMessageAttachment(
+  accessToken: string,
+  instagramAccountId: string,
+  userId: string,
+  type: "image" | "video" | "audio" | "file",
+  url: string
+): Promise<{ recipient_id: string; message_id: string }> {
+  const response = await fetch(
+    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: userId },
+        message: { attachment: { type, payload: { url } } },
+      }),
+    }
+  );
+
+  return handleResponse(response);
+}
+
+/**
  * Send a direct message as a button template with up to 3 web_url buttons —
  * the reveal message plus tappable link buttons (cleaner than inline URLs).
  */

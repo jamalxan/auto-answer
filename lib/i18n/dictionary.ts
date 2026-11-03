@@ -327,6 +327,11 @@ export interface Dictionary {
     followUpMessagePlaceholder: string;
     openingMessageEmptyPlaceholder: string;
     minutesLaterCaption: (min: number) => string;
+    attachFileToggle: string;
+    attachFileHelp: string;
+    attachFilePick: string;
+    attachFileUploading: string;
+    attachFileRemove: string;
   };
   campaignDetail: {
     backLink: string;
