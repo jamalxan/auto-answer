@@ -20,6 +20,7 @@
  */
 
 import { z } from "zod";
+import { deleteDmFile, dmFileAttachmentType, isAllowedDmFileMime, isWorkspaceDmFileKey, signedDmFileUrl } from "@/lib/campaigns/dm-file";
 import { getLlmProviderFor } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { enforceBudgetBeforeCall } from "@/lib/javobai/budget";
@@ -46,6 +47,10 @@ export const AI_REPLIES_PER_HOUR = 60;
 export const PUBLIC_REPLY_MAX = 480;
 export const PRIVATE_REPLY_MAX = 1000;
 const SWEEP_BATCH = 40;
+/** Threads replies take JPEG / PNG images only. */
+export const THREADS_FILE_MIMES = ["image/jpeg", "image/png"];
+/** The link sent instead of the file (Facebook private reply, failed attachment) lives this long. */
+const FILE_LINK_TTL_SEC = 7 * 24 * 3600;
 
 // ─── Rule input ────────────────────────────────────────────────────────────────
 
@@ -67,6 +72,11 @@ export const autoReplyInputSchema = z.object({
   useAi: z.boolean().default(false),
   aiInstruction: z.string().trim().max(500).nullable().optional(),
   priority: z.number().int().min(-100).max(100).default(0),
+  /** Uploaded through /api/automations/file. */
+  file: z
+    .object({ key: z.string().min(1).max(200), name: z.string().trim().min(1).max(120), mime: z.string().max(100), size: z.number().int().positive() })
+    .nullable()
+    .optional(),
 });
 export type AutoReplyInput = z.infer<typeof autoReplyInputSchema>;
 
@@ -81,6 +91,15 @@ export function ruleProblem(rule: AutoReplyInput): string | null {
   if (forComments && !forDms && !rule.doPublic && !rule.doPrivate) return "Kamida bitta javob turini yoqing (ochiq yoki shaxsiy)";
   if (rule.doPublic && forComments && rule.publicReplies.length === 0 && !rule.useAi) return "Ochiq javob uchun kamida bitta javob matni yozing yoki AI ni yoqing";
   if (rule.doPrivate && rule.privateReplies.length === 0 && !rule.useAi) return "Shaxsiy javob uchun kamida bitta matn yozing yoki AI ni yoqing";
+  if (rule.file) {
+    if (!isAllowedDmFileMime(rule.file.mime)) return "Bu turdagi faylni yuborib bo'lmaydi";
+    if (rule.channel === "youtube") return "YouTube javobiga fayl qo'shib bo'lmaydi";
+    if (rule.channel === "threads") {
+      if (!THREADS_FILE_MIMES.includes(rule.file.mime)) return "Threads javobiga faqat JPG yoki PNG rasm qo'shiladi";
+      if (!rule.doPublic) return "Threads'da fayl ochiq javob bilan yuboriladi — ochiq javobni yoqing";
+    }
+    if (rule.channel === "facebook" && !rule.doPrivate) return "Facebook'da fayl Messenger orqali yuboriladi — shaxsiy javobni yoqing";
+  }
   return null;
 }
 
@@ -160,6 +179,13 @@ async function checkCredential(workspaceId: string, channel: string, credentialI
   return credentialId;
 }
 
+/** Column values for the rule's file; a key outside the workspace is refused. */
+function fileColumns(workspaceId: string, file: AutoReplyInput["file"]) {
+  if (!file) return { fileKey: null, fileName: null, fileMime: null, fileSize: null };
+  if (!isWorkspaceDmFileKey(workspaceId, file.key)) throw new ChannelError("invalid", "Fayl topilmadi");
+  return { fileKey: file.key, fileName: file.name, fileMime: file.mime, fileSize: file.size };
+}
+
 function parseRule(input: unknown): AutoReplyInput {
   const parsed = autoReplyInputSchema.safeParse(input);
   if (!parsed.success) throw new ChannelError("invalid", parsed.error.issues[0]?.message ?? "Qoida maydonlari noto'g'ri");
@@ -173,18 +199,22 @@ export async function listAutoReplies(workspaceId: string) {
 }
 
 export async function createAutoReply(workspaceId: string, input: unknown) {
-  const data = parseRule(input);
+  const { file, ...data } = parseRule(input);
   const credentialId = await checkCredential(workspaceId, data.channel, data.credentialId);
+  const files = fileColumns(workspaceId, file);
   if ((await prisma.channelAutoReply.count({ where: { workspaceId } })) >= 100) throw new ChannelError("invalid", "Bitta workspace'da 100 tadan ortiq qoida mumkin emas");
-  return prisma.channelAutoReply.create({ data: { ...data, credentialId, aiInstruction: data.aiInstruction || null, workspaceId } });
+  return prisma.channelAutoReply.create({ data: { ...data, ...files, credentialId, aiInstruction: data.aiInstruction || null, workspaceId } });
 }
 
 export async function updateAutoReply(workspaceId: string, id: string, input: unknown) {
-  const existing = await prisma.channelAutoReply.findFirst({ where: { id, workspaceId }, select: { id: true } });
+  const existing = await prisma.channelAutoReply.findFirst({ where: { id, workspaceId }, select: { id: true, fileKey: true } });
   if (!existing) throw new ChannelError("invalid", "Qoida topilmadi");
-  const data = parseRule(input);
+  const { file, ...data } = parseRule(input);
   const credentialId = await checkCredential(workspaceId, data.channel, data.credentialId);
-  return prisma.channelAutoReply.update({ where: { id }, data: { ...data, credentialId, aiInstruction: data.aiInstruction || null } });
+  const files = fileColumns(workspaceId, file);
+  const updated = await prisma.channelAutoReply.update({ where: { id }, data: { ...data, ...files, credentialId, aiInstruction: data.aiInstruction || null } });
+  if (existing.fileKey && existing.fileKey !== files.fileKey) await deleteDmFile(existing.fileKey);
+  return updated;
 }
 
 export async function setAutoReplyEnabled(workspaceId: string, id: string, enabled: boolean) {
@@ -193,8 +223,10 @@ export async function setAutoReplyEnabled(workspaceId: string, id: string, enabl
 }
 
 export async function deleteAutoReply(workspaceId: string, id: string) {
+  const existing = await prisma.channelAutoReply.findFirst({ where: { id, workspaceId }, select: { fileKey: true } });
   const res = await prisma.channelAutoReply.deleteMany({ where: { id, workspaceId } });
   if (res.count === 0) throw new ChannelError("invalid", "Qoida topilmadi");
+  await deleteDmFile(existing?.fileKey);
 }
 
 export async function listAutoReplyLog(workspaceId: string, take = 40) {
@@ -349,24 +381,48 @@ async function answerMessage(message: Inbound, rules: Rule[], now: Date, aiLeft:
     if (!adapter) throw new ChannelError("not_supported", `${channel} adapteri yo'q`);
     const name = message.authorName;
 
+    const file = rule.fileKey ? { key: rule.fileKey, name: rule.fileName || "Fayl", mime: rule.fileMime } : null;
+    const fileLink = async (key: string, fileName: string) => `📎 ${fileName}: ${await signedDmFileUrl(key, FILE_LINK_TTL_SEC)}`;
+
     if (publicText) {
       const text = fillPlaceholders(publicText, name);
-      const sent = await adapter.replyComment(creds, message.externalId, text);
+      // Threads: the image rides on the public reply.
+      const imageUrl = file && channel === "threads" ? await signedDmFileUrl(file.key) : undefined;
+      const sent = await adapter.replyComment(creds, message.externalId, text, imageUrl ? { imageUrl } : undefined);
       await recordOut(message, message.kind, message.threadRef, sent.externalId, text);
       done.push("public");
     }
     if (privateText) {
-      const text = fillPlaceholders(privateText, name);
+      let text = fillPlaceholders(privateText, name);
+      const dmFile = file && channel === "facebook" ? file : null;
       if (isDm) {
         const sent = await sendDmInWindow({ workspaceId: message.workspaceId, credentialId: message.accountRef, recipientId: message.threadRef, text, lastInboundAt: message.createdAt, now });
         await recordOut(message, "dm", message.threadRef, sent.externalId, text);
         done.push("dm");
+        if (dmFile) {
+          // The file as its own message; if Meta will not fetch it, a link instead.
+          try {
+            if (!adapter.sendDmAttachment) throw new ChannelError("not_supported", "attachment");
+            const att = await adapter.sendDmAttachment(creds, message.threadRef, dmFileAttachmentType(dmFile.mime), await signedDmFileUrl(dmFile.key));
+            await recordOut(message, "dm", message.threadRef, att.externalId, `📎 ${dmFile.name}`);
+          } catch (error) {
+            console.warn("[channels] auto-reply file attachment failed, sending link:", error instanceof Error ? error.message.slice(0, 200) : error);
+            const linkText = await fileLink(dmFile.key, dmFile.name);
+            const att = await adapter.sendDm(creds, message.threadRef, linkText);
+            await recordOut(message, "dm", message.threadRef, att.externalId, linkText);
+          }
+          done.push("file");
+        }
       } else {
+        // A private reply is a single message: the file goes in as a link.
+        if (dmFile) text = `${text}\n\n${await fileLink(dmFile.key, dmFile.name)}`;
         const sent = await sendPrivateReply({ workspaceId: message.workspaceId, credentialId: message.accountRef, commentId: message.externalId, commentAt: message.createdAt, text, now });
         await recordOut(message, "dm", message.authorRef ?? message.threadRef, sent.externalId, text);
         done.push("private");
+        if (dmFile) done.push("file");
       }
     }
+    if (publicText && file && channel === "threads") done.push("file");
   } catch (error) {
     const kind = error instanceof ChannelError ? error.kind : "transient";
     failure = `${kind}: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500);

@@ -3903,6 +3903,11 @@ model ChannelAutoReply {
   privateReplies String[]  @default([])
   useAi          Boolean   @default(false)
   aiInstruction  String?
+  /// Optional file: Facebook sends it in Messenger, Threads attaches it (image) to the public reply.
+  fileKey        String?
+  fileName       String?
+  fileMime       String?
+  fileSize       Int?
   priority       Int       @default(0)
   sentCount      Int       @default(0)
   lastFiredAt    DateTime?

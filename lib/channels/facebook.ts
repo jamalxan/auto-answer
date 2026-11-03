@@ -184,6 +184,15 @@ export const facebookAdapter: ChannelAdapter = {
     return { externalId: sent.message_id };
   },
 
+  async sendDmAttachment(creds, recipientId, type, url) {
+    const { page, token, tenantId } = ctx(creds);
+    const sent = await metaJson<{ message_id: string }>(facebookGraph(`${page}/messages`, { access_token: token }), LABEL, {
+      body: { recipient: { id: recipientId }, messaging_type: "RESPONSE", message: { attachment: { type, payload: { url, is_reusable: false } } } },
+      tenantId,
+    });
+    return { externalId: sent.message_id };
+  },
+
   async privateReply(creds, commentId, text) {
     const { page, token, tenantId } = ctx(creds);
     const sent = await metaJson<{ message_id: string }>(facebookGraph(`${page}/messages`, { access_token: token }), LABEL, {

@@ -118,9 +118,12 @@ export interface ChannelAdapter {
   checkCredentials(creds: ChannelCredentials): Promise<{ ok: boolean; error?: string }>;
   publish(creds: ChannelCredentials, post: PostVariant): Promise<PublishResult>;
   continuePublish(creds: ChannelCredentials, pollToken: string): Promise<PublishResult>;
-  replyComment(creds: ChannelCredentials, commentId: string, text: string): Promise<{ externalId: string }>;
+  /** `imageUrl` (Threads only): the reply carries that image. */
+  replyComment(creds: ChannelCredentials, commentId: string, text: string, opts?: { imageUrl?: string }): Promise<{ externalId: string }>;
   hideComment(creds: ChannelCredentials, commentId: string, hide: boolean): Promise<void>;
   sendDm(creds: ChannelCredentials, recipientId: string, text: string, threadId?: string | null): Promise<{ externalId: string }>;
   privateReply(creds: ChannelCredentials, commentId: string, text: string): Promise<{ externalId: string }>;
+  /** A file (Meta fetches `url`) as its own DM, inside the DM window. Only channels whose Send API takes attachments. */
+  sendDmAttachment?(creds: ChannelCredentials, recipientId: string, type: "image" | "video" | "audio" | "file", url: string): Promise<{ externalId: string }>;
   fetchInsights(creds: ChannelCredentials, mediaId: string, metrics: string[]): Promise<InsightsResult>;
 }
