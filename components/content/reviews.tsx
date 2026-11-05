@@ -374,7 +374,7 @@ export function ReviewsPanel({ meta, refreshKey, onOpen, onChanged }: { meta: Co
               </div>
               <div className="min-w-0 flex-1 space-y-1 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold">{TYPE_LABEL[item.type]} · @{item.accountUsername}</span>
+                  <span className="font-semibold">{TYPE_LABEL[item.type]}{item.accountUsername ? ` · @${item.accountUsername}` : ""}</span>
                   <Pill tone={item.status === "REJECTED" ? "error" : item.status === "PENDING_REVIEW" ? "warning" : "muted"}>{STATUS_LABEL[item.status]}</Pill>
                   {item.rule && <span className="text-xs text-muted">{RULE_LABEL[item.rule].title}</span>}
                   {item.scheduledAt && <span className="text-xs text-muted">{formatZoned(new Date(item.scheduledAt), item.timezone)}</span>}

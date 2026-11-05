@@ -3722,9 +3722,6 @@ model ChannelPostTarget {
   pollToken     String?
   pollStartedAt DateTime?
   publishedAt   DateTime?
-  /// "Har biriga alohida": this target's own text / time (null = the post's).
-  captionOverride     String?
-  scheduledAtOverride DateTime?
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
 

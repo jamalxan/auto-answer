@@ -160,8 +160,8 @@ export interface ComposerLimits {
  * FR-C3: why the main button is disabled, or null. Only the limits the
  * client can check without the server; the server's issues come on top.
  */
-export function composerBlocked(draft: PostDraft, limits: ComposerLimits): string | null {
-  if (!draft.instagramAccountId) return "Akkaunt tanlanmagan";
+export function composerBlocked(draft: PostDraft, limits: ComposerLimits, otherTargets = 0): string | null {
+  if (!draft.instagramAccountId && otherTargets === 0) return "Tarmoq va akkaunt tanlanmagan";
   const rule = mediaRule(draft.type);
   if (draft.media.length === 0) return "Media tanlanmagan";
   const max = rule.max === "carousel" ? limits.carouselMax : rule.max;
@@ -217,6 +217,8 @@ export interface ContentMeta {
   disabled: boolean;
   me: { role: string; normalizedRole: string; roleLabel: string; canCreate: boolean; canSchedule: boolean; canApprove: boolean };
   accounts: Array<{ id: string; username: string; tokenStatus: string; canPublish: boolean; accountType: string | null; publishQuotaUsed: number | null }>;
+  /** Connected Facebook / Threads / YouTube accounts and Telegram channels a post can go to. */
+  networkAccounts: Array<{ network: "facebook" | "threads" | "youtube" | "telegram"; id: string; label: string }>;
   campaigns: Array<{ kind: "automation" | "trigger"; id: string; name: string; instagramAccountId: string; active: boolean; keywords: string[]; linkedPostId: string | null; bound: boolean }>;
   savedTexts: SavedText[];
   timezone: string;
@@ -257,7 +259,8 @@ export interface PostMediaView {
 
 export interface PostCard {
   id: string;
-  instagramAccountId: string;
+  instagramAccountId: string | null;
+  networks?: string[];
   accountUsername: string | null;
   type: PostTypeValue;
   status: PostStatusValue;
@@ -285,7 +288,7 @@ export interface SeriesInfo {
 
 export interface PostDetail {
   id: string;
-  instagramAccountId: string;
+  instagramAccountId: string | null;
   accountUsername: string | null;
   type: PostTypeValue;
   status: PostStatusValue;
@@ -356,7 +359,8 @@ export interface MediaItemDraft {
 }
 
 export interface PostDraft {
-  instagramAccountId: string;
+  /** null: the post does not go to Instagram (network-only). */
+  instagramAccountId: string | null;
   type: PostTypeValue;
   caption: string;
   firstComment: string;
@@ -383,7 +387,7 @@ export interface NewCampaignDraft {
   requireFollow: boolean;
 }
 
-export function emptyDraft(instagramAccountId: string, type: PostTypeValue = "FEED_IMAGE"): PostDraft {
+export function emptyDraft(instagramAccountId: string | null, type: PostTypeValue = "FEED_IMAGE"): PostDraft {
   return {
     instagramAccountId,
     type,

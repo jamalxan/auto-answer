@@ -53,7 +53,7 @@ import { formatZoned, storySeriesLabel } from "./shared";
 import CropEditor, { presetsFor } from "./crop-editor";
 import { centerCrop, type CropRect } from "@/lib/content/crop-geometry";
 import { channelBlocker, PLATFORM_LABEL, type PreviewPlatform } from "@/lib/content/platform-preview";
-import CrossTargets, { CROSS_CHANNELS, EMPTY_CROSS, useCrossCredentials, type CrossSelection } from "./cross-targets";
+import NetworkPicker, { CROSS_CHANNELS, EMPTY_CROSS, TARGET_NETWORKS, countTargets, type CrossSelection, type PickerNetwork, type TargetNetwork } from "./cross-targets";
 
 const TYPE_CHOICES: PostTypeValue[] = ["FEED_IMAGE", "CAROUSEL", "REEL", "TRIAL_REEL", "STORY"];
 const AUTOSAVE_MS = 5_000;
@@ -121,7 +121,7 @@ export default function Composer({
   onSaved: (id: string) => void;
 }) {
   const tz = meta.timezone;
-  const firstAccount = meta.accounts[0]?.id ?? "";
+  const firstAccount: string | null = meta.accounts[0]?.id ?? null;
   const [draft, setDraft] = useState<PostDraft>(() => emptyDraft(firstAccount));
   const [detail, setDetail] = useState<PostDetail | null>(null);
   const [loading, setLoading] = useState(Boolean(postId));
@@ -143,8 +143,9 @@ export default function Composer({
   const [createdCampaigns, setCreatedCampaigns] = useState<ContentMeta["campaigns"]>([]);
   // Approval (Faza 2): null = schedule directly; OPERATOR always sends to review.
   const [review, setReview] = useState<ReviewDraft | null>(meta.me.canSchedule ? null : EMPTY_REVIEW);
-  // Other networks that get this post at the same slot (cross-post targets); saved after the post itself.
-  const crossCreds = useCrossCredentials();
+  // The networks the post goes to: Instagram is the post's own account, the
+  // others are cross-post targets saved right after the post itself.
+  const [networks, setNetworks] = useState<PickerNetwork[]>(() => (firstAccount ? ["instagram"] : []));
   const [cross, setCross] = useState<CrossSelection>(EMPTY_CROSS);
   const crossSaved = useRef<CrossSelection | null>(postId ? null : EMPTY_CROSS);
   const [crossReady, setCrossReady] = useState(!postId);
@@ -154,11 +155,13 @@ export default function Composer({
   const versionRef = useRef<number | null>(null);
 
   const previewTabs: PreviewPlatform[] = [
-    "instagram",
+    ...(draft.instagramAccountId ? (["instagram"] as const) : []),
     ...CROSS_CHANNELS.filter((c) => cross[c].length > 0 && !channelBlocker(c, draft.type, draft.media.length > 0)),
   ];
-  const shownPlatform: PreviewPlatform = previewTabs.includes(previewOn) ? previewOn : "instagram";
-  const previewLabel = shownPlatform === "instagram" ? undefined : crossCreds?.find((c) => c.id === cross[shownPlatform][0])?.label ?? undefined;
+  const shownPlatform: PreviewPlatform = previewTabs.includes(previewOn) ? previewOn : (previewTabs[0] ?? "instagram");
+  const previewLabel = shownPlatform === "instagram" ? undefined : meta.networkAccounts.find((c) => c.id === cross[shownPlatform][0])?.label ?? undefined;
+  const otherTargets = countTargets(cross);
+  const onInstagram = Boolean(draft.instagramAccountId);
 
   const account = meta.accounts.find((a) => a.id === draft.instagramAccountId) ?? null;
   const canPublish = Boolean(account?.canPublish);
@@ -167,7 +170,7 @@ export default function Composer({
   const mediaMax = rules.max === "carousel" ? meta.limits.carouselMax : rules.max;
   const caption = countCaption(draft.caption);
   const comment = countCaption(draft.firstComment);
-  const blocked = composerBlocked(draft, meta.limits);
+  const blocked = composerBlocked(draft, meta.limits, otherTargets);
   const locked = Boolean(detail && !EDITABLE.includes(detail.status));
   const at = useMemo(() => {
     if (mode !== "schedule" || !/^\d{4}-\d{2}-\d{2}$/.test(slot.date) || !/^\d{2}:\d{2}$/.test(slot.time)) return null;
@@ -190,7 +193,9 @@ export default function Composer({
       const backup = readBackup();
       if (backup && (backup.media.length || backup.caption)) {
         /* eslint-disable react-hooks/set-state-in-effect -- restore once on open */
-        setDraft({ ...backup, instagramAccountId: meta.accounts.some((a) => a.id === backup.instagramAccountId) ? backup.instagramAccountId : firstAccount });
+        const ig = backup.instagramAccountId === null ? null : meta.accounts.some((a) => a.id === backup.instagramAccountId) ? backup.instagramAccountId : firstAccount;
+        setDraft({ ...backup, instagramAccountId: ig });
+        setNetworks(ig ? ["instagram"] : []);
         setNotice("Oldingi saqlanmagan draft tiklandi");
         /* eslint-enable react-hooks/set-state-in-effect */
       }
@@ -208,10 +213,11 @@ export default function Composer({
       versionRef.current = res.data.version;
       const targets = await requestJson<{ targets: Array<{ channel: string; accountRef: string; status: string }> }>(`/api/channels/targets?postId=${postId}`);
       if (!cancelled && targets.ok) {
-        const current: CrossSelection = { facebook: [], threads: [], youtube: [] };
-        for (const t of targets.data.targets) if (t.status !== "DELETED" && t.channel in current) current[t.channel as keyof CrossSelection].push(t.accountRef);
+        const current: CrossSelection = { facebook: [], threads: [], youtube: [], telegram: [] };
+        for (const t of targets.data.targets) if (t.status !== "DELETED" && t.channel in current) current[t.channel as TargetNetwork].push(t.accountRef);
         crossSaved.current = current;
         setCross(current);
+        setNetworks([...(res.data.instagramAccountId ? (["instagram"] as PickerNetwork[]) : []), ...TARGET_NETWORKS.filter((n) => current[n].length > 0)]);
         setCrossReady(true);
       }
       setDraft(draftOfDetail(res.data));
@@ -248,7 +254,7 @@ export default function Composer({
 
   // ── live server validation ──────────────────────────────────────────────
   useEffect(() => {
-    if (!draft.instagramAccountId || draft.media.length === 0) {
+    if (draft.media.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- nothing to validate yet
       setIssues([]);
       return;
@@ -354,11 +360,14 @@ export default function Composer({
   async function saveCross(id: string): Promise<string | null> {
     const before = crossSaved.current;
     if (!before || draft.type === "STORY") return null;
-    for (const channel of CROSS_CHANNELS) {
+    for (const channel of TARGET_NETWORKS) {
       const same = before[channel].length === cross[channel].length && before[channel].every((x) => cross[channel].includes(x));
       if (same) continue;
-      const res = await requestJson<unknown>("/api/channels/targets", jsonInit("POST", { postId: id, channel, accountIds: cross[channel] }));
-      if (!res.ok) return `${PLATFORM_LABEL[channel]}: ${res.error}`;
+      const res =
+        channel === "telegram"
+          ? await requestJson<unknown>("/api/telegram", jsonInit("POST", { action: "set_targets", postId: id, channelIds: cross.telegram }))
+          : await requestJson<unknown>("/api/channels/targets", jsonInit("POST", { postId: id, channel, accountIds: cross[channel] }));
+      if (!res.ok) return `${channel === "telegram" ? "Telegram" : PLATFORM_LABEL[channel]}: ${res.error}`;
       before[channel] = [...cross[channel]];
     }
     return null;
@@ -385,8 +394,14 @@ export default function Composer({
       if (newCampaign && saved.linkedCampaign) {
         // FR-L1: the campaign exists now — later saves link it by id instead of creating another.
         const created = saved.linkedCampaign;
-        setCreatedCampaigns((list) => [...list, { kind: created.kind, id: created.id, name: created.name, instagramAccountId: saved.instagramAccountId, active: created.active, keywords: created.keywords, linkedPostId: null, bound: false }]);
+        setCreatedCampaigns((list) => [...list, { kind: created.kind, id: created.id, name: created.name, instagramAccountId: saved.instagramAccountId ?? "", active: created.active, keywords: created.keywords, linkedPostId: null, bound: false }]);
         setDraft((d) => ({ ...d, linkCampaign: created.kind === "automation" ? { automationId: created.id } : { triggerCampaignId: created.id } }));
+      }
+      // Targets first: scheduling a network-only post checks that it has somewhere to go.
+      const crossProblem = await saveCross(saved.id);
+      if (crossProblem && !saved.instagramAccountId) {
+        setNotice("Draft saqlandi, lekin tarmoqlar saqlanmadi");
+        throw new Error(crossProblem);
       }
       if (as === "schedule" && review) {
         const res = await requestJson<PostDetail>(`${CONTENT_API}/posts/${saved.id}/review`, jsonInit("POST", { ...review, scheduledAt: { date: slot.date, time: slot.time, timezone: tz } }));
@@ -421,7 +436,6 @@ export default function Composer({
       } else if (as !== "draft" && !canSchedule) {
         setNotice("Draft saqlandi. Tasdiqqa yuborish uchun vaqtni tanlang.");
       }
-      const crossProblem = await saveCross(saved.id);
       writeBackup(postId, null);
       writeBackup(undefined, null);
       dirty.current = false;
@@ -443,7 +457,8 @@ export default function Composer({
   const otherIssues = issues.filter((i) => !["caption", "collaborators", "firstComment", "scheduledAt"].includes(i.field) && !i.field.startsWith("media"));
   const storySeries = draft.type === "STORY" && draft.media.length > 1;
   const toReview = Boolean(review && mode === "schedule");
-  const canRecur = canSchedule && mode === "schedule" && !storySeries && !review && (!detail || detail.status === "DRAFT");
+  // Recurrence copies the Instagram post; a network-only post is scheduled once.
+  const canRecur = canSchedule && onInstagram && mode === "schedule" && !storySeries && !review && (!detail || detail.status === "DRAFT");
   const recurring = canRecur && recur.on;
   const recurInfo = recurPreview(recur, slot.date, slot.time, tz);
   const buttonLabel = toReview
@@ -507,20 +522,33 @@ export default function Composer({
         <fieldset disabled={locked} className="min-w-0 space-y-6">
           {/* 1. Akkaunt va tur */}
           <section className="space-y-3 panel rounded-3xl p-4">
-            <Field label="Akkaunt" error={account && !canPublish ? "Bu akkauntda post chiqarish ruxsati yo'q — faqat draft va qo'lda e'lon" : null}>
-              <select className={inputClass} value={draft.instagramAccountId} onChange={(e) => update({ instagramAccountId: e.target.value, linkCampaign: null })} disabled={Boolean(postId)}>
-                {meta.accounts.length === 0 && <option value="">Akkaunt ulanmagan</option>}
-                {meta.accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    @{a.username}
-                    {a.tokenStatus !== "ACTIVE" ? " · ulanish uzilgan" : ""}
-                  </option>
-                ))}
-              </select>
+            <Field label="Qayerga joylaymiz?" error={account && !canPublish ? "Bu Instagram akkauntda post chiqarish ruxsati yo'q — faqat draft va qo'lda e'lon" : null}>
+              <NetworkPicker
+                meta={meta}
+                networks={networks}
+                onNetworks={(next) => {
+                  dirty.current = true;
+                  setNetworks(next);
+                }}
+                instagramAccountId={draft.instagramAccountId}
+                onInstagram={(id) => {
+                  const fitsElsewhere = draft.type !== "STORY" && draft.type !== "TRIAL_REEL";
+                  update({ instagramAccountId: id, linkCampaign: null, ...(id || fitsElsewhere ? {} : { type: "FEED_IMAGE" as const }) });
+                }}
+                value={cross}
+                onChange={(next) => {
+                  dirty.current = true;
+                  setCross(next);
+                }}
+                type={draft.type}
+                hasMedia={draft.media.length > 0}
+                instagramLocked={Boolean(postId)}
+                disabled={locked || !crossReady}
+              />
             </Field>
             <Field label="Tur" hint={draft.type === "FEED_VIDEO" ? "Video post Instagram'da Reels sifatida chiqadi" : undefined}>
               <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Post turi">
-                {TYPE_CHOICES.map((t) => {
+                {TYPE_CHOICES.filter((t) => onInstagram || (t !== "STORY" && t !== "TRIAL_REEL")).map((t) => {
                   const on = draft.type === t || (t === "FEED_IMAGE" && draft.type === "FEED_VIDEO");
                   return (
                     <button key={t} type="button" role="radio" aria-checked={on} onClick={() => setType(t)} className={`${secondaryButton} ${on ? "!bg-violet !text-white" : ""}`}>
@@ -679,7 +707,8 @@ export default function Composer({
           )}
           {draft.type === "STORY" && <p className="text-xs text-muted">Story&apos;da caption bo&apos;lmaydi — matn stikerlarini Instagram ilovasida qo&apos;shasiz (qo&apos;lda e&apos;lon rejimi).</p>}
 
-          {/* 4. Kengaytirilgan */}
+          {/* 4. Kengaytirilgan (Instagram fields) */}
+          {onInstagram && (
           <section className="panel rounded-3xl p-4">
             <button type="button" className="flex w-full items-center justify-between text-left text-sm font-semibold" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
               Kengaytirilgan
@@ -736,7 +765,10 @@ export default function Composer({
             )}
           </section>
 
-          {/* 5. Avtomatlashtirish */}
+          )}
+
+          {/* 5. Avtomatlashtirish (comment-to-DM watches Instagram comments) */}
+          {onInstagram && (
           <section className="space-y-3 panel rounded-3xl p-4">
             <Switch
               on={Boolean(draft.linkCampaign)}
@@ -796,16 +828,6 @@ export default function Composer({
               </>
             )}
           </section>
-
-          {/* 5b. Boshqa tarmoqlar */}
-          {draft.type !== "STORY" && (
-            <section className="space-y-3 panel rounded-3xl p-4">
-              <div>
-                <h3 className="text-sm font-semibold">Boshqa tarmoqlarga ham</h3>
-                <p className="text-xs text-muted">Shu video/rasm va matn bir vaqtda Facebook, Threads yoki YouTube&apos;ga ham chiqadi. O&apos;ngdagi preview har bir tarmoqda qanday ko&apos;rinishini ko&apos;rsatadi.</p>
-              </div>
-              <CrossTargets creds={crossCreds} value={cross} onChange={(next) => { dirty.current = true; setCross(next); }} type={draft.type} hasMedia={draft.media.length > 0} disabled={locked || !crossReady} />
-            </section>
           )}
 
           {/* 6. Vaqt va rejim */}
@@ -845,6 +867,7 @@ export default function Composer({
             )}
             {review && mode === "schedule" && <ReviewForm meta={meta as MetaWithReviewers} value={review} onChange={setReview} />}
 
+            {onInstagram && (
             <div className="space-y-1 pt-3">
               <Switch
                 on={draft.autoPublish}
@@ -876,6 +899,7 @@ export default function Composer({
                 </button>
               )}
             </div>
+            )}
           </section>
 
           {otherIssues.length > 0 && (

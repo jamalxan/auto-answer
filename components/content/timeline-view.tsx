@@ -10,6 +10,7 @@
  * counts only) and one for the undated drafts.
  */
 
+import { NETWORK_NAME, NetworkDot, type PickerNetwork } from "./cross-targets";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Notice } from "@/components/developer/comments/parts";
 import { inputClass, limeButton, secondaryButton } from "./ui";
@@ -461,6 +462,13 @@ function PostRowCard({ post, now, multiAccount, onOpen }: { post: PostCard; now:
           <TypeBadge type={post.type} />
           <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${TONE_CLASS[tone]}`}>{STATUS_LABEL[post.status]}</span>
           {multiAccount && post.accountUsername && <span className="text-xs text-muted">@{post.accountUsername}</span>}
+          {(post.networks?.length ?? 0) > 0 && (post.networks!.length > 1 || post.networks![0] !== "instagram") && (
+            <span className="inline-flex items-center gap-1" title={post.networks!.map((n) => NETWORK_NAME[n as PickerNetwork] ?? n).join(", ")}>
+              {post.networks!.map((n) => (
+                <NetworkDot key={n} network={n as PickerNetwork} />
+              ))}
+            </span>
+          )}
           {at && !done && <span className="ml-auto hidden text-xs text-muted sm:inline">{relativeTime(at, now)}</span>}
         </div>
         <p className={`line-clamp-2 text-[15px] leading-6 ${caption ? "text-cloud" : "text-muted/70"}`}>

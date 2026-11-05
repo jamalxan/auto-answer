@@ -316,6 +316,45 @@ async function publishViaAdapter(target: Target, postType: string, now: Date, re
 }
 
 /** One minute tick from sweepContent. */
+const TARGET_DONE = new Set(["PUBLISHED", "FAILED", "SKIPPED", "DELETED"]);
+
+/**
+ * A network-only post (no Instagram account) is SCHEDULED until every target
+ * is done: then it is PUBLISHED when at least one network took it, else
+ * FAILED with the first target's reason (the retry button re-sends the
+ * failed targets). One with no live target at all is FAILED too, so it never
+ * sits in the plan as "scheduled" forever. Returns the posts settled.
+ */
+export async function settleNetworkOnlyPosts(now = new Date()): Promise<number> {
+  const posts = await prisma.scheduledPost.findMany({
+    where: { instagramAccountId: null, deletedAt: null, status: "SCHEDULED", scheduledAt: { lte: now } },
+    select: { id: true, workspaceId: true, channelTargets: { select: { status: true, lastError: true, channel: true, publishedAt: true } } },
+    take: BATCH,
+  });
+  let settled = 0;
+  for (const post of posts) {
+    const live = post.channelTargets.filter((t) => t.status !== "DELETED");
+    if (live.some((t) => !TARGET_DONE.has(t.status))) continue;
+    const published = live.filter((t) => t.status === "PUBLISHED");
+    const data =
+      published.length > 0
+        ? {
+            status: "PUBLISHED" as const,
+            publishedAt: published.map((t) => t.publishedAt ?? now).sort((a, b) => a.getTime() - b.getTime())[0],
+            lastErrorCode: null,
+            lastErrorMessage: live.some((t) => t.status === "FAILED") ? "Ba'zi tarmoqlarga chiqmadi — post kartasida ko'ring" : null,
+          }
+        : {
+            status: "FAILED" as const,
+            lastErrorCode: "NETWORK_ALL_FAILED",
+            lastErrorMessage: (live.find((t) => t.lastError)?.lastError ?? (live.length === 0 ? "Tarmoq tanlanmagan" : "Hech bir tarmoqqa chiqmadi")).slice(0, 500),
+          };
+    const r = await prisma.scheduledPost.updateMany({ where: { id: post.id, status: "SCHEDULED" }, data: { ...data, version: { increment: 1 } } });
+    settled += r.count;
+  }
+  return settled;
+}
+
 export async function sweepCrossPosts(now = new Date()): Promise<CrossPostSweep> {
   const result: CrossPostSweep = { published: 0, failed: 0, retried: 0, skipped: 0 };
 
