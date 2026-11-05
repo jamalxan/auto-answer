@@ -26,9 +26,9 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
     <header className="sticky top-0 z-40 bg-midnight">
       {/* Wider than the page sections (max-w-7xl): on large screens the lockup and the
           actions sit near the edges instead of being squeezed into the middle. */}
-      <div className="mx-auto flex h-[4.5rem] w-full max-w-[1760px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12 2xl:px-16">
+      <div className="mx-auto flex h-[4.5rem] w-full max-w-[1760px] items-center justify-between gap-3 px-4 sm:gap-4 sm:px-8 lg:px-12 2xl:px-16">
         <Link href="/" className="flex shrink-0 items-center" aria-label="SocialAuto">
-          <Wordmark markClassName="h-8 w-8" textClassName="text-[1.2rem]" />
+          <Wordmark className="!gap-2 sm:!gap-2.5" markClassName="h-7 w-7 sm:h-8 sm:w-8" textClassName="text-[1.05rem] max-[374px]:sr-only sm:text-[1.2rem]" />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
@@ -45,7 +45,9 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Phones (375 px) must fit the lockup, the language switch and the CTA in every
+            language ("Начать бесплатно" is the longest): tighter sizes below sm. */}
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <LanguageSwitcher />
           <Link
             href="/login"
@@ -53,7 +55,10 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
           >
             {t.publicSite.signIn}
           </Link>
-          <Link href="/login" className="btn btn-primary !px-5 !py-2.5 !text-[15px]">
+          <Link
+            href="/login"
+            className="btn btn-primary whitespace-nowrap !px-3.5 !py-2 !text-[13px] sm:!px-5 sm:!py-2.5 sm:!text-[15px]"
+          >
             {t.publicSite.startFree}
           </Link>
         </div>

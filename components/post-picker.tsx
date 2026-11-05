@@ -95,7 +95,8 @@ export default function PostPicker({
           setPosts(data.data);
           writeCache(cacheKey, data.data);
         } else if (!cached.data) {
-          setError(data.error ?? t.postPicker.errorFailedToLoad);
+          // The API's error text is English; the picker speaks the user's language.
+          setError(t.postPicker.errorFailedToLoad);
         }
       })
       .catch(() => {
