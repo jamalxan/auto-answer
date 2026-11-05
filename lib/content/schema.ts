@@ -80,7 +80,8 @@ export const linkCampaignSchema = z
   .refine((v) => Boolean(v.automationId || v.triggerCampaignId || v.create), "kampaniya tanlanmagan");
 
 export const postInputSchema = z.object({
-  instagramAccountId: z.string().min(1, "akkaunt tanlanmagan"),
+  /** null: a network-only post (Facebook / Threads / YouTube / Telegram targets, no Instagram). */
+  instagramAccountId: z.string().min(1, "akkaunt tanlanmagan").nullable(),
   type: z.enum(POST_TYPES),
   caption: z.string().max(10_000).optional(),
   firstComment: z.string().max(10_000).optional(),
@@ -121,6 +122,8 @@ export const postsQuerySchema = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   account: z.string().optional(),
+  /** Only posts that go to this network (Instagram: the post's own account; others: a target). */
+  network: z.enum(["instagram", "facebook", "threads", "youtube", "telegram"]).optional(),
   status: z.enum(POST_STATUSES).optional(),
   type: z.enum(POST_TYPES).optional(),
   q: z.string().trim().max(100).optional(),
@@ -134,5 +137,5 @@ export const postsQuerySchema = z.object({
 export type PostsQuery = z.infer<typeof postsQuerySchema>;
 
 export const duplicateInputSchema = z.object({
-  instagramAccountId: z.string().min(1).optional(),
+  instagramAccountId: z.string().min(1).nullable().optional(),
 });

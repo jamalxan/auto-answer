@@ -55,11 +55,14 @@ async function detachAll(tx: Tx, postId: string): Promise<void> {
  * the same workspace (else 404) and the same Instagram account (else 400).
  */
 export async function attachCampaignToPost(workspaceId: string, postId: string, link: CampaignLink | null): Promise<void> {
-  const post = await loadPost(workspaceId, postId);
+  const found = await loadPost(workspaceId, postId);
   if (!link || (!link.automationId && !link.triggerCampaignId && !link.create)) {
     await detachAll(prisma, postId);
     return;
   }
+  // Comment-to-DM campaigns watch Instagram comments: a network-only post has none.
+  if (!found.instagramAccountId) throw new ContentError(400, "Kampaniya faqat Instagram postiga ulanadi");
+  const post = { ...found, instagramAccountId: found.instagramAccountId };
   if (link.create && !link.automationId && !link.triggerCampaignId) {
     await detachAll(prisma, postId);
     await createCampaignForPost(workspaceId, post, link.create);

@@ -118,6 +118,8 @@ export async function nextFreeSlot(accountId: string, after: Date, opts: { postT
 export async function queuePost(workspaceId: string, postId: string, opts: { now?: Date } = {}): Promise<PostDetail> {
   const now = opts.now ?? new Date();
   const post = await getPost(workspaceId, postId);
+  // Posting slots belong to an Instagram account.
+  if (!post.instagramAccountId) throw new ContentError(409, "Navbat slotlari Instagram akkauntga bog'liq — vaqtni o'zingiz tanlang");
   const timezone = await workspaceZone(workspaceId);
   const slot = await nextFreeSlot(post.instagramAccountId, new Date(now.getTime() + CONTENT_LIMITS.minScheduleLeadMs), { postType: post.type, timezone, excludePostId: post.id });
   if (!slot) throw new ContentError(409, "Bo'sh slot topilmadi — kalendardagi «Slotlar» da vaqt qo'shing");

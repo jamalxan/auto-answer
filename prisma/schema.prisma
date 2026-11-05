@@ -3182,7 +3182,8 @@ model MediaAsset {
 model ScheduledPost {
   id                 String      @id @default(cuid())
   workspaceId        String
-  instagramAccountId String
+  /// Null: a network-only post (Facebook / Threads / YouTube targets, no Instagram publish).
+  instagramAccountId String?
   createdById        String?
   type               PostType
   status             PostStatus  @default(DRAFT)
@@ -3232,7 +3233,7 @@ model ScheduledPost {
   deletedAt          DateTime?
 
   workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount     @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount?    @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
   media            ScheduledPostMedia[]
   reviews          PostReview[]
   notes            PostNote[]

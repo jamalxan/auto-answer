@@ -45,6 +45,7 @@ export interface SweepResult {
   brokenWarnings?: number;
   crossPosted?: number;
   crossFailed?: number;
+  networkSettled?: number;
 }
 
 const STUCK_PREPARING_MS = CONTAINER_MAX_WAIT_MS.video + 5 * 60_000;
@@ -59,9 +60,10 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
   const result: SweepResult = { requeued: 0, late: 0, manual: 0, stale: 0, recovered: 0, expiredContainers: 0, bound: 0, relinked: 0, abandonedUploads: 0 };
   const lateBefore = new Date(now.getTime() - latePublishMaxMs());
 
-  // 1 + 2: everything whose time has come.
+  // 1 + 2: everything whose time has come. A network-only post (no Instagram
+  // account) has no Instagram jobs: step 11 publishes it and settles it.
   const due = await prisma.scheduledPost.findMany({
-    where: { deletedAt: null, status: { in: ["SCHEDULED", "READY_TO_PUBLISH"] }, scheduledAt: { lte: now } },
+    where: { deletedAt: null, instagramAccountId: { not: null }, status: { in: ["SCHEDULED", "READY_TO_PUBLISH"] }, scheduledAt: { lte: now } },
     orderBy: { scheduledAt: "asc" },
     take: BATCH,
     select: { id: true, attempts: true, scheduledAt: true, autoPublish: true, manualReason: true, status: true },
@@ -171,10 +173,11 @@ export async function sweepContent(now: Date = new Date()): Promise<SweepResult>
 
   // 11: cross-posts to Telegram / Facebook / Threads / YouTube (independent of the Instagram outcome).
   try {
-    const { sweepCrossPosts } = await import("@/lib/channels/crosspost");
+    const { sweepCrossPosts, settleNetworkOnlyPosts } = await import("@/lib/channels/crosspost");
     const cross = await sweepCrossPosts(now);
     result.crossPosted = cross.published;
     result.crossFailed = cross.failed;
+    result.networkSettled = await settleNetworkOnlyPosts(now);
   } catch (error) {
     console.error("[Content] cross-post sweep failed:", error instanceof Error ? error.message : error);
   }

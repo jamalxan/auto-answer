@@ -100,7 +100,8 @@ export default function PostDetail({
           ‹ Kalendar
         </button>
         <h2 className="font-display text-lg font-bold">
-          {TYPE_LABEL[post.type]} · @{post.accountUsername}
+          {TYPE_LABEL[post.type]}
+          {post.accountUsername ? ` · @${post.accountUsername}` : " · Instagram'siz"}
         </h2>
         <span className={`rounded-full border px-2 py-0.5 text-xs ${TONE_CLASS[tone]}`}>{STATUS_LABEL[s]}</span>
         {post.scheduledAt && <span className="text-sm text-muted">{formatZoned(new Date(post.scheduledAt), post.timezone)}</span>}

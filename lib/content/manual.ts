@@ -36,10 +36,17 @@ const POST_INCLUDE = {
   media: { include: { media: true }, orderBy: { position: "asc" as const } },
 };
 
-async function loadPost(postId: string) {
+async function loadAnyPost(postId: string) {
   return prisma.scheduledPost.findUnique({ where: { id: postId }, include: POST_INCLUDE });
 }
-type PostRow = NonNullable<Awaited<ReturnType<typeof loadPost>>>;
+type AnyPostRow = NonNullable<Awaited<ReturnType<typeof loadAnyPost>>>;
+type PostRow = AnyPostRow & { instagramAccountId: string; instagramAccount: NonNullable<AnyPostRow["instagramAccount"]> };
+
+/** Manual publishing is an Instagram flow: a network-only post is never handed to it. */
+async function loadPost(postId: string): Promise<PostRow | null> {
+  const post = await loadAnyPost(postId);
+  return post && post.instagramAccountId && post.instagramAccount ? (post as PostRow) : null;
+}
 
 const TYPE_LABEL: Record<string, string> = { FEED_IMAGE: "Post", FEED_VIDEO: "Video", CAROUSEL: "Karusel", REEL: "Reels", TRIAL_REEL: "Trial Reels", STORY: "Story" };
 
@@ -118,7 +125,8 @@ export async function sendManualNotice(postId: string, deps: ManualDeps = {}): P
 async function deliverNotice(postId: string): Promise<ManualNoticeResult> {
   if (await alreadyNotified(postId)) return { delivered: "none" };
 
-  const row = (await loadPost(postId))!;
+  const row = await loadPost(postId);
+  if (!row) return { delivered: "none" };
   const chats = await getWorkspaceChats(row.workspaceId);
   const files = await Promise.all(
     row.media.map(async (m) => ({

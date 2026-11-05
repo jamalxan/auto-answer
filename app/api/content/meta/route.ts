@@ -16,7 +16,7 @@ export async function GET() {
   const auth = await requireContent("view");
   if (!auth.ok) return auth.response;
   const { workspaceId, role } = auth.ctx;
-  const [accounts, automations, triggerCampaigns, workspace, savedTexts, chats] = await Promise.all([
+  const [accounts, automations, triggerCampaigns, workspace, savedTexts, chats, credentials, telegramChannels] = await Promise.all([
     prisma.instagramAccount.findMany({
       where: { workspaceId },
       orderBy: { connectedAt: "desc" },
@@ -37,7 +37,18 @@ export async function GET() {
     prisma.workspace.findUnique({ where: { id: workspaceId }, select: { timezone: true, mediaStorageBytes: true } }),
     prisma.savedText.findMany({ where: { workspaceId }, orderBy: { updatedAt: "desc" }, take: 100 }),
     isTelegramConfigured() ? getWorkspaceChats(workspaceId).catch(() => []) : Promise.resolve([]),
+    prisma.channelCredential.findMany({
+      where: { workspaceId, channel: { in: ["facebook", "threads", "youtube"] }, status: { in: ["ACTIVE", "EXPIRING"] } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, channel: true, label: true },
+    }),
+    prisma.telegramChannel.findMany({ where: { workspaceId, status: "ACTIVE" }, orderBy: { createdAt: "asc" }, select: { id: true, title: true, username: true } }),
   ]);
+  // Every network a post can go to, besides Instagram (its accounts are `accounts`).
+  const networkAccounts = [
+    ...credentials.map((c) => ({ network: c.channel as "facebook" | "threads" | "youtube", id: c.id, label: c.label ?? c.channel })),
+    ...telegramChannels.map((c) => ({ network: "telegram" as const, id: c.id, label: c.title ?? (c.username ? `@${c.username}` : "Telegram kanal") })),
+  ];
   // Approval (Faza 2): the members a post can be sent to for review.
   const reviewers = await reviewerCandidates(workspaceId).catch(() => []);
   return jsonOk({
@@ -52,6 +63,7 @@ export async function GET() {
       canApprove: canContent(role, "content.approve"),
     },
     accounts,
+    networkAccounts,
     campaigns: [
       ...automations.map((a) => ({ kind: "automation" as const, id: a.id, name: a.name, instagramAccountId: a.instagramAccountId, active: a.isActive, keywords: a.keywords, linkedPostId: a.scheduledPostId, bound: Boolean(a.postId) })),
       ...triggerCampaigns.map((t) => ({ kind: "trigger" as const, id: t.id, name: t.name, instagramAccountId: t.instagramAccountId, active: t.active, keywords: t.keywords, linkedPostId: t.scheduledPostId, bound: t.mediaIds.length > 0 })),

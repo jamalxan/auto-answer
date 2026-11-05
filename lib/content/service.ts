@@ -72,7 +72,7 @@ export interface PublishAttemptView {
 export interface PostDetail {
   id: string;
   workspaceId: string;
-  instagramAccountId: string;
+  instagramAccountId: string | null;
   accountUsername: string | null;
   type: PostTypeValue;
   status: PostStatusValue;
@@ -121,7 +121,9 @@ export interface SeriesInfo {
 
 export interface PostCard {
   id: string;
-  instagramAccountId: string;
+  instagramAccountId: string | null;
+  /** Every network the post goes to: "instagram" when it has an account, plus its live targets. */
+  networks: string[];
   accountUsername: string | null;
   type: PostTypeValue;
   status: PostStatusValue;
@@ -341,7 +343,7 @@ function hardIssues(input: PostInput, facts: Map<string, MediaFacts>): Validatio
 }
 
 export async function createPost(workspaceId: string, userId: string | null, input: PostInput): Promise<PostDetail> {
-  await ownedAccount(workspaceId, input.instagramAccountId);
+  if (input.instagramAccountId) await ownedAccount(workspaceId, input.instagramAccountId);
   const facts = await ownedMedia(workspaceId, [...input.media.map((m) => m.mediaId), ...(input.coverMediaId ? [input.coverMediaId] : [])]);
   const hard = hardIssues(input, facts);
   if (hard.length) throw new ContentError(400, hard[0].message);
@@ -469,6 +471,7 @@ export async function schedulePost(workspaceId: string, postId: string, at: Date
   if (row.status !== "SCHEDULED" && !canTransition(row.status, "SCHEDULED")) {
     throw new ContentError(409, "Bu holatdagi postni rejalashtirib bo'lmaydi");
   }
+  if (row.type === "STORY" && !row.instagramAccountId) throw new ContentError(400, "Story faqat Instagram'ga chiqadi — Instagram akkauntni tanlang");
   if (row.type === "STORY" && row.media.length > 1) return scheduleStorySeries(workspaceId, row, at, opts);
   if (!opts.skipLeadCheck) {
     const when = scheduleIssues(at, now);
@@ -485,6 +488,8 @@ export async function schedulePost(workspaceId: string, postId: string, at: Date
     if (error instanceof PlanLimitError) throw new ContentError(402, error.message, "PLAN_LIMIT");
     throw error;
   }
+
+  if (!row.instagramAccountId) return scheduleNetworkOnly(workspaceId, row, at);
 
   const slot = await spacedSlot(row.instagramAccountId, row.id, at);
   const manual = !row.autoPublish || Boolean(row.manualReason);
@@ -512,6 +517,30 @@ export async function schedulePost(workspaceId: string, postId: string, at: Date
   return getPost(workspaceId, postId);
 }
 
+/**
+ * A post without an Instagram account has no Instagram jobs: it is SCHEDULED
+ * at its time and the cross-post sweep publishes every target then
+ * (sweepCrossPosts), after which settleNetworkOnlyPosts gives the post its
+ * final status. With no live target it would never go anywhere, so that is
+ * refused here instead of failing silently later.
+ */
+async function scheduleNetworkOnly(workspaceId: string, row: PostRow, at: Date): Promise<PostDetail> {
+  if (row.type === "STORY") throw new ContentError(400, "Story faqat Instagram'ga chiqadi — Instagram akkauntni tanlang");
+  const targets = await prisma.channelPostTarget.count({ where: { postId: row.id, status: { notIn: ["DELETED", "SKIPPED"] } } });
+  if (targets === 0) throw new ContentError(400, "Kamida bitta tarmoq va akkaunt tanlang");
+  if (row.attempts > 0) await removePostJobs(row.id, row.attempts);
+  await cas(row.id, [row.status], {
+    status: "SCHEDULED",
+    scheduledAt: at,
+    attempts: row.attempts + 1,
+    lastErrorCode: null,
+    lastErrorMessage: null,
+  });
+  // A retry re-sends the targets that failed last time.
+  await prisma.channelPostTarget.updateMany({ where: { postId: row.id, status: "FAILED" }, data: { status: "PENDING", attempts: 0, nextAttemptAt: null, lastError: null } });
+  return getPost(workspaceId, row.id);
+}
+
 /** The delayed jobs of one scheduling attempt: the manual notice, or prepare (30 / 60 min lead) + publish. */
 async function armJobs(row: PostRow, attempt: number, slot: Date, now: Date): Promise<void> {
   if (!row.autoPublish || row.manualReason) {
@@ -531,7 +560,7 @@ async function armJobs(row: PostRow, attempt: number, slot: Date, now: Date): Pr
  * old jobs become stale.
  */
 async function rearmIfNeeded(before: PostRow, after: PostRow, now: Date = new Date()): Promise<void> {
-  if (after.status !== "SCHEDULED" || !after.scheduledAt) return;
+  if (after.status !== "SCHEDULED" || !after.scheduledAt || !after.instagramAccountId) return;
   const wasVideo = isVideoType(before.type, before.media.map((m) => factsOf(m.media)));
   const isVideo = isVideoType(after.type, after.media.map((m) => factsOf(m.media)));
   const wasManual = !before.autoPublish || Boolean(before.manualReason);
@@ -599,10 +628,10 @@ export async function deletePost(workspaceId: string, postId: string): Promise<v
   await pauseLinkedCampaigns(row.id);
 }
 
-export async function duplicatePost(workspaceId: string, postId: string, opts: { instagramAccountId?: string }): Promise<PostDetail> {
+export async function duplicatePost(workspaceId: string, postId: string, opts: { instagramAccountId?: string | null }): Promise<PostDetail> {
   const row = await loadRow(workspaceId, postId);
-  const accountId = opts.instagramAccountId ?? row.instagramAccountId;
-  if (accountId !== row.instagramAccountId) await ownedAccount(workspaceId, accountId);
+  const accountId = opts.instagramAccountId === undefined ? row.instagramAccountId : opts.instagramAccountId;
+  if (accountId && accountId !== row.instagramAccountId) await ownedAccount(workspaceId, accountId);
   const input = inputOfRow(row);
   const created = await prisma.scheduledPost.create({
     data: {
@@ -635,6 +664,11 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
     workspaceId,
     deletedAt: null,
     ...(q.account ? { instagramAccountId: q.account } : {}),
+    ...(q.network === "instagram"
+      ? { instagramAccountId: { not: null } }
+      : q.network
+        ? { channelTargets: { some: { channel: q.network, status: { not: "DELETED" } } } }
+        : {}),
     ...(q.status ? { status: q.status } : {}),
     ...(q.type ? { type: q.type } : {}),
     ...(q.q ? { caption: { contains: q.q, mode: "insensitive" } } : {}),
@@ -654,6 +688,7 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
         media: { include: { media: { select: { thumbKey: true } } }, orderBy: { position: "asc" }, take: 1 },
         automations: { select: { id: true }, take: 1 },
         triggerCampaigns: { select: { id: true }, take: 1 },
+        channelTargets: { where: { status: { not: "DELETED" } }, select: { channel: true } },
         _count: { select: { media: true } },
       },
     }),
@@ -665,6 +700,7 @@ export async function listPosts(workspaceId: string, q: PostsQuery): Promise<{ i
       return {
         id: row.id,
         instagramAccountId: row.instagramAccountId,
+        networks: [...new Set([...(row.instagramAccountId ? ["instagram"] : []), ...row.channelTargets.map((t) => t.channel)])],
         accountUsername: row.instagramAccount?.username ?? null,
         type: row.type,
         status: row.status,
@@ -705,7 +741,7 @@ async function scheduleStorySeries(workspaceId: string, row: PostRow, at: Date, 
   const issues = issuesOfRow(row, now);
   if (issues.length) throw new ContentError(400, issues.map((i) => i.message).join("; "));
   const n = row.media.length;
-  if (row.autoPublish && !row.manualReason) {
+  if (row.autoPublish && !row.manualReason && row.instagramAccountId) {
     const quota = await accountQuota(row.instagramAccountId, now);
     if (quotaWindowFull(quota, n)) {
       throw new ContentError(409, `24 soatlik limit ${n} ta story'ga yetmaydi (${quota.used + quota.scheduledNext24h}/${quota.total}) — boshqa vaqt tanlang`, "PUBLISH_QUOTA");
