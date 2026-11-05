@@ -25,6 +25,14 @@ const INBOUND = "#d4ff3a";
 // Amber, not red: YouTube's own colour is red and the two would merge.
 const FAILED = "#ffb01f";
 
+/** Networks whose post metrics come from the platform in a second, slower step. */
+const LIVE_METRICS: DetailNetwork[] = ["facebook", "threads", "youtube"];
+
+/** Stands in for a figure until the platform answers. */
+function Pending({ wide = false }: { wide?: boolean }) {
+  return <span className={`inline-block animate-pulse rounded-full bg-surface-hover align-middle ${wide ? "h-7 w-16" : "h-3.5 w-9"}`} aria-label="Yuklanmoqda" role="status" />;
+}
+
 const ABOUT: Record<DetailNetwork, string> = {
   facebook: "Sahifa postlari: reaksiyalar, izohlar va ulashishlar. Facebook post ko'rishlarini alohida ruxsatsiz bermaydi.",
   threads: "Threads postlari: ko'rishlar, layklar, javoblar (izoh) va repost + iqtibos (ulashish).",
@@ -46,20 +54,35 @@ export default function NetworkDetailView({
   onAccount: (id: string | null) => void;
 }) {
   const query = `/api/analytics/networks/${network}?days=${days}${accountId ? `&account=${encodeURIComponent(accountId)}` : ""}`;
-  const [result, setResult] = useState<{ query: string; data: NetworkDetail | null; error: string | null } | null>(null);
+  const [result, setResult] = useState<{ query: string; data: NetworkDetail | null; error: string | null; metricsPending: boolean } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    requestJson<NetworkDetail>(query).then((res) => {
-      if (!cancelled) setResult({ query, data: res.ok ? res.data : null, error: res.ok ? null : res.error });
-    });
+    (async () => {
+      // Two steps: the database answer paints at once (posts, chart, counts);
+      // the platform metrics (one call per recent post) land on top of it.
+      const fast = await requestJson<NetworkDetail>(`${query}&live=0`);
+      if (cancelled) return;
+      if (!fast.ok) {
+        setResult({ query, data: null, error: fast.error, metricsPending: false });
+        return;
+      }
+      const wantsLive = LIVE_METRICS.includes(network) && fast.data.posts.some((p) => p.status === "PUBLISHED");
+      setResult({ query, data: fast.data, error: null, metricsPending: wantsLive });
+      if (!wantsLive) return;
+      const live = await requestJson<NetworkDetail>(query);
+      if (cancelled) return;
+      // A failed second step keeps the first answer: the table stays, the metrics show "—".
+      setResult((cur) => (cur?.query === query ? { ...cur, data: live.ok ? live.data : cur.data, metricsPending: false } : cur));
+    })();
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, network]);
 
   const loading = !result || result.query !== query;
   const data = result?.data ?? null;
+  const metricsPending = !loading && (result?.metricsPending ?? false);
   // Keep the header steady while a new range loads.
   const accounts = data?.allAccounts ?? [];
 
@@ -114,17 +137,18 @@ export default function NetworkDetailView({
           </div>
         </div>
       ) : (
-        <Loaded data={data} />
+        <Loaded data={data} metricsPending={metricsPending} />
       )}
     </div>
   );
 }
 
-function Loaded({ data }: { data: NetworkDetail }) {
+function Loaded({ data, metricsPending }: { data: NetworkDetail; metricsPending: boolean }) {
   const t = data.totals;
   const m = t.metrics;
   const telegram = data.network === "telegram";
-  const cards: Array<[string, string]> = telegram
+  const metric = (v: number | null | undefined) => (metricsPending ? <Pending wide /> : fmt(v));
+  const cards: Array<[string, React.ReactNode]> = telegram
     ? [
         ["Chiqqan postlar", fmt(t.published)],
         ["Chiqmay qolgan", fmt(t.failed)],
@@ -133,10 +157,10 @@ function Loaded({ data }: { data: NetworkDetail }) {
       ]
     : [
         ["Chiqqan postlar", fmt(t.published)],
-        ["Ko'rishlar", fmt(m?.views)],
-        [data.network === "facebook" ? "Reaksiyalar" : "Layklar", fmt(m?.likes)],
-        ["Izohlar", fmt(m?.comments)],
-        ...(data.network === "youtube" ? [] : [["Ulashishlar", fmt(m?.shares)] as [string, string]]),
+        ["Ko'rishlar", metric(m?.views)],
+        [data.network === "facebook" ? "Reaksiyalar" : "Layklar", metric(m?.likes)],
+        ["Izohlar", metric(m?.comments)],
+        ...(data.network === "youtube" ? [] : [["Ulashishlar", metric(m?.shares)] as [string, React.ReactNode]]),
         ["Kelgan / javob", `${fmt(t.inbound)} / ${fmt(t.replies)}`],
       ];
   const notes = data.accounts.filter((a) => a.note && !telegram && /ulang|ruxsat|limit|olib bo'lmadi/.test(a.note));
@@ -166,7 +190,7 @@ function Loaded({ data }: { data: NetworkDetail }) {
 
       <ActivityChart daily={data.daily} network={data.network} />
 
-      <PostsTable data={data} />
+      <PostsTable data={data} metricsPending={metricsPending} />
 
       {data.accounts.length > 1 && (
         <div className="panel rounded-3xl p-5 sm:p-6">
@@ -251,7 +275,7 @@ function ActivityChart({ daily, network }: { daily: DailyPoint[]; network: Detai
   );
 }
 
-function PostsTable({ data }: { data: NetworkDetail }) {
+function PostsTable({ data, metricsPending }: { data: NetworkDetail; metricsPending: boolean }) {
   const telegram = data.network === "telegram";
   const many = data.allAccounts.length > 1 && !data.accountId;
   // YouTube has no share count.
@@ -260,7 +284,9 @@ function PostsTable({ data }: { data: NetworkDetail }) {
     <div className="panel rounded-3xl p-5 sm:p-6">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-base font-bold text-white">Postlar</h3>
-        {data.postsTotal > data.posts.length && <span className="text-xs text-muted">oxirgi {data.posts.length} tasi, jami {data.postsTotal}</span>}
+        <span className="text-xs text-muted" aria-live="polite">
+          {metricsPending ? "Ko'rsatkichlar platformadan yuklanmoqda…" : data.postsTotal > data.posts.length ? `oxirgi ${data.posts.length} tasi, jami ${data.postsTotal}` : null}
+        </span>
       </div>
       {data.posts.length === 0 ? (
         <div className="inset px-4 py-8">
@@ -291,7 +317,7 @@ function PostsTable({ data }: { data: NetworkDetail }) {
             </thead>
             <tbody className="[&>tr:nth-child(even)]:bg-midnight/40">
               {data.posts.map((p) => (
-                <PostRow key={p.id} p={p} telegram={telegram} shares={shares} showAccount={many} />
+                <PostRow key={p.id} p={p} telegram={telegram} shares={shares} showAccount={many} pending={metricsPending && p.status === "PUBLISHED"} />
               ))}
             </tbody>
           </table>
@@ -304,10 +330,11 @@ function PostsTable({ data }: { data: NetworkDetail }) {
   );
 }
 
-function PostRow({ p, telegram, shares, showAccount }: { p: DetailPost; telegram: boolean; shares: boolean; showAccount: boolean }) {
+function PostRow({ p, telegram, shares, showAccount, pending }: { p: DetailPost; telegram: boolean; shares: boolean; showAccount: boolean; pending: boolean }) {
   const when = p.publishedAt ?? p.failedAt;
   const title = p.caption ?? "Matnsiz post";
   const reactions = engagement(p.metrics);
+  const cell = (v: number | null | undefined) => (pending ? <Pending /> : fmt(v));
   return (
     <tr className="align-top">
       <td className="max-w-[360px] py-3 pr-4">
@@ -336,12 +363,12 @@ function PostRow({ p, telegram, shares, showAccount }: { p: DetailPost; telegram
       </td>
       {!telegram && (
         <>
-          <td className="px-3 py-3 text-right tabular-nums text-muted">{fmt(p.metrics?.views)}</td>
-          <td className="px-3 py-3 text-right tabular-nums text-muted">{fmt(p.metrics?.likes)}</td>
-          <td className="px-3 py-3 text-right tabular-nums text-muted">{fmt(p.metrics?.comments)}</td>
+          <td className="px-3 py-3 text-right tabular-nums text-muted">{cell(p.metrics?.views)}</td>
+          <td className="px-3 py-3 text-right tabular-nums text-muted">{cell(p.metrics?.likes)}</td>
+          <td className="px-3 py-3 text-right tabular-nums text-muted">{cell(p.metrics?.comments)}</td>
           {shares && (
             <td className="px-3 py-3 text-right tabular-nums text-muted" title={reactions !== null ? `Jami reaksiya: ${reactions}` : undefined}>
-              {fmt(p.metrics?.shares)}
+              {cell(p.metrics?.shares)}
             </td>
           )}
         </>

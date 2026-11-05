@@ -4,9 +4,12 @@
  * Metric tile: sentence-case label, display number, optional trend pill.
  */
 
+import type { ReactNode } from "react";
+
 interface StatCardProps {
   label: string;
-  value: string | number;
+  /** A number or text; a placeholder element while the figure is still loading. */
+  value: ReactNode;
   trend?: string;
   trendUp?: boolean;
 }
