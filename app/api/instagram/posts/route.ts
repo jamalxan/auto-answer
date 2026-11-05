@@ -50,8 +50,9 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error("[Instagram Posts] Error:", err);
     return NextResponse.json(
+      // Instagram (upstream) failed, not this server.
       { success: false, error: "Failed to fetch Instagram posts" },
-      { status: 500 }
+      { status: 502 }
     );
   }
 }
