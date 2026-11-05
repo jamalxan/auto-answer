@@ -68,6 +68,8 @@ export async function GET() {
       updatedAt: d.updatedAt,
       integration: d.integration.name,
       type: d.integration.type,
+      // Not retrying: the integration is disconnected, the delivery waits for a reconnect.
+      held: d.status !== "DEAD" && d.integration.status !== "ACTIVE",
       leadName: d.lead.name,
     })),
     integrations: integrations.map((i) => ({
