@@ -18,7 +18,9 @@ export async function GET(request: NextRequest, { params }: Props) {
   const days = Number(request.nextUrl.searchParams.get("days") ?? 30);
   if (!RANGES.has(days)) return jsonError("days: 7, 30 yoki 90", 400);
   const account = request.nextUrl.searchParams.get("account");
-  const detail = await getNetworkDetail(auth.ctx.workspaceId, network as DetailNetwork, { days, accountId: account || null });
+  // live=0: the database only, so the table paints at once; the client then asks again for the platform metrics.
+  const live = request.nextUrl.searchParams.get("live") !== "0";
+  const detail = await getNetworkDetail(auth.ctx.workspaceId, network as DetailNetwork, { days, accountId: account || null, live });
   if (!detail) return jsonError("Akkaunt topilmadi", 404);
   return jsonOk(detail);
 }
