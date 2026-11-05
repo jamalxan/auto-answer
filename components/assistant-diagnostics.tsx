@@ -16,6 +16,7 @@ interface Overview {
     updatedAt: string;
     integration: string;
     leadName: string | null;
+    held?: boolean;
   }>;
   integrations: Array<{
     id: string;
@@ -75,7 +76,7 @@ export default function AssistantDiagnostics() {
                     {d.integration} · {d.leadName ?? "—"}
                   </span>
                   <span className="flex items-center gap-2">
-                    <Badge tone={d.status === "DEAD" ? "error" : "warning"}>{t.assistant.leads.delivery[d.status === "DEAD" ? "DEAD" : "FAILED"]}</Badge>
+                    <Badge tone={d.status === "DEAD" ? "error" : "warning"}>{t.assistant.leads.delivery[d.status === "DEAD" ? "DEAD" : d.held ? "HELD" : "FAILED"]}</Badge>
                     <span className="text-xs text-muted">{when(d.updatedAt)}</span>
                   </span>
                 </div>

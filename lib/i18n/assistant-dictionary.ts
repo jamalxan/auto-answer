@@ -556,7 +556,7 @@ export const assistantUz: AssistantDictionary = {
       repeatNote: (n) => `Bu mijoz 30 kun ichida ${n} marta murojaat qilgan.`,
       nextAttempt: (d) => `keyingi urinish: ${d}`,
     },
-    delivery: { PENDING: "Kutilmoqda", SENT: "Yuborildi", FAILED: "Qayta uriniladi", DEAD: "Yetkazilmadi", TELEGRAM: "Telegram", AMOCRM: "amoCRM", BITRIX24: "Bitrix24" },
+    delivery: { PENDING: "Kutilmoqda", SENT: "Yuborildi", FAILED: "Qayta uriniladi", DEAD: "Yetkazilmadi", HELD: "Integratsiya ulanishini kutmoqda", TELEGRAM: "Telegram", AMOCRM: "amoCRM", BITRIX24: "Bitrix24" },
   },
   integrations: {
     title: "Integratsiyalar",
@@ -921,7 +921,7 @@ export const assistantRu: AssistantDictionary = {
       repeatNote: (n) => `Клиент обращался ${n} раз за 30 дней.`,
       nextAttempt: (d) => `следующая попытка: ${d}`,
     },
-    delivery: { PENDING: "Ожидает", SENT: "Отправлено", FAILED: "Повтор", DEAD: "Не доставлено", TELEGRAM: "Telegram", AMOCRM: "amoCRM", BITRIX24: "Bitrix24" },
+    delivery: { PENDING: "Ожидает", SENT: "Отправлено", FAILED: "Повтор", DEAD: "Не доставлено", HELD: "Ждёт переподключения интеграции", TELEGRAM: "Telegram", AMOCRM: "amoCRM", BITRIX24: "Bitrix24" },
   },
   integrations: {
     title: "Интеграции",
@@ -1286,7 +1286,7 @@ export const assistantEn: AssistantDictionary = {
       repeatNote: (n) => `This customer contacted you ${n} times within 30 days.`,
       nextAttempt: (d) => `next attempt: ${d}`,
     },
-    delivery: { PENDING: "Pending", SENT: "Sent", FAILED: "Will retry", DEAD: "Not delivered", TELEGRAM: "Telegram", AMOCRM: "amoCRM", BITRIX24: "Bitrix24" },
+    delivery: { PENDING: "Pending", SENT: "Sent", FAILED: "Will retry", DEAD: "Not delivered", HELD: "Waiting for the integration to reconnect", TELEGRAM: "Telegram", AMOCRM: "amoCRM", BITRIX24: "Bitrix24" },
   },
   integrations: {
     title: "Integrations",

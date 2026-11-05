@@ -121,6 +121,25 @@ describe("reconcileComments", () => {
     );
   });
 
+  it("cools down and finally gives up a public reply Instagram keeps refusing", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([{ ...automation, publicReplyMessages: ["Sent!"] }]);
+    await reconcileComments();
+    const where = mockPrisma.dmLog.findMany.mock.calls[0][0].where;
+    expect(where.OR[0]).toEqual({ publicReplySentAt: { not: null } });
+    const cooldown = where.OR.find((o: Record<string, unknown>) => o.status === "SENT" && "updatedAt" in o);
+    const giveUp = where.OR.find((o: Record<string, unknown>) => o.status === "SENT" && "createdAt" in o);
+    expect(cooldown).toMatchObject({ publicReplyError: { not: null } });
+    expect(Date.now() - cooldown.updatedAt.gt.getTime()).toBeCloseTo(30 * 60 * 1000, -4);
+    expect(giveUp).toMatchObject({ publicReplyError: { not: null } });
+    expect(Date.now() - giveUp.createdAt.lt.getTime()).toBeCloseTo(24 * 3600 * 1000, -4);
+  });
+
+  it("adds no public-reply guards when the campaign posts no public reply", async () => {
+    await reconcileComments();
+    const where = mockPrisma.dmLog.findMany.mock.calls[0][0].where;
+    expect(where.OR.some((o: Record<string, unknown>) => "publicReplyError" in o)).toBe(false);
+  });
+
   it("does not re-enqueue a comment the DmLog guard reports as handled", async () => {
     mockPrisma.dmLog.findMany.mockResolvedValue([{ commentId: "c1" }]);
     await reconcileComments();

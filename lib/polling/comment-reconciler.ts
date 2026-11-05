@@ -50,6 +50,12 @@ const RECENT_MEDIA_LIMIT = 10;
 const FAILED_RETRY_COOLDOWN_MS =
   Number(process.env.COMMENT_POLL_FAILED_COOLDOWN_MINUTES ?? 30) * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = Number(process.env.COMMENT_POLL_MAX_FAILED_ATTEMPTS ?? 9);
+// A public reply that failed (the DM itself went out) gets the same cool-down,
+// and is given up a day after the comment was first handled. Without this the
+// sweep re-queued it every five minutes for as long as Instagram kept refusing
+// — 368 "temporarily blocked" refusals included, which hammering prolongs.
+const PUBLIC_REPLY_GIVE_UP_MS =
+  Number(process.env.COMMENT_POLL_PUBLIC_REPLY_GIVE_UP_HOURS ?? 24) * 60 * 60 * 1000;
 
 interface SweepStat {
   campaign: string;
@@ -230,6 +236,7 @@ async function sweepCampaign(
       automation.publicReplyEnabled &&
       (automation.publicReplyMessages.length > 0 ||
         Boolean(automation.publicReplyMessage));
+    const now = Date.now();
     const handled = await prisma.dmLog.findMany({
       where: {
         automationId: automation.id,
@@ -240,9 +247,23 @@ async function sweepCampaign(
             : { status: "SENT" },
           {
             status: "FAILED",
-            updatedAt: { gt: new Date(Date.now() - FAILED_RETRY_COOLDOWN_MS) },
+            updatedAt: { gt: new Date(now - FAILED_RETRY_COOLDOWN_MS) },
           },
           { status: "FAILED", attempts: { gte: MAX_FAILED_ATTEMPTS } },
+          ...(needsPublicReply
+            ? [
+                {
+                  status: "SENT" as const,
+                  publicReplyError: { not: null },
+                  updatedAt: { gt: new Date(now - FAILED_RETRY_COOLDOWN_MS) },
+                },
+                {
+                  status: "SENT" as const,
+                  publicReplyError: { not: null },
+                  createdAt: { lt: new Date(now - PUBLIC_REPLY_GIVE_UP_MS) },
+                },
+              ]
+            : []),
         ],
       },
       select: { commentId: true },
