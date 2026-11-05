@@ -344,7 +344,7 @@ export const uz = {
     openingMessageEmptyPlaceholder: "Kirish xabaringiz…",
     minutesLaterCaption: (min) => `${min} daqiqa keyin`,
     attachFileToggle: "xabarga fayl biriktirish",
-    attachFileHelp: "Kalit so'z yozilganda xabardan keyin shu fayl ham yuboriladi (PDF, rasm, video, audio — 25 MB gacha).",
+    attachFileHelp: "Xabar bilan birga yuboriladi (PDF, rasm, video, audio — 25 MB gacha). Kommentga javobda Instagram faqat bitta xabarga ruxsat beradi, shuning uchun u yerda fayl yuklab olish tugmasi yoki havola bo'lib boradi; direktda esa faylning o'zi keladi.",
     attachFilePick: "Fayl tanlash",
     attachFileUploading: "Yuklanmoqda…",
     attachFileRemove: "Olib tashlash",

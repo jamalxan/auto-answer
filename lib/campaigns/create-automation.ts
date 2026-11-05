@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
-import { isWorkspaceDmFileKey } from "@/lib/campaigns/dm-file";
+import { cleanDmFileName, dmFileMimeForKey } from "@/lib/campaigns/dm-file";
 import { generateReportShareSlug } from "@/lib/reports/share";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 
@@ -144,9 +144,11 @@ export async function createAutomationRecord(
     .map((m) => m.trim())
     .filter(Boolean);
 
-  const hasFile = Boolean(
-    parsed.data.dmFileKey && isWorkspaceDmFileKey(workspaceId, parsed.data.dmFileKey)
-  );
+  // The file's type comes from its key (set at upload), not from the payload.
+  const fileMime = parsed.data.dmFileKey
+    ? dmFileMimeForKey(workspaceId, parsed.data.dmFileKey)
+    : null;
+  const hasFile = fileMime !== null;
   const automation = await prisma.automation.create({
     data: {
       name: parsed.data.name,
@@ -162,8 +164,8 @@ export async function createAutomationRecord(
       handoffToAssistant: parsed.data.handoffToAssistant,
       dmMessage: parsed.data.dmMessage,
       dmFileKey: hasFile ? parsed.data.dmFileKey : null,
-      dmFileName: hasFile ? parsed.data.dmFileName || null : null,
-      dmFileMime: hasFile ? parsed.data.dmFileMime || null : null,
+      dmFileName: hasFile ? cleanDmFileName(parsed.data.dmFileName) : null,
+      dmFileMime: fileMime,
       dmFileSize: hasFile ? parsed.data.dmFileSize || null : null,
       openingDmEnabled,
       openingDmMessage: openingDmEnabled

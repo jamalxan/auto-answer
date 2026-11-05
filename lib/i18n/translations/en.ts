@@ -347,7 +347,7 @@ export const en = {
     openingMessageEmptyPlaceholder: "Your opening message…",
     minutesLaterCaption: (min) => `${min} min later`,
     attachFileToggle: "attach a file to the message",
-    attachFileHelp: "When the keyword is written, this file is sent after the message (PDF, image, video, audio — up to 25 MB).",
+    attachFileHelp: "Sent with the message (PDF, image, video, audio — up to 25 MB). In a reply to a comment Instagram allows only one message, so there the file comes as a download button or link; in DMs it arrives as a file.",
     attachFilePick: "Choose file",
     attachFileUploading: "Uploading…",
     attachFileRemove: "Remove",

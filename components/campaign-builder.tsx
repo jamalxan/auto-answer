@@ -18,6 +18,7 @@ import AccountSelect, { type AccountOption } from "@/components/account-select";
 import PostPicker from "@/components/post-picker";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 import { readCache, writeCache } from "@/lib/client-cache";
+import { discardDmFile } from "@/lib/campaigns/dm-file-client";
 import {
   IMPORT_QUEUE_KEY,
   IMPORT_ACCOUNT_KEY,
@@ -1000,7 +1001,11 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               {dmFile ? (
                 <button
                   type="button"
-                  onClick={() => setDmFile(null)}
+                  onClick={() => {
+                    // Kept on the server while the saved campaign still uses it.
+                    discardDmFile(dmFile.key);
+                    setDmFile(null);
+                  }}
                   className="btn btn-sm btn-ghost"
                 >
                   {t.builder.attachFileRemove}

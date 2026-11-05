@@ -50,7 +50,8 @@ async function container(user: string, token: string, tenantId: string | null, f
 }
 
 /** Image containers are fetched and processed by Meta first; publish only once FINISHED. */
-export const REPLY_IMAGE_WAIT = { tries: 10, delayMs: 2_000 };
+/** At most ~12 s per reply; past that the reply goes out as text (lib/channels/auto-reply). */
+export const REPLY_IMAGE_WAIT = { tries: 8, delayMs: 1_500 };
 
 async function waitForContainer(id: string, token: string, tenantId: string | null): Promise<void> {
   for (let i = 0; i < REPLY_IMAGE_WAIT.tries; i++) {

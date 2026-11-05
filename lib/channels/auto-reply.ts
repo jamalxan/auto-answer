@@ -20,7 +20,7 @@
  */
 
 import { z } from "zod";
-import { deleteDmFile, dmFileAttachmentType, isAllowedDmFileMime, isWorkspaceDmFileKey, signedDmFileUrl } from "@/lib/campaigns/dm-file";
+import { appendLine, cleanDmFileName, deleteDmFile, dmFileAttachmentType, dmFileLinkLine, dmFileMimeForKey, isAllowedDmFileMime, signedDmFileUrl } from "@/lib/campaigns/dm-file";
 import { getLlmProviderFor } from "@/lib/assistant/llm/provider";
 import { prisma } from "@/lib/db/client";
 import { enforceBudgetBeforeCall } from "@/lib/javobai/budget";
@@ -47,10 +47,16 @@ export const AI_REPLIES_PER_HOUR = 60;
 export const PUBLIC_REPLY_MAX = 480;
 export const PRIVATE_REPLY_MAX = 1000;
 const SWEEP_BATCH = 40;
+/**
+ * Wall-clock budget of one sweep. It runs inside the minute content sweep and
+ * a Threads image reply waits for Meta's processing, so the rest of the queue
+ * is left for the next minute instead of delaying scheduled posts.
+ */
+export const SWEEP_TIME_BUDGET_MS = 40_000;
+/** Messenger's text limit: a private reply plus the file link must fit in it. */
+const MESSENGER_TEXT_MAX = 2000;
 /** Threads replies take JPEG / PNG images only. */
 export const THREADS_FILE_MIMES = ["image/jpeg", "image/png"];
-/** The link sent instead of the file (Facebook private reply, failed attachment) lives this long. */
-const FILE_LINK_TTL_SEC = 7 * 24 * 3600;
 
 // ─── Rule input ────────────────────────────────────────────────────────────────
 
@@ -179,11 +185,14 @@ async function checkCredential(workspaceId: string, channel: string, credentialI
   return credentialId;
 }
 
-/** Column values for the rule's file; a key outside the workspace is refused. */
+/** Column values for the rule's file. The key must be a DM file in this workspace, and its type is read from the key. */
 function fileColumns(workspaceId: string, file: AutoReplyInput["file"]) {
   if (!file) return { fileKey: null, fileName: null, fileMime: null, fileSize: null };
-  if (!isWorkspaceDmFileKey(workspaceId, file.key)) throw new ChannelError("invalid", "Fayl topilmadi");
-  return { fileKey: file.key, fileName: file.name, fileMime: file.mime, fileSize: file.size };
+  const mime = dmFileMimeForKey(workspaceId, file.key);
+  if (!mime) throw new ChannelError("invalid", "Fayl topilmadi");
+  // ruleProblem checked the declared type against the channel; it must be the real one.
+  if (mime !== file.mime) throw new ChannelError("invalid", "Fayl turi mos emas");
+  return { fileKey: file.key, fileName: cleanDmFileName(file.name), fileMime: mime, fileSize: file.size };
 }
 
 function parseRule(input: unknown): AutoReplyInput {
@@ -381,16 +390,28 @@ async function answerMessage(message: Inbound, rules: Rule[], now: Date, aiLeft:
     if (!adapter) throw new ChannelError("not_supported", `${channel} adapteri yo'q`);
     const name = message.authorName;
 
-    const file = rule.fileKey ? { key: rule.fileKey, name: rule.fileName || "Fayl", mime: rule.fileMime } : null;
-    const fileLink = async (key: string, fileName: string) => `📎 ${fileName}: ${await signedDmFileUrl(key, FILE_LINK_TTL_SEC)}`;
+    const file = rule.fileKey ? { key: rule.fileKey, name: cleanDmFileName(rule.fileName), mime: rule.fileMime } : null;
 
     if (publicText) {
       const text = fillPlaceholders(publicText, name);
-      // Threads: the image rides on the public reply.
-      const imageUrl = file && channel === "threads" ? await signedDmFileUrl(file.key) : undefined;
-      const sent = await adapter.replyComment(creds, message.externalId, text, imageUrl ? { imageUrl } : undefined);
+      // Threads: the image rides on the public reply. If Threads will not take
+      // the image, the text reply still goes out — one bad file must not
+      // silence every reply of the rule.
+      let sent: { externalId: string } | null = null;
+      if (file && channel === "threads") {
+        try {
+          sent = await adapter.replyComment(creds, message.externalId, text, { imageUrl: await signedDmFileUrl(file.key) });
+        } catch (error) {
+          if (error instanceof ChannelError && (error.kind === "rate_limit" || error.kind === "auth")) throw error;
+          failure = `file: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500);
+          console.warn("[channels] Threads reply image failed, replying with text only:", failure);
+        }
+      }
+      const withImage = sent !== null;
+      sent ??= await adapter.replyComment(creds, message.externalId, text);
       await recordOut(message, message.kind, message.threadRef, sent.externalId, text);
       done.push("public");
+      if (withImage) done.push("file");
     }
     if (privateText) {
       let text = fillPlaceholders(privateText, name);
@@ -407,7 +428,7 @@ async function answerMessage(message: Inbound, rules: Rule[], now: Date, aiLeft:
             await recordOut(message, "dm", message.threadRef, att.externalId, `📎 ${dmFile.name}`);
           } catch (error) {
             console.warn("[channels] auto-reply file attachment failed, sending link:", error instanceof Error ? error.message.slice(0, 200) : error);
-            const linkText = await fileLink(dmFile.key, dmFile.name);
+            const linkText = await dmFileLinkLine(dmFile.key, dmFile.name);
             const att = await adapter.sendDm(creds, message.threadRef, linkText);
             await recordOut(message, "dm", message.threadRef, att.externalId, linkText);
           }
@@ -415,14 +436,13 @@ async function answerMessage(message: Inbound, rules: Rule[], now: Date, aiLeft:
         }
       } else {
         // A private reply is a single message: the file goes in as a link.
-        if (dmFile) text = `${text}\n\n${await fileLink(dmFile.key, dmFile.name)}`;
+        if (dmFile) text = appendLine(text, await dmFileLinkLine(dmFile.key, dmFile.name), MESSENGER_TEXT_MAX);
         const sent = await sendPrivateReply({ workspaceId: message.workspaceId, credentialId: message.accountRef, commentId: message.externalId, commentAt: message.createdAt, text, now });
         await recordOut(message, "dm", message.authorRef ?? message.threadRef, sent.externalId, text);
         done.push("private");
         if (dmFile) done.push("file");
       }
     }
-    if (publicText && file && channel === "threads") done.push("file");
   } catch (error) {
     const kind = error instanceof ChannelError ? error.kind : "transient";
     failure = `${kind}: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500);
@@ -443,8 +463,9 @@ async function answerMessage(message: Inbound, rules: Rule[], now: Date, aiLeft:
 }
 
 /** From the content sweep each minute. */
-export async function sweepAutoReplies(now = new Date()): Promise<AutoReplySummary> {
+export async function sweepAutoReplies(now = new Date(), budgetMs = SWEEP_TIME_BUDGET_MS): Promise<AutoReplySummary> {
   const summary: AutoReplySummary = { looked: 0, sent: 0, skipped: 0, failed: 0 };
+  const deadline = Date.now() + budgetMs;
   const rules = await prisma.channelAutoReply.findMany({ where: { enabled: true }, take: 1000 });
   if (rules.length === 0) return summary;
 
@@ -472,6 +493,7 @@ export async function sweepAutoReplies(now = new Date()): Promise<AutoReplySumma
     for (const message of candidates) {
       if (handled.has(message.id)) continue;
       if (budget-- <= 0) break;
+      if (Date.now() > deadline) return summary; // the rest waits for the next sweep
       summary.looked++;
       if (answeredByPerson.has(message.externalId)) {
         await prisma.channelAutoReplyLog.create({ data: { workspaceId, channel: message.channel, credentialId: message.accountRef, messageId: message.id, status: "SKIPPED", error: "human_replied" } }).catch(() => null);

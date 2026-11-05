@@ -6,7 +6,7 @@ import { calculateCtr, normalizeTopKeywords } from "@/lib/tracking/analytics";
 import { buildTrackedUrl } from "@/lib/tracking/message";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { buildReportUrl, generateReportShareSlug } from "@/lib/reports/share";
-import { deleteDmFile, isWorkspaceDmFileKey } from "@/lib/campaigns/dm-file";
+import { cleanDmFileName, deleteDmFile, dmFileMimeForKey } from "@/lib/campaigns/dm-file";
 import { createAutomationRecord, createAutomationSchema } from "@/lib/campaigns/create-automation";
 import {
   canManageWorkspace,
@@ -382,24 +382,33 @@ export async function PATCH(request: NextRequest) {
     automationData.publicReplyMessage = null;
   }
 
-  // File attachment: a new key must live in this workspace; clearing it drops
-  // the file's metadata too. The replaced/removed object is deleted afterwards.
+  // File attachment: a new key must be a DM file in this workspace; its type
+  // comes from the key (never from the browser). Clearing it drops the file's
+  // metadata too. The replaced/removed object is deleted afterwards, unless
+  // another record (a duplicated campaign, a rule) still uses it.
   if (automationData.dmFileKey !== undefined) {
-    if (
-      automationData.dmFileKey &&
-      !isWorkspaceDmFileKey(workspaceId, automationData.dmFileKey)
-    ) {
-      return NextResponse.json(
-        { success: false, error: "Invalid file" },
-        { status: 400 }
-      );
-    }
-    if (!automationData.dmFileKey) {
+    if (automationData.dmFileKey) {
+      const mime = dmFileMimeForKey(workspaceId, automationData.dmFileKey);
+      if (!mime) {
+        return NextResponse.json(
+          { success: false, error: "Invalid file" },
+          { status: 400 }
+        );
+      }
+      automationData.dmFileMime = mime;
+      automationData.dmFileName = cleanDmFileName(automationData.dmFileName);
+      automationData.dmFileSize = automationData.dmFileSize ?? null;
+    } else {
       automationData.dmFileKey = null;
       automationData.dmFileName = null;
       automationData.dmFileMime = null;
       automationData.dmFileSize = null;
     }
+  } else {
+    // File metadata only changes together with the file.
+    delete automationData.dmFileName;
+    delete automationData.dmFileMime;
+    delete automationData.dmFileSize;
   }
 
   const updated = await prisma.automation.update({
@@ -518,6 +527,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   await prisma.automation.delete({ where: { id: automationId } });
+  await deleteDmFile(existing.dmFileKey);
 
   return NextResponse.json({ success: true, data: { deleted: true } });
 }

@@ -16,6 +16,8 @@ const {
   mockQueueAdd,
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
+  mockSendDirectMessageAttachment,
+  mockPresignGet,
 } = vi.hoisted(() => ({
   mockPrisma: {
     automation: {
@@ -50,6 +52,13 @@ const {
   mockQueueAdd: vi.fn(),
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
+  mockSendDirectMessageAttachment: vi.fn(),
+  mockPresignGet: vi.fn(),
+}));
+
+vi.mock("@/lib/content/storage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/content/storage")>()),
+  getStorage: () => ({ presignGet: mockPresignGet, deleteObject: vi.fn() }),
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -64,6 +73,7 @@ vi.mock("@/lib/meta/client", () => ({
   sendDirectMessageWithButton: mockSendDirectMessageWithButton,
   sendDirectMessage: mockSendDirectMessage,
   sendDirectMessageWithLinkButton: mockSendDirectMessageWithLinkButton,
+  sendDirectMessageAttachment: mockSendDirectMessageAttachment,
   sendCommentReply: vi.fn(),
   MetaApiError: class MetaApiError extends Error {
     code: number;
@@ -277,6 +287,13 @@ beforeEach(() => {
     message_id: "msg_006",
   });
   mockGetUserFollowStatus.mockResolvedValue(true);
+  mockSendDirectMessageAttachment.mockResolvedValue({
+    recipient_id: "commenter_999",
+    message_id: "msg_007",
+  });
+  mockPresignGet.mockImplementation(
+    async (key: string, ttl: number) => `https://cdn.test/${key}?ttl=${ttl}`
+  );
 });
 
 describe("DM Worker — comments left on an ad", () => {
@@ -1258,5 +1275,178 @@ describe("DM Worker — DM keyword trigger", () => {
         create: expect.objectContaining({ status: "FAILED" }),
       })
     );
+  });
+});
+
+describe("DM Worker — campaign file", () => {
+  const FILE_KEY = "ws/workspace123/2026/11/abc.pdf";
+  const LINK = `📎 narxlar.pdf: https://cdn.test/${FILE_KEY}?ttl=604800`;
+  const withFile = {
+    ...mockAutomation,
+    dmFileKey: FILE_KEY,
+    dmFileName: "narxlar.pdf",
+    dmFileMime: "application/pdf",
+  };
+  const link = (n: number) => ({
+    slug: `s${n}`,
+    label: `Link ${n}`,
+    destinationUrl: `https://example.com/${n}`,
+  });
+
+  it("comment: the file rides inside the private reply, never as a second DM", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([withFile]);
+    await getProcessor()(createMockJob());
+
+    expect(mockSendPrivateReply).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "comment_555",
+      `Hey commenter_user! Here is the link: https://example.com\n\n${LINK}`
+    );
+    // Instagram allows one message after a private reply until the person answers.
+    expect(mockSendDirectMessageAttachment).not.toHaveBeenCalled();
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "SENT", errorMessage: null }) })
+    );
+  });
+
+  it("comment with link buttons: the file is one more button while there is room", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...withFile, dmMessage: "Offer: {link}", linkButtonLabel: "Get offer", trackedLinks: [link(1)] },
+    ]);
+    await getProcessor()(createMockJob());
+
+    expect(mockSendPrivateReplyWithLinkButton).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "comment_555",
+      "Offer:",
+      [
+        { title: "Get offer", url: "http://localhost:3000/r/s1" },
+        { title: "📎 narxlar.pdf", url: `https://cdn.test/${FILE_KEY}?ttl=604800` },
+      ]
+    );
+    expect(mockSendDirectMessageAttachment).not.toHaveBeenCalled();
+  });
+
+  it("comment with three link buttons: the file becomes a line of the text", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...withFile, dmMessage: "Offer: {link}", trackedLinks: [link(1), link(2), link(3)] },
+    ]);
+    await getProcessor()(createMockJob());
+
+    const [, , , text, buttons] = mockSendPrivateReplyWithLinkButton.mock.calls[0];
+    expect(text).toBe(`Offer:\n\n${LINK}`);
+    expect(buttons).toHaveLength(3);
+  });
+
+  it("comment: when the button template is rejected, the text fallback keeps the file link", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...withFile, dmMessage: "Offer: {link}", trackedLinks: [link(1)] },
+    ]);
+    mockSendPrivateReplyWithLinkButton.mockRejectedValueOnce(new Error("template not supported"));
+    await getProcessor()(createMockJob());
+
+    const fallback = mockSendPrivateReply.mock.calls[0][3] as string;
+    expect(fallback).toContain("http://localhost:3000/r/s1");
+    expect(fallback.endsWith(LINK)).toBe(true);
+  });
+
+  it("comment: a long reveal is shortened so the link stays whole within 1000 characters", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([{ ...withFile, dmMessage: "x".repeat(1000) }]);
+    await getProcessor()(createMockJob());
+
+    const text = mockSendPrivateReply.mock.calls[0][3] as string;
+    expect(text.length).toBeLessThanOrEqual(1000);
+    expect(text.endsWith(LINK)).toBe(true);
+  });
+
+  it("comment: if the link cannot be signed, the reveal still goes out and the log says so", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([withFile]);
+    mockPresignGet.mockRejectedValueOnce(new Error("storage down"));
+    await getProcessor()(createMockJob());
+
+    expect(mockSendPrivateReply).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "comment_555",
+      "Hey commenter_user! Here is the link: https://example.com"
+    );
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "SENT", errorMessage: expect.stringMatching(/storage down/) }),
+      })
+    );
+  });
+
+  it("comment with an opening DM: no file yet — it comes with the reveal after the tap", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...withFile, openingDmEnabled: true, openingDmMessage: "Hi!", openingDmButtonLabel: "Send it" },
+    ]);
+    await getProcessor()(createMockJob());
+
+    expect(mockSendPrivateReplyWithButton).toHaveBeenCalledTimes(1);
+    expect(mockSendPrivateReplyWithButton.mock.calls[0][3]).not.toContain("📎");
+    expect(mockPresignGet).not.toHaveBeenCalled();
+  });
+
+  it("button tap: the reveal text, then the file as an attachment", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue(withFile);
+    await getProcessor()(createMockPostbackJob());
+
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendDirectMessageAttachment).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "commenter_999",
+      "file",
+      `https://cdn.test/${FILE_KEY}?ttl=3600`
+    );
+    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ status: "SENT", errorMessage: null }) })
+    );
+  });
+
+  it("button tap: a refused attachment is sent as a link instead", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue(withFile);
+    mockSendDirectMessageAttachment.mockRejectedValueOnce(new Error("attachment could not be fetched"));
+    await getProcessor()(createMockPostbackJob());
+
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(2);
+    expect(mockSendDirectMessage.mock.calls[1][3]).toBe(LINK);
+  });
+
+  it("button tap: when the file cannot go out at all, the reveal still counts as SENT", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue(withFile);
+    mockSendDirectMessageAttachment.mockRejectedValueOnce(new Error("refused"));
+    mockSendDirectMessage
+      .mockResolvedValueOnce({ recipient_id: "commenter_999", message_id: "m1" })
+      .mockRejectedValueOnce(new Error("link refused too"));
+
+    await expect(getProcessor()(createMockPostbackJob())).resolves.toBeUndefined();
+    expect(mockPrisma.dmLog.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ status: "SENT", errorMessage: expect.stringMatching(/File not delivered/) }),
+      })
+    );
+  });
+
+  it("DM keyword: the file follows the reveal as an attachment", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...withFile, dmTriggerEnabled: true, requireFollow: false },
+    ]);
+    await getProcessor()({
+      name: "process-message",
+      data: { instagramAccountId: "ig_456", messageId: "mid_f1", messageText: "LINK", senderId: "commenter_999" },
+      id: "message_job_f1",
+      attemptsMade: 0,
+    });
+
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendDirectMessageAttachment).toHaveBeenCalledTimes(1);
   });
 });

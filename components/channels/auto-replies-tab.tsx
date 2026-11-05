@@ -12,6 +12,7 @@ import { Card, EmptyState, Label } from "@/components/ui/page";
 import { CHANNEL_NAME, FlashNotice, formatDateTime, type ChannelKey } from "@/components/channels/ui";
 import type { Flash } from "@/lib/flash";
 import { jsonInit, requestJson } from "@/lib/request-json";
+import { discardDmFile } from "@/lib/campaigns/dm-file-client";
 
 interface Rule {
   id: string;
@@ -309,14 +310,23 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
   const accounts = credentials.filter((c) => c.channel === draft.channel && c.status !== "REVOKED");
   const changeChannel = (channel: ChannelKey) => {
     const next = caps[channel];
-    setDraft((d) => (d ? { ...d, channel, credentialId: "", file: d.file && FILE_ACCEPT[channel]?.split(",").includes(d.file.mime) ? d.file : null, appliesTo: next?.supports_dm ? d.appliesTo : "comment", doPrivate: next?.private_reply_window_days != null || next?.supports_dm ? d.doPrivate : false } : d));
+    const keepFile = Boolean(draft.file && FILE_ACCEPT[channel]?.split(",").includes(draft.file.mime));
+    if (!keepFile) discardDmFile(draft.file?.key);
+    setDraft((d) => (d ? { ...d, channel, credentialId: "", file: keepFile ? d.file : null, appliesTo: next?.supports_dm ? d.appliesTo : "comment", doPrivate: next?.private_reply_window_days != null || next?.supports_dm ? d.doPrivate : false } : d));
   };
 
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-[15px] font-medium text-white">{draft.id ? "Qoidani tahrirlash" : "Yangi avto-javob qoidasi"}</h3>
-        <Button tone="ghost" disabled={busy} onClick={() => setDraft(null)}>
+        <Button
+          tone="ghost"
+          disabled={busy}
+          onClick={() => {
+            discardDmFile(draft.file?.key);
+            setDraft(null);
+          }}
+        >
           Bekor qilish
         </Button>
       </div>
@@ -399,7 +409,15 @@ export function AutoRepliesTab({ credentials, caps, canManage, accountName }: { 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm text-white">Fayl biriktirish (ixtiyoriy)</span>
             {draft.file ? (
-              <Button tone="ghost" disabled={busy} onClick={() => set("file", null)}>
+              <Button
+                tone="ghost"
+                disabled={busy}
+                onClick={() => {
+                  // Kept on the server while the saved rule still uses it.
+                  discardDmFile(draft.file?.key);
+                  set("file", null);
+                }}
+              >
                 Faylni olib tashlash
               </Button>
             ) : (
