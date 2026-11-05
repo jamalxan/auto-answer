@@ -13,7 +13,7 @@ vi.mock("@/lib/channels/access", () => ({ usableCredentials: mocks.usableCredent
 vi.mock("@/lib/channels/facebook", () => ({ facebookPostCounts: mocks.facebookPostCounts }));
 vi.mock("@/lib/channels/registry", () => ({ adapterFor: () => ({ fetchInsights: mocks.fetchInsights }) }));
 
-import { getNetworkStats } from "@/lib/analytics/network-stats";
+import { getNetworkDetail, getNetworkStats, permalinkOf } from "@/lib/analytics/network-stats";
 import { ChannelError } from "@/lib/channels/types";
 
 const WS = "ws1";
@@ -80,5 +80,56 @@ describe("getNetworkStats", () => {
     db.seed("channelPostTarget", { id: "t1", workspaceId: WS, postId: "p", channel: "facebook", accountRef: "fb1", status: "PUBLISHED", externalIds: ["x_1"], publishedAt: ago(1), updatedAt: ago(1) });
     await getNetworkStats(WS, { days: 7, now: NOW, live: false });
     expect(mocks.usableCredentials).not.toHaveBeenCalled();
+  });
+});
+
+describe("getNetworkDetail", () => {
+  const seedYoutube = () => {
+    db.seed("channelCredential", { id: "yt1", workspaceId: WS, channel: "youtube", label: "Kanal A", externalAccountId: "a", status: "ACTIVE", createdAt: ago(20) });
+    db.seed("channelCredential", { id: "yt2", workspaceId: WS, channel: "youtube", label: "Kanal B", externalAccountId: "b", status: "ACTIVE", createdAt: ago(20) });
+    db.seed("scheduledPost", { id: "p1", workspaceId: WS, caption: "  Yangi video  ", status: "PUBLISHED", deletedAt: null });
+    db.seed("scheduledPost", { id: "p2", workspaceId: WS, caption: null, status: "PUBLISHED", deletedAt: null });
+    db.seed("channelPostTarget", { id: "t1", workspaceId: WS, postId: "p1", channel: "youtube", accountRef: "yt1", status: "PUBLISHED", externalIds: ["vidA"], publishedAt: ago(2), updatedAt: ago(2) });
+    db.seed("channelPostTarget", { id: "t2", workspaceId: WS, postId: "p2", channel: "youtube", accountRef: "yt2", status: "FAILED", externalIds: [], lastError: "quota", publishedAt: null, updatedAt: ago(1) });
+    db.seed("channelPostTarget", { id: "t3", workspaceId: WS, postId: "p2", channel: "youtube", accountRef: "yt1", status: "PUBLISHED", externalIds: ["old"], publishedAt: ago(60), updatedAt: ago(60) });
+    db.seed("channelMessage", { id: "m1", workspaceId: WS, channel: "youtube", accountRef: "yt1", direction: "IN", createdAt: ago(2) });
+  };
+
+  it("lists the network's posts newest first with metrics, links and a zero-filled daily series", async () => {
+    seedYoutube();
+    const d = await getNetworkDetail(WS, "youtube", { days: 7, now: NOW });
+    expect(d).not.toBeNull();
+    expect(d!.allAccounts.map((a) => a.id)).toEqual(["yt1", "yt2"]);
+    expect(d!.posts.map((p) => p.id)).toEqual(["t2", "t1"]);
+    expect(d!.posts[1]).toMatchObject({ caption: "Yangi video", permalink: "https://www.youtube.com/watch?v=vidA", metrics: { views: 100, likes: 10 } });
+    expect(d!.posts[0]).toMatchObject({ status: "FAILED", error: "quota", permalink: null, caption: null });
+    expect(d!.daily).toHaveLength(8);
+    expect(d!.daily.reduce((n, p) => n + p.published, 0)).toBe(1);
+    expect(d!.daily.reduce((n, p) => n + p.failed, 0)).toBe(1);
+    expect(d!.daily.reduce((n, p) => n + p.inbound, 0)).toBe(1);
+    expect(d!.totals).toMatchObject({ accounts: 2, published: 1, failed: 1, inbound: 1 });
+  });
+
+  it("narrows to one account of the workspace and refuses anyone else's", async () => {
+    seedYoutube();
+    db.seed("channelCredential", { id: "other", workspaceId: "ws2", channel: "youtube", label: "X", externalAccountId: "x", status: "ACTIVE", createdAt: ago(5) });
+    const one = await getNetworkDetail(WS, "youtube", { days: 7, now: NOW, accountId: "yt2", live: false });
+    expect(one!.accountId).toBe("yt2");
+    expect(one!.posts.map((p) => p.id)).toEqual(["t2"]);
+    expect(one!.allAccounts).toHaveLength(2);
+    expect(await getNetworkDetail(WS, "youtube", { days: 7, now: NOW, accountId: "other" })).toBeNull();
+  });
+
+  it("an unconnected network is empty, not an error", async () => {
+    const d = await getNetworkDetail(WS, "threads", { days: 30, now: NOW });
+    expect(d).toMatchObject({ allAccounts: [], posts: [], postsTotal: 0 });
+  });
+
+  it("builds safe post links per network", () => {
+    expect(permalinkOf("facebook", "1_2")).toBe("https://www.facebook.com/1_2");
+    expect(permalinkOf("telegram", "15,16", { chatId: "-100123", username: "shop_uz" })).toBe("https://t.me/shop_uz/15");
+    expect(permalinkOf("telegram", "15", { chatId: "-100123", username: null })).toBe("https://t.me/c/123/15");
+    expect(permalinkOf("telegram", "x", { chatId: "-100123", username: "a" })).toBeNull();
+    expect(permalinkOf("threads", "999")).toBeNull();
   });
 });

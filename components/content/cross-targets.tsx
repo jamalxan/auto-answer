@@ -12,6 +12,7 @@
 import { channelBlocker, formatFor, type CrossChannel } from "@/lib/content/platform-preview";
 import type { PostTypeValue } from "@/lib/content/schema";
 import type { ContentMeta } from "./shared";
+import { BrandIcon } from "@/components/brand-icons";
 
 export type TargetNetwork = CrossChannel | "telegram";
 export type PickerNetwork = "instagram" | TargetNetwork;
@@ -24,7 +25,6 @@ export const TARGET_NETWORKS: TargetNetwork[] = ["facebook", "threads", "youtube
 export const PICKER_NETWORKS: PickerNetwork[] = ["instagram", ...TARGET_NETWORKS];
 
 export const NETWORK_NAME: Record<PickerNetwork, string> = { instagram: "Instagram", facebook: "Facebook", threads: "Threads", youtube: "YouTube", telegram: "Telegram" };
-const NETWORK_DOT: Record<PickerNetwork, string> = { instagram: "bg-[#e1306c]", facebook: "bg-[#1877f2]", threads: "bg-white", youtube: "bg-[#ff0000]", telegram: "bg-[#29a9eb]" };
 const FORMAT_NOTE: Record<string, string> = { reel: "Reels sifatida", short: "Shorts sifatida", video: "video sifatida", image: "rasm sifatida", carousel: "karusel sifatida", text: "matn sifatida" };
 
 export function countTargets(sel: CrossSelection): number {
@@ -37,7 +37,7 @@ export function blockerFor(network: TargetNetwork, type: PostTypeValue, hasMedia
 }
 
 export function NetworkDot({ network, className = "" }: { network: PickerNetwork; className?: string }) {
-  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${NETWORK_DOT[network]} ${className}`} aria-hidden="true" />;
+  return <BrandIcon brand={network} className={`h-4 w-4 shrink-0 ${className}`} />;
 }
 
 export default function NetworkPicker({

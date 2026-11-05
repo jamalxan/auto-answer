@@ -1,11 +1,12 @@
 /**
- * Small pieces shared by the Channels and Ads pages: the channel monogram,
+ * Small pieces shared by the Channels and Ads pages: the channel logo,
  * a date formatter and the flash notice, all on the brand tokens.
  */
 
 import type { ReactNode } from "react";
 import type { Flash } from "@/lib/flash";
 import { Notice } from "@/components/assistant-ui";
+import { BrandIcon } from "@/components/brand-icons";
 
 export type ChannelKey = "facebook" | "threads" | "youtube";
 
@@ -15,20 +16,13 @@ export const CHANNEL_NAME: Record<ChannelKey, string> = { facebook: "Facebook", 
 export type NetworkKey = "instagram" | ChannelKey | "telegram";
 export const NETWORK_NAME: Record<NetworkKey, string> = { instagram: "Instagram", ...CHANNEL_NAME, telegram: "Telegram" };
 
-const MARK: Record<NetworkKey, { glyph: string; cls: string }> = {
-  instagram: { glyph: "◎", cls: "bg-[linear-gradient(135deg,#f58529,#dd2a7b_50%,#8134af)] text-white" },
-  telegram: { glyph: "➤", cls: "bg-[#29a9eb] text-white" },
-  facebook: { glyph: "f", cls: "bg-[#1877f2] text-white" },
-  threads: { glyph: "@", cls: "bg-white text-midnight" },
-  youtube: { glyph: "▶", cls: "bg-[#ff0033] text-white" },
-};
-
-/** A rounded monogram stands in for each platform's logo. */
-export function ChannelMark({ channel, size = "md" }: { channel: NetworkKey; size?: "sm" | "md" }) {
-  const { glyph, cls } = MARK[channel];
+/** The platform's real logo on a quiet tile, so five networks side by side stay calm. */
+export function ChannelMark({ channel, size = "md" }: { channel: NetworkKey; size?: "sm" | "md" | "lg" }) {
+  const box = size === "sm" ? "h-8 w-8 rounded-xl" : size === "lg" ? "h-14 w-14 rounded-2xl" : "h-11 w-11 rounded-2xl";
+  const icon = size === "sm" ? "h-[18px] w-[18px]" : size === "lg" ? "h-8 w-8" : "h-6 w-6";
   return (
-    <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-2xl font-bold ${cls} ${size === "sm" ? "h-7 w-7 text-sm" : "h-11 w-11 text-xl"}`}>
-      {glyph}
+    <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center bg-white/[0.06] ring-1 ring-inset ring-white/10 ${box}`}>
+      <BrandIcon brand={channel} className={icon} />
     </span>
   );
 }
