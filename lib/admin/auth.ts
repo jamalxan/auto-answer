@@ -71,14 +71,25 @@ function toView(account: { id: string; username: string; email: string }): Admin
 // ─── Credential check / password changes ───────────────────────────────────
 
 export async function verifyAdminCredentials(
-  username: string,
+  login: string,
   password: string
 ): Promise<AdminAccountView | null> {
   await ensureDefaultAdminAccount();
 
-  const account = await prisma.adminAccount.findUnique({
-    where: { username: username.trim() },
-  });
+  // The login field takes the username or the account's email: people type
+  // their email by habit, and a username-only lookup rejected it as a wrong
+  // password. Email is not unique in the schema, so an address shared by two
+  // accounts matches neither rather than guessing.
+  const value = login.trim();
+  if (!value) return null;
+  let account = await prisma.adminAccount.findUnique({ where: { username: value } });
+  if (!account && value.includes("@")) {
+    const byEmail = await prisma.adminAccount.findMany({
+      where: { email: { equals: value, mode: "insensitive" } },
+      take: 2,
+    });
+    account = byEmail.length === 1 ? byEmail[0] : null;
+  }
   if (!account) return null;
   if (!verifyPasswordHash(password, account.passwordHash)) return null;
 

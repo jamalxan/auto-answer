@@ -54,7 +54,7 @@ export default async function AdminLoginPage({
 
         <form action={adminLoginAction} className="mt-6 space-y-4">
           <label className="block text-sm">
-            <span className="text-muted">Login</span>
+            <span className="text-muted">Login yoki email</span>
             <input
               name="username"
               autoComplete="username"
