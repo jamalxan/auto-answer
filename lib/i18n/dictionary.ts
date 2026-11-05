@@ -706,12 +706,8 @@ export interface Dictionary {
     dashboardEyebrow: string;
     dashboardTitle: string;
     dashboardBody: string;
-    featuresEyebrow: string;
-    featuresTitle: string;
-    featuresBody: string;
     ctaTitle: string;
     ctaBody: string;
-    features: string[];
     trustEyebrow: string;
     trustTitle: string;
     trustBody: string;

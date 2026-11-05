@@ -760,24 +760,9 @@ export const en = {
     dashboardTitle: "See exactly what happened",
     dashboardBody:
       "Every comment event is traceable: queued, matched, sent, skipped, failed, or rate-limited. No black box.",
-    featuresEyebrow: "What's included",
-    featuresTitle: "From comment to sale, on one platform",
-    featuresBody:
-      "Instagram, Facebook, Threads, YouTube and Telegram: AI replies, content planning and CRM. Plans scale with channels, AI replies and video analyses.",
     ctaTitle: "Turn your next reel's comments into DMs",
     ctaBody:
       "Connect your Instagram professional account and ship your first campaign in minutes.",
-    features: [
-      "Email magic-link sign-in",
-      "Multiple Instagram accounts",
-      "Encrypted tokens at rest",
-      "Webhook + polling reconciliation",
-      "Queue-backed delivery worker",
-      "Per-account rate limiting",
-      "Tracked links with click stats",
-      "DM logs with full status",
-      "Free Start plan",
-    ],
     trustEyebrow: "Why teams choose SocialAuto",
     trustTitle: "Built on the rails Instagram actually allows",
     trustBody:
@@ -797,13 +782,13 @@ export const en = {
       },
       {
         title: "Tokens encrypted at rest",
-        body: "Instagram access tokens are encrypted in the database, not stored in plain text.",
+        body: "Access tokens for every connected network are encrypted in the database, not stored in plain text.",
       },
     ],
     pricingEyebrow: "Pricing",
-    pricingTitle: "Pricing by channels and AI replies",
+    pricingTitle: "Start free, grow when you need to",
     pricingBody:
-      "Try it free on Start, move to Business, Pro or Agency as you grow. Paid in UZS via Click and Payme.",
+      "Try it on the free plan. When you need more accounts, teammates and features, move to a bigger plan.",
     pricingMostPopular: "Most popular",
     demo: {
       username: "maya.studio",
@@ -843,7 +828,7 @@ export const en = {
       {
         question: "Is there a free way to try it?",
         answer:
-          "The Starter plan connects one Instagram account at no cost, with the same full feature set as every other plan.",
+          "Yes. The free plan connects one account so you can launch your first campaign. Upgrade when you need higher limits.",
       },
     ],
   },

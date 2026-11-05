@@ -736,7 +736,7 @@ export const uz = {
     statOnePerComment: "1",
     statOnePerCommentLabel: "Mos izohga 1 ta DM",
     statZeroScraping: "0",
-    statZeroScrapingLabel: "Skrapping talab qilinmaydi",
+    statZeroScrapingLabel: "Skraping talab qilinmaydi",
     howItWorksEyebrow: "Qanday ishlaydi",
     howItWorksTitle: "Izoh kiradi, DM chiqadi",
     howItWorksBody:
@@ -757,24 +757,9 @@ export const uz = {
     dashboardTitle: "Aynan nima bo'lganini ko'ring",
     dashboardBody:
       "Har bir izoh hodisasi kuzatiladi: navbatda, mos keldi, yuborildi, o'tkazib yuborildi, xato yoki chegaralandi. Hech qanday qora quti yo'q.",
-    featuresEyebrow: "Nimalar kiradi",
-    featuresTitle: "Kommentdan sotuvgacha — bitta platformada",
-    featuresBody:
-      "Instagram, Facebook, Threads, YouTube va Telegram: AI javoblar, kontent rejasi va CRM. Tarif kanallar, AI javoblar va video tahlil soniga qarab tanlanadi.",
     ctaTitle: "Keyingi reelingiz izohlarini DM ga aylantiring",
     ctaBody:
       "Instagram professional akkauntingizni ulang va birinchi kampaniyangizni bir necha daqiqada ishga tushiring.",
-    features: [
-      "Email sehrli havola orqali kirish",
-      "Bir nechta Instagram akkauntlari",
-      "Tokenlar saqlashda shifrlangan",
-      "Webhook + so'rov moslashtirilishi",
-      "Navbatga asoslangan yetkazish worker'i",
-      "Har bir akkaunt uchun tezlik chegarasi",
-      "Bosish statistikasi bilan kuzatiladigan havolalar",
-      "To'liq holatga ega DM jurnallari",
-      "Start tarifi bepul",
-    ],
     trustEyebrow: "Nega SocialAuto'ni tanlashadi",
     trustTitle: "Instagram haqiqatan ruxsat bergan yo'l bilan qurilgan",
     trustBody:
@@ -782,11 +767,11 @@ export const uz = {
     trustPoints: [
       {
         title: "Faqat rasmiy API",
-        body: "Kommentariyalar va DM'lar Meta'ning o'z endpoint'lari orqali o'tadi — Instagram ruxsat bermagan avtomatlashtirish uchun bloklanish xavfi yo'q.",
+        body: "Izohlar va DM'lar Meta'ning o'z endpoint'lari orqali o'tadi — Instagram ruxsat bermagan avtomatlashtirish uchun bloklanish xavfi yo'q.",
       },
       {
         title: "Hech narsa qochib ketmaydi",
-        body: "Webhook kommentariyalarni darhol tutib oladi; polling esa Instagram yubormagan narsalarni yig'ib oladi.",
+        body: "Webhook izohlarni darhol tutib oladi; polling esa Instagram yubormagan narsalarni yig'ib oladi.",
       },
       {
         title: "To'liq audit izi",
@@ -794,13 +779,13 @@ export const uz = {
       },
       {
         title: "Tokenlar saqlashda shifrlangan",
-        body: "Instagram access tokenlari bazada shifrlangan holda saqlanadi, oddiy matn sifatida emas.",
+        body: "Ulangan tarmoqlarning access tokenlari bazada shifrlangan holda saqlanadi, oddiy matn sifatida emas.",
       },
     ],
     pricingEyebrow: "Narxlar",
-    pricingTitle: "Kanallar va AI javoblar soniga qarab narx",
+    pricingTitle: "Bepul boshlang, o'sganda kengaytiring",
     pricingBody:
-      "Bepul Start bilan sinab ko'ring, biznes o'sganda Biznes, Pro yoki Agentlikka o'ting. To'lov so'mda — Click va Payme orqali.",
+      "Bepul tarifda sinab ko'ring. Ko'proq akkaunt, jamoa va imkoniyat kerak bo'lganda kattaroq tarifga o'tasiz.",
     pricingMostPopular: "Eng ommabop",
     demo: {
       username: "dilnoza.shop",
@@ -825,12 +810,12 @@ export const uz = {
       {
         question: "Bu akkauntni avtomatlashtirish uchun bloklatib qo'ymaydimi?",
         answer:
-          "Har bir kommentariya javobi va DM aynan shu maqsad uchun Meta taqdim etgan rasmiy Instagram Graph API orqali yuboriladi — skraping yoki brauzer avtomatlashtirishi emas.",
+          "Har bir izoh javobi va DM aynan shu maqsad uchun Meta taqdim etgan rasmiy Instagram Graph API orqali yuboriladi — skraping yoki brauzer avtomatlashtirishi emas.",
       },
       {
-        question: "Webhook o'tkazib yuborgan kommentariyalar-chi?",
+        question: "Webhook o'tkazib yuborgan izohlar-chi?",
         answer:
-          "Webhook bilan bir qatorda polling ham ishlaydi va Instagram real vaqtda yubormagan narsalarni tutib oladi — mos kommentariya hech qachon sezilmay yo'qolmaydi.",
+          "Webhook bilan bir qatorda polling ham ishlaydi va Instagram real vaqtda yubormagan narsalarni tutib oladi — mos izoh hech qachon sezilmay yo'qolmaydi.",
       },
       {
         question: "Jamoamni taklif qila olamanmi yoki mijoz akkauntlarini boshqara olamanmi?",
@@ -840,7 +825,7 @@ export const uz = {
       {
         question: "Bepul sinab ko'rish imkoniyati bormi?",
         answer:
-          "Starter reja bitta Instagram akkauntini bepul ulaydi, boshqa har qanday reja bilan bir xil to'liq funksiyalar to'plami bilan.",
+          "Ha. Bepul tarifda bitta akkauntni ulab, birinchi kampaniyani ishga tushirasiz. Kattaroq limitlar kerak bo'lganda tarifni oshirasiz.",
       },
     ],
   },

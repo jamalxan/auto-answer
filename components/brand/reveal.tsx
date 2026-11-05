@@ -6,16 +6,21 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
  * Entrance on scroll. Server-rendered visible; only after mount, and only
  * for elements still below the fold, does it hide and wait for the
  * IntersectionObserver. No script, no reduced-motion → content simply shows.
+ *
+ * `variant="mask"` rises the content out of its own baseline (clip-path), for
+ * headlines; the default rises and fades.
  */
 export default function Reveal({
   children,
   className = "",
   delay = 0,
+  variant = "rise",
 }: {
   children: ReactNode;
   className?: string;
   /** Stagger, in ms. */
   delay?: number;
+  variant?: "rise" | "mask";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"idle" | "pending" | "in">("idle");
@@ -44,7 +49,7 @@ export default function Reveal({
     <div
       ref={ref}
       data-state={state}
-      className={`reveal ${className}`}
+      className={`${variant === "mask" ? "reveal-mask" : "reveal"} ${className}`}
       style={{ "--d": `${delay}ms` } as CSSProperties}
     >
       {children}

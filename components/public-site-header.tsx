@@ -7,11 +7,18 @@ import LanguageSwitcher from "@/components/language-switcher";
 
 interface PublicSiteHeaderProps {
   active?: "home" | "templates";
+  /**
+   * In-page sections (the landing passes its anchors). Shown from xl up in
+   * place of the default links; narrower screens keep the default links.
+   */
+  sections?: { label: string; href: string }[];
 }
 
 /** A plain bar: lockup, a few links, one action. Solid midnight, no glass. */
-export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
+export default function PublicSiteHeader({ active, sections }: PublicSiteHeaderProps) {
   const { t } = useLanguage();
+  // The section anchors need room: from xl up they replace the default links.
+  const hasSections = !!sections && sections.length > 0;
 
   const navLinks = [
     { label: t.publicSite.navTemplates, href: "/templates", key: "templates" },
@@ -31,7 +38,16 @@ export default function PublicSiteHeader({ active }: PublicSiteHeaderProps) {
           <Wordmark className="!gap-2 sm:!gap-2.5" markClassName="h-7 w-7 sm:h-8 sm:w-8" textClassName="text-[1.05rem] max-[374px]:sr-only sm:text-[1.2rem]" />
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex">
+        {hasSections && (
+          <nav aria-label="SocialAuto" className="hidden items-center gap-7 xl:flex">
+            {sections.map((link) => (
+              <a key={link.href} href={link.href} className="whitespace-nowrap text-[15px] font-medium text-cloud/80 hover:text-white">
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        )}
+        <nav className={`hidden items-center gap-8 md:flex ${hasSections ? "xl:hidden" : ""}`}>
           {navLinks.map((link) => (
             <Link
               key={link.key}

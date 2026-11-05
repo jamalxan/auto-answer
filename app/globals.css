@@ -462,6 +462,218 @@ body {
   }
 }
 
+/* ---------- Landing: depth, orbit, stack ---------- */
+
+/* Masked reveal for headlines: the line rises out of its own baseline. Same
+   contract as .reveal (visible by default, the client sets data-state). */
+.reveal-mask[data-state="pending"] {
+  clip-path: inset(0 0 100% 0);
+  transform: translate3d(0, 24px, 0);
+}
+
+.reveal-mask[data-state="in"] {
+  animation: rise-mask 0.9s var(--ease-out-expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes rise-mask {
+  from {
+    clip-path: inset(0 0 100% 0);
+    transform: translate3d(0, 24px, 0);
+  }
+  to {
+    clip-path: inset(-12% 0 -12% 0);
+    transform: none;
+  }
+}
+
+/* 2.5D stage (components/brand/depth-stage.tsx): the pointer writes --px/--py
+   (−1…1); every .parallax layer shifts by its own --shift, so far layers move
+   a little and near layers a lot. */
+.depth-stage {
+  --px: 0;
+  --py: 0;
+}
+
+.parallax {
+  transform: translate3d(calc(var(--px) * var(--shift, 12px)), calc(var(--py) * var(--shift, 12px)), 0);
+  transition: transform 700ms var(--ease-out-expo);
+}
+
+/* Small solids floating around the hero demo. */
+@keyframes float-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--tilt, 0deg));
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(calc(var(--tilt, 0deg) + 4deg));
+  }
+}
+
+.floater {
+  animation: float-drift var(--dur, 9s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Chapter solids turn in as they enter, where the browser can drive animation
+   from scroll; elsewhere they simply stand. */
+@supports (animation-timeline: view()) {
+  .turn-in {
+    animation: turn-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 100%;
+  }
+}
+
+@keyframes turn-in {
+  from {
+    transform: perspective(1200px) rotateY(-28deg) translate3d(0, 32px, -60px);
+    opacity: 0.5;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* The networks ring (components/brand/orbit.tsx): a real 3D carousel. The
+   ring turns; every tile counter-turns so its logo keeps facing the visitor,
+   and dims as it passes behind the mark. */
+.orbit-scene {
+  --orbit-r: 8.5rem;
+  --orbit-t: 36s;
+  /* How far the ring leans toward the visitor; the faces lean back by the same. */
+  --orbit-lean: -14deg;
+  perspective: 1200px;
+  /* The mark and the ring share one 3D space, so a tile behind the mark is
+     really hidden by it instead of painting over it. */
+  transform-style: preserve-3d;
+}
+
+@media (min-width: 640px) {
+  .orbit-scene {
+    --orbit-r: 11.5rem;
+  }
+}
+
+.orbit {
+  transform-style: preserve-3d;
+  transform: rotateX(var(--orbit-lean));
+  animation: orbit-spin var(--orbit-t) linear infinite;
+}
+
+/* No opacity on the item: opacity < 1 flattens a preserve-3d box, and the
+   face's counter-turn would collapse into the ring's plane. The fade lives on
+   the face, the leaf. */
+.orbit-item {
+  transform-style: preserve-3d;
+  transform: translate(-50%, -50%) rotateY(calc(var(--i) * 72deg)) translateZ(var(--orbit-r));
+}
+
+.orbit-face {
+  /* Still pose (reduced motion): every tile faces the visitor. */
+  transform: rotateY(calc(var(--i) * -72deg)) rotateX(calc(var(--orbit-lean) * -1));
+  animation:
+    orbit-counter var(--orbit-t) linear infinite,
+    orbit-fade var(--orbit-t) linear infinite;
+  animation-delay: 0s, calc(var(--i) * var(--orbit-t) / -5);
+}
+
+.orbit-core-wrap {
+  transform-style: preserve-3d;
+}
+
+.orbit-core {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+@keyframes orbit-spin {
+  from {
+    transform: rotateX(var(--orbit-lean)) rotateY(0deg);
+  }
+  to {
+    transform: rotateX(var(--orbit-lean)) rotateY(360deg);
+  }
+}
+
+@keyframes orbit-counter {
+  from {
+    transform: rotateY(calc(var(--i) * -72deg)) rotateX(calc(var(--orbit-lean) * -1));
+  }
+  to {
+    transform: rotateY(calc(var(--i) * -72deg - 360deg)) rotateX(calc(var(--orbit-lean) * -1));
+  }
+}
+
+@keyframes orbit-fade {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Sticky card deck (components/brand/card-stack.tsx): cards pin under each
+   other; the client writes --cover (0…1) as the next card slides over. */
+.stack-card {
+  position: relative;
+  transform: scale(calc(1 - var(--cover, 0) * 0.06));
+  transform-origin: top center;
+}
+
+/* Pinned only where a whole card fits under the header; on a phone a pinned
+   card taller than the screen would hide its own bottom under the next one. */
+@media (min-width: 1024px) and (min-height: 680px) {
+  .stack-card {
+    position: sticky;
+    top: calc(5.5rem + var(--i, 0) * 1.25rem);
+  }
+}
+
+/* The receding card dims under a midnight veil (opacity, not filter, so it
+   stays on the compositor). */
+.stack-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-midnight);
+  opacity: calc(var(--cover, 0) * 0.45);
+  pointer-events: none;
+}
+
+/* Module cards rise toward the pointer; the shadow underneath fades in on the
+   compositor (opacity), it is not repainted. */
+.lift {
+  position: relative;
+  isolation: isolate;
+  transition: transform 320ms var(--ease-out-expo);
+}
+
+.lift::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow: var(--shadow-float);
+  opacity: 0;
+  transition: opacity 320ms var(--ease-out-expo);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lift:hover {
+    transform: translate3d(0, -6px, 0);
+  }
+
+  .lift:hover::before {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -470,12 +682,33 @@ body {
     transition-duration: 0.01ms !important;
   }
 
-  .reveal[data-state="pending"] {
+  .reveal[data-state="pending"],
+  .reveal-mask[data-state="pending"] {
     opacity: 1;
+    clip-path: none;
     transform: none;
   }
 
-  .unfold {
+  .unfold,
+  .turn-in,
+  .orbit,
+  .orbit-item,
+  .orbit-face,
+  .orbit-core,
+  .floater {
     animation: none;
+  }
+
+  .parallax {
+    transform: none;
+  }
+
+  .stack-card,
+  .lift:hover {
+    transform: none;
+  }
+
+  .stack-card::after {
+    opacity: 0;
   }
 }
