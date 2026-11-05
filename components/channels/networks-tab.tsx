@@ -84,11 +84,14 @@ function instagramStatus(a: InstagramRow, now: number): { label: string; tone: T
 
 export default function NetworksTab({
   credentials,
+  credentialsLoading,
   canManage,
   onChanged,
   onNotice,
 }: {
   credentials: VaultCredential[];
+  /** The vault credentials are still on their way: no card may say "not connected" yet. */
+  credentialsLoading: boolean;
   canManage: boolean;
   /** Reload the vault credentials after a change. */
   onChanged: () => Promise<void>;
@@ -97,6 +100,7 @@ export default function NetworksTab({
   const [instagram, setInstagram] = useState<InstagramRow[]>([]);
   const [telegram, setTelegram] = useState<{ configured: boolean; botUsername: string | null; channels: TelegramRow[] }>({ configured: false, botUsername: null, channels: [] });
   const [now] = useState(() => Date.now());
+  const [ownLoading, setOwnLoading] = useState(true);
 
   const load = useCallback(async () => {
     const [ig, tg] = await Promise.all([
@@ -105,6 +109,7 @@ export default function NetworksTab({
     ]);
     if (ig.ok) setInstagram(ig.data.instagramAccounts);
     if (tg.ok) setTelegram({ configured: tg.data.configured, botUsername: tg.data.botUsername, channels: tg.data.channels });
+    setOwnLoading(false);
   }, []);
 
   useEffect(() => {
@@ -169,6 +174,7 @@ export default function NetworksTab({
     return { href: `/api/channels/connect/${key}` };
   };
 
+  const pending = (key: NetworkKey) => (key === "instagram" || key === "telegram" ? ownLoading : credentialsLoading);
   const live = (key: NetworkKey) => rows[key].filter((r) => r.status.label !== "Uzilgan");
   const needsCare = (key: NetworkKey) => rows[key].some((r) => r.status.tone === "error" || r.status.tone === "warning");
 
@@ -182,8 +188,8 @@ export default function NetworksTab({
               <ChannelMark channel={key} size="sm" />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-white">{NETWORK_NAME[key]}</span>
-                <span className={`block text-xs ${needsCare(key) ? "text-warning" : count ? "text-lime" : "text-muted"}`}>
-                  {needsCare(key) ? "E'tibor kerak" : count ? `${count} ta ulangan` : "Ulanmagan"}
+                <span className={`block text-xs ${pending(key) ? "text-muted" : needsCare(key) ? "text-warning" : count ? "text-lime" : "text-muted"}`}>
+                  {pending(key) ? "Tekshirilmoqda…" : needsCare(key) ? "E'tibor kerak" : count ? `${count} ta ulangan` : "Ulanmagan"}
                 </span>
               </span>
             </a>
@@ -205,7 +211,9 @@ export default function NetworksTab({
                 </div>
               </div>
 
-              {list.length === 0 ? (
+              {pending(key) ? (
+                <div className="inset h-[68px] animate-pulse" aria-busy="true" aria-label="Yuklanmoqda" />
+              ) : list.length === 0 ? (
                 <div className="inset px-4 py-5 text-center text-sm text-muted">Hali ulanmagan</div>
               ) : (
                 <ul className="space-y-2">
@@ -215,7 +223,7 @@ export default function NetworksTab({
                 </ul>
               )}
 
-              {canManage && (
+              {canManage && !pending(key) && (
                 <div className="mt-auto flex flex-wrap gap-2">
                   {connect ? (
                     <a className="btn btn-sm btn-lime" href={connect.href} {...(connect.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>

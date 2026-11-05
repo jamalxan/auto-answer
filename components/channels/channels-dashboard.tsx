@@ -110,6 +110,8 @@ export default function ChannelsDashboard() {
   const [inbox, setInbox] = useState<InboxMessage[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Only the first load hides the cards; a refresh keeps showing the last state.
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [notice, setNotice] = useState<Flash | null>(null);
   const seq = useRef(0);
 
@@ -132,6 +134,7 @@ export default function ChannelsDashboard() {
     const failed = [creds, box, cross].find((r) => !r.ok);
     if (failed && !failed.ok) setNotice({ tone: "error", text: failed.error });
     setLoading(false);
+    setLoadedOnce(true);
   }, []);
 
   useEffect(() => {
@@ -179,7 +182,7 @@ export default function ChannelsDashboard() {
       <Tabs tabs={[["accounts", "Tarmoqlar"], ["inbox", "Xabarlar", unread], ["autoreply", "Avto-javoblar"], ["crosspost", "Kross-post"]]} value={tab} onChange={setTab} />
 
       {tab === "accounts" ? (
-        <NetworksTab credentials={credentials} canManage={canManage} onChanged={load} onNotice={setNotice} />
+        <NetworksTab credentials={credentials} credentialsLoading={loading && !loadedOnce} canManage={canManage} onChanged={load} onNotice={setNotice} />
       ) : tab === "inbox" ? (
         <InboxTab inbox={inbox} caps={caps} canManage={canManage} accountName={accountName} post={post} />
       ) : tab === "autoreply" ? (
