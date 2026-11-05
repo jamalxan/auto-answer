@@ -1,15 +1,17 @@
 "use client";
 
 /**
- * Instagram Overview Page
+ * Overview: "Barcha tarmoqlar" (every connected network side by side, the
+ * default) and "Instagram" (the detailed Instagram insights below).
  *
- * Aggregate reach/engagement across your recent posts, plus a per-post table.
+ * Instagram: aggregate reach/engagement across your recent posts, plus a per-post table.
  * Views / reach / saved / shares come from Instagram media insights (requires
  * the insights permission); likes and comments are always available.
  */
 
 import { useEffect, useState } from "react";
 import AccountSelect from "@/components/account-select";
+import NetworkStatsView from "@/components/overview/network-stats";
 import StatCard from "@/components/stat-card";
 import FollowerChart from "@/components/follower-chart";
 import { EmptyState, PageHeader } from "@/components/ui/page";
@@ -25,6 +27,27 @@ function formatNumber(n: number | null): string {
 }
 
 export default function OverviewPage() {
+  const [view, setView] = useState<"all" | "instagram">("all");
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-2" role="tablist" aria-label="Statistika">
+        {(
+          [
+            ["all", "Barcha tarmoqlar"],
+            ["instagram", "Instagram batafsil"],
+          ] as const
+        ).map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={view === key} onClick={() => setView(key)} className={`chip ${view === key ? "chip-active" : ""}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === "all" ? <NetworkStatsView /> : <InstagramOverview />}
+    </div>
+  );
+}
+
+function InstagramOverview() {
   const { t, locale } = useLanguage();
   const formatDate = (iso: string) => formatShortMonthDay(new Date(iso), locale);
   const COUNT_OPTIONS = [

@@ -27,7 +27,9 @@ RUN npm ci
 COPY . .
 # `npm run build` = `prisma generate && next build` (see package.json) —
 # generates app/generated/prisma AND compiles .next/ in one step.
-RUN npm run build
+# The default V8 heap (~2 GB) runs out mid-build now and then on the 7 GB CI
+# runner ("Ineffective mark-compacts near heap limit"); give it 4 GB.
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
 FROM node:20-slim AS runner
 WORKDIR /app
