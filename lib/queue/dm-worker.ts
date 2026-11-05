@@ -27,7 +27,7 @@ import {
   sendPrivateReplyWithButton,
   sendPrivateReplyWithLinkButton,
 } from "@/lib/meta/client";
-import { dmFileAttachmentType, signedDmFileUrl } from "@/lib/campaigns/dm-file";
+import { appendLine, cleanDmFileName, dmFileAttachmentType, dmFileLinkLine, signedDmFileUrl } from "@/lib/campaigns/dm-file";
 import { decryptToken } from "@/lib/meta/oauth";
 import { markTokenBroken } from "@/lib/meta/token-health";
 import { matchKeywords } from "@/lib/utils/keyword-matcher";
@@ -201,13 +201,11 @@ async function sendCampaignFile(
         "[DM Worker] File attachment rejected, falling back to link:",
         formatError(attachmentError)
       );
-      // 7 days is the longest a presigned URL can live.
-      const longUrl = await signedDmFileUrl(automation.dmFileKey, 7 * 24 * 3600);
       await sendDirectMessage(
         accessToken,
         igId,
         userId,
-        `${automation.dmFileName || "File"}: ${longUrl}`
+        await dmFileLinkLine(automation.dmFileKey, automation.dmFileName)
       );
       return null;
     }
@@ -215,6 +213,25 @@ async function sendCampaignFile(
     console.error("[DM Worker] Failed to send campaign file:", formatError(error));
     return `File not delivered: ${formatError(error)}`;
   }
+}
+
+/** Instagram caps a text DM at 1000 characters and a button template's text at 640. */
+const IG_TEXT_MAX = 1000;
+const IG_BUTTON_TEXT_MAX = 640;
+const IG_MAX_BUTTONS = 3;
+
+/**
+ * The campaign file as a 7-day link, for the comment path. A private reply is
+ * the only message Instagram lets us send until the person writes back, so
+ * the file cannot follow as a second DM there; it rides inside the reply.
+ */
+async function campaignFileLink(
+  automation: RevealAutomation
+): Promise<{ url: string; line: string; title: string } | null> {
+  if (!automation.dmFileKey) return null;
+  const line = await dmFileLinkLine(automation.dmFileKey, automation.dmFileName);
+  const url = line.slice(line.indexOf(": ") + 2);
+  return { url, line, title: `📎 ${cleanDmFileName(automation.dmFileName)}` };
 }
 
 /**
@@ -747,6 +764,19 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       sendFollowPrompt = alreadyFollows !== true;
     }
 
+    // The file goes inside the reveal (see campaignFileLink). If its link
+    // cannot be made, the reveal still goes out and the log says why.
+    let fileError: string | null = null;
+    let fileLink: Awaited<ReturnType<typeof campaignFileLink>> = null;
+    if (!useOpeningDm && !sendFollowPrompt) {
+      try {
+        fileLink = await campaignFileLink(automation);
+      } catch (error) {
+        console.error("[DM Worker] Failed to sign campaign file link:", formatError(error));
+        fileError = `File not delivered: ${formatError(error)}`;
+      }
+    }
+
     try {
       if (useOpeningDm) {
         const openingText = renderMessageWithTracking({
@@ -781,7 +811,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         );
       } else if (automation.trackedLinks.length > 0) {
         // Try button template first; if Meta rejects it, fall back to inline links.
-        const bodyText =
+        let bodyText =
           renderMessageWithoutLink({
             message: automation.dmMessage,
             commenterName,
@@ -790,6 +820,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           automation.trackedLinks,
           automation.linkButtonLabel
         );
+        // The file is one more button when there is room, else a line of text.
+        if (fileLink && buttons.length < IG_MAX_BUTTONS) {
+          buttons.push({ title: fileLink.title, url: fileLink.url });
+        } else if (fileLink) {
+          bodyText = appendLine(bodyText, fileLink.line, IG_BUTTON_TEXT_MAX);
+        }
 
         try {
           await sendPrivateReplyWithLinkButton(
@@ -809,12 +845,15 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
             "[DM Worker] Button template rejected, falling back to inline link:",
             formatError(buttonError)
           );
-          const fallbackMessage = buildInlineLinkFallback(
+          const inlineLinks = buildInlineLinkFallback(
             automation.dmMessage,
             commenterName,
             automation.trackedLinks,
             bodyText
           );
+          const fallbackMessage = fileLink
+            ? appendLine(inlineLinks, fileLink.line, IG_TEXT_MAX)
+            : inlineLinks;
           try {
             await sendPrivateReply(
               accessToken,
@@ -830,7 +869,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           }
         }
       } else {
-        const dmMessage = renderMessageWithTracking({
+        const revealText = renderMessageWithTracking({
           message: automation.dmMessage,
           commenterName,
           trackedLinks: automation.trackedLinks,
@@ -839,17 +878,9 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           accessToken,
           automation.instagramAccount.instagramId,
           commentId,
-          dmMessage
+          fileLink ? appendLine(revealText, fileLink.line, IG_TEXT_MAX) : revealText
         );
       }
-
-      // The reveal went out as the private reply; the attached file follows as
-      // a normal DM into the conversation that reply just opened. Not after
-      // the opening DM or the follow prompt — the file is part of the reveal.
-      const fileError =
-        useOpeningDm || sendFollowPrompt
-          ? null
-          : await sendCampaignFile(accessToken, automation, commenterId);
 
       await prisma.dmLog.update({
         where: {

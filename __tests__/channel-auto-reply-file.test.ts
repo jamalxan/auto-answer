@@ -21,14 +21,16 @@ vi.mock("../lib/telegram/notify", () => ({ notifyWorkspaceChats: vi.fn(async () 
 vi.mock("../lib/javobai/budget", () => ({ enforceBudgetBeforeCall: async () => ({ allowed: false, flagged: false }) }));
 vi.mock("../lib/javobai/knowledge", () => ({ loadKnowledgeBlock: async () => null }));
 vi.mock("../lib/assistant/llm/provider", () => ({ getLlmProviderFor: () => null }));
-vi.mock("../lib/campaigns/dm-file", async (importOriginal) => {
-  const real = await importOriginal<typeof import("../lib/campaigns/dm-file")>();
+vi.mock("../lib/content/storage", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../lib/content/storage")>();
   return {
     ...real,
-    signedDmFileUrl: async (key: string, ttl = 3600) => `https://cdn.test/${key}?ttl=${ttl}`,
-    deleteDmFile: async (key: string | null | undefined) => {
-      if (key) deleted.push(key);
-    },
+    getStorage: () => ({
+      presignGet: async (key: string, ttl: number) => `https://cdn.test/${key}?ttl=${ttl}`,
+      deleteObject: async (key: string) => {
+        deleted.push(key);
+      },
+    }),
   };
 });
 
@@ -105,6 +107,9 @@ describe("file rule validation", () => {
   it("refuses a file key from another workspace and cleans up replaced / deleted files", async () => {
     await setup();
     await expect(createAutoReply("w1", rule({ doPrivate: true, privateReplies: ["x"], file: { ...PDF, key: "ws/w2/2026/11/abc123.pdf" } }))).rejects.toThrow(/Fayl topilmadi/);
+    // A content upload variant is not a DM file, and the declared type must match the key's.
+    await expect(createAutoReply("w1", rule({ doPrivate: true, privateReplies: ["x"], file: { ...PDF, key: "ws/w1/2026/11/abc123.thumb.jpg" } }))).rejects.toThrow(/Fayl topilmadi/);
+    await expect(createAutoReply("w1", rule({ channel: "threads", file: { ...PNG, key: "ws/w1/2026/11/abc123.pdf" } }))).rejects.toThrow(/mos emas/);
     const created = await createAutoReply("w1", rule({ doPrivate: true, privateReplies: ["x"], file: PDF }));
     expect(created).toMatchObject({ fileKey: PDF.key, fileName: "narxlar.pdf", fileMime: "application/pdf" });
     await updateAutoReply("w1", created.id, rule({ doPrivate: true, privateReplies: ["x"], file: null }));
@@ -113,6 +118,16 @@ describe("file rule validation", () => {
     await updateAutoReply("w1", created.id, rule({ doPrivate: true, privateReplies: ["x"], file: PNG }));
     await deleteAutoReply("w1", created.id);
     expect(deleted).toEqual([PDF.key, PNG.key]);
+  });
+
+  it("keeps a file another rule or a campaign still uses", async () => {
+    await setup();
+    const a = await createAutoReply("w1", rule({ doPrivate: true, privateReplies: ["x"], file: PDF }));
+    await createAutoReply("w1", rule({ name: "Nusxa", doPrivate: true, privateReplies: ["x"], file: PDF }));
+    db.seed("automation", { id: "camp1", workspaceId: "w1", name: "C", dmMessage: "hi", dmFileKey: PNG.key });
+    await updateAutoReply("w1", a.id, rule({ doPrivate: true, privateReplies: ["x"], file: PNG }));
+    await deleteAutoReply("w1", a.id);
+    expect(deleted).toEqual([]);
   });
 });
 
@@ -172,12 +187,55 @@ describe("sending files", () => {
     expect(db.rows("channelAutoReplyLog")[0]).toMatchObject({ status: "SENT", actions: ["public", "file"] });
   });
 
-  it("Threads: an image Meta rejects fails the reply instead of posting without it", async () => {
+  it("Threads: an image Meta rejects still lets the text reply go out, and the log says why", async () => {
     await setup("threads");
     await createAutoReply("w1", rule({ channel: "threads", file: PNG }));
     inbound({ channel: "threads" });
-    serve({ match: /\/th1\/threads/, reply: () => ({ body: { id: "cont1" } }) }, { match: /\/cont1\?/, reply: () => ({ body: { status: "ERROR", error_message: "bad image" } }) });
-    expect(await sweepAutoReplies(NOW)).toMatchObject({ failed: 1 });
-    expect(calls.some((c) => c.url.includes("threads_publish"))).toBe(false);
+    serve(
+      { match: /\/th1\/threads_publish/, reply: (_u, body) => ({ body: { id: body.includes("cont2") ? "pub2" : "never" } }) },
+      { match: /\/th1\/threads/, reply: (_u, body) => ({ body: { id: body.includes("IMAGE") ? "cont1" : "cont2" } }) },
+      { match: /\/cont1\?/, reply: () => ({ body: { status: "ERROR", error_message: "bad image" } }) },
+      { match: /\/pub2\?/, reply: () => ({ body: { permalink: "https://threads.net/p/2" } }) }
+    );
+    expect(await sweepAutoReplies(NOW)).toMatchObject({ sent: 1 });
+    const publishes = bodies().filter((_, i) => calls[i].url.includes("threads_publish"));
+    expect(publishes).toHaveLength(1);
+    expect(publishes[0]).toContain("creation_id=cont2");
+    expect(bodies().find((b) => b.includes("media_type=TEXT"))).toContain("reply_to_id=c1");
+    const log = db.rows("channelAutoReplyLog")[0];
+    expect(log).toMatchObject({ status: "SENT", actions: ["public"] });
+    expect(String(log.error)).toMatch(/bad image/);
+  });
+
+  it("Threads: a rate limit on the image reply is not hidden by a text retry", async () => {
+    await setup("threads");
+    await createAutoReply("w1", rule({ channel: "threads", file: PNG }));
+    inbound({ channel: "threads" });
+    serve({ match: /\/th1\/threads/, reply: () => ({ status: 400, body: { error: { code: 4, message: "Application request limit reached" } } }) });
+    await sweepAutoReplies(NOW);
+    expect(calls.filter((c) => c.url.includes("/th1/threads"))).toHaveLength(1);
+    expect(db.rows("channelAutoReplyLog")).toHaveLength(0); // deferred to the next sweep
+  });
+
+  it("stops picking up new messages once the sweep's time budget is spent", async () => {
+    await setup();
+    await createAutoReply("w1", rule());
+    inbound();
+    inbound();
+    serve({ match: /\/comments/, reply: () => ({ body: { id: "r" } }) });
+    expect(await sweepAutoReplies(NOW, -1)).toMatchObject({ looked: 0 });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("Facebook comment: a long private reply is shortened so the file link stays whole", async () => {
+    await setup();
+    await createAutoReply("w1", rule({ doPrivate: true, privateReplies: ["x".repeat(1000)], file: PDF }));
+    inbound();
+    serve({ match: /\/c1\/comments/, reply: () => ({ body: { id: "r1" } }) }, { match: /\/page1\/messages/, reply: () => ({ body: { message_id: "p1" } }) });
+    db.seed("channelMessage", { id: "pad", workspaceId: "w1", channel: "facebook", accountRef: credId, kind: "comment", chatId: credId, threadRef: "post1", externalId: "other", direction: "OUT", text: "", createdAt: NOW });
+    expect(await sweepAutoReplies(NOW)).toMatchObject({ sent: 1 });
+    const text: string = JSON.parse(calls[1].body).message.text;
+    expect(text.endsWith(`📎 narxlar.pdf: https://cdn.test/${PDF.key}?ttl=604800`)).toBe(true);
+    expect(text.length).toBeLessThanOrEqual(2000);
   });
 });
