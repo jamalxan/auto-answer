@@ -70,7 +70,9 @@ function addMetrics(into: Metrics, raw: Partial<Record<keyof Metrics, number | n
   return out;
 }
 
-async function liveMetrics(network: "facebook" | "threads" | "youtube", creds: ChannelCredentials, externalId: string, now: number): Promise<Record<string, number>> {
+type LiveNetwork = "facebook" | "threads" | "youtube";
+
+async function liveMetrics(network: LiveNetwork, creds: ChannelCredentials, externalId: string, now: number): Promise<Record<string, number>> {
   const key = `${network}:${externalId}`;
   const hit = cache.get(key);
   if (hit && now - hit.at < CACHE_MS) return hit.metrics;
@@ -196,45 +198,61 @@ export async function getNetworkStats(workspaceId: string, opts: { days: number;
   }
 
   if (live) {
-    const vault = accounts.filter((a) => (a.network === "facebook" || a.network === "threads" || a.network === "youtube") && a.published > 0 && !a.note);
-    await Promise.all(
-      vault.map(async (acc) => {
-        const network = acc.network as "facebook" | "threads" | "youtube";
-        try {
-          const creds = await usableCredentials(workspaceId, acc.id, now);
-          const posts = await prisma.channelPostTarget.findMany({
-            where: { workspaceId, accountRef: acc.id, status: "PUBLISHED", publishedAt: { gte: since, lte: now } },
-            orderBy: { publishedAt: "desc" },
-            take: LIVE_POSTS_PER_ACCOUNT,
-            select: { externalIds: true },
-          });
-          let sum: Metrics = EMPTY;
-          let covered = 0;
-          let lastError: unknown = null;
-          for (const p of posts) {
-            const id = p.externalIds[0];
-            if (!id) continue;
-            try {
-              sum = addMetrics(sum, await liveMetrics(network, creds, id, now.getTime()));
-              covered += 1;
-            } catch (error) {
-              lastError = error;
-              // A dead token fails every post the same way: stop early.
-              if (error instanceof ChannelError && (error.kind === "auth" || error.kind === "rate_limit")) break;
-            }
-          }
-          acc.metrics = covered ? sum : null;
-          acc.metricsPosts = covered;
-          if (!covered && lastError) acc.note = noteFor(lastError);
-          else if (acc.published > covered && covered === LIVE_POSTS_PER_ACCOUNT) acc.note = `Oxirgi ${LIVE_POSTS_PER_ACCOUNT} ta post bo'yicha`;
-        } catch (error) {
-          acc.note = noteFor(error);
-        }
-      })
-    );
+    const vault = accounts.filter((a) => isLive(a.network) && a.published > 0 && !a.note);
+    await Promise.all(vault.map((acc) => liveForAccount(workspaceId, acc, since, now)));
   }
 
-  const totals = Object.fromEntries(
+  return { days: opts.days, since: since.toISOString(), accounts, totals: totalsOf(accounts) };
+}
+
+function isLive(network: StatsNetwork): network is LiveNetwork {
+  return network === "facebook" || network === "threads" || network === "youtube";
+}
+
+/**
+ * Live metrics of an account's latest posts in the range: fills acc.metrics /
+ * metricsPosts / note and returns the metrics of each post by its external id.
+ */
+async function liveForAccount(workspaceId: string, acc: AccountStats, since: Date, now: Date): Promise<Map<string, Metrics>> {
+  const perPost = new Map<string, Metrics>();
+  const network = acc.network as LiveNetwork;
+  try {
+    const creds = await usableCredentials(workspaceId, acc.id, now);
+    const posts = await prisma.channelPostTarget.findMany({
+      where: { workspaceId, accountRef: acc.id, status: "PUBLISHED", publishedAt: { gte: since, lte: now } },
+      orderBy: { publishedAt: "desc" },
+      take: LIVE_POSTS_PER_ACCOUNT,
+      select: { externalIds: true },
+    });
+    let sum: Metrics = EMPTY;
+    let covered = 0;
+    let lastError: unknown = null;
+    for (const p of posts) {
+      const id = p.externalIds[0];
+      if (!id) continue;
+      try {
+        const m = addMetrics(EMPTY, await liveMetrics(network, creds, id, now.getTime()));
+        perPost.set(id, m);
+        sum = addMetrics(sum, m);
+        covered += 1;
+      } catch (error) {
+        lastError = error;
+        // A dead token fails every post the same way: stop early.
+        if (error instanceof ChannelError && (error.kind === "auth" || error.kind === "rate_limit")) break;
+      }
+    }
+    acc.metrics = covered ? sum : null;
+    acc.metricsPosts = covered;
+    if (!covered && lastError) acc.note = noteFor(lastError);
+    else if (acc.published > covered && covered === LIVE_POSTS_PER_ACCOUNT) acc.note = `Oxirgi ${LIVE_POSTS_PER_ACCOUNT} ta post bo'yicha`;
+  } catch (error) {
+    acc.note = noteFor(error);
+  }
+  return perPost;
+}
+
+function totalsOf(accounts: AccountStats[]): NetworkStats["totals"] {
+  return Object.fromEntries(
     STATS_NETWORKS.map((n) => {
       const rows = accounts.filter((a) => a.network === n);
       const withMetrics = rows.filter((a) => a.metrics);
@@ -251,6 +269,164 @@ export async function getNetworkStats(workspaceId: string, opts: { days: number;
       ];
     })
   ) as NetworkStats["totals"];
+}
 
-  return { days: opts.days, since: since.toISOString(), accounts, totals };
+// ─── One network in detail ─────────────────────────────────────────────────────
+
+export type DetailNetwork = Exclude<StatsNetwork, "instagram">;
+export const DETAIL_NETWORKS: DetailNetwork[] = ["facebook", "threads", "youtube", "telegram"];
+/** Posts listed in the detail table (newest first). */
+export const DETAIL_POSTS = 50;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const TASHKENT_MS = 5 * 60 * 60 * 1000;
+
+export interface DetailPost {
+  id: string;
+  accountId: string;
+  accountLabel: string;
+  caption: string | null;
+  status: "PUBLISHED" | "FAILED";
+  publishedAt: string | null;
+  failedAt: string | null;
+  error: string | null;
+  permalink: string | null;
+  /** Null when not fetched: older than the latest few, Telegram, or the platform refused. */
+  metrics: Metrics | null;
+}
+
+export interface DailyPoint {
+  date: string;
+  published: number;
+  failed: number;
+  inbound: number;
+  replies: number;
+}
+
+export interface NetworkDetail {
+  network: DetailNetwork;
+  days: number;
+  since: string;
+  /** Every account of the network (the account picker), whatever the filter. */
+  allAccounts: Array<{ id: string; label: string }>;
+  accountId: string | null;
+  accounts: AccountStats[];
+  totals: NetworkStats["totals"][StatsNetwork];
+  daily: DailyPoint[];
+  posts: DetailPost[];
+  postsTotal: number;
+}
+
+/** Calendar day in Tashkent (the product's home timezone). */
+function dayKey(d: Date): string {
+  return new Date(d.getTime() + TASHKENT_MS).toISOString().slice(0, 10);
+}
+
+export function permalinkOf(network: DetailNetwork, externalId: string | undefined, telegram?: { chatId: string; username: string | null }): string | null {
+  if (!externalId) return null;
+  if (network === "facebook") return `https://www.facebook.com/${encodeURIComponent(externalId)}`;
+  if (network === "youtube") return `https://www.youtube.com/watch?v=${encodeURIComponent(externalId)}`;
+  if (network === "telegram" && telegram) {
+    const first = externalId.split(",")[0];
+    if (!/^\d+$/.test(first)) return null;
+    if (telegram.username && /^[A-Za-z0-9_]+$/.test(telegram.username)) return `https://t.me/${telegram.username}/${first}`;
+    const internal = telegram.chatId.replace(/^-100/, "");
+    return /^\d+$/.test(internal) ? `https://t.me/c/${internal}/${first}` : null;
+  }
+  // Threads media ids are not the URL shortcode and the permalink is not stored.
+  return null;
+}
+
+export async function getNetworkDetail(
+  workspaceId: string,
+  network: DetailNetwork,
+  opts: { days: number; accountId?: string | null; now?: Date; live?: boolean }
+): Promise<NetworkDetail | null> {
+  const now = opts.now ?? new Date();
+  const since = new Date(now.getTime() - opts.days * DAY_MS);
+  const base = await getNetworkStats(workspaceId, { days: opts.days, now, live: false });
+  const all = base.accounts.filter((a) => a.network === network);
+  const accountId = opts.accountId && all.some((a) => a.id === opts.accountId) ? opts.accountId : null;
+  if (opts.accountId && !accountId) return null;
+  const accounts = accountId ? all.filter((a) => a.id === accountId) : all;
+  const refs = accounts.map((a) => a.id);
+
+  const targetWhere = {
+    workspaceId,
+    channel: network,
+    accountRef: { in: refs },
+    status: { in: ["PUBLISHED", "FAILED"] as Array<"PUBLISHED" | "FAILED"> },
+    OR: [{ publishedAt: { gte: since, lte: now } }, { status: "FAILED" as const, updatedAt: { gte: since, lte: now } }],
+  };
+  const [targets, messages, tgChannels] = await Promise.all([
+    refs.length
+      ? prisma.channelPostTarget.findMany({
+          where: targetWhere,
+          take: 5000,
+          select: { id: true, accountRef: true, status: true, externalIds: true, publishedAt: true, updatedAt: true, lastError: true, post: { select: { caption: true } } },
+        })
+      : Promise.resolve([]),
+    refs.length
+      ? prisma.channelMessage.findMany({ where: { workspaceId, accountRef: { in: refs }, createdAt: { gte: since, lte: now } }, select: { createdAt: true, direction: true }, take: 20_000 })
+      : Promise.resolve([]),
+    network === "telegram" && refs.length ? prisma.telegramChannel.findMany({ where: { workspaceId, id: { in: refs } }, select: { id: true, chatId: true, username: true } }) : Promise.resolve([]),
+  ]);
+
+  // Live metrics: the same latest-posts window and cache as the overview.
+  const perPost = new Map<string, Metrics>();
+  if ((opts.live ?? true) && isLive(network)) {
+    await Promise.all(
+      accounts
+        .filter((a) => a.published > 0 && !a.note)
+        .map(async (acc) => {
+          for (const [id, m] of await liveForAccount(workspaceId, acc, since, now)) perPost.set(id, m);
+        })
+    );
+  }
+
+  // One point per day of the range, zero-filled so the chart has no gaps.
+  const daily = new Map<string, DailyPoint>();
+  for (let t = since.getTime(); t < now.getTime() + DAY_MS; t += DAY_MS) {
+    const key = dayKey(new Date(Math.min(t, now.getTime())));
+    if (!daily.has(key)) daily.set(key, { date: key, published: 0, failed: 0, inbound: 0, replies: 0 });
+  }
+  const at = (t: (typeof targets)[number]) => (t.status === "PUBLISHED" ? t.publishedAt : t.updatedAt) ?? t.updatedAt;
+  for (const t of targets) {
+    const point = daily.get(dayKey(at(t)));
+    if (point) point[t.status === "PUBLISHED" ? "published" : "failed"] += 1;
+  }
+  for (const m of messages) {
+    const point = daily.get(dayKey(m.createdAt));
+    if (point) point[m.direction === "IN" ? "inbound" : "replies"] += 1;
+  }
+
+  const label = new Map(accounts.map((a) => [a.id, a.label]));
+  const tg = new Map(tgChannels.map((c) => [c.id, c]));
+  const posts: DetailPost[] = [...targets]
+    .sort((a, b) => at(b).getTime() - at(a).getTime())
+    .slice(0, DETAIL_POSTS)
+    .map((t) => ({
+      id: t.id,
+      accountId: t.accountRef,
+      accountLabel: label.get(t.accountRef) ?? "",
+      caption: t.post?.caption?.trim() || null,
+      status: t.status as "PUBLISHED" | "FAILED",
+      publishedAt: t.publishedAt?.toISOString() ?? null,
+      failedAt: t.status === "FAILED" ? t.updatedAt.toISOString() : null,
+      error: t.status === "FAILED" ? t.lastError : null,
+      permalink: t.status === "PUBLISHED" ? permalinkOf(network, t.externalIds[0], tg.get(t.accountRef)) : null,
+      metrics: (t.externalIds[0] && perPost.get(t.externalIds[0])) || null,
+    }));
+
+  return {
+    network,
+    days: opts.days,
+    since: since.toISOString(),
+    allAccounts: all.map((a) => ({ id: a.id, label: a.label })),
+    accountId,
+    accounts,
+    totals: totalsOf(accounts)[network],
+    daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    posts,
+    postsTotal: targets.length,
+  };
 }
