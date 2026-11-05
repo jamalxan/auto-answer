@@ -22,13 +22,14 @@ export async function GET() {
   const instagramAccounts = await prisma.instagramAccount.findMany({
     where: { workspaceId },
     orderBy: { connectedAt: "desc" },
-    select: { id: true, username: true, instagramId: true, name: true },
+    select: { id: true, username: true, instagramId: true, name: true, tokenStatus: true, tokenExpiresAt: true, tokenLastError: true, canPublish: true, webhookSubscribed: true },
   });
 
   return NextResponse.json({
     success: true,
     data: {
-      instagramAccounts,
+      // Status fields feed the Channels page; the token itself never leaves the server.
+      instagramAccounts: instagramAccounts.map(({ tokenLastError, ...a }) => ({ ...a, disconnected: tokenLastError === "Disconnected by user" })),
       selectedInstagramAccountId: instagramAccounts[0]?.id ?? null,
     },
   });

@@ -11,14 +11,20 @@ export type ChannelKey = "facebook" | "threads" | "youtube";
 
 export const CHANNEL_NAME: Record<ChannelKey, string> = { facebook: "Facebook", threads: "Threads", youtube: "YouTube" };
 
-const MARK: Record<ChannelKey, { glyph: string; cls: string }> = {
+/** Every network the workspace can connect; Instagram and Telegram have their own connect flows. */
+export type NetworkKey = "instagram" | ChannelKey | "telegram";
+export const NETWORK_NAME: Record<NetworkKey, string> = { instagram: "Instagram", ...CHANNEL_NAME, telegram: "Telegram" };
+
+const MARK: Record<NetworkKey, { glyph: string; cls: string }> = {
+  instagram: { glyph: "◎", cls: "bg-[linear-gradient(135deg,#f58529,#dd2a7b_50%,#8134af)] text-white" },
+  telegram: { glyph: "➤", cls: "bg-[#29a9eb] text-white" },
   facebook: { glyph: "f", cls: "bg-[#1877f2] text-white" },
   threads: { glyph: "@", cls: "bg-white text-midnight" },
   youtube: { glyph: "▶", cls: "bg-[#ff0033] text-white" },
 };
 
 /** A rounded monogram stands in for each platform's logo. */
-export function ChannelMark({ channel, size = "md" }: { channel: ChannelKey; size?: "sm" | "md" }) {
+export function ChannelMark({ channel, size = "md" }: { channel: NetworkKey; size?: "sm" | "md" }) {
   const { glyph, cls } = MARK[channel];
   return (
     <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-2xl font-bold ${cls} ${size === "sm" ? "h-7 w-7 text-sm" : "h-11 w-11 text-xl"}`}>

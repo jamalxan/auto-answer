@@ -51,5 +51,7 @@ describe("OAuth state and token encryption", () => {
       expect(verifyOAuthState(createOAuthState("w", bad))?.returnTo).toBeUndefined();
     }
     expect(safeOAuthReturnPath("/developer")).toBe("/developer");
+    expect(safeOAuthReturnPath("/channels")).toBe("/channels");
+    expect(safeOAuthReturnPath("/channelsx")).toBeUndefined();
   });
 });

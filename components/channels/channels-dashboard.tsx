@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Channels: Facebook Page, Threads and YouTube on the main dashboard.
- * Four tabs: connected accounts (OAuth connect, status from the vault,
- * disconnect), the inbox (comments and Messenger; public / private reply,
+ * Channels: every network the workspace publishes to, side by side.
+ * Four tabs: the networks (Instagram, Facebook, Threads, YouTube and
+ * Telegram: connect, health, disconnect), the inbox (comments and Messenger; public / private reply,
  * hide), auto-reply rules and cross-posting Content Plan posts to those accounts.
  * Reads are open to every role; connecting and replying need owner/admin.
  */
@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, inputClass } from "@/components/assistant-ui";
 import { Card, EmptyState, Label, PageHeader } from "@/components/ui/page";
 import { AutoRepliesTab } from "@/components/channels/auto-replies-tab";
+import NetworksTab from "@/components/channels/networks-tab";
 import { CHANNEL_NAME, ChannelMark, FlashNotice, Tabs, formatDateTime, type ChannelKey } from "@/components/channels/ui";
 import { takeFlash, type Flash } from "@/lib/flash";
 import { jsonInit, requestJson } from "@/lib/request-json";
@@ -75,12 +76,6 @@ const CHANNELS: Array<{ key: ChannelKey; hint: string }> = [
   { key: "youtube", hint: "Video va Shorts. Kommentlarga javob. Google tasdiqlamaguncha video private chiqadi." },
 ];
 
-const STATUS: Record<Credential["status"], { label: string; tone: Tone }> = {
-  ACTIVE: { label: "Ulangan", tone: "success" },
-  EXPIRING: { label: "Muddati tugayapti", tone: "warning" },
-  ERROR: { label: "Qayta ulang", tone: "error" },
-  REVOKED: { label: "Uzilgan", tone: "muted" },
-};
 const TARGET_STATUS: Record<Target["status"], { label: string; tone: Tone }> = {
   PENDING: { label: "Navbatda", tone: "warning" },
   PUBLISHING: { label: "Chiqmoqda", tone: "warning" },
@@ -143,8 +138,11 @@ export default function ChannelsDashboard() {
     // The OAuth outcome arrives in a one-shot cookie (never the URL); drop any stale query string.
     // Strict Mode runs effects twice: the second read finds the cookie gone and must not wipe the notice.
     const flash = takeFlash();
+    // The Instagram OAuth callback comes back with ?connected=true.
+    const igConnected = new URLSearchParams(window.location.search).get("connected") === "true";
     // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after hydration
     if (flash) setNotice(flash);
+    else if (igConnected) setNotice({ tone: "success", text: "Instagram akkaunt ulandi" });
     if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
     void load();
   }, [load]);
@@ -162,13 +160,12 @@ export default function ChannelsDashboard() {
     return cred && isChannel(cred.channel) ? `${CHANNEL_NAME[cred.channel]} · ${cred.label ?? cred.externalAccountId}` : id;
   };
 
-  const connected = credentials.filter((c) => c.status !== "REVOKED").length;
   const unread = inbox.filter((m) => m.direction === "IN").length;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
-        description="Facebook sahifa, Threads va YouTube'ni ulang: kommentlar va xabarlar bitta joyda, postlar esa Kontent rejadan o'zi chiqadi."
+        description="Instagram, Facebook, Threads, YouTube va Telegram: hammasi shu yerda ulanadi. Postlar Kontent rejadan tanlangan tarmoqlarga o'zi chiqadi."
         actions={
           <Button tone="ghost" disabled={loading} onClick={() => void load()}>
             {loading ? "Yangilanmoqda…" : "Yangilash"}
@@ -179,10 +176,10 @@ export default function ChannelsDashboard() {
       <FlashNotice flash={notice} />
       {!canManage && !loading && credentials.length > 0 && <FlashNotice flash={{ tone: "warning", text: "Ulash va javob yozishni faqat workspace egasi yoki admin qila oladi. Siz ko'ra olasiz." }} />}
 
-      <Tabs tabs={[["accounts", "Akkauntlar", connected], ["inbox", "Xabarlar", unread], ["autoreply", "Avto-javoblar"], ["crosspost", "Kross-post"]]} value={tab} onChange={setTab} />
+      <Tabs tabs={[["accounts", "Tarmoqlar"], ["inbox", "Xabarlar", unread], ["autoreply", "Avto-javoblar"], ["crosspost", "Kross-post"]]} value={tab} onChange={setTab} />
 
       {tab === "accounts" ? (
-        <AccountsTab credentials={credentials} canManage={canManage} onRevoke={(id) => void post("/api/channels/credentials", { action: "revoke", id }, "Akkaunt uzildi")} />
+        <NetworksTab credentials={credentials} canManage={canManage} onChanged={load} onNotice={setNotice} />
       ) : tab === "inbox" ? (
         <InboxTab inbox={inbox} caps={caps} canManage={canManage} accountName={accountName} post={post} />
       ) : tab === "autoreply" ? (
@@ -190,57 +187,6 @@ export default function ChannelsDashboard() {
       ) : (
         <CrossPostTab posts={posts} credentials={credentials} canManage={canManage} accountName={accountName} post={post} />
       )}
-    </div>
-  );
-}
-
-function AccountsTab({ credentials, canManage, onRevoke }: { credentials: Credential[]; canManage: boolean; onRevoke: (id: string) => void }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {CHANNELS.map((channel) => {
-        const rows = credentials.filter((c) => c.channel === channel.key && c.status !== "REVOKED");
-        return (
-          <Card key={channel.key} className="flex flex-col gap-4">
-            <div className="flex items-start gap-3">
-              <ChannelMark channel={channel.key} />
-              <div className="min-w-0">
-                <h2 className="text-base font-bold text-white">{CHANNEL_NAME[channel.key]}</h2>
-                <p className="mt-1 text-sm leading-6 text-muted">{channel.hint}</p>
-              </div>
-            </div>
-
-            {rows.length === 0 ? (
-              <div className="inset px-4 py-5 text-center text-sm text-muted">Hali ulanmagan</div>
-            ) : (
-              <div className="space-y-2">
-                {rows.map((cred) => (
-                  <div key={cred.id} className="inset space-y-2 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="min-w-0 break-words text-sm font-semibold text-white">{cred.label ?? cred.externalAccountId}</span>
-                      <Badge tone={STATUS[cred.status].tone}>{STATUS[cred.status].label}</Badge>
-                    </div>
-                    <p className="text-xs text-muted">
-                      Tekshirildi: {formatDateTime(cred.checkedAt)}
-                      {cred.lastErrorCode ? ` · xato: ${cred.lastErrorCode}` : ""}
-                    </p>
-                    {canManage && (
-                      <Button tone="danger" onClick={() => onRevoke(cred.id)}>
-                        Uzish
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {canManage && (
-              <a className="btn btn-sm btn-lime mt-auto" href={`/api/channels/connect/${channel.key}`}>
-                {rows.length ? "Yana qo'shish / qayta ulash" : "Ulash"}
-              </a>
-            )}
-          </Card>
-        );
-      })}
     </div>
   );
 }
@@ -271,7 +217,7 @@ function InboxTab({ inbox, caps, canManage, accountName, post }: { inbox: InboxM
 
       {rows.length === 0 ? (
         <Card>
-          <EmptyState title="Xabar yo'q" body="Sahifangizga komment yoki Messenger xabari kelganda shu yerda ko'rinadi. Avval «Akkauntlar» bo'limida kanalni ulang." />
+          <EmptyState title="Xabar yo'q" body="Sahifangizga komment yoki Messenger xabari kelganda shu yerda ko'rinadi. Avval «Tarmoqlar» bo'limida kanalni ulang." />
         </Card>
       ) : (
         <div className="space-y-3">
@@ -362,7 +308,7 @@ function CrossPostTab({ posts, credentials, canManage, accountName, post }: { po
 
   return (
     <div className="space-y-3">
-      {usable.length === 0 && <FlashNotice flash={{ tone: "warning", text: "Avval «Akkauntlar» bo'limida kamida bitta kanalni ulang." }} />}
+      {usable.length === 0 && <FlashNotice flash={{ tone: "warning", text: "Avval «Tarmoqlar» bo'limida kamida bitta kanalni ulang." }} />}
       {posts.map((row) => (
         <Card key={row.id}>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
