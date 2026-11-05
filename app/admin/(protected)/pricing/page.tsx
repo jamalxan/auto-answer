@@ -5,6 +5,8 @@ import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
 import AdminConfirmSubmitButton from "@/components/admin-confirm-submit-button";
 import AdminPricingPlanForm from "@/components/admin-pricing-plan-form";
+import { adminCopy } from "@/lib/admin/copy";
+import { AdminTitle } from "@/components/admin/parts";
 
 export const metadata: Metadata = {
   title: "Pricing - Admin",
@@ -20,20 +22,15 @@ const EMPTY_CONTENT = {
 export default async function AdminPricingPage() {
   const [pricingPlans, locale] = await Promise.all([getAllPricingPlans(), getServerLocale()]);
   const t = dictionaries[locale].admin;
+  const c = adminCopy(locale);
 
   return (
-    <section className="panel rounded-xl p-4 sm:p-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="font-display text-xl font-extrabold text-foreground">{t.pricingTitle}</h1>
-        <span className="label-mono inline-flex items-center rounded border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-bold text-gold">
-          {t.pricingDraftBadge}
-        </span>
-      </div>
-      <p className="mt-1 text-sm text-muted">{t.pricingSubtitle}</p>
+    <div className="space-y-6">
+      <AdminTitle title={c.pricingTitle} sub={c.pricingSub} />
 
-      <div className="mt-6 space-y-6">
+      <div className="space-y-4">
         {pricingPlans.map((plan) => (
-          <div key={plan.id} className="rounded border border-border p-4">
+          <div key={plan.id} className="panel rounded-3xl p-5 sm:p-6">
             <form action={savePricingPlan}>
               <input type="hidden" name="id" value={plan.id} />
               <AdminPricingPlanForm
@@ -51,7 +48,7 @@ export default async function AdminPricingPage() {
               <div className="mt-4 flex gap-2">
                 <button
                   type="submit"
-                  className="label-mono rounded bg-accent px-4 py-1.5 text-xs font-bold text-background transition hover:bg-accent-hover"
+                  className="btn btn-sm btn-primary"
                 >
                   {t.pricingSave}
                 </button>
@@ -59,7 +56,7 @@ export default async function AdminPricingPage() {
                   formAction={deletePricingPlan}
                   confirmMessage={t.pricingConfirmDelete}
                   label={t.pricingDelete}
-                  className="label-mono rounded border border-red-500/40 px-4 py-1.5 text-xs font-bold text-red-500 transition hover:bg-red-500/10"
+                  className="btn btn-sm btn-danger"
                 />
               </div>
             </form>
@@ -67,9 +64,9 @@ export default async function AdminPricingPage() {
         ))}
       </div>
 
-      <div className="mt-6 rounded border border-dashed border-border p-4">
-        <h2 className="text-xs font-bold text-foreground">{t.pricingAddTitle}</h2>
-        <form action={savePricingPlan} className="mt-3">
+      <div className="panel rounded-3xl !border-dashed !border-white/15 p-5 sm:p-6">
+        <h2 className="text-base font-bold text-white">{c.pricingAdd}</h2>
+        <form action={savePricingPlan} className="mt-4">
           <AdminPricingPlanForm
             labels={t}
             slug=""
@@ -86,13 +83,13 @@ export default async function AdminPricingPage() {
           <div className="mt-4">
             <button
               type="submit"
-              className="label-mono rounded bg-accent px-4 py-1.5 text-xs font-bold text-background transition hover:bg-accent-hover"
+              className="btn btn-sm btn-primary"
             >
               {t.pricingSave}
             </button>
           </div>
         </form>
       </div>
-    </section>
+    </div>
   );
 }

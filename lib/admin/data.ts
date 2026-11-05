@@ -15,7 +15,12 @@ export interface AdminWorkspaceRow {
   dmsSentThisPeriod: number;
   lastDmAt: Date | null;
   isSuspended: boolean;
+  planSlug: string;
+  /** Connected accounts per network (Instagram from its own table, the rest from credentials). */
+  networkCounts: Partial<Record<"instagram" | "facebook" | "threads" | "youtube" | "telegram", number>>;
 }
+
+export type AdminWorkspaceFilter = "all" | "paying" | "new" | "suspended";
 
 export interface AdminStats {
   totalWorkspaces: number;
@@ -80,6 +85,7 @@ export interface AdminWorkspacesOptions {
   query?: string;
   /** 1-indexed. */
   page?: number;
+  filter?: AdminWorkspaceFilter;
 }
 
 /** The searchable, paginated workspace table — the platform-admin Workspaces page. */
@@ -89,14 +95,24 @@ export async function getAdminWorkspaces(
   const query = options.query?.trim();
   const page = Math.max(1, options.page ?? 1);
 
-  const where = query
+  const now = new Date();
+  const filterWhere =
+    options.filter === "paying"
+      ? { planSlug: { not: "start" }, OR: [{ planExpiresAt: null }, { planExpiresAt: { gt: now } }] }
+      : options.filter === "new"
+        ? { createdAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }
+        : options.filter === "suspended"
+          ? { isSuspended: true }
+          : {};
+  const searchWhere = query
     ? {
         OR: [
           { name: { contains: query, mode: "insensitive" as const } },
           { owner: { email: { contains: query, mode: "insensitive" as const } } },
         ],
       }
-    : undefined;
+    : {};
+  const where = { AND: [filterWhere, searchWhere] };
 
   const [matchingWorkspaces, workspaces] = await Promise.all([
     prisma.workspace.count({ where }),
@@ -111,6 +127,7 @@ export async function getAdminWorkspaces(
         createdAt: true,
         dmsSentThisPeriod: true,
         isSuspended: true,
+        planSlug: true,
         owner: { select: { email: true } },
         _count: {
           select: {
@@ -142,6 +159,11 @@ export async function getAdminWorkspaces(
   const dmsSentMap = new Map(
     dmsSentByWorkspace.map((row) => [row.workspaceId, row._count._all])
   );
+  const credRows = await prisma.channelCredential.groupBy({
+    by: ["workspaceId", "channel"],
+    where: { workspaceId: { in: workspaces.map((w) => w.id) }, channel: { not: "instagram" } },
+    _count: { _all: true },
+  });
 
   return {
     matchingWorkspaces,
@@ -160,6 +182,11 @@ export async function getAdminWorkspaces(
       dmsSentThisPeriod: w.dmsSentThisPeriod,
       lastDmAt: w.dmLogs[0]?.dmSentAt ?? null,
       isSuspended: w.isSuspended,
+      planSlug: w.planSlug,
+      networkCounts: {
+        instagram: w._count.instagramAccounts,
+        ...Object.fromEntries(credRows.filter((r) => r.workspaceId === w.id).map((r) => [r.channel, r._count._all])),
+      },
     })),
   };
 }

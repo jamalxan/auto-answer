@@ -19,11 +19,11 @@ export default async function AdminForgotPasswordPage({
     <main className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-foreground">
+          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-white">
             <LogoMark />
             SocialAuto
           </span>
-          <h1 className="mt-4 font-display text-2xl font-extrabold text-foreground">
+          <h1 className="display mt-6 text-[1.75rem] text-white">
             Parolni tiklash
           </h1>
           <p className="mt-2 text-sm text-muted">
@@ -32,23 +32,23 @@ export default async function AdminForgotPasswordPage({
         </div>
 
         {params.sent === "1" ? (
-          <p className="mt-6 rounded border border-emerald-500/40 bg-emerald-500/10 p-3 text-center text-sm text-emerald-500">
+          <p className="mt-6 rounded-2xl bg-lime/12 px-4 py-3 text-center text-sm text-lime">
             {"Agar bu email admin akkauntga bog'langan bo'lsa, tiklash havolasi yuborildi. Pochta qutingizni tekshiring (spam papkasini ham)."}
           </p>
         ) : (
           <form action={adminForgotPasswordAction} className="mt-6 space-y-4">
             <label className="block text-sm">
-              <span className="text-muted">Email</span>
+              <span className="font-medium text-cloud/85">Email</span>
               <input
                 name="email"
                 type="email"
                 required
-                className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+                className="input mt-1.5 !bg-surface"
               />
             </label>
             <button
               type="submit"
-              className="label-mono w-full rounded bg-accent px-4 py-2.5 text-xs font-bold text-background transition hover:bg-accent-hover"
+              className="btn btn-lime w-full"
             >
               Havola yuborish
             </button>
