@@ -63,10 +63,21 @@ const POST_INCLUDE = {
   media: { include: { media: true }, orderBy: { position: "asc" as const } },
 };
 
-async function loadPost(postId: string) {
+async function loadAnyPost(postId: string) {
   return prisma.scheduledPost.findUnique({ where: { id: postId }, include: POST_INCLUDE });
 }
-type PostRow = NonNullable<Awaited<ReturnType<typeof loadPost>>>;
+type AnyPostRow = NonNullable<Awaited<ReturnType<typeof loadAnyPost>>>;
+type PostRow = AnyPostRow & { instagramAccountId: string; instagramAccount: NonNullable<AnyPostRow["instagramAccount"]> };
+
+/**
+ * The Instagram pipeline only: a network-only post (no Instagram account) is
+ * published by the cross-post sweep and never reaches these jobs, so for it
+ * this returns null like a missing post.
+ */
+async function loadPost(postId: string): Promise<PostRow | null> {
+  const post = await loadAnyPost(postId);
+  return post && post.instagramAccountId && post.instagramAccount ? (post as PostRow) : null;
+}
 
 async function attempt(postId: string, step: string, ok: boolean, extra: { message?: string; metaCode?: number; metaSubcode?: number; fbTraceId?: string; durationMs?: number } = {}) {
   await prisma.publishAttempt.create({
@@ -85,14 +96,14 @@ async function move(postId: string, from: PostStatusValue[], data: Record<string
   return r.count > 0;
 }
 
-function postLabel(post: PostRow): string {
+function postLabel(post: Pick<AnyPostRow, "type">): string {
   const names: Record<string, string> = { FEED_IMAGE: "Post", FEED_VIDEO: "Video", CAROUSEL: "Karusel", REEL: "Reels", TRIAL_REEL: "Trial Reels", STORY: "Story" };
   return names[post.type] ?? post.type;
 }
 
 /** FAILED (or NEEDS_MANUAL) with the reason, the attempt row, the event and the owner's alert. */
 export async function failPost(postId: string, code: PublishErrorCode, message: string, opts: { toManual?: boolean; step?: string } = {}): Promise<void> {
-  const post = await loadPost(postId);
+  const post = await loadAnyPost(postId);
   if (!post) return;
   const next: PostStatusValue = opts.toManual ? "NEEDS_MANUAL" : "FAILED";
   const moved = await move(postId, ["SCHEDULED", "PREPARING", "READY_TO_PUBLISH", "PUBLISHING", "FAILED"], {
@@ -108,11 +119,13 @@ export async function failPost(postId: string, code: PublishErrorCode, message: 
   }).catch(() => undefined);
   const label = postLabel(post);
   const when = post.scheduledAt ? formatZoned(post.scheduledAt, post.timezone) : "";
+  const handle = post.instagramAccount ? `@${post.instagramAccount.username}` : null;
+  const where = [handle, when || null].filter(Boolean).join(", ");
   await alertWorkspace(
     post.workspaceId,
-    `${label} chiqmadi — @${post.instagramAccount.username}`,
-    `❌ <b>${label} chiqmadi</b> (@${post.instagramAccount.username}${when ? `, ${when}` : ""})\n${message}\nSocialAuto → Kontent bo'limida postni oching.`,
-    `${label} chiqmadi (@${post.instagramAccount.username}${when ? `, ${when}` : ""}). ${message}. SocialAuto → Kontent bo'limida postni oching.`
+    `${label} chiqmadi${handle ? ` — ${handle}` : ""}`,
+    `❌ <b>${label} chiqmadi</b>${where ? ` (${where})` : ""}\n${message}\nSocialAuto → Kontent bo'limida postni oching.`,
+    `${label} chiqmadi${where ? ` (${where})` : ""}. ${message}. SocialAuto → Kontent bo'limida postni oching.`
   ).catch(() => undefined);
 }
 

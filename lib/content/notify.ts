@@ -81,7 +81,7 @@ async function busyAccounts(now: Date): Promise<string[]> {
     select: { instagramAccountId: true },
     take: 5_000,
   });
-  return [...new Set(rows.map((r) => r.instagramAccountId))].slice(0, BATCH);
+  return [...new Set(rows.map((r) => r.instagramAccountId).filter((id): id is string => Boolean(id)))].slice(0, BATCH);
 }
 
 /** "Ertaga X ta post, akkaunt BROKEN" for every account that cannot publish what it has queued. */
