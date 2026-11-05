@@ -31,47 +31,47 @@ export default async function AdminResetPasswordPage({
     <main className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-foreground">
+          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-white">
             <LogoMark />
             SocialAuto
           </span>
-          <h1 className="mt-4 font-display text-2xl font-extrabold text-foreground">
+          <h1 className="display mt-6 text-[1.75rem] text-white">
             Yangi parol
           </h1>
         </div>
 
         {errorMessage && (
-          <p className="mt-6 rounded border border-red-500/40 bg-red-500/10 p-3 text-center text-sm text-red-500">
+          <p className="mt-6 rounded-2xl bg-error/12 px-4 py-3 text-center text-sm text-error">
             {errorMessage}
           </p>
         )}
 
         <form action={action} className="mt-6 space-y-4">
           <label className="block text-sm">
-            <span className="text-muted">Yangi parol</span>
+            <span className="font-medium text-cloud/85">Yangi parol</span>
             <input
               name="newPassword"
               type="password"
               autoComplete="new-password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+              className="input mt-1.5 !bg-surface"
             />
           </label>
           <label className="block text-sm">
-            <span className="text-muted">Yangi parolni takrorlang</span>
+            <span className="font-medium text-cloud/85">Yangi parolni takrorlang</span>
             <input
               name="confirmPassword"
               type="password"
               autoComplete="new-password"
               required
               minLength={8}
-              className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+              className="input mt-1.5 !bg-surface"
             />
           </label>
           <button
             type="submit"
-            className="label-mono w-full rounded bg-accent px-4 py-2.5 text-xs font-bold text-background transition hover:bg-accent-hover"
+            className="btn btn-lime w-full"
           >
             Parolni saqlash
           </button>

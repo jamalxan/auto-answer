@@ -1,30 +1,30 @@
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/admin/auth";
 import { getServerLocale } from "@/lib/i18n/get-locale";
-import { dictionaries } from "@/lib/i18n/translations";
+import { adminCopy } from "@/lib/admin/copy";
 import AdminShell from "@/components/admin-shell";
 
-export default async function AdminProtectedLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
   const session = await getAdminSession();
   if (!session) {
     redirect("/admin/login");
   }
 
-  const locale = await getServerLocale();
-  const t = dictionaries[locale].admin;
+  const c = adminCopy(await getServerLocale());
 
   return (
     <AdminShell
+      admin={{ username: session.username, email: session.email }}
       labels={{
-        navStats: t.navStats,
-        navWorkspaces: t.navWorkspaces,
-        navPricing: t.navPricing,
-        navSettings: t.navSettings,
-        navLogout: t.navLogout,
+        badge: c.badge,
+        navOverview: c.navOverview,
+        navCustomers: c.navCustomers,
+        navPricing: c.navPricing,
+        navSettings: c.navSettings,
+        logout: c.logout,
+        openMenu: c.openMenu,
+        closeMenu: c.closeMenu,
+        signedInAs: c.signedInAs,
       }}
     >
       {children}

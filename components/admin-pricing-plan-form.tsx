@@ -21,8 +21,7 @@ interface Labels {
   pricingSave: string;
 }
 
-const inputClass =
-  "mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none";
+const inputClass = "input mt-1.5";
 
 /**
  * The plan editor: plain per-locale text fields (name/description/one
@@ -63,19 +62,19 @@ export default function AdminPricingPlanForm({
   return (
     <div className="grid gap-4">
       <div className="grid gap-3 sm:grid-cols-6">
-        <label className="text-xs text-muted sm:col-span-2">
+        <label className="text-sm font-medium text-cloud/85 sm:col-span-2">
           {labels.pricingFieldSlug}
           {slugLocked ? (
             <input
               disabled
               defaultValue={slug}
-              className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm text-muted"
+              className="input mt-1.5"
             />
           ) : (
             <input name="slug" placeholder={slugPlaceholder} className={inputClass} />
           )}
         </label>
-        <label className="text-xs text-muted">
+        <label className="text-sm font-medium text-cloud/85">
           {labels.pricingFieldPrice}
           <input
             type="number"
@@ -84,15 +83,15 @@ export default function AdminPricingPlanForm({
             className={inputClass}
           />
         </label>
-        <label className="text-xs text-muted">
+        <label className="text-sm font-medium text-cloud/85">
           {labels.pricingFieldCurrency}
           <input name="priceCurrency" defaultValue={priceCurrency} className={inputClass} />
         </label>
-        <label className="text-xs text-muted">
+        <label className="text-sm font-medium text-cloud/85">
           {labels.pricingFieldSuffix}
           <input name="priceSuffix" defaultValue={priceSuffix} className={inputClass} />
         </label>
-        <label className="text-xs text-muted">
+        <label className="text-sm font-medium text-cloud/85">
           {labels.pricingFieldOrder}
           <input
             type="number"
@@ -104,11 +103,11 @@ export default function AdminPricingPlanForm({
       </div>
 
       <div className="flex gap-6">
-        <label className="flex items-center gap-2 text-xs text-muted">
+        <label className="flex items-center gap-2 text-sm font-medium text-cloud/85">
           <input type="checkbox" name="isFeatured" defaultChecked={isFeatured} />
           {labels.pricingFieldFeatured}
         </label>
-        <label className="flex items-center gap-2 text-xs text-muted">
+        <label className="flex items-center gap-2 text-sm font-medium text-cloud/85">
           <input type="checkbox" name="isActive" defaultChecked={isActive} />
           {labels.pricingFieldActive}
         </label>
@@ -116,11 +115,11 @@ export default function AdminPricingPlanForm({
 
       <div className="grid gap-3 lg:grid-cols-3">
         {LOCALES.map((locale) => (
-          <div key={locale} className="rounded border border-border p-3">
-            <p className="label-mono text-[11px] font-bold text-accent">
+          <div key={locale} className="rounded-2xl border border-white/8 p-4">
+            <p className="text-sm font-bold text-lime">
               {localeLabel[locale]}
             </p>
-            <label className="mt-2 block text-xs text-muted">
+            <label className="mt-2 block text-sm font-medium text-cloud/85">
               {labels.pricingFieldName}
               <input
                 name={`name_${locale}`}
@@ -128,7 +127,7 @@ export default function AdminPricingPlanForm({
                 className={inputClass}
               />
             </label>
-            <label className="mt-2 block text-xs text-muted">
+            <label className="mt-2 block text-sm font-medium text-cloud/85">
               {labels.pricingFieldDescription}
               <textarea
                 name={`description_${locale}`}
@@ -137,7 +136,7 @@ export default function AdminPricingPlanForm({
                 className={inputClass}
               />
             </label>
-            <label className="mt-2 block text-xs text-muted">
+            <label className="mt-2 block text-sm font-medium text-cloud/85">
               {labels.pricingFieldFeatures}
               <textarea
                 name={`features_${locale}`}
@@ -145,7 +144,7 @@ export default function AdminPricingPlanForm({
                 defaultValue={(content[locale]?.features ?? []).join("\n")}
                 className={`${inputClass} font-mono`}
               />
-              <span className="mt-1 block text-[11px] text-muted">
+              <span className="mt-1 block text-xs text-muted">
                 {labels.pricingFeaturesHint}
               </span>
             </label>

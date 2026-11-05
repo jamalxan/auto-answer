@@ -2,19 +2,18 @@ import type { Metadata } from "next";
 import { adminChangePasswordAction } from "@/lib/admin/auth-actions";
 import { getServerLocale } from "@/lib/i18n/get-locale";
 import { dictionaries } from "@/lib/i18n/translations";
+import { adminCopy } from "@/lib/admin/copy";
+import { AdminTitle, Panel } from "@/components/admin/parts";
 
 export const metadata: Metadata = {
   title: "Settings - Admin",
   robots: { index: false, follow: false },
 };
 
-export default async function AdminSettingsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string; success?: string }>;
-}) {
+export default async function AdminSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; success?: string }> }) {
   const [locale, params] = await Promise.all([getServerLocale(), searchParams]);
   const t = dictionaries[locale].admin;
+  const c = adminCopy(locale);
 
   const errorMessages: Record<string, string> = {
     too_short: t.settingsErrorTooShort,
@@ -24,64 +23,31 @@ export default async function AdminSettingsPage({
   const errorMessage = params.error ? errorMessages[params.error] : null;
 
   return (
-    <section className="panel max-w-lg rounded p-4 sm:p-6">
-      <h1 className="font-display text-xl font-extrabold text-foreground">{t.settingsTitle}</h1>
+    <div className="space-y-6">
+      <AdminTitle title={c.settingsTitle} sub={c.settingsSub} />
 
-      <div className="mt-6 rounded border border-border p-4">
-        <h2 className="text-sm font-semibold text-foreground">{t.settingsChangePassword}</h2>
+      <Panel title={c.passwordTitle} sub={c.passwordHint} className="max-w-xl">
+        {params.success === "1" && <p className="mb-4 rounded-2xl bg-lime/12 px-4 py-3 text-sm text-lime">{t.settingsSuccess}</p>}
+        {errorMessage && <p className="mb-4 rounded-2xl bg-error/12 px-4 py-3 text-sm text-error">{errorMessage}</p>}
 
-        {params.success === "1" && (
-          <p className="mt-3 rounded border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-sm text-emerald-500">
-            {t.settingsSuccess}
-          </p>
-        )}
-        {errorMessage && (
-          <p className="mt-3 rounded border border-red-500/40 bg-red-500/10 p-2.5 text-sm text-red-500">
-            {errorMessage}
-          </p>
-        )}
-
-        <form action={adminChangePasswordAction} className="mt-4 space-y-3">
-          <label className="block text-xs text-muted">
-            {t.settingsCurrentPassword}
-            <input
-              name="currentPassword"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
-            />
+        <form action={adminChangePasswordAction} className="space-y-4">
+          <label className="block">
+            <span className="text-sm font-medium text-cloud/85">{t.settingsCurrentPassword}</span>
+            <input name="currentPassword" type="password" autoComplete="current-password" required className="input mt-1.5" />
           </label>
-          <label className="block text-xs text-muted">
-            {t.settingsNewPassword}
-            <input
-              name="newPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
-            />
+          <label className="block">
+            <span className="text-sm font-medium text-cloud/85">{t.settingsNewPassword}</span>
+            <input name="newPassword" type="password" autoComplete="new-password" required minLength={8} className="input mt-1.5" />
           </label>
-          <label className="block text-xs text-muted">
-            {t.settingsConfirmPassword}
-            <input
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
-            />
+          <label className="block">
+            <span className="text-sm font-medium text-cloud/85">{t.settingsConfirmPassword}</span>
+            <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} className="input mt-1.5" />
           </label>
-          <button
-            type="submit"
-            className="label-mono rounded bg-accent px-4 py-1.5 text-xs font-bold text-background transition hover:bg-accent-hover"
-          >
+          <button type="submit" className="btn btn-sm btn-primary">
             {t.settingsSave}
           </button>
         </form>
-      </div>
-    </section>
+      </Panel>
+    </div>
   );
 }

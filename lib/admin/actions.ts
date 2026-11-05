@@ -37,6 +37,8 @@ export async function setWorkspaceSuspended(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/admin/workspaces");
+  revalidatePath(`/admin/workspaces/${workspaceId}`);
+  revalidatePath("/admin");
 }
 
 const LOCALES: Locale[] = ["uz", "ru", "en"];

@@ -32,49 +32,49 @@ export default async function AdminLoginPage({
     <main className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground">
       <div className="w-full max-w-sm">
         <div className="text-center">
-          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-foreground">
+          <span className="inline-flex items-center gap-2.5 font-display text-lg font-extrabold tracking-tight text-white">
             <LogoMark />
             SocialAuto
           </span>
-          <h1 className="mt-4 font-display text-2xl font-extrabold text-foreground">
+          <h1 className="display mt-6 text-[1.75rem] text-white">
             Admin panel
           </h1>
         </div>
 
         {params.reset === "1" && (
-          <p className="mt-6 rounded border border-emerald-500/40 bg-emerald-500/10 p-3 text-center text-sm text-emerald-500">
+          <p className="mt-6 rounded-2xl bg-lime/12 px-4 py-3 text-center text-sm text-lime">
             Parol yangilandi. Endi tizimga kiring.
           </p>
         )}
         {errorMessage && (
-          <p className="mt-6 rounded border border-red-500/40 bg-red-500/10 p-3 text-center text-sm text-red-500">
+          <p className="mt-6 rounded-2xl bg-error/12 px-4 py-3 text-center text-sm text-error">
             {errorMessage}
           </p>
         )}
 
         <form action={adminLoginAction} className="mt-6 space-y-4">
           <label className="block text-sm">
-            <span className="text-muted">Login yoki email</span>
+            <span className="font-medium text-cloud/85">Login yoki email</span>
             <input
               name="username"
               autoComplete="username"
               required
-              className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+              className="input mt-1.5 !bg-surface"
             />
           </label>
           <label className="block text-sm">
-            <span className="text-muted">Parol</span>
+            <span className="font-medium text-cloud/85">Parol</span>
             <input
               name="password"
               type="password"
               autoComplete="current-password"
               required
-              className="mt-1 w-full rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
+              className="input mt-1.5 !bg-surface"
             />
           </label>
           <button
             type="submit"
-            className="label-mono w-full rounded bg-accent px-4 py-2.5 text-xs font-bold text-background transition hover:bg-accent-hover"
+            className="btn btn-lime w-full"
           >
             Kirish
           </button>
