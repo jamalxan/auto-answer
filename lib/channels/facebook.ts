@@ -439,3 +439,24 @@ export function normalizeFacebookWebhook(payload: unknown, rawRef: string | null
   }
   return events;
 }
+
+/**
+ * Likes, comments and shares of one published object (feed post, photo or
+ * video) from its edges. Needs only pages_read_engagement, unlike the
+ * /insights path (read_insights is not enabled for the app). `shares` exists
+ * on feed posts only (their ids are "<page>_<post>").
+ */
+export async function facebookPostCounts(creds: ChannelCredentials, objectId: string): Promise<Record<string, number>> {
+  const { token, tenantId } = ctx(creds);
+  const fields = ["reactions.summary(total_count).limit(0)", "comments.summary(total_count).limit(0)", ...(objectId.includes("_") ? ["shares"] : [])];
+  const data = await metaJson<{ reactions?: { summary?: { total_count?: number } }; comments?: { summary?: { total_count?: number } }; shares?: { count?: number } }>(
+    facebookGraph(objectId, { fields: fields.join(","), access_token: token }),
+    LABEL,
+    { tenantId }
+  );
+  const out: Record<string, number> = {};
+  if (typeof data.reactions?.summary?.total_count === "number") out.likes = data.reactions.summary.total_count;
+  if (typeof data.comments?.summary?.total_count === "number") out.comments = data.comments.summary.total_count;
+  if (typeof data.shares?.count === "number") out.shares = data.shares.count;
+  return out;
+}
